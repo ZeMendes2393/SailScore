@@ -1,8 +1,8 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List
+from datetime import datetime, date
 
+# ---------- NOTICE ----------
 class NoticeOut(BaseModel):
     id: int
     filename: str
@@ -10,7 +10,7 @@ class NoticeOut(BaseModel):
     uploaded_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---------- AUTH ----------
 class UserCreate(BaseModel):
@@ -42,10 +42,9 @@ class RegattaRead(RegattaCreate):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---------- ENTRY ----------
-
 class EntryCreate(BaseModel):
     # Boat data
     class_name: str
@@ -72,3 +71,63 @@ class EntryCreate(BaseModel):
 
     regatta_id: int
     user_id: int
+    paid: Optional[bool] = False
+
+class EntryRead(EntryCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+# ---------- RESULT ✅ CORRIGIDO ----------
+class ResultCreate(BaseModel):
+    regatta_id: int
+    race_id: int  # ✅ ADICIONAR ISTO
+    sail_number: Optional[str]
+    boat_name: Optional[str]
+    boat_class: Optional[str]
+    helm_name: Optional[str]
+    position: int
+    points: float
+
+
+class ResultRead(BaseModel):
+    id: int
+    regatta_id: int
+    race_id: int
+    sail_number: Optional[str]
+    boat_name: Optional[str]
+    boat_class: Optional[str] = Field(..., alias="class_name")     # <- alias aqui
+    helm_name: Optional[str] = Field(..., alias="skipper_name")    # <- alias aqui
+    position: int
+    points: float
+
+    class Config:
+        from_attributes = True
+        allow_population_by_field_name = True
+# ---------- RACE ✅ ----------
+class RaceCreate(BaseModel):
+    name: str
+    regatta_id: int
+    date: date
+
+class RaceRead(BaseModel):
+    id: int
+    name: str
+    regatta_id: int
+    date: str
+
+    class Config:
+        from_attributes = True
+
+
+class RegattaRead(BaseModel):
+    id: int
+    name: str
+    location: str
+    start_date: str
+    end_date: str
+
+    class Config:
+        from_attributes = True  # ou orm_mode = True em versões mais antigas
+

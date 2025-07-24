@@ -1,78 +1,78 @@
-"use client";
+'use client'
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from 'react'
 
 interface User {
-  email: string;
-  role: string;
+  email: string
+  role: string
 }
 
 interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  loading: boolean;
-  setUser: (user: User | null) => void; // 👈 ADICIONAR ISTO
+  user: User | null
+  token: string | null
+  login: (token: string, user: User) => void
+  logout: () => void
+  loading: boolean
+  setUser: (user: User | null) => void
 }
 
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
+    const storedToken = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
 
-    console.log("🔐 Recuperando token:", storedToken);
-    console.log("🔐 Recuperando user:", storedUser);
+    console.log('🔐 Recuperando token:', storedToken)
+    console.log('🔐 Recuperando user:', storedUser)
 
     if (storedToken && storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUser(parsedUser);
-        console.log("✅ Autenticado com:", parsedUser);
+        const parsedUser = JSON.parse(storedUser)
+        setToken(storedToken)
+        setUser(parsedUser)
+        console.log('✅ Autenticado com:', parsedUser)
       } catch (e) {
-        console.error("❌ Erro ao parsear user do localStorage:", e);
+        console.error('❌ Erro ao parsear user do localStorage:', e)
       }
     } else {
-      console.log("⚠️ Nenhum token/user encontrado.");
+      console.log('⚠️ Nenhum token/user encontrado.')
     }
 
-    setLoading(false);
-  }, []);
+    setLoading(false)
+  }, [])
 
   const login = (token: string, user: User) => {
-  console.log("🔐 [AuthContext] login chamado:", user);
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(user));
-  setToken(token);
-  setUser(user);
-  setLoading(false); // <-- garante que a mudança de estado é visível
-};
+    console.log('🔐 [AuthContext] login chamado:', user)
+    localStorage.setItem('token', token) // ✅ importante!
+    localStorage.setItem('user', JSON.stringify(user)) // garantir que vai para localStorage
+    setToken(token)
+    setUser(user)
+    setLoading(false)
+  }
 
   const logout = () => {
-    console.log("🚪 Logout efetuado.");
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken(null);
-    setUser(null);
-  };
+    console.log('🚪 Logout efetuado.')
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setToken(null)
+    setUser(null)
+  }
 
   return (
-<AuthContext.Provider value={{ user, token, login, logout, loading, setUser }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, setUser }}>
       {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used inside AuthProvider");
-  return context;
-};
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth must be used inside AuthProvider')
+  return context
+}
+export { AuthContext }

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app import models
 from app.schemas import RegattaCreate
+from typing import List
+from app import models, schemas
+from app.database import get_db
 
 router = APIRouter()
 
@@ -32,3 +34,7 @@ def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
     return regatta
+
+@router.get("/", response_model=List[schemas.RegattaRead])
+def get_all_regattas(db: Session = Depends(get_db)):
+    return db.query(models.Regatta).all()

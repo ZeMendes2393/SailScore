@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext"; // ✅ importa o contexto
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const router = useRouter();
+  const { login } = useAuth(); // ✅ usa o login do contexto
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +32,6 @@ export default function LoginPage() {
       });
 
       const data = await response.json();
-
       console.log("📨 Resposta da API:", data);
 
       if (!response.ok) {
@@ -39,14 +41,14 @@ export default function LoginPage() {
         return;
       }
 
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("role", data.role);
-      localStorage.setItem("user", JSON.stringify({ email, role: data.role }));
+      // ✅ Guarda o token e user no AuthContext
+      login(data.access_token, { email, role: data.role });
 
       console.log("✅ Login bem-sucedido. Role:", data.role);
 
       setLoading(false);
 
+      // ✅ Redirecionamento com base no papel
       if (data.role === "admin") {
         console.log("➡️ Redirecionar para /admin");
         router.push("/admin");
@@ -92,14 +94,13 @@ export default function LoginPage() {
           </button>
         </form>
         <div className="mt-4 text-center">
-  <p className="text-sm">
-    Ainda não tens conta?{" "}
-    <a href="/register" className="text-blue-600 hover:underline font-medium">
-      Criar conta
-    </a>
-  </p>
-</div>
-
+          <p className="text-sm">
+            Ainda não tens conta?{" "}
+            <a href="/register" className="text-blue-600 hover:underline font-medium">
+              Criar conta
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 interface Regatta {
   id: number;
@@ -14,6 +16,8 @@ interface Regatta {
 
 export default function AdminPage() {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
+  const { logout } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchRegattas = async () => {
@@ -28,6 +32,11 @@ export default function AdminPage() {
     fetchRegattas();
   }, []);
 
+  const handleLogout = () => {
+    logout();
+    router.push("/"); // Ou "/" se preferires voltar ao início
+  };
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -40,6 +49,13 @@ export default function AdminPage() {
           <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
           <Link href="/admin/settings" className="hover:underline">Settings</Link>
         </nav>
+
+        <button
+          onClick={handleLogout}
+          className="mt-6 text-sm text-red-600 hover:underline"
+        >
+          Terminar sessão
+        </button>
       </aside>
 
       {/* Conteúdo principal */}
@@ -63,7 +79,7 @@ export default function AdminPage() {
                 <th>Dates</th>
                 <th>Location</th>
                 <th>Status</th>
-                <th></th> {/* Coluna para botão */}
+                <th></th>
               </tr>
             </thead>
             <tbody>

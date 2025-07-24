@@ -63,7 +63,7 @@ export default function RegattaDetails() {
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
-        {activeTab === "entry" && <EntryList regattaId={parseInt(id)} />}
+{activeTab === "entry" && <EntryList regattaId={parseInt(id)} />}
         {activeTab === "notice" && <NoticeBoard regattaId={parseInt(id)} />}
         {activeTab === "form" && <MultiStepEntryForm regattaId={parseInt(id)} />}
         {activeTab === "results" && <ResultsViewer regattaId={parseInt(id)} />}

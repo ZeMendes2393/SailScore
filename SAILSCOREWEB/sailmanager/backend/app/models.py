@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
+
 
 class User(Base):
     __tablename__ = "users"
@@ -13,6 +14,7 @@ class User(Base):
 
     entries = relationship("Entry", back_populates="user")
 
+
 class Regatta(Base):
     __tablename__ = "regattas"
     id = Column(Integer, primary_key=True, index=True)
@@ -21,7 +23,7 @@ class Regatta(Base):
     start_date = Column(String)
     end_date = Column(String)
 
-    # Novos campos opcionais
+    # Campos opcionais
     description = Column(String, nullable=True)
     poster_url = Column(String, nullable=True)
     notice_board_url = Column(String, nullable=True)
@@ -29,6 +31,9 @@ class Regatta(Base):
     online_entry_url = Column(String, nullable=True)
 
     entries = relationship("Entry", back_populates="regatta")
+    results = relationship("Result", back_populates="regatta")
+    races = relationship("Race", back_populates="regatta")  # ✅ novo relacionamento
+
 
 class Entry(Base):
     __tablename__ = "entries"
@@ -59,9 +64,11 @@ class Entry(Base):
 
     regatta_id = Column(Integer, ForeignKey("regattas.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
+    paid = Column(Boolean, default=False)
 
     regatta = relationship("Regatta", back_populates="entries")
     user = relationship("User", back_populates="entries")
+
 
 class Notice(Base):
     __tablename__ = "notices"
@@ -71,4 +78,33 @@ class Notice(Base):
     filepath = Column(String, nullable=False)
     regatta_id = Column(Integer, ForeignKey("regattas.id"))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
-    title = Column(String, nullable=False)  # ✅ novo campo
+    title = Column(String, nullable=False)
+
+
+class Race(Base):
+    __tablename__ = "races"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id"), nullable=False)
+    name = Column(String, nullable=False)
+    date = Column(String, nullable=True)  # ✅ esta linha
+
+    regatta = relationship("Regatta", back_populates="races")
+    results = relationship("Result", back_populates="race")
+
+
+class Result(Base):
+    __tablename__ = "results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id"), nullable=False)
+    race_id = Column(Integer, ForeignKey("races.id"), nullable=False)  # ✅ novo
+    sail_number = Column(String, nullable=True)
+    boat_name = Column(String, nullable=True)
+    class_name = Column(String, nullable=True)
+    skipper_name = Column(String, nullable=True)
+    position = Column(Integer, nullable=False)
+    points = Column(Float, nullable=False)
+
+    regatta = relationship("Regatta", back_populates="results")
+    race = relationship("Race", back_populates="results")
