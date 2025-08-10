@@ -19,9 +19,10 @@ interface Entry {
 
 interface EntryListProps {
   regattaId: number;
+  selectedClass: string | null; // ✅ nova prop
 }
 
-export default function EntryList({ regattaId }: EntryListProps) {
+export default function EntryList({ regattaId, selectedClass }: EntryListProps) {
   const { user, token } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -31,15 +32,20 @@ export default function EntryList({ regattaId }: EntryListProps) {
   useEffect(() => {
     const fetchEntries = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/entries/by_regatta/${regattaId}`);
+        const url = selectedClass
+          ? `http://localhost:8000/entries/by_regatta/${regattaId}?class=${encodeURIComponent(selectedClass)}`
+          : `http://localhost:8000/entries/by_regatta/${regattaId}`;
+
+        const res = await fetch(url);
         const data = await res.json();
         setEntries(data);
       } catch (err) {
         console.error("❌ Erro a carregar inscrições:", err);
       }
     };
+
     fetchEntries();
-  }, [regattaId]);
+  }, [regattaId, selectedClass]); // ✅ depende também da classe selecionada
 
   const togglePaid = async (entryId: number) => {
     if (!isAdmin || !token) return;
@@ -78,7 +84,7 @@ export default function EntryList({ regattaId }: EntryListProps) {
   return (
     <div>
       {entries.length === 0 ? (
-        <p className="text-gray-500">Ainda não há inscrições para esta regata.</p>
+        <p className="text-gray-500">Ainda não há inscrições para esta classe nesta regata.</p>
       ) : (
         <table className="w-full table-auto border mt-2 text-sm">
           <thead className="bg-gray-100 text-left">

@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app import models, schemas
-from fastapi import Depends, HTTPException, status
 from utils.auth_utils import get_current_user
-from app import models  # assegura que tens esta importação
 
 router = APIRouter()
 
@@ -52,8 +50,15 @@ def create_entry(entry: schemas.EntryCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/by_regatta/{regatta_id}")
-def get_entries_by_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id).all()
+def get_entries_by_regatta(
+    regatta_id: int,
+    class_name: str | None = Query(None, alias="class"),  # 👈 aceita o filtro
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
+    if class_name:
+        query = query.filter(models.Entry.class_name == class_name)
+    return query.all()
 
 
 @router.get("/{entry_id}", response_model=schemas.EntryRead)
@@ -64,14 +69,13 @@ def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
     return entry
 
 
-
 @router.patch("/{entry_id}/toggle_paid")
 def toggle_paid(
     entry_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)  # 👈 aqui está a mudança
+    current_user: models.User = Depends(get_current_user)
 ):
-    if current_user.role != "admin":  # 👈 usa ponto, não colchetes
+    if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
     
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()

@@ -1,18 +1,51 @@
 "use client";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Step1Props {
   data: {
     role: string;
     class_name: string;
+    regatta_id?: number;
   };
   onChange: (data: { role?: string; class_name?: string }) => void;
   onNext: () => void;
 }
 
+interface RegattaClass {
+  id: number;
+  regatta_id: number;
+  class_name: string;
+}
+
 export default function Step1({ data, onChange, onNext }: Step1Props) {
   const [localData, setLocalData] = useState(data);
+  const [availableClasses, setAvailableClasses] = useState<RegattaClass[]>([]);
+
+  // ⚡ Vai buscar classes permitidas da regata
+  useEffect(() => {
+    if (!data.regatta_id) return;
+
+    fetch(`http://localhost:8000/regatta-classes/by_regatta/${data.regatta_id}`)
+      .then((res) => {
+        if (!res.ok) {
+          console.warn("⚠️ Regatta classes fetch falhou:", res.status);
+          return [];
+        }
+        return res.json();
+      })
+      .then((classes) => {
+        if (Array.isArray(classes)) {
+          setAvailableClasses(classes);
+        } else {
+          console.error("❌ Resposta inesperada:", classes);
+          setAvailableClasses([]);
+        }
+      })
+      .catch((err) => {
+        console.error("❌ Erro ao carregar classes:", err);
+        setAvailableClasses([]);
+      });
+  }, [data.regatta_id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -56,10 +89,11 @@ export default function Step1({ data, onChange, onNext }: Step1Props) {
           className="w-full p-2 border rounded"
         >
           <option value="">Selecione</option>
-          <option value="Snipe">Snipe</option>
-          <option value="Laser">Laser</option>
-          <option value="420">420</option>
-          {/* Adiciona mais opções conforme necessário */}
+          {availableClasses.map((cls) => (
+            <option key={cls.id} value={cls.class_name}>
+              {cls.class_name}
+            </option>
+          ))}
         </select>
       </div>
 

@@ -32,7 +32,17 @@ class Regatta(Base):
 
     entries = relationship("Entry", back_populates="regatta")
     results = relationship("Result", back_populates="regatta")
-    races = relationship("Race", back_populates="regatta")  # ✅ novo relacionamento
+    races = relationship("Race", back_populates="regatta")
+    classes = relationship("RegattaClass", back_populates="regatta", cascade="all, delete")  # ✅ AQUI
+
+
+class RegattaClass(Base):
+    __tablename__ = "regatta_classes"
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id"))
+    class_name = Column(String)
+
+    regatta = relationship("Regatta", back_populates="classes")
 
 
 class Entry(Base):
@@ -72,7 +82,6 @@ class Entry(Base):
 
 class Notice(Base):
     __tablename__ = "notices"
-
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, nullable=False)
     filepath = Column(String, nullable=False)
@@ -83,22 +92,21 @@ class Notice(Base):
 
 class Race(Base):
     __tablename__ = "races"
-
     id = Column(Integer, primary_key=True, index=True)
     regatta_id = Column(Integer, ForeignKey("regattas.id"), nullable=False)
     name = Column(String, nullable=False)
-    date = Column(String, nullable=True)  # ✅ esta linha
+    date = Column(String, nullable=True)
+
+    class_name = Column(String, nullable=False)  # ✅ NOVO campo
 
     regatta = relationship("Regatta", back_populates="races")
     results = relationship("Result", back_populates="race")
 
-
 class Result(Base):
     __tablename__ = "results"
-
     id = Column(Integer, primary_key=True, index=True)
     regatta_id = Column(Integer, ForeignKey("regattas.id"), nullable=False)
-    race_id = Column(Integer, ForeignKey("races.id"), nullable=False)  # ✅ novo
+    race_id = Column(Integer, ForeignKey("races.id"), nullable=False)
     sail_number = Column(String, nullable=True)
     boat_name = Column(String, nullable=True)
     class_name = Column(String, nullable=True)

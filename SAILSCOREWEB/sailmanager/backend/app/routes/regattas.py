@@ -1,40 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from app.schemas import RegattaCreate
 from typing import List
 from app import models, schemas
 from app.database import get_db
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@router.get("/")
+@router.get("/", response_model=List[schemas.RegattaRead])
 def list_regattas(db: Session = Depends(get_db)):
     return db.query(models.Regatta).all()
 
-@router.post("/")
-def create_regatta(regatta: RegattaCreate, db: Session = Depends(get_db)):
+@router.post("/", response_model=schemas.RegattaRead)
+def create_regatta(regatta: schemas.RegattaCreate, db: Session = Depends(get_db)):
     new_regatta = models.Regatta(**regatta.dict())
     db.add(new_regatta)
     db.commit()
     db.refresh(new_regatta)
-    return {"message": "Regata criada com sucesso", "id": new_regatta.id}
+    return new_regatta
 
-# 🔍 Endpoint para buscar uma regata pelo ID
-@router.get("/{regatta_id}")
+@router.get("/{regatta_id}", response_model=schemas.RegattaRead)
 def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
     regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not regatta:
-        raise HTTPException(status_code=404, detail="Regatta not found")
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
     return regatta
 
-@router.get("/", response_model=List[schemas.RegattaRead])
-def get_all_regattas(db: Session = Depends(get_db)):
-    return db.query(models.Regatta).all()
+
+@router.get("/{regatta_id}/classes", response_model=List[str])
+def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+    
+    return [rc.class_name for rc in regatta.classes]
+

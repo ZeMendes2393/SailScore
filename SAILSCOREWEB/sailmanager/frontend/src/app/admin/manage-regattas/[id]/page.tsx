@@ -16,12 +16,20 @@ interface Regatta {
   status?: string;
 }
 
+interface RegattaClass {
+  id: number;
+  regatta_id: number;
+  class_name: string;
+}
+
 export default function AdminRegattaPage() {
   const { id } = useParams();
   const regattaId = parseInt(id as string);
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
-  const [activeTab, setActiveTab] = useState<"entry" | "notice" | "form" | "results" | null>(null); // ✅ incluir "results"
+  const [activeTab, setActiveTab] = useState<"entry" | "notice" | "form" | "results" | null>(null);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [availableClasses, setAvailableClasses] = useState<RegattaClass[]>([]);
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -29,8 +37,22 @@ export default function AdminRegattaPage() {
       const data = await res.json();
       setRegatta(data);
     };
+
+    const fetchClasses = async () => {
+      const res = await fetch(`http://localhost:8000/regatta-classes/by_regatta/${regattaId}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setAvailableClasses(data);
+    };
+
     fetchRegatta();
+    fetchClasses();
   }, [regattaId]);
+
+  useEffect(() => {
+    if (activeTab === "entry" && !selectedClass && availableClasses.length > 0) {
+      setSelectedClass(availableClasses[0].class_name);
+    }
+  }, [activeTab, availableClasses, selectedClass]);
 
   if (!regatta) return <p className="p-8">A carregar regata...</p>;
 
@@ -51,19 +73,44 @@ export default function AdminRegattaPage() {
         <button onClick={() => setActiveTab("entry")} className="hover:underline">Entry List</button>
         <button onClick={() => setActiveTab("notice")} className="hover:underline">Notice Board</button>
         <button onClick={() => setActiveTab("form")} className="hover:underline">Online Entry</button>
-        <button onClick={() => setActiveTab("results")} className="hover:underline">Results</button> {/* ✅ nova aba */}
+        <button onClick={() => setActiveTab("results")} className="hover:underline">Results</button>
       </div>
+
+      {/* CLASS SELECTOR */}
+      {activeTab === "entry" && availableClasses.length > 0 && (
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {availableClasses.map((cls) => (
+            <button
+              key={cls.id}
+              onClick={() => setSelectedClass(cls.class_name)}
+              className={`px-3 py-1 rounded font-semibold border ${
+                selectedClass === cls.class_name
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-blue-600 border-blue-600"
+              }`}
+            >
+              {cls.class_name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
-        {activeTab === "entry" && <EntryList regattaId={regattaId} />}
+        {activeTab === "entry" && (
+          <EntryList regattaId={regattaId} selectedClass={selectedClass} />
+        )}
+
         {activeTab === "notice" && <NoticeBoard regattaId={regattaId} admin />}
+
         {activeTab === "form" && (
           <p className="text-sm text-gray-500">
             Admins não podem submeter inscrições. Esta área está visível apenas para consistência visual.
           </p>
         )}
-{activeTab === "results" && <AdminResultsClient regattaId={regattaId} />}
+
+        {activeTab === "results" && <AdminResultsClient regattaId={regattaId} />}
+
         {!activeTab && (
           <p className="text-gray-600">
             Escolhe uma secção acima para ver os detalhes desta regata.

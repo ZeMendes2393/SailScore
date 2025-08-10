@@ -121,11 +121,12 @@ const handleFinalSubmit = async () => {
     switch (step) {
       case 1:
         return (
-          <Step1
-            data={formData}
-            onChange={handleBaseChange}
-            onNext={nextStep}
-          />
+         <Step1
+  data={{ ...formData, regatta_id: regattaId }}
+  onChange={handleBaseChange}
+  onNext={nextStep}
+/>
+
         );
       case 2:
         return (

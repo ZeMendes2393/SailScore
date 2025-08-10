@@ -44,6 +44,19 @@ class RegattaRead(RegattaCreate):
     class Config:
         from_attributes = True
 
+# ---------- REGATTA CLASS ✅ NOVO ----------
+class RegattaClassCreate(BaseModel):
+    regatta_id: int
+    class_name: str
+
+class RegattaClassRead(BaseModel):
+    id: int
+    regatta_id: int
+    class_name: str
+
+    class Config:
+        from_attributes = True
+
 # ---------- ENTRY ----------
 class EntryCreate(BaseModel):
     # Boat data
@@ -79,10 +92,10 @@ class EntryRead(EntryCreate):
     class Config:
         from_attributes = True
 
-# ---------- RESULT ✅ CORRIGIDO ----------
+# ---------- RESULT ----------
 class ResultCreate(BaseModel):
     regatta_id: int
-    race_id: int  # ✅ ADICIONAR ISTO
+    race_id: int
     sail_number: Optional[str]
     boat_name: Optional[str]
     boat_class: Optional[str]
@@ -90,44 +103,40 @@ class ResultCreate(BaseModel):
     position: int
     points: float
 
-
 class ResultRead(BaseModel):
     id: int
     regatta_id: int
     race_id: int
     sail_number: Optional[str]
     boat_name: Optional[str]
-    boat_class: Optional[str] = Field(..., alias="class_name")     # <- alias aqui
-    helm_name: Optional[str] = Field(..., alias="skipper_name")    # <- alias aqui
+    boat_class: Optional[str] = Field(..., alias="class_name")
+    helm_name: Optional[str] = Field(..., alias="skipper_name")
     position: int
     points: float
 
     class Config:
         from_attributes = True
         allow_population_by_field_name = True
-# ---------- RACE ✅ ----------
+
+
+
+        # ---------- RACE dos results----------
+
 class RaceCreate(BaseModel):
     name: str
     regatta_id: int
-    date: date
+    date: Optional[str] = None         # <- era date; agora str opcional para bater com o modelo
+    class_name: str
 
 class RaceRead(BaseModel):
     id: int
     name: str
     regatta_id: int
-    date: str
+    date: Optional[str] = None         # <- TORNAR OPCIONAL
+    class_name: str
 
     class Config:
-        from_attributes = True
+        from_attributes = True         # (Pydantic v2)  |  use orm_mode=True p/ v1
+        # orm_mode = True
 
-
-class RegattaRead(BaseModel):
-    id: int
-    name: str
-    location: str
-    start_date: str
-    end_date: str
-
-    class Config:
-        from_attributes = True  # ou orm_mode = True em versões mais antigas
 
