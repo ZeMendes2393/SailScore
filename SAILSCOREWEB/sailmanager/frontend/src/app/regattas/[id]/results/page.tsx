@@ -13,34 +13,52 @@ interface Regatta {
   status?: string
 }
 
-interface RegattaClass {
-  id: number
-  regatta_id: number
-  class_name: string
-}
-
 export default function ResultsPage() {
   const params = useParams()
-  const id = parseInt(params.id as string)
+  const id = Number(params.id as string)
+
   const [regatta, setRegatta] = useState<Regatta | null>(null)
-  const [availableClasses, setAvailableClasses] = useState<RegattaClass[]>([])
+
+  // classes agora são strings (ex.: ["ILCA 6", "420", ...])
+  const [availableClasses, setAvailableClasses] = useState<string[]>([])
   const [selectedClass, setSelectedClass] = useState<string | null>(null)
+  const [loadingClasses, setLoadingClasses] = useState(true)
+  const [classesError, setClassesError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchRegatta = async () => {
       const res = await fetch(`http://localhost:8000/regattas/${id}`)
+      if (!res.ok) {
+        console.error("❌ Falha ao obter regata:", res.status, await res.text())
+        return
+      }
       const data = await res.json()
       setRegatta(data)
     }
 
     const fetchClasses = async () => {
-      const res = await fetch(`http://localhost:8000/regatta-classes/by_regatta/${id}`)
-      const data = await res.json()
-      if (Array.isArray(data)) {
-        setAvailableClasses(data)
-        setSelectedClass((prev) => prev || data[0]?.class_name || null)
-      } else {
-        console.warn("❌ Erro ao carregar classes:", data)
+      setLoadingClasses(true)
+      setClassesError(null)
+      try {
+        const res = await fetch(`http://localhost:8000/regattas/${id}/classes`)
+        if (!res.ok) {
+          const txt = await res.text()
+          console.error("❌ Erro ao carregar classes:", res.status, txt)
+          setAvailableClasses([])
+          setClassesError("Não foi possível carregar as classes desta regata.")
+          return
+        }
+        const data: unknown = await res.json()
+        const arr = Array.isArray(data) ? (data as string[]) : []
+        setAvailableClasses(arr)
+        // pré-seleciona a 1ª classe se não houver ainda uma escolhida
+        setSelectedClass(prev => prev ?? arr[0] ?? null)
+      } catch (err) {
+        console.error("❌ Erro de rede ao carregar classes:", err)
+        setAvailableClasses([])
+        setClassesError("Erro de rede ao carregar classes.")
+      } finally {
+        setLoadingClasses(false)
       }
     }
 
@@ -66,27 +84,36 @@ export default function ResultsPage() {
         )}
       </div>
 
-      {availableClasses.length > 0 && (
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {availableClasses.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => setSelectedClass(cls.class_name)}
-              className={`px-3 py-1 rounded font-semibold border ${
-                selectedClass === cls.class_name
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-blue-600 border-blue-600"
-              }`}
-            >
-              {cls.class_name}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Seletor de classes */}
+      <div className="mb-6">
+        {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+        {!loadingClasses && classesError && (
+          <p className="text-red-700">{classesError}</p>
+        )}
+        {!loadingClasses && !classesError && availableClasses.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {availableClasses.map((cls) => (
+              <button
+                key={cls}
+                onClick={() => setSelectedClass(cls)}
+                className={`px-3 py-1 rounded font-semibold border ${
+                  selectedClass === cls
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-blue-600 border-blue-600"
+                }`}
+              >
+                {cls}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="bg-white shadow rounded p-6">
         {regatta && selectedClass ? (
-<ResultsViewer regattaId={id} />
+          // Se o teu ResultsViewer aceitar a classe, podes passar como prop:
+          // <ResultsViewer regattaId={id} classNameFilter={selectedClass} />
+          <ResultsViewer regattaId={id} />
         ) : (
           <p className="text-gray-500">Selecione uma classe para ver os resultados.</p>
         )}

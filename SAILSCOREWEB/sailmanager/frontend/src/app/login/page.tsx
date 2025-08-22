@@ -1,64 +1,57 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext"; // ✅ importa o contexto
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const { login } = useAuth(); // ✅ usa o login do contexto
+  const params = useSearchParams();
+  const reason = params.get('reason'); // "expired" => sessão expirada
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
-    console.log("🔐 A tentar fazer login...");
 
     try {
-      const response = await fetch("http://localhost:8000/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          username: email,
-          password: password,
-        }),
+      const response = await fetch('http://localhost:8000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username: email, password }),
       });
 
       const data = await response.json();
-      console.log("📨 Resposta da API:", data);
 
       if (!response.ok) {
-        console.error("❌ Erro no login:", data.detail);
-        setError(data.detail || "Erro ao fazer login.");
+        setError(data.detail || 'Erro ao fazer login.');
         setLoading(false);
         return;
       }
 
-      // ✅ Guarda o token e user no AuthContext
+      // guarda no contexto e no localStorage (por redundância)
       login(data.access_token, { email, role: data.role });
-
-      console.log("✅ Login bem-sucedido. Role:", data.role);
+      try { localStorage.setItem('token', data.access_token); } catch {}
 
       setLoading(false);
 
-      // ✅ Redirecionamento com base no papel
-      if (data.role === "admin") {
-        console.log("➡️ Redirecionar para /admin");
-        router.push("/admin");
+      // redireciona para a rota que o utilizador estava antes do 401
+      const next = sessionStorage.getItem('postLoginRedirect');
+      sessionStorage.removeItem('postLoginRedirect');
+
+      if (next) {
+        router.replace(next);
       } else {
-        console.log("➡️ Redirecionar para /dashboard");
-        router.push("/dashboard");
+        router.replace(data.role === 'admin' ? '/admin' : '/dashboard');
       }
     } catch (err) {
-      console.error("⚠️ Erro de rede ou inesperado:", err);
-      setError("Erro de rede ou inesperado.");
+      setError('Erro de rede ou inesperado.');
       setLoading(false);
     }
   };
@@ -67,6 +60,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center">Iniciar Sessão</h2>
+
+        {reason === 'expired' && (
+          <div className="mb-4 rounded border border-yellow-200 bg-yellow-50 text-yellow-900 px-3 py-2 text-sm">
+            A tua sessão expirou. Inicia sessão novamente.
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <input
             type="email"
@@ -87,15 +87,16 @@ export default function LoginPage() {
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? "A entrar..." : "Entrar"}
+            {loading ? 'A entrar...' : 'Entrar'}
           </button>
         </form>
+
         <div className="mt-4 text-center">
           <p className="text-sm">
-            Ainda não tens conta?{" "}
+            Ainda não tens conta?{' '}
             <a href="/register" className="text-blue-600 hover:underline font-medium">
               Criar conta
             </a>

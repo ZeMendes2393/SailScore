@@ -10,6 +10,12 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from utils.auth_utils import get_current_user
+def _norm(s: str | None) -> str | None:
+    return s.upper() if s else None
+
+def _points_for(code_map: dict, code: str | None, position: int) -> float:
+    return float(code_map.get(_norm(code), position)) if code else float(position)
+
 
 router = APIRouter()
 
@@ -28,18 +34,20 @@ class SingleResultCreate(BaseModel):
   helm_name: str | None = None
   points: float | None = None  # se None, usar position
   desired_position: int
+  code: str | None = None                  # <- NOVO
+
 
 class PositionPatch(BaseModel):
     new_position: int
 
+class CodePatch(BaseModel):
+    code: str  # "DNF" | "DNC" | etc.
+
+
 
 # ========= CREATE (single) =========
 @router.post("/", response_model=schemas.ResultRead, status_code=status.HTTP_201_CREATED)
-def create_result(
-    result: schemas.ResultCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def create_result(result: schemas.ResultCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -51,21 +59,25 @@ def create_result(
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
+    code_map = regatta.scoring_codes or {}
+    code = _norm(result.code)
+    pts = float(code_map.get(code, result.points)) if code else float(result.points)
+
     new_result = models.Result(
         regatta_id=result.regatta_id,
         race_id=result.race_id,
         sail_number=result.sail_number,
         boat_name=result.boat_name,
-        class_name=race.class_name,            # força a classe correta
+        class_name=race.class_name,
         skipper_name=result.helm_name,
         position=int(result.position),
-        points=float(result.points),
+        points=pts,
+        code=code,
     )
     db.add(new_result)
     db.commit()
     db.refresh(new_result)
     return new_result
-
 
 # ========= LIST BY REGATTA (optional class) =========
 @router.get("/by_regatta/{regatta_id}", response_model=List[schemas.ResultRead])
@@ -82,12 +94,7 @@ def get_results_by_regatta(
 
 # ========= CREATE BULK FOR A RACE (idempotente) =========
 @router.post("/races/{race_id}/results", response_model=List[schemas.ResultRead])
-def create_results_for_race(
-    race_id: int,
-    results: List[schemas.ResultCreate],
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def create_results_for_race(race_id: int, results: List[schemas.ResultCreate], db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -95,23 +102,32 @@ def create_results_for_race(
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
-    # limpa resultados anteriores da corrida
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    code_map = regatta.scoring_codes or {}
+
     db.query(models.Result).filter(models.Result.race_id == race_id).delete()
 
     created: list[models.Result] = []
     for r in results:
-        created_result = models.Result(
+        code = _norm(r.code)
+        # se vier code no payload, confiança no front para o points calculado,
+        # mas ainda assim garantimos coerência com o mapa
+        base_pts = float(r.points)
+        pts = float(code_map.get(code, base_pts)) if code else base_pts
+
+        row = models.Result(
             regatta_id=r.regatta_id,
             race_id=race_id,
             sail_number=r.sail_number,
             boat_name=r.boat_name,
-            class_name=race.class_name,        # classe vem da corrida
+            class_name=race.class_name,
             skipper_name=r.helm_name,
             position=int(r.position),
-            points=float(r.points),
+            points=pts,
+            code=code,
         )
-        db.add(created_result)
-        created.append(created_result)
+        db.add(row)
+        created.append(row)
 
     db.commit()
     for c in created:
@@ -131,20 +147,36 @@ def get_results_for_race(race_id: int, db: Session = Depends(get_db)):
 
 
 # ========= DELETE =========
+
 @router.delete("/{result_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_result(
-    result_id: int = Path(..., description="ID do resultado a remover"),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def delete_result(result_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    result = db.query(models.Result).filter_by(id=result_id).first()
-    if not result:
+    row = db.query(models.Result).filter_by(id=result_id).first()
+    if not row:
         raise HTTPException(status_code=404, detail="Resultado não encontrado")
 
-    db.delete(result)
+    race_id = row.race_id
+    deleted_pos = int(row.position)
+
+    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
+    mapping = reg.scoring_codes or {}
+
+    db.delete(row)
+    db.flush()
+
+    trailing = (
+        db.query(models.Result)
+        .filter(models.Result.race_id == race_id, models.Result.position > deleted_pos)
+        .order_by(models.Result.position.asc())
+        .all()
+    )
+    for i, r in enumerate(trailing, start=1):
+        new_pos = deleted_pos + i - 1
+        r.position = new_pos
+        r.points = _points_for(mapping, r.code, new_pos)
+
     db.commit()
     return None
 
@@ -156,7 +188,14 @@ def get_overall_results(
     class_name: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    # 1) corridas relevantes (IDs em ordem)
+    # regras da regata
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(404, "Regata não encontrada")
+    D = int(reg.discard_count or 0)
+    TH = int(reg.discard_threshold or 0)
+
+    # corridas relevantes (IDs em ordem)
     race_q = db.query(models.Race).filter(models.Race.regatta_id == regatta_id)
     if class_name:
         race_q = race_q.filter(models.Race.class_name == class_name)
@@ -164,7 +203,7 @@ def get_overall_results(
     race_ids = [r.id for r in races]
     race_map = {r.id: r.name for r in races}
 
-    # 2) agregado por barco (só corridas relevantes)
+    # agregado por barco (só corridas relevantes)
     agg_q = (
         db.query(
             models.Result.sail_number,
@@ -191,7 +230,7 @@ def get_overall_results(
         .all()
     )
 
-    # 3) pontos por corrida (indexado por race_id — evita colisão de nomes)
+    # pontos por corrida indexados por race_id
     pr_q = db.query(models.Result).filter(models.Result.regatta_id == regatta_id)
     if race_ids:
         pr_q = pr_q.filter(models.Result.race_id.in_(race_ids))
@@ -203,12 +242,36 @@ def get_overall_results(
         key = (r.class_name, r.sail_number or "", r.skipper_name or "")
         per_race_map.setdefault(key, {})[r.race_id] = float(r.points)
 
-    # 4) resposta ordenada pelos race_ids
     overall = []
     for row in agg_rows:
         key = (row.class_name, row.sail_number or "", row.skipper_name or "")
-        per_race_by_id = per_race_map.get(key, {})
-        per_race_named = {race_map[rid]: per_race_by_id.get(rid, "-") for rid in race_ids}
+        per_by_id = per_race_map.get(key, {})
+
+        # lista [(race_id, points)] só com corridas onde há pontos
+        points_list = [(rid, per_by_id[rid]) for rid in race_ids if rid in per_by_id]
+
+        # aplica descarte apenas se há threshold atingido e D > 0
+        discarded_ids: set[int] = set()
+        if len(points_list) >= TH and D > 0:
+            # descarta os piores (maiores pontos)
+            worst = sorted(points_list, key=lambda x: x[1], reverse=True)[:D]
+            discarded_ids = {rid for rid, _ in worst}
+
+        # constrói células por corrida: “(X)” se descartado
+        per_race_named: dict[str, str | float] = {}
+        net_total = 0.0
+        for rid in race_ids:
+            name = race_map[rid]
+            if rid not in per_by_id:
+                per_race_named[name] = "-"
+                continue
+            pts = per_by_id[rid]
+            if rid in discarded_ids:
+                per_race_named[name] = f"({pts})"
+            else:
+                per_race_named[name] = pts
+                net_total += pts
+
         overall.append(
             {
                 "sail_number": row.sail_number,
@@ -216,10 +279,15 @@ def get_overall_results(
                 "class_name": row.class_name,
                 "skipper_name": row.skipper_name,
                 "total_points": float(row.total_points or 0),
+                "net_points": float(net_total),
                 "per_race": per_race_named,
             }
         )
+
+    # ordena pela pontuação líquida (net), depois total
+    overall.sort(key=lambda r: (r["net_points"], r["total_points"]))
     return overall
+
 
 
 # ========= UPSERT de 1 linha =========
@@ -276,12 +344,7 @@ def upsert_single_result(
 
 
 @router.post("/races/{race_id}/result", response_model=schemas.ResultRead, status_code=status.HTTP_201_CREATED)
-def add_single_result(
-    race_id: int,
-    payload: SingleResultCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def add_single_result(race_id: int, payload: SingleResultCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -289,20 +352,22 @@ def add_single_result(
     if not race:
         raise HTTPException(404, "Corrida não encontrada")
 
-    # Já existe resultado para este barco nesta corrida?
     if payload.sail_number:
         exists = db.query(models.Result).filter(
-            and_(models.Result.race_id == race_id,
-                 models.Result.sail_number == payload.sail_number)
+            and_(models.Result.race_id == race_id, models.Result.sail_number == payload.sail_number)
         ).first()
         if exists:
             raise HTTPException(409, "Este barco já tem resultado nesta corrida")
 
-    # Shift: posições >= desired_position sobem +1
     db.query(models.Result).filter(
-        and_(models.Result.race_id == race_id,
-             models.Result.position >= payload.desired_position)
+        and_(models.Result.race_id == race_id, models.Result.position >= payload.desired_position)
     ).update({models.Result.position: models.Result.position + 1}, synchronize_session=False)
+
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    code_map = regatta.scoring_codes or {}
+    code = _norm(payload.code)
+    base_pts = float(payload.points if payload.points is not None else payload.desired_position)
+    pts = float(code_map.get(code, base_pts)) if code else base_pts
 
     new_res = models.Result(
         regatta_id=payload.regatta_id,
@@ -312,13 +377,13 @@ def add_single_result(
         class_name=race.class_name,
         skipper_name=payload.helm_name,
         position=payload.desired_position,
-        points=float(payload.points if payload.points is not None else payload.desired_position),
+        points=pts,
+        code=code,
     )
     db.add(new_res)
     db.commit()
     db.refresh(new_res)
     return new_res
-
 
 @router.patch("/{result_id}/position", response_model=schemas.ResultRead)
 def change_result_position(
@@ -347,46 +412,87 @@ def change_result_position(
     if new_pos > max_pos:
         new_pos = max_pos
 
-    if new_pos == old_pos:
-        return row
-
-    if new_pos > old_pos:
-        # quem estava (old_pos+1 .. new_pos) desce -1
-        db.query(models.Result).filter(
-            and_(
-                models.Result.race_id == race_id,
-                models.Result.position > old_pos,
-                models.Result.position <= new_pos,
-                models.Result.id != row.id,
+    if new_pos != old_pos:
+        if new_pos > old_pos:
+            # quem estava (old_pos+1 .. new_pos) desce -1
+            db.query(models.Result).filter(
+                and_(
+                    models.Result.race_id == race_id,
+                    models.Result.position > old_pos,
+                    models.Result.position <= new_pos,
+                    models.Result.id != row.id,
+                )
+            ).update(
+                {models.Result.position: models.Result.position - 1},
+                synchronize_session=False
             )
-        ).update({models.Result.position: models.Result.position - 1},
-                 synchronize_session=False)
-    else:
-        # quem estava (new_pos .. old_pos-1) sobe +1
-        db.query(models.Result).filter(
-            and_(
-                models.Result.race_id == race_id,
-                models.Result.position >= new_pos,
-                models.Result.position < old_pos,
-                models.Result.id != row.id,
+        else:
+            # quem estava (new_pos .. old_pos-1) sobe +1
+            db.query(models.Result).filter(
+                and_(
+                    models.Result.race_id == race_id,
+                    models.Result.position >= new_pos,
+                    models.Result.position < old_pos,
+                    models.Result.id != row.id,
+                )
+            ).update(
+                {models.Result.position: models.Result.position + 1},
+                synchronize_session=False
             )
-        ).update({models.Result.position: models.Result.position + 1},
-                 synchronize_session=False)
 
-    row.position = new_pos
-    row.points = float(new_pos)  # se pontos=posição
+        # aplica nova posição ao alvo
+        row.position = new_pos
+
+    # --- Recalcular pontos para TODA a corrida com base em code/posição ---
+    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
+    code_map = (reg.scoring_codes or {})
+
+    def points_for(mapping: dict, code: str | None, pos: int) -> float:
+        return float(mapping.get(code.upper(), pos)) if code else float(pos)
+
+    all_rows = db.query(models.Result).filter(models.Result.race_id == race_id).all()
+    for r in all_rows:
+        r.points = points_for(code_map, r.code, int(r.position))
+
+    db.commit()
+    db.refresh(row)
+    return row
+
+@router.patch("/{result_id}/code", response_model=schemas.ResultRead)
+def set_result_code(
+    result_id: int,
+    body: CodePatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    row = db.query(models.Result).filter_by(id=result_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+
+    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
+    mapping = reg.scoring_codes or {}
+    code = (body.code or '').upper()
+    if code not in mapping:
+        raise HTTPException(status_code=400, detail=f"Código {code} sem pontuação definida")
+
+    row.code = code
+    row.points = float(mapping[code])  # regra: pontos definidos em scoring_codes
     db.commit()
     db.refresh(row)
     return row
 
 
+
+class ReorderBody(BaseModel):
+    ordered_ids: List[int]
+
+
+
 @router.put("/races/{race_id}/reorder", response_model=List[schemas.ResultRead])
-def reorder_race_results(
-    race_id: int,
-    body: ReorderBody,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def reorder_race_results(race_id: int, body: ReorderBody = Body(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -396,14 +502,22 @@ def reorder_race_results(
         .order_by(models.Result.position.asc())
         .all()
     )
+
     id_set = {r.id for r in rows}
     if set(body.ordered_ids) != id_set:
         raise HTTPException(400, "Lista ordered_ids tem de conter exatamente os IDs atuais")
 
+    regatta_id = rows[0].regatta_id if rows else None
+    mapping = {}
+    if regatta_id:
+        reg = db.query(models.Regatta).filter_by(id=regatta_id).first()
+        mapping = reg.scoring_codes or {}
+
     pos_map = {rid: i + 1 for i, rid in enumerate(body.ordered_ids)}
     for r in rows:
         r.position = pos_map[r.id]
-        r.points = float(r.position)  # ajusta se tiveres outra regra de pontos
+        r.points = _points_for(mapping, r.code, r.position)
+
     db.commit()
 
     return (

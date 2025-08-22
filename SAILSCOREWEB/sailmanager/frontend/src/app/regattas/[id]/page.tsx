@@ -15,43 +15,65 @@ interface Regatta {
   status?: string;
 }
 
-interface RegattaClass {
-  id: number;
-  regatta_id: number;
-  class_name: string;
-}
-
 export default function RegattaDetails() {
   const params = useParams();
   const id = params.id as string;
+  const regattaId = Number(id);
   const router = useRouter();
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
   const [activeTab, setActiveTab] = useState<"entry" | "notice" | "form" | null>(null);
+
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [availableClasses, setAvailableClasses] = useState<RegattaClass[]>([]);
+  // Agora tratamos as classes como array de strings
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [classesError, setClassesError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRegatta = async () => {
-      const res = await fetch(`http://localhost:8000/regattas/${id}`);
+      const res = await fetch(`http://localhost:8000/regattas/${regattaId}`);
+      if (!res.ok) {
+        console.error("❌ Falha ao obter regata:", res.status, await res.text());
+        return;
+      }
       const data = await res.json();
       setRegatta(data);
     };
 
     const fetchClasses = async () => {
-      const res = await fetch(`http://localhost:8000/regatta-classes/by_regatta/${id}`);
-      const data = await res.json();
-      if (Array.isArray(data)) setAvailableClasses(data);
-      else console.warn("❌ Erro ao carregar classes:", data);
+      setLoadingClasses(true);
+      setClassesError(null);
+      try {
+        const res = await fetch(`http://localhost:8000/regattas/${regattaId}/classes`);
+        if (!res.ok) {
+          const txt = await res.text();
+          console.error("❌ Erro ao carregar classes:", res.status, txt);
+          setAvailableClasses([]);
+          setClassesError("Não foi possível carregar as classes desta regata.");
+          return;
+        }
+        const data: unknown = await res.json();
+        const arr = Array.isArray(data) ? (data as string[]) : [];
+        setAvailableClasses(arr);
+      } catch (err) {
+        console.error("❌ Erro de rede ao carregar classes:", err);
+        setAvailableClasses([]);
+        setClassesError("Erro de rede ao carregar classes.");
+      } finally {
+        setLoadingClasses(false);
+      }
     };
 
     fetchRegatta();
     fetchClasses();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regattaId]);
 
+  // Quando entrar na tab "entry", se não houver classe escolhida, seleciona a 1ª disponível
   useEffect(() => {
     if (activeTab === "entry" && !selectedClass && availableClasses.length > 0) {
-      setSelectedClass(availableClasses[0].class_name);
+      setSelectedClass(availableClasses[0]);
     }
   }, [activeTab, availableClasses, selectedClass]);
 
@@ -70,31 +92,43 @@ export default function RegattaDetails() {
       </div>
 
       {/* CLASS SELECTOR */}
-      {availableClasses.length > 0 && (
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {availableClasses.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => setSelectedClass(cls.class_name)}
-              className={`px-3 py-1 rounded font-semibold border ${
-                selectedClass === cls.class_name
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-blue-600 border-blue-600"
-              }`}
-            >
-              {cls.class_name}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="mb-6">
+        {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+        {!loadingClasses && classesError && (
+          <p className="text-red-700">{classesError}</p>
+        )}
+        {!loadingClasses && !classesError && availableClasses.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {availableClasses.map((cls) => (
+              <button
+                key={cls}
+                onClick={() => setSelectedClass(cls)}
+                className={`px-3 py-1 rounded font-semibold border ${
+                  selectedClass === cls
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-blue-600 border-blue-600"
+                }`}
+              >
+                {cls}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* NAVIGATION TABS */}
       <div className="bg-white shadow rounded mb-4 px-6 py-4 flex gap-6 text-blue-600 font-semibold">
-        <button onClick={() => setActiveTab("entry")} className="hover:underline">Entry List</button>
-        <button onClick={() => setActiveTab("notice")} className="hover:underline">Notice Board</button>
-        <button onClick={() => setActiveTab("form")} className="hover:underline">Online Entry</button>
+        <button onClick={() => setActiveTab("entry")} className="hover:underline">
+          Entry List
+        </button>
+        <button onClick={() => setActiveTab("notice")} className="hover:underline">
+          Notice Board
+        </button>
+        <button onClick={() => setActiveTab("form")} className="hover:underline">
+          Online Entry
+        </button>
         <button
-          onClick={() => router.push(`/regattas/${id}/results`)} // 🔁 redireciona para nova página
+          onClick={() => router.push(`/regattas/${id}/results`)}
           className="hover:underline"
         >
           Results
@@ -103,9 +137,11 @@ export default function RegattaDetails() {
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
-        {activeTab === "entry" && <EntryList regattaId={parseInt(id)} selectedClass={selectedClass} />}
-        {activeTab === "notice" && <NoticeBoard regattaId={parseInt(id)} />}
-        {activeTab === "form" && <MultiStepEntryForm regattaId={parseInt(id)} />}
+        {activeTab === "entry" && (
+          <EntryList regattaId={regattaId} selectedClass={selectedClass} />
+        )}
+        {activeTab === "notice" && <NoticeBoard regattaId={regattaId} />}
+        {activeTab === "form" && <MultiStepEntryForm regattaId={regattaId} />}
 
         {!activeTab && (
           <p className="text-gray-600">

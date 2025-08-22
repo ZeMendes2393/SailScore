@@ -1,108 +1,163 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { apiGet, apiSend } from '@/lib/api';
 
 interface Props {
-  regattaId: number
-  onRaceCreated: (newRace: Race) => void
+  regattaId: number;
+  onRaceCreated: (newRace: Race) => void;
+  defaultOpen?: boolean; // podes abrir/fechar o card por defeito
 }
 
 interface Race {
-  id: number
-  name: string
-  regatta_id: number
-  class_name: string
+  id: number;
+  name: string;
+  regatta_id: number;
+  class_name: string;
 }
 
-export default function RaceCreator({ regattaId, onRaceCreated }: Props) {
-  const [name, setName] = useState('')
-  const [className, setClassName] = useState('')
-  const [classOptions, setClassOptions] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = false }: Props) {
+  const { token } = useAuth();
 
+  const [open, setOpen] = useState(defaultOpen);
+  const [name, setName] = useState('');
+  const [className, setClassName] = useState('');
+  const [classOptions, setClassOptions] = useState<string[]>([]);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const [loading, setLoading] = useState(false);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  const canSubmit = useMemo(
+    () => !!name.trim() && !!className && !!date && !loading && !loadingClasses,
+    [name, className, date, loading, loadingClasses]
+  );
+
+  // Carregar classes da regata (com token)
   useEffect(() => {
-  const fetchClasses = async () => {
-    const res = await fetch(`http://localhost:8000/regatta-classes/by_regatta/${regattaId}`)
-    if (!res.ok) {
-      console.error("Falha a obter classes:", res.status, await res.text())
-      return
-    }
-    const data = await res.json()
-    // data é [{ id, regatta_id, class_name }, ...]
-    setClassOptions(Array.isArray(data) ? data.map((c: any) => c.class_name) : [])
-  }
-  fetchClasses()
-}, [regattaId])
-
+    let mounted = true;
+    (async () => {
+      setLoadingClasses(true);
+      setError(null);
+      setOk(null);
+      try {
+        const data = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token ?? undefined);
+        if (!mounted) return;
+        const arr = Array.isArray(data) ? data : [];
+        setClassOptions(arr);
+        if (!className && arr.length > 0) setClassName(arr[0]);
+      } catch (e) {
+        if (!mounted) return;
+        setClassOptions([]);
+        setError('Não foi possível obter as classes desta regata.');
+      } finally {
+        if (mounted) setLoadingClasses(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [regattaId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateRace = async () => {
-    if (!name.trim() || !className) {
-      alert('Preenche todos os campos.')
-      return
-    }
-
-    setLoading(true)
-    const res = await fetch('http://localhost:8000/races', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    setOk(null);
+    try {
+      const payload = {
         regatta_id: regattaId,
-        name,
+        name: name.trim(),
         class_name: className,
-        date: new Date().toISOString().split('T')[0]
-      })
-    })
-
-    setLoading(false)
-
-    if (!res.ok) {
-      alert('Erro ao criar corrida.')
-      return
+        date, // backend espera YYYY-MM-DD
+      };
+      const newRace = await apiSend<Race>('/races', 'POST', payload, token ?? undefined);
+      onRaceCreated(newRace);
+      setOk('Corrida criada com sucesso!');
+      // mantém a classe selecionada para criar várias de seguida
+      setName('');
+    } catch (e: any) {
+      setError(typeof e?.message === 'string' ? e.message : 'Erro ao criar corrida.');
+    } finally {
+      setLoading(false);
     }
-
-    const newRace = await res.json()
-    onRaceCreated(newRace)
-    setName('')
-    setClassName('')
-    alert('Corrida criada com sucesso!')
-  }
+  };
 
   return (
-    <div className="mb-6 p-4 border rounded bg-gray-50">
-      <h3 className="text-lg font-bold mb-2">Criar Nova Corrida</h3>
-
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700">Nome da corrida</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="border rounded px-3 py-2 w-full"
-          placeholder="Ex: Corrida 1"
-        />
-      </div>
-
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700">Classe da corrida</label>
-        <select
-          value={className}
-          onChange={(e) => setClassName(e.target.value)}
-          className="border rounded px-3 py-2 w-full"
+    <div className="p-4 border rounded-2xl bg-white shadow-sm">
+      <div className="flex items-center justify-between">
+        <h4 className="font-semibold text-sm">Criar Corrida</h4>
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="text-xs px-3 py-1 rounded border hover:bg-gray-50"
+          aria-expanded={open}
         >
-          <option value="">-- Selecionar Classe --</option>
-          {classOptions.map((cls) => (
-            <option key={cls} value={cls}>{cls}</option>
-          ))}
-        </select>
+          {open ? 'Fechar' : 'Abrir'}
+        </button>
       </div>
 
-      <button
-        onClick={handleCreateRace}
-        disabled={loading}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        {loading ? 'A criar...' : '➕ Criar Corrida'}
-      </button>
+      {!open ? (
+        <p className="mt-2 text-xs text-gray-500">
+          Formulário compacto para adicionar novas corridas.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2 text-sm">
+          {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+          {!!error && <p className="text-red-600">{error}</p>}
+          {!!ok && <p className="text-green-700">{ok}</p>}
+          {(!loadingClasses && classOptions.length === 0) && (
+            <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
+          )}
+
+          <label className="block">
+            <span className="text-xs text-gray-700">Nome</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full border rounded px-3 py-2"
+              placeholder="Ex: Corrida 1"
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateRace()}
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-xs text-gray-700">Classe</span>
+              <select
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+                className="mt-1 w-full border rounded px-3 py-2"
+                disabled={loadingClasses || classOptions.length === 0}
+              >
+                {classOptions.length === 0 && <option value="">-- Sem classes --</option>}
+                {classOptions.map((cls) => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs text-gray-700">Data</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="mt-1 w-full border rounded px-3 py-2"
+              />
+            </label>
+          </div>
+
+          <button
+            onClick={handleCreateRace}
+            disabled={!canSubmit}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'A criar…' : '➕ Criar Corrida'}
+          </button>
+        </div>
+      )}
     </div>
-  )
+  );
 }
