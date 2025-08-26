@@ -10,13 +10,18 @@ from app.routes import regattas, entries, auth, notices, results, races, regatta
 
 app = FastAPI(title="SailScore API")
 
-# ✅ CORS (localhost + 127.0.0.1 em qualquer porta)
+# ✅ CORS — origens explícitas (melhor para dev)
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_origins=ALLOWED_ORIGINS,   # <- em vez de allow_origin_regex
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],             # permite todos os métodos (inclui OPTIONS do preflight)
+    allow_headers=["*"],             # permite todos os headers (inclui Authorization, Content-Type, etc.)
 )
 
 # ✅ Criar base de dados (se ainda não existir)
@@ -29,13 +34,17 @@ app.include_router(entries.router,         prefix="/entries",          tags=["En
 app.include_router(notices.router,         prefix="/notices",          tags=["Notices"])
 app.include_router(results.router,         prefix="/results",          tags=["Results"])
 app.include_router(races.router,           prefix="/races",            tags=["Races"])
-app.include_router(regatta_classes.router, prefix="/regatta-classes",  tags=["RegattaClasses"])  # 👈 prefix adicionado
+app.include_router(regatta_classes.router, prefix="/regatta-classes",  tags=["RegattaClasses"])
 
-# ---------- DEBUG (opcional) ----------
+# ---------- Utilitários ----------
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.get("/_debug/routes")
 def _debug_routes():
     return [
-        {"path": r.path, "methods": list(r.methods), "name": r.name}
+        {"path": r.path, "methods": sorted(list(r.methods)), "name": r.name}
         for r in app.routes if isinstance(r, APIRoute)
     ]
 
@@ -46,23 +55,10 @@ def custom_openapi():
         description="SailScore API",
         routes=app.routes,
     )
-    for p in schema.get("paths", {}):
-        if "position" in p:
-            print(">>> OPENAPI PATH:", p)
     return schema
 
 app.openapi = custom_openapi
 app.openapi_schema = None
-
-# log rápido para ver de onde vem /results/{id}/position
-for r in app.routes:
-    if isinstance(r, APIRoute) and "position" in r.path:
-        fn = r.endpoint
-        print(">>> ROUTE:", r.path, r.methods,
-              "| FILE:", fn.__code__.co_filename,
-              "| LINE:", fn.__code__.co_firstlineno,
-              "| NAME:", r.name)
-# ---------- /DEBUG ----------
 
 # ✅ Ficheiros estáticos (ex.: /uploads/ficheiro.pdf)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 
+const API_BASE = 'http://localhost:8000'
+
 interface User {
   email: string
   role: string
@@ -30,28 +32,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     console.log('🔐 Recuperando token:', storedToken)
     console.log('🔐 Recuperando user:', storedUser)
 
-    if (storedToken && storedUser) {
+    async function hydrate() {
       try {
-        const parsedUser = JSON.parse(storedUser)
+        if (!storedToken) {
+          setLoading(false)
+          return
+        }
+        // Tenta sincronizar com o backend (role/email frescos)
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        })
+        if (!res.ok) throw new Error('Token inválido/expirado')
+        const me = await res.json() // { email, role, email_verified_at }
         setToken(storedToken)
-        setUser(parsedUser)
-        console.log('✅ Autenticado com:', parsedUser)
+        setUser({ email: me.email, role: me.role })
+        localStorage.setItem('user', JSON.stringify({ email: me.email, role: me.role }))
       } catch (e) {
-        console.error('❌ Erro ao parsear user do localStorage:', e)
+        console.warn('⚠️ Sessão inválida. A limpar.', e)
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        setToken(null)
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
-    } else {
-      console.log('⚠️ Nenhum token/user encontrado.')
     }
-
-    setLoading(false)
+    hydrate()
   }, [])
 
-  const login = (token: string, user: User) => {
-    console.log('🔐 [AuthContext] login chamado:', user)
-    localStorage.setItem('token', token) // ✅ importante!
-    localStorage.setItem('user', JSON.stringify(user)) // garantir que vai para localStorage
-    setToken(token)
-    setUser(user)
+  const login = (tok: string, usr: User) => {
+    console.log('🔐 [AuthContext] login:', usr)
+    localStorage.setItem('token', tok)
+    localStorage.setItem('user', JSON.stringify(usr))
+    setToken(tok)
+    setUser(usr)
     setLoading(false)
   }
 
@@ -75,4 +89,5 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used inside AuthProvider')
   return context
 }
+
 export { AuthContext }

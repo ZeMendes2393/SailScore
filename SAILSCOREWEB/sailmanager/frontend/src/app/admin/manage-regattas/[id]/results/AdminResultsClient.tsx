@@ -1,6 +1,7 @@
+// src/app/admin/manage-regattas/[id]/results/AdminResultsClient.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -24,20 +25,29 @@ export default function AdminResultsClient({ regattaId }: Props) {
   const search = useSearchParams();
   const router = useRouter();
 
-  const [section, setSection] = useState<Section>('edit');
+  // Mapeamento view<->section
+  const sectionFromView = (view: string | null): Section => {
+    if (view === 'draft') return 'fill';
+    if (view === 'existing' || view === 'add' || view === 'scoring') return 'edit';
+    return 'edit';
+  };
+
+  const [section, setSection] = useState<Section>(sectionFromView(search.get('view')));
 
   useEffect(() => {
-    const v = search.get('view');
-    if (v === 'draft') setSection('fill');
-    else if (v === 'existing' || v === 'add' || v === 'scoring') setSection('edit');
+    setSection(sectionFromView(search.get('view')));
   }, [search]);
 
   const go = (next: Section) => {
     setSection(next);
-    const sp = new URLSearchParams(search?.toString());
-    if (next === 'fill') sp.set('view', 'draft');
-    else if (next === 'edit') sp.set('view', 'existing');
-    else if (next === 'create') sp.delete('view');
+    const sp = new URLSearchParams(search?.toString() ?? '');
+    if (next === 'fill') {
+      sp.set('view', 'draft');
+    } else if (next === 'edit') {
+      sp.set('view', 'existing');
+    } else if (next === 'create') {
+      sp.delete('view');
+    }
     router.replace(`?${sp.toString()}`);
   };
 
@@ -76,6 +86,9 @@ export default function AdminResultsClient({ regattaId }: Props) {
     </button>
   );
 
+  // Opcionalmente, podes memorizar o link para resultados gerais
+  const overallHref = useMemo(() => `/regattas/${regattaId}/overall`, [regattaId]);
+
   return (
     <div className="w-full px-6 py-4">
       <div className="grid grid-cols-12 gap-4">
@@ -84,28 +97,13 @@ export default function AdminResultsClient({ regattaId }: Props) {
           <div className="sticky top-24 space-y-3">
             <h3 className="text-sm font-semibold text-gray-600">Ações</h3>
 
-            {/* se preferires o texto "Criar corrida", muda o label abaixo */}
-            <NavItem
-              label="Criar regata"
-              active={section === 'create'}
-              onClick={() => go('create')}
-            />
-
-            <NavItem
-              label="Editar resultados"
-              active={section === 'edit'}
-              onClick={() => go('edit')}
-            />
-
-            <NavItem
-              label="Preencher resultados"
-              active={section === 'fill'}
-              onClick={() => go('fill')}
-            />
+            <NavItem label="Criar regata" active={section === 'create'} onClick={() => go('create')} />
+            <NavItem label="Editar resultados" active={section === 'edit'} onClick={() => go('edit')} />
+            <NavItem label="Preencher resultados" active={section === 'fill'} onClick={() => go('fill')} />
 
             <div className="pt-2">
               <Link
-                href={`/regattas/${regattaId}/overall`}
+                href={overallHref}
                 className="inline-block w-full text-center bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
               >
                 Ver Resultados Gerais 🏆

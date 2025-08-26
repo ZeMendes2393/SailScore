@@ -13,11 +13,10 @@ export function useResults(
   const [scoring, setScoring] = useState<ScoringConfig>({
     discard_count: 0,
     discard_threshold: 4,
-    code_points: {}, // mapa ex.: { DNF: 99, DNC: 99, DSQ: 99 }
+    code_points: {},
   });
   const [savingScoring, setSavingScoring] = useState(false);
 
-  // mapa desnormalizado para conveniência
   const scoringCodes = useMemo(
     () =>
       Object.fromEntries(
@@ -57,33 +56,34 @@ export function useResults(
       try {
         const regatta = await apiGet<any>(`/regattas/${regattaId}`);
         setScoring({
-          discard_count:
-            typeof regatta.discard_count === 'number' ? regatta.discard_count : 0,
-          discard_threshold:
-            typeof regatta.discard_threshold === 'number' ? regatta.discard_threshold : 4,
-          code_points: regatta.scoring_codes ?? {}, // <- códigos vindos do backend
+          discard_count: typeof regatta.discard_count === 'number' ? regatta.discard_count : 0,
+          discard_threshold: typeof regatta.discard_threshold === 'number' ? regatta.discard_threshold : 4,
+          code_points: regatta.scoring_codes ?? {},
         });
-      } catch {
-        /* noop */
-      }
+      } catch {}
 
       try {
         const [entries, rcs] = await Promise.all([
           apiGet<Entry[]>(`/entries/by_regatta/${regattaId}`),
-          apiGet<Race[]>(`/races/by_regatta/${regattaId}`),
+          apiGet<Race[]>(`/races/by_regatta/${regattaId}`), // já vem ordenado por order_index (se existir)
         ]);
         setEntryList(entries);
         setRaces(rcs);
-      } catch {
-        /* noop */
-      }
+      } catch {}
     })();
   }, [regattaId]);
 
   // Integrar nova corrida criada
   useEffect(() => {
     if (!newlyCreatedRace) return;
-    setRaces(prev => [...prev, newlyCreatedRace]);
+    setRaces(prev => {
+      const exists = prev.some(r => r.id === newlyCreatedRace.id);
+      const next = exists ? prev : [...prev, newlyCreatedRace];
+      // ordena por order_index se existir; fallback por id
+      return next.slice().sort((a: any, b: any) =>
+        (a.order_index ?? a.id) - (b.order_index ?? b.id)
+      );
+    });
     setSelectedRaceId(newlyCreatedRace.id);
     setDraft([]);
     setExistingResults([]);
@@ -100,6 +100,13 @@ export function useResults(
       setLoadingExisting(false);
     }
   }, []);
+
+  const refreshRaces = useCallback(async () => {
+    try {
+      const rcs = await apiGet<Race[]>(`/races/by_regatta/${regattaId}`);
+      setRaces(rcs);
+    } catch {}
+  }, [regattaId]);
 
   useEffect(() => {
     if (selectedRaceId) refreshExisting(selectedRaceId);
@@ -129,9 +136,7 @@ export function useResults(
         },
         token
       );
-      window.dispatchEvent(
-        new CustomEvent('regatta-scoring-updated', { detail: { regattaId } })
-      );
+      window.dispatchEvent(new CustomEvent('regatta-scoring-updated', { detail: { regattaId } }));
       alert('Regras de descarte / códigos guardadas com sucesso.');
     } catch {
       alert('Falha ao guardar regras de descarte / códigos.');
@@ -140,14 +145,12 @@ export function useResults(
     }
   };
 
-  // ---- Ações: rascunho (bulk)
+  // ---- RASCUNHO
   const addDraftBySail = () => {
     const trimmed = draftInput.trim().toLowerCase();
     if (!trimmed || !selectedClass) return;
 
-    const matched = entryList.find(
-      e => (e.sail_number || '').toLowerCase() === trimmed
-    );
+    const matched = entryList.find(e => (e.sail_number || '').toLowerCase() === trimmed);
     if (!matched) return alert('Embarcação não encontrada com esse número de vela.');
     if (matched.class_name !== selectedClass)
       return alert(`Esta embarcação não pertence à classe ${selectedClass}.`);
@@ -178,22 +181,16 @@ export function useResults(
     });
   };
 
-  // 👇 setters usados pelo DraftResultsEditor
   const onSetDraftPos = (entryId: number, pos: number) => {
     const newPos = Math.max(1, Number(pos) || 1);
     setDraft(d => {
       const copy = d.map(r => (r.entryId === entryId ? { ...r, position: newPos } : r));
-      // ordena por posição e reindexa 1..N
-      return copy
-        .sort((a, b) => a.position - b.position)
-        .map((r, i) => ({ ...r, position: i + 1 }));
+      return copy.sort((a, b) => a.position - b.position).map((r, i) => ({ ...r, position: i + 1 }));
     });
   };
 
   const onSetDraftCode = (entryId: number, code: string | null) => {
-    setDraft(d =>
-      d.map(r => (r.entryId === entryId ? { ...r, code: code || undefined } : r))
-    );
+    setDraft(d => d.map(r => (r.entryId === entryId ? { ...r, code: code || undefined } : r)));
   };
 
   const computePoints = (pos: number, code?: string | null) => {
@@ -201,44 +198,26 @@ export function useResults(
     return pos;
   };
 
-  // ---- Marcar/limpar código (DNF/DNC/DSQ...) num resultado existente
+  // ---- EXISTENTES: código
   const markCode = async (rowId: number, code: string | null) => {
     if (!selectedRaceId || !token) return;
+    const normalized = code ? code.toUpperCase() : null;
 
-    const row = existingResults.find(r => r.id === rowId);
-    if (!row) return;
-
-    if (!row.sail_number) {
-      alert('Não é possível marcar código porque este resultado não tem nº de vela.');
-      return;
-    }
-
-    // pontos = código (se existir) ou a própria posição
-    const pts =
-      code && scoringCodes[code] != null
-        ? Number(scoringCodes[code])
-        : Number(row.position);
+    // update otimista
+    setExistingResults(prev =>
+      prev.map(r =>
+        r.id === rowId
+          ? { ...r, code: normalized ?? null, points: computePoints(r.position, normalized) }
+          : r
+      )
+    );
 
     try {
-      await apiSend(
-        `/results/races/${selectedRaceId}/result`,
-        'PUT',
-        {
-          regatta_id: regattaId,
-          sail_number: row.sail_number,
-          boat_name: row.boat_name ?? null,
-          helm_name: row.skipper_name ?? null,
-          position: row.position, // mantém a posição
-          points: pts,            // aplica os pontos do código
-          // Se no futuro adicionares "code" ao backend e schemas, podes enviar aqui também.
-          // code: code,
-        },
-        token
-      );
-
+      await apiSend(`/results/${rowId}/code`, 'PATCH', { code: normalized ?? '' }, token);
       await refreshExisting(selectedRaceId);
-    } catch (e) {
-      console.error('markCode falhou:', e);
+    } catch (err) {
+      console.error('markCode falhou:', err);
+      await refreshExisting(selectedRaceId);
       alert('Não foi possível aplicar o código a este resultado.');
     }
   };
@@ -249,16 +228,15 @@ export function useResults(
     const payload = draft.map(r => {
       const entry = entryList.find(e => e.id === r.entryId)!;
       const pts = computePoints(r.position, r.code);
-
       return {
         regatta_id: regattaId,
         race_id: selectedRaceId,
         sail_number: entry.sail_number,
         boat_name: entry.boat_name,
         helm_name: `${entry.first_name} ${entry.last_name}`,
-        position: r.position, // posição “oficial” (mesmo com código)
-        points: pts,          // pontos ajustados pelo código, se houver
-        // code: r.code ?? null, // <- mantém comentado até o backend suportar
+        position: r.position,
+        points: pts,
+        code: r.code ?? null,
       };
     });
 
@@ -272,7 +250,7 @@ export function useResults(
     }
   };
 
-  // ---- Ações: existentes
+  // ---- EXISTENTES: mover / guardar ordem / posição / apagar
   const moveRow = async (rowId: number, delta: -1 | 1) => {
     if (!selectedRaceId || !token || loadingExisting) return;
     const sorted = existingResults.slice().sort((a, b) => a.position - b.position);
@@ -301,17 +279,9 @@ export function useResults(
 
   const saveOrder = async () => {
     if (!selectedRaceId || !token) return;
-    const ordered = existingResults
-      .slice()
-      .sort((a, b) => a.position - b.position)
-      .map(r => r.id);
+    const ordered = existingResults.slice().sort((a, b) => a.position - b.position).map(r => r.id);
     try {
-      await apiSend(
-        `/results/races/${selectedRaceId}/reorder`,
-        'PUT',
-        { ordered_ids: ordered },
-        token
-      );
+      await apiSend(`/results/races/${selectedRaceId}/reorder`, 'PUT', { ordered_ids: ordered }, token);
       await refreshExisting(selectedRaceId);
       alert('Ordem guardada.');
     } catch {
@@ -319,7 +289,6 @@ export function useResults(
     }
   };
 
-  // ---- Eliminar 1 resultado
   const deleteResult = async (rowId: number) => {
     if (!selectedRaceId || !token) return;
     try {
@@ -331,17 +300,23 @@ export function useResults(
     }
   };
 
-  // ---- Adicionar 1 em falta
-  const addSingle = async () => {
+  // ---- Adicionar 1 em falta (FALTAVA!)
+  const addSingle = useCallback(async () => {
     if (!selectedRaceId || !token || !selectedClass) return;
-    const sail = singleSail.trim().toLowerCase();
+    const sail = (singleSail ?? '').trim().toLowerCase();
     const pos = Number(singlePos);
-    if (!sail || !pos) return alert('Preenche Nº de vela e posição.');
+    if (!sail || !pos) {
+      alert('Preenche Nº de vela e posição.');
+      return;
+    }
 
     const entry = entryList.find(
       e => (e.sail_number || '').toLowerCase() === sail && e.class_name === selectedClass
     );
-    if (!entry) return alert('Entrada não encontrada para esta classe.');
+    if (!entry) {
+      alert('Entrada não encontrada para esta classe.');
+      return;
+    }
 
     const payload = {
       regatta_id: regattaId,
@@ -350,7 +325,7 @@ export function useResults(
       helm_name: `${entry.first_name} ${entry.last_name}`,
       points: pos,
       desired_position: pos,
-      // code: null, // quando quiseres permitir “adicionar 1 com código”, ativa isto e ajusta pontos
+      // code: null, // ativa quando quiseres permitir "adicionar 1 com código"
     };
 
     try {
@@ -361,6 +336,54 @@ export function useResults(
     } catch {
       alert('Não foi possível adicionar.');
     }
+  }, [
+    selectedRaceId, token, selectedClass,
+    singleSail, singlePos, entryList, regattaId, refreshExisting
+  ]);
+
+  // ---- Corridas: renomear / apagar / reordenar
+  const renameRace = async (raceId: number, newName: string) => {
+    if (!token) return;
+    try {
+      const updated = await apiSend<Race>(`/races/${raceId}`, 'PATCH', { name: newName }, token);
+      setRaces(prev => prev.map(r => (r.id === raceId ? { ...r, ...updated } : r)));
+    } catch (e) {
+      console.error('renameRace falhou:', e);
+      alert('Não foi possível renomear a corrida.');
+    }
+  };
+
+  const deleteRace = async (raceId: number) => {
+    if (!token) return;
+    try {
+      await apiDelete(`/races/${raceId}`, token);
+      setRaces(prev => prev.filter(r => r.id !== raceId));
+      if (selectedRaceId === raceId) {
+        setSelectedRaceId(null);
+        setExistingResults([]);
+        setDraft([]);
+      }
+    } catch (e) {
+      console.error('deleteRace falhou:', e);
+      alert('Não foi possível eliminar a corrida.');
+    }
+  };
+
+  const reorderRaces = async (orderedIds: number[]) => {
+    if (!token) return;
+    try {
+      const rcs = await apiSend<Race[]>(
+        `/races/regattas/${regattaId}/reorder`,
+
+        'PUT',
+        { ordered_ids: orderedIds },
+        token
+      );
+      setRaces(rcs);
+    } catch (e) {
+      console.error('reorderRaces falhou:', e);
+      alert('Não foi possível reordenar as corridas.');
+    }
   };
 
   return {
@@ -370,7 +393,7 @@ export function useResults(
     existingResults, loadingExisting,
     availableEntries, draft, draftInput, setDraftInput,
     singleSail, setSingleSail, singlePos, setSinglePos,
-    scoringCodes, // útil para mostrar no UI
+    scoringCodes,
 
     // actions
     saveScoring,
@@ -378,8 +401,11 @@ export function useResults(
     onSetDraftPos, onSetDraftCode,
     saveBulk,
     moveRow, savePosition, saveOrder,
-    addSingle,
+    addSingle,              // <- agora existe e não dá mais TS18004
     markCode,
     deleteResult,
+
+    // races management
+    renameRace, deleteRace, reorderRaces, refreshRaces,
   };
 }

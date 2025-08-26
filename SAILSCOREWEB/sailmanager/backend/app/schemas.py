@@ -3,6 +3,8 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List,  Dict
 from datetime import datetime
 
+
+
 # ---------- NOTICE ----------
 class NoticeOut(BaseModel):
     id: int
@@ -71,14 +73,14 @@ class RegattaClassRead(BaseModel):
 
 # ---------- ENTRY ----------
 class EntryCreate(BaseModel):
-    # dados do barco
+    # boat
     class_name: str
     boat_country: Optional[str] = None
     sail_number: Optional[str] = None
     boat_name: Optional[str] = None
     category: Optional[str] = None
 
-    # dados do timoneiro
+    # helm
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     first_name: Optional[str] = None
@@ -95,29 +97,24 @@ class EntryCreate(BaseModel):
     helm_country_secondary: Optional[str] = None
 
     regatta_id: int
-    user_id: int
     paid: Optional[bool] = False
 
 
 class EntryRead(EntryCreate):
     id: int
-
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-# ---------- RESULT ----------
 class ResultCreate(BaseModel):
     regatta_id: int
     race_id: int
     sail_number: Optional[str] = None
     boat_name: Optional[str] = None
-    boat_class: Optional[str] = None   # opcional para evitar 422; backend usa Race.class_name
+    boat_class: Optional[str] = None
     helm_name: Optional[str] = None
     position: int
     points: float
-    code: Optional[str] = None          # <- NOVO
-
-
+    code: Optional[str] = None
 
 class ResultRead(BaseModel):
     id: int
@@ -125,14 +122,12 @@ class ResultRead(BaseModel):
     race_id: int
     sail_number: Optional[str] = None
     boat_name: Optional[str] = None
-    class_name: Optional[str] = None      # <- coincide com ApiResult do front
-    skipper_name: Optional[str] = None    # <- coincide com ApiResult do front
+    class_name: Optional[str] = None
+    skipper_name: Optional[str] = None
     position: int
     points: float
-    code: Optional[str] = None  # <- ADICIONA
-
+    code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
 
 # ---------- RACE ----------
 class RaceCreate(BaseModel):
@@ -140,7 +135,15 @@ class RaceCreate(BaseModel):
     regatta_id: int
     date: Optional[str] = None
     class_name: str
+    order_index: Optional[int] = None  # << opcional; se None, backend define ao fim
 
+class RaceUpdate(BaseModel):  # << NOVO
+    name: Optional[str] = None
+    date: Optional[str] = None
+    order_index: Optional[int] = None
+
+class RacesReorder(BaseModel):  # << NOVO
+    ordered_ids: List[int]
 
 class RaceRead(BaseModel):
     id: int
@@ -148,5 +151,56 @@ class RaceRead(BaseModel):
     regatta_id: int
     date: Optional[str] = None
     class_name: str
-
+    order_index: int  # << NOVO
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+# … (Notice, Auth UserCreate/Login/Token mantêm)
+
+# ---------- INVITATIONS ----------
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    role: str  # "admin" | "regatista"
+
+class InvitationRead(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+class AcceptInviteInput(BaseModel):
+    token: str
+    password: Optional[str] = None  # para criar password se quiseres
+
+# ---------- SAILOR PROFILE ----------
+class SailorProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    club: Optional[str] = None
+    contact_phone_1: Optional[str] = None
+    contact_phone_2: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    town: Optional[str] = None
+    country: Optional[str] = None
+    country_secondary: Optional[str] = None
+    territory: Optional[str] = None
+

@@ -1,60 +1,57 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const router = useRouter();
-  const params = useSearchParams();
-  const reason = params.get('reason'); // "expired" => sessão expirada
-  const { login } = useAuth();
+  const router = useRouter()
+  const params = useSearchParams()
+  const reason = params.get('reason') // "expired"
+  const { login } = useAuth()
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+    e.preventDefault()
+    setError('')
+    setLoading(true)
 
     try {
       const response = await fetch('http://localhost:8000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ username: email, password }),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
-        setError(data.detail || 'Erro ao fazer login.');
-        setLoading(false);
-        return;
+        setError(data.detail || 'Erro ao fazer login.')
+        setLoading(false)
+        return
       }
 
-      // guarda no contexto e no localStorage (por redundância)
-      login(data.access_token, { email, role: data.role });
-      try { localStorage.setItem('token', data.access_token); } catch {}
+      login(data.access_token, { email, role: data.role })
 
-      setLoading(false);
+      setLoading(false)
 
-      // redireciona para a rota que o utilizador estava antes do 401
-      const next = sessionStorage.getItem('postLoginRedirect');
-      sessionStorage.removeItem('postLoginRedirect');
+      const next = sessionStorage.getItem('postLoginRedirect')
+      sessionStorage.removeItem('postLoginRedirect')
 
       if (next) {
-        router.replace(next);
+        router.replace(next)
       } else {
-        router.replace(data.role === 'admin' ? '/admin' : '/dashboard');
+        router.replace(data.role === 'admin' ? '/admin' : '/sailor')
       }
-    } catch (err) {
-      setError('Erro de rede ou inesperado.');
-      setLoading(false);
+    } catch {
+      setError('Erro de rede ou inesperado.')
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -94,15 +91,16 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-4 text-center">
-          <p className="text-sm">
-            Ainda não tens conta?{' '}
-            <a href="/register" className="text-blue-600 hover:underline font-medium">
-              Criar conta
-            </a>
-          </p>
+        <div className="mt-4 text-center text-sm">
+          <a href="/accept-invite" className="text-blue-600 hover:underline font-medium">
+            Aceitar convite
+          </a>
+          <span className="mx-2 text-gray-400">•</span>
+          <a href="/forgot-password" className="text-gray-600 hover:underline">
+            Esqueci a palavra-passe
+          </a>
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-// Tipos
 interface Regatta {
   id: number;
   name: string;
@@ -17,79 +16,87 @@ export default function HomePage() {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
 
   useEffect(() => {
-    const fetchRegattas = async () => {
+    (async () => {
       try {
         const res = await fetch("http://127.0.0.1:8000/regattas/");
         const data = await res.json();
-        console.log("✅ Regatas:", data);
         setRegattas(data);
       } catch (err) {
-        console.error("❌ Erro ao buscar regatas:", err);
+        console.error("Erro ao buscar regatas:", err);
       }
-    };
-    fetchRegattas();
+    })();
   }, []);
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Barra de navegação */}
-      <nav className="flex justify-between items-center px-8 py-4 bg-white shadow-md">
-        <div className="text-2xl font-bold text-blue-700">SailScore</div>
-        <ul className="flex space-x-6 text-sm font-medium">
-          <li><Link href="/">Home</Link></li>
-          <li><Link href="/calendar">Calendar</Link></li>
-          <li><Link href="/results">Results</Link></li>
-          <li><Link href="/news">News</Link></li>
-        </ul>
-        <Link href="/login">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">Sailor Account</button>
-        </Link>
-      </nav>
+    <>
+      {/* HERO full-width */}
+      <section className="relative w-full text-center py-28 bg-[url('/waves.jpg')] bg-cover bg-center text-white">
+        {/* Overlay azul escuro com gradiente */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-blue-900/80"></div>
 
-      {/* Hero Banner */}
-      <section className="text-center py-12 bg-[url('/public/waves.jpg')] bg-cover bg-center">
-        <h1 className="text-4xl font-bold text-white drop-shadow mb-4">Regatta Management & Results</h1>
-        <p className="text-white text-lg drop-shadow">Track, participate and follow the world of sailing competitions.</p>
-      </section>
-
-      {/* Lista de Regatas */}
-      <section className="px-8 py-12">
-        <div className="bg-white shadow rounded p-6">
-          <h2 className="text-xl font-semibold mb-4">Upcoming Regattas</h2>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="py-2">Name</th>
-                <th>Dates</th>
-                <th>Location</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {regattas.map((regatta) => (
-                <tr key={regatta.id} className="border-b">
-                  <td className="py-2 font-medium">{regatta.name}</td>
-                  <td>{regatta.start_date} – {regatta.end_date}</td>
-                  <td>{regatta.location}</td>
-                  <td>
-                    <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs">
-                      {regatta.status || "Scheduled"}
-                    </span>
-                  </td>
-                  <td>
-                    <Link href={`/regattas/${regatta.id}`}>
-                      <button className="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700">
-                        More Info
-                      </button>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="relative z-10">
+          <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg">
+            Regatta Management & Results
+          </h1>
+          <p className="text-lg opacity-90 drop-shadow">
+            Track, participate and follow the world of sailing competitions.
+          </p>
         </div>
       </section>
-    </main>
+
+      {/* Secção cinzenta com regatas */}
+      <section className="bg-gray-50 py-16">
+        <div className="container-page">
+          <div className="bg-white shadow rounded-lg p-8">
+            <h2 className="text-2xl font-semibold mb-6">Upcoming Regattas</h2>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead>
+                  <tr className="border-b bg-gray-100 text-gray-600">
+                    <th className="py-3 px-2">Name</th>
+                    <th className="px-2">Dates</th>
+                    <th className="px-2">Location</th>
+                    <th className="px-2">Status</th>
+                    <th className="px-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {regattas.map((regatta) => (
+                    <tr key={regatta.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-2 font-medium">{regatta.name}</td>
+                      <td className="px-2">
+                        {regatta.start_date} – {regatta.end_date}
+                      </td>
+                      <td className="px-2">{regatta.location}</td>
+                      <td className="px-2">
+                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                          {regatta.status || "Scheduled"}
+                        </span>
+                      </td>
+                      <td className="px-2">
+                        <Link href={`/regattas/${regatta.id}`}>
+                          <button className="text-xs bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700 transition">
+                            More Info
+                          </button>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {regattas.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-gray-500">
+                        No regattas yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }

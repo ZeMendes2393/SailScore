@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from app.database import get_db
 from app import models, schemas
@@ -41,7 +41,7 @@ class PositionPatch(BaseModel):
     new_position: int
 
 class CodePatch(BaseModel):
-    code: str  # "DNF" | "DNC" | etc.
+    code: Optional[str] = None  # permite null/(nenhum)
 
 
 
@@ -181,29 +181,25 @@ def delete_result(result_id: int, db: Session = Depends(get_db), current_user: m
     return None
 
 
-# ========= OVERALL (com filtro de classe) =========
 @router.get("/overall/{regatta_id}")
 def get_overall_results(
     regatta_id: int,
     class_name: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    # regras da regata
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(404, "Regata não encontrada")
-    D = int(reg.discard_count or 0)
+    D  = int(reg.discard_count or 0)
     TH = int(reg.discard_threshold or 0)
 
-    # corridas relevantes (IDs em ordem)
     race_q = db.query(models.Race).filter(models.Race.regatta_id == regatta_id)
     if class_name:
         race_q = race_q.filter(models.Race.class_name == class_name)
-    races = race_q.order_by(models.Race.id.asc()).all()
+    races    = race_q.order_by(models.Race.order_index.asc(), models.Race.id.asc()).all()  # << AQUI
     race_ids = [r.id for r in races]
     race_map = {r.id: r.name for r in races}
 
-    # agregado por barco (só corridas relevantes)
     agg_q = (
         db.query(
             models.Result.sail_number,
@@ -230,47 +226,59 @@ def get_overall_results(
         .all()
     )
 
-    # pontos por corrida indexados por race_id
     pr_q = db.query(models.Result).filter(models.Result.regatta_id == regatta_id)
     if race_ids:
         pr_q = pr_q.filter(models.Result.race_id.in_(race_ids))
     if class_name:
         pr_q = pr_q.filter(models.Result.class_name == class_name)
 
-    per_race_map: dict[tuple[str, str, str], dict[int, float]] = {}
+    per_race_map: dict[tuple[str, str, str], dict[int, dict[str, object]]] = {}
     for r in pr_q.all():
         key = (r.class_name, r.sail_number or "", r.skipper_name or "")
-        per_race_map.setdefault(key, {})[r.race_id] = float(r.points)
+        per_race_map.setdefault(key, {})[r.race_id] = {
+            "points": float(r.points),
+            "code": (r.code or None),
+        }
+
+    def fmt_pts(x: float) -> str:
+        return f"{x:.1f}"
 
     overall = []
     for row in agg_rows:
         key = (row.class_name, row.sail_number or "", row.skipper_name or "")
         per_by_id = per_race_map.get(key, {})
 
-        # lista [(race_id, points)] só com corridas onde há pontos
-        points_list = [(rid, per_by_id[rid]) for rid in race_ids if rid in per_by_id]
+        points_list = [
+            (rid, per_by_id[rid]["points"])
+            for rid in race_ids if rid in per_by_id
+        ]
 
-        # aplica descarte apenas se há threshold atingido e D > 0
         discarded_ids: set[int] = set()
         if len(points_list) >= TH and D > 0:
-            # descarta os piores (maiores pontos)
             worst = sorted(points_list, key=lambda x: x[1], reverse=True)[:D]
             discarded_ids = {rid for rid, _ in worst}
 
-        # constrói células por corrida: “(X)” se descartado
         per_race_named: dict[str, str | float] = {}
         net_total = 0.0
+
         for rid in race_ids:
             name = race_map[rid]
             if rid not in per_by_id:
                 per_race_named[name] = "-"
                 continue
-            pts = per_by_id[rid]
+
+            pts  = float(per_by_id[rid]["points"])
+            code = per_by_id[rid]["code"] or None
+
+            base_txt = fmt_pts(pts) + (f" {code}" if code else "")
+
             if rid in discarded_ids:
-                per_race_named[name] = f"({pts})"
+                cell = f"({base_txt})"
             else:
-                per_race_named[name] = pts
+                cell = base_txt if code else pts
                 net_total += pts
+
+            per_race_named[name] = cell
 
         overall.append(
             {
@@ -284,7 +292,6 @@ def get_overall_results(
             }
         )
 
-    # ordena pela pontuação líquida (net), depois total
     overall.sort(key=lambda r: (r["net_points"], r["total_points"]))
     return overall
 
@@ -458,6 +465,7 @@ def change_result_position(
     db.refresh(row)
     return row
 
+
 @router.patch("/{result_id}/code", response_model=schemas.ResultRead)
 def set_result_code(
     result_id: int,
@@ -472,14 +480,45 @@ def set_result_code(
     if not row:
         raise HTTPException(status_code=404, detail="Resultado não encontrado")
 
+    # scoring map da regata
     reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
-    mapping = reg.scoring_codes or {}
-    code = (body.code or '').upper()
+    mapping: dict[str, float] = reg.scoring_codes or {}
+
+    raw = (body.code or "").strip()
+    # --- LIMPAR CÓDIGO ("" ou None) -> mantém posição, pontos = posição
+    if raw == "":
+        row.code = None
+        row.points = float(row.position)
+        db.commit()
+        db.refresh(row)
+        return row
+
+    code = raw.upper()
     if code not in mapping:
         raise HTTPException(status_code=400, detail=f"Código {code} sem pontuação definida")
 
+    race_id = row.race_id
+    old_pos = int(row.position)
+
+    # 1) Comprimir ranking: quem estava atrás deste sobe -1
+    (
+        db.query(models.Result)
+        .filter(
+            models.Result.race_id == race_id,
+            models.Result.position > old_pos,
+            models.Result.id != row.id,
+        )
+        .update({models.Result.position: models.Result.position - 1}, synchronize_session=False)
+    )
+
+    # 2) Empurrar o marcado para o fim
+    max_pos = db.query(func.max(models.Result.position)).filter(models.Result.race_id == race_id).scalar() or 0
+    row.position = int(max_pos) + 1
+
+    # 3) Aplicar código e pontos do mapa
     row.code = code
-    row.points = float(mapping[code])  # regra: pontos definidos em scoring_codes
+    row.points = float(mapping[code])
+
     db.commit()
     db.refresh(row)
     return row

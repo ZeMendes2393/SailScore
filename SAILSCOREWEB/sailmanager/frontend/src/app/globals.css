@@ -1,15 +1,10 @@
 @import "tailwindcss";
 
+/* Tokens */
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --radius: 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,8 +14,19 @@
   }
 }
 
+/* Base */
+html, body { height: 100%; }
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+/* Helpers */
+.container-page { @apply max-w-7xl mx-auto px-4 md:px-6; }
+.card { @apply rounded-2xl border bg-white shadow-[0_10px_24px_rgba(0,0,0,.08)]; }
+
+/* 🚨 TESTE: deve aparecer uma caixa vermelha */
+.test-bg { 
+  @apply bg-red-500 text-white p-4 text-center font-bold rounded-lg mt-4;
 }
