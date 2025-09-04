@@ -1,10 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import MultiStepEntryForm from "@/components/onlineentry/MultiStepEntryForm";
-import EntryList from "./components/entrylist/EntryList";
-import NoticeBoard from "./components/noticeboard/NoticeBoard";
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
+import EntryList from './components/entrylist/EntryList';
+import NoticeBoard from './components/noticeboard/NoticeBoard';
 
 interface Regatta {
   id: number;
@@ -15,69 +17,68 @@ interface Regatta {
   status?: string;
 }
 
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000';
+
 export default function RegattaDetails() {
   const params = useParams();
   const id = params.id as string;
-  const regattaId = Number(id);
+  const regattaId = useMemo(() => Number(id), [id]);
   const router = useRouter();
 
+  const { user } = useAuth();
+
   const [regatta, setRegatta] = useState<Regatta | null>(null);
-  const [activeTab, setActiveTab] = useState<"entry" | "notice" | "form" | null>(null);
+  const [activeTab, setActiveTab] = useState<'entry' | 'notice' | 'form' | null>(null);
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  // Agora tratamos as classes como array de strings
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRegatta = async () => {
-      const res = await fetch(`http://localhost:8000/regattas/${regattaId}`);
-      if (!res.ok) {
-        console.error("❌ Falha ao obter regata:", res.status, await res.text());
-        return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/regattas/${regattaId}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = (await res.json()) as Regatta;
+        setRegatta(data);
+      } catch (err) {
+        console.error('❌ Falha ao obter regata:', err);
       }
-      const data = await res.json();
-      setRegatta(data);
-    };
+    })();
 
-    const fetchClasses = async () => {
+    (async () => {
       setLoadingClasses(true);
       setClassesError(null);
       try {
-        const res = await fetch(`http://localhost:8000/regattas/${regattaId}/classes`);
+        const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, { cache: 'no-store' });
         if (!res.ok) {
-          const txt = await res.text();
-          console.error("❌ Erro ao carregar classes:", res.status, txt);
           setAvailableClasses([]);
-          setClassesError("Não foi possível carregar as classes desta regata.");
+          setClassesError('Não foi possível carregar as classes desta regata.');
           return;
         }
-        const data: unknown = await res.json();
-        const arr = Array.isArray(data) ? (data as string[]) : [];
-        setAvailableClasses(arr);
+        const arr = (await res.json()) as unknown;
+        setAvailableClasses(Array.isArray(arr) ? (arr as string[]) : []);
       } catch (err) {
-        console.error("❌ Erro de rede ao carregar classes:", err);
         setAvailableClasses([]);
-        setClassesError("Erro de rede ao carregar classes.");
+        setClassesError('Erro de rede ao carregar classes.');
       } finally {
         setLoadingClasses(false);
       }
-    };
-
-    fetchRegatta();
-    fetchClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })();
   }, [regattaId]);
 
-  // Quando entrar na tab "entry", se não houver classe escolhida, seleciona a 1ª disponível
   useEffect(() => {
-    if (activeTab === "entry" && !selectedClass && availableClasses.length > 0) {
+    if (activeTab === 'entry' && !selectedClass && availableClasses.length > 0) {
       setSelectedClass(availableClasses[0]);
     }
   }, [activeTab, availableClasses, selectedClass]);
 
   if (!regatta) return <p className="p-8">A carregar regata...</p>;
+
+  const isSailor = user?.role === 'regatista';
+  const inThisRegatta = isSailor && user?.current_regatta_id === regattaId;
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
@@ -87,16 +88,14 @@ export default function RegattaDetails() {
           {regatta.location} | {regatta.start_date} – {regatta.end_date}
         </p>
         <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs mt-2 inline-block">
-          {regatta.status || "Scheduled"}
+          {regatta.status || 'Scheduled'}
         </span>
       </div>
 
       {/* CLASS SELECTOR */}
       <div className="mb-6">
         {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
-        {!loadingClasses && classesError && (
-          <p className="text-red-700">{classesError}</p>
-        )}
+        {!loadingClasses && classesError && <p className="text-red-700">{classesError}</p>}
         {!loadingClasses && !classesError && availableClasses.length > 0 && (
           <div className="flex gap-2 mb-2 flex-wrap">
             {availableClasses.map((cls) => (
@@ -105,8 +104,8 @@ export default function RegattaDetails() {
                 onClick={() => setSelectedClass(cls)}
                 className={`px-3 py-1 rounded font-semibold border ${
                   selectedClass === cls
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-blue-600 border-blue-600"
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-blue-600 border-blue-600'
                 }`}
               >
                 {cls}
@@ -116,37 +115,57 @@ export default function RegattaDetails() {
         )}
       </div>
 
-      {/* NAVIGATION TABS */}
-      <div className="bg-white shadow rounded mb-4 px-6 py-4 flex gap-6 text-blue-600 font-semibold">
-        <button onClick={() => setActiveTab("entry")} className="hover:underline">
-          Entry List
-        </button>
-        <button onClick={() => setActiveTab("notice")} className="hover:underline">
-          Notice Board
-        </button>
-        <button onClick={() => setActiveTab("form")} className="hover:underline">
-          Online Entry
-        </button>
-        <button
-          onClick={() => router.push(`/regattas/${id}/results`)}
-          className="hover:underline"
-        >
-          Results
-        </button>
+      {/* NAVIGATION + Sailor button (regatta-scoped) */}
+      <div className="bg-white shadow rounded mb-4 px-6 py-4 flex items-center justify-between">
+        <div className="flex gap-6 text-blue-600 font-semibold">
+          <button onClick={() => setActiveTab('entry')} className="hover:underline">
+            Entry List
+          </button>
+          <button onClick={() => setActiveTab('notice')} className="hover:underline">
+            Notice Board
+          </button>
+          <button onClick={() => setActiveTab('form')} className="hover:underline">
+            Online Entry
+          </button>
+          <button onClick={() => router.push(`/regattas/${id}/results`)} className="hover:underline">
+            Results
+          </button>
+        </div>
+
+        {/* Botão Sailor: só aqui (scoped à regata). Admin usa /login global. */}
+        <div>
+          {isSailor ? (
+            inThisRegatta ? (
+              <Link href={`/dashboard?regattaId=${regattaId}`}>
+                <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
+                  My Sailor Area
+                </button>
+              </Link>
+            ) : (
+              <Link href={`/login?regattaId=${regattaId}`}>
+                <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
+                  Sailor account
+                </button>
+              </Link>
+            )
+          ) : (
+            <Link href={`/login?regattaId=${regattaId}`}>
+              <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
+                Sailor account
+              </button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
-        {activeTab === "entry" && (
-          <EntryList regattaId={regattaId} selectedClass={selectedClass} />
-        )}
-        {activeTab === "notice" && <NoticeBoard regattaId={regattaId} />}
-        {activeTab === "form" && <MultiStepEntryForm regattaId={regattaId} />}
+        {activeTab === 'entry' && <EntryList regattaId={regattaId} selectedClass={selectedClass} />}
+        {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}
+        {activeTab === 'form' && <MultiStepEntryForm regattaId={regattaId} />}
 
         {!activeTab && (
-          <p className="text-gray-600">
-            Escolhe uma secção acima para ver os detalhes desta regata.
-          </p>
+          <p className="text-gray-600">Escolhe uma secção acima para ver os detalhes desta regata.</p>
         )}
       </div>
     </main>

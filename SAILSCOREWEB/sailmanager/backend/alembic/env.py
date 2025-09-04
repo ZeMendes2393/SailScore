@@ -5,12 +5,14 @@ import sys
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# permitir importações a partir da raiz do projeto (../app/...)
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# --- garantir que o pacote 'app' é importável ---
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # .../backend
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
-# importa Base e engine da tua app
+# importa Base/engine e CARREGA os modelos (regista tabelas no metadata)
 from app.database import Base, engine  # Base.metadata é o target_metadata
-from app import models  # garante que os modelos estão importados
+import app.models  # noqa: F401
 
 # Alembic Config (alembic.ini)
 config = context.config
@@ -22,8 +24,7 @@ if config.config_file_name is not None:
 # Metadados dos modelos para autogenerate
 target_metadata = Base.metadata
 
-# Garante que o Alembic usa o MESMO URL que a tua app
-# (evita desencontros entre alembic.ini e app.database)
+# usa exatamente o mesmo URL de BD da tua app
 if engine is not None and getattr(engine, "url", None):
     config.set_main_option("sqlalchemy.url", str(engine.url))
 

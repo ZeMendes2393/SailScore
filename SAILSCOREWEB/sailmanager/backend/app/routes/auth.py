@@ -1,81 +1,148 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-from datetime import datetime, timedelta
-import secrets
+# app/routes/auth.py
+from __future__ import annotations
 
-from app import models
+import secrets
+from datetime import datetime, timedelta
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+
+from app import models, schemas
+from app.database import get_db
 from utils.auth_utils import (
     verify_password,
     create_access_token,
     get_current_user,
-    get_db,
+    get_current_regatta_id,
     hash_password,
-    verify_role
+    verify_role,
 )
 
 router = APIRouter()
 
-# ---- LOGIN ----
-@router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password or ""):
+# ---------- LOGIN (JSON) ----------
+# Espera schemas.UserLogin: { email: str, password: str, regatta_id?: int }
+@router.post("/login", response_model=schemas.Token)
+def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
+    email = body.email.lower().strip()
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user or not verify_password(body.password, user.hashed_password or ""):
         raise HTTPException(status_code=400, detail="Credenciais inválidas")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Conta inativa.")
-    token = create_access_token(user.email, user.role)
-    return {"access_token": token, "token_type": "bearer", "role": user.role}
+        raise HTTPException(status_code=403, detail="Conta inativa")
 
-# ---- (OPCIONAL) DESATIVAR REGISTO PÚBLICO ----
-# Mantém só para admins, se quiseres:
+    claims: dict = {"sub": user.email, "role": user.role}
+
+    if user.role == "regatista":
+        # regatas onde tem inscrição
+        my_regatta_rows = (
+            db.query(models.Entry.regatta_id)
+            .filter(models.Entry.user_id == user.id)
+            .distinct()
+            .all()
+        )
+        my_regattas = [int(r[0]) for r in my_regatta_rows]
+
+        if body.regatta_id is not None:
+            if int(body.regatta_id) not in my_regattas:
+                raise HTTPException(status_code=403, detail="Não tens inscrição nessa regata")
+            claims["regatta_id"] = int(body.regatta_id)
+        else:
+            if len(my_regattas) == 0:
+                raise HTTPException(status_code=403, detail="Sem inscrição em nenhuma regata")
+            if len(my_regattas) == 1:
+                claims["regatta_id"] = my_regattas[0]
+            else:
+                # força o frontend a escolher
+                raise HTTPException(
+                    status_code=409,
+                    detail={"requires_regatta_selection": True, "regattas": my_regattas},
+                )
+
+    token = create_access_token(claims)
+    return schemas.Token(access_token=token)
+
+# ---------- LOGIN (FORM) OPCIONAL ----------
+# Útil se ainda tiveres um cliente a enviar application/x-www-form-urlencoded
+@router.post("/login-form", response_model=schemas.Token)
+def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    email = form.username.lower().strip()
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user or not verify_password(form.password, user.hashed_password or ""):
+        raise HTTPException(status_code=400, detail="Credenciais inválidas")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Conta inativa")
+
+    claims: dict = {"sub": user.email, "role": user.role}
+    # Neste fluxo não sabemos regatta_id → só admins e regatistas sem “contexto”
+    # Se precisares, podes aceitar ?regatta_id= na query e validar como no /login.
+    token = create_access_token(claims)
+    return schemas.Token(access_token=token)
+
+# ---------- /me ----------
+@router.get("/me")
+def me(
+    current_user: models.User = Depends(get_current_user),
+    current_regatta_id: Optional[int] = Depends(get_current_regatta_id),
+):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "role": current_user.role,
+        "current_regatta_id": current_regatta_id,  # admin pode vir None
+        "email_verified_at": current_user.email_verified_at,
+    }
+
+# ---------- REGISTO (apenas admin) ----------
 class RegisterInput(BaseModel):
-    name: str
+    name: Optional[str] = None
     email: EmailStr
     password: str
     role: str
 
 @router.post("/register", dependencies=[Depends(verify_role(["admin"]))])
 def register_user(data: RegisterInput, db: Session = Depends(get_db)):
-    user_exists = db.query(models.User).filter(models.User.email == data.email).first()
-    if user_exists:
+    exists = db.query(models.User).filter(models.User.email == data.email).first()
+    if exists:
         raise HTTPException(status_code=400, detail="Email já registado")
+
     new_user = models.User(
         name=data.name,
-        email=data.email,
+        email=str(data.email).lower().strip(),
         hashed_password=hash_password(data.password),
         role=data.role,
         is_active=True,
-        email_verified_at=datetime.utcnow()
+        email_verified_at=datetime.utcnow(),
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return {"message": "Utilizador criado", "user_id": new_user.id}
 
-# ---- INVITATIONS (ADMIN ONLY) ----
+# ---------- Convites (admin) ----------
 from app.schemas import InvitationCreate, InvitationRead, AcceptInviteInput
 
 def _send_invite_email_log(email: str, link: str):
-    # MVP sem email: loga no servidor. Depois trocamos por SMTP/SendGrid.
     print(f"[INVITE] Enviar para {email}: {link}")
 
 @router.post("/invitations", response_model=InvitationRead, dependencies=[Depends(verify_role(["admin"]))])
-def create_invitation(data: InvitationCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
+def create_invitation(data: InvitationCreate, db: Session = Depends(get_db)):
     token = secrets.token_urlsafe(32)
     inv = models.Invitation(
-        email=str(data.email),
+        email=str(data.email).lower().strip(),
         role=data.role,
         token=token,
-        expires_at=datetime.utcnow() + timedelta(days=7)
+        expires_at=datetime.utcnow() + timedelta(days=7),
     )
     db.add(inv)
     db.commit()
     db.refresh(inv)
-
-    link = f"http://localhost:3000/accept-invite?token={token}"  # frontend vai abrir esta rota
-    background.add_task(_send_invite_email_log, inv.email, link)
+    link = f"http://localhost:3000/accept-invite?token={token}"
+    _send_invite_email_log(inv.email, link)
     return inv
 
 @router.post("/accept-invite")
@@ -90,7 +157,6 @@ def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.email == inv.email).first()
     if user:
-        # Atualiza role se for preciso
         user.role = inv.role
         if payload.password:
             user.hashed_password = hash_password(payload.password)
@@ -100,24 +166,19 @@ def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
     else:
         user = models.User(
             name=None,
-            email=inv.email,
+            email=inv.email.lower().strip(),
             hashed_password=hash_password(payload.password) if payload.password else None,
             role=inv.role,
             is_active=True,
-            email_verified_at=datetime.utcnow()
+            email_verified_at=datetime.utcnow(),
         )
         db.add(user)
 
     inv.accepted_at = datetime.utcnow()
     db.commit()
-
     return {"message": "Convite aceite. Já podes iniciar sessão."}
 
-# ---- PROFILE & AREAS ----
-@router.get("/me")
-def get_profile(user: models.User = Depends(get_current_user)):
-    return {"email": user.email, "role": user.role, "email_verified_at": user.email_verified_at}
-
+# ---------- Áreas por role ----------
 @router.get("/admin-area")
 def admin_only(user: models.User = Depends(verify_role(["admin"]))):
     return {"message": f"Olá {user.email}, bem-vindo à zona de admin."}
@@ -125,3 +186,26 @@ def admin_only(user: models.User = Depends(verify_role(["admin"]))):
 @router.get("/regatista-area")
 def regatista_only(user: models.User = Depends(verify_role(["regatista"]))):
     return {"message": f"Olá {user.email}, bem-vindo à zona de regatista."}
+
+# ---------- Trocar regata (novo token com regatta_id) ----------
+@router.post("/switch-regatta", response_model=schemas.Token)
+def switch_regatta(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    claims: dict = {"sub": current_user.email, "role": current_user.role}
+
+    if current_user.role == "admin":
+        claims["regatta_id"] = int(regatta_id)
+        return schemas.Token(access_token=create_access_token(claims))
+
+    ok = db.query(models.Entry).filter(
+        models.Entry.user_id == current_user.id,
+        models.Entry.regatta_id == regatta_id,
+    ).first()
+    if not ok:
+        raise HTTPException(status_code=403, detail="Não tens inscrição nessa regata")
+
+    claims["regatta_id"] = int(regatta_id)
+    return schemas.Token(access_token=create_access_token(claims))

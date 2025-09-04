@@ -1,10 +1,11 @@
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Boolean, Float,
-    UniqueConstraint, Index, JSON
+    UniqueConstraint, Index, JSON, exists
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, timedelta
+
 
 class User(Base):
     __tablename__ = "users"
@@ -178,3 +179,69 @@ class Invitation(Base):
     accepted_at = Column(DateTime, nullable=True)
 
 # … (mantém Regatta, RegattaClass, Entry, Notice, Race, Result como tens)
+
+
+
+
+
+# ---------- PROTESTS ----------
+
+class Protest(Base):
+    __tablename__ = "protests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True)
+
+    # tipo e identificação da prova
+    type = Column(String, nullable=False)  # protest | redress | reopen | support_person_report | misconduct_rss69
+    race_date = Column(String, nullable=True)
+    race_number = Column(String, nullable=True)
+    group_name = Column(String, nullable=True)
+
+    # iniciador
+    initiator_entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
+    initiator_represented_by = Column(String, nullable=True)
+
+    # sistema
+    status = Column(String, nullable=False, default="submitted")  # submitted | under_review | scheduled | closed | invalid | withdrawn
+    received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # relationships
+    initiator_entry = relationship("Entry", foreign_keys=[initiator_entry_id])
+    parties = relationship("ProtestParty", back_populates="protest", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_protests_regatta_updated", "regatta_id", "updated_at"),
+    )
+
+
+class ProtestParty(Base):
+    """
+    Respondentes / partes envolvidas (1:N por Protest).
+    kind = 'entry' (liga a entries) | 'other' (texto livre)
+    """
+    __tablename__ = "protest_parties"
+
+    id = Column(Integer, primary_key=True, index=True)
+    protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True)
+
+    kind = Column(String, nullable=False, default="entry")  # entry | other
+    entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
+    free_text = Column(String, nullable=True)
+    represented_by = Column(String, nullable=True)
+
+    protest = relationship("Protest", back_populates="parties")
+    entry = relationship("Entry")  # quando kind = 'entry'
+
+    __table_args__ = (
+        Index("ix_protest_parties_protest", "protest_id"),
+    )
+
+class ProtestAttachment(Base):
+     __tablename__ = "protest_attachments"
+     id = Column(Integer, primary_key=True, index=True)
+     protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True)
+     filename = Column(String, nullable=False)
+     filepath = Column(String, nullable=False)
+     uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)

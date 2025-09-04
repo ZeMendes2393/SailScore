@@ -6,7 +6,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
 from app.database import create_database
-from app.routes import regattas, entries, auth, notices, results, races, regatta_classes
+from app.routes import regattas, entries, auth, notices, results, races, regatta_classes, protests
 
 app = FastAPI(title="SailScore API")
 
@@ -62,3 +62,6 @@ app.openapi_schema = None
 
 # ✅ Ficheiros estáticos (ex.: /uploads/ficheiro.pdf)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+app.include_router(protests.router)  # sem prefix extra; o router já tem /regattas/{id}/protests
+

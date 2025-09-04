@@ -22,9 +22,7 @@ class UserCreate(BaseModel):
     password: str
 
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+
 
 
 class Token(BaseModel):
@@ -203,4 +201,90 @@ class SailorProfileUpdate(BaseModel):
     country: Optional[str] = None
     country_secondary: Optional[str] = None
     territory: Optional[str] = None
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------- PROTESTS (Listagem + criação futura) ----------
+class ProtestPartySummary(BaseModel):
+    sail_no: str | None = None
+    boat_name: str | None = None
+    class_name: str | None = None
+    free_text: str | None = None
+
+
+class ProtestInitiatorSummary(BaseModel):
+    sail_no: str | None = None
+    boat_name: str | None = None
+    class_name: str | None = None
+
+
+class ProtestListItem(BaseModel):
+    id: int
+    short_code: str
+    type: str
+    status: str
+    race_date: str | None = None
+    race_number: str | None = None
+    group_name: str | None = None
+    initiator: ProtestInitiatorSummary
+    respondents: List[ProtestPartySummary]
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+# (para o Passo 2 – já deixo preparado)
+class ProtestRespondentIn(BaseModel):
+    kind: str = "entry"           # entry | other
+    entry_id: Optional[int] = None
+    free_text: Optional[str] = None
+    represented_by: Optional[str] = None
+
+
+class ProtestValidityIn(BaseModel):
+    informed_by_hailing: Optional[bool] = None
+    hailing_words: Optional[str] = None
+    hailing_when: Optional[datetime] = None
+    red_flag: Optional[str] = None         # not_required | yes | no
+    red_flag_when: Optional[datetime] = None
+    informed_other_way: Optional[bool] = None
+    informed_other_how_when_where: Optional[str] = None
+
+
+class ProtestIncidentIn(BaseModel):
+    when_where: str
+    rules_applied: Optional[str] = None
+    description: str
+    damage_injury: Optional[str] = None
+    witnesses: Optional[List[dict]] = None  # simplificado para já
+
+
+class ProtestCreate(BaseModel):
+    type: str
+    race_date: Optional[str] = None
+    race_number: Optional[str] = None
+    group_name: Optional[str] = None
+    initiator_entry_id: int
+    initiator_represented_by: Optional[str] = None
+    respondents: List[ProtestRespondentIn]
+    validity: Optional[ProtestValidityIn] = None
+    incident: ProtestIncidentIn
+
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+    regatta_id: Optional[int] = None  # <-- só usado para regatistas
+
+
 

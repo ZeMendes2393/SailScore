@@ -1,42 +1,57 @@
 // src/lib/api.ts
-// Utilitário simples para chamadas à API
 export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000';
 
+const authHeaders = (token?: string): HeadersInit =>
+  token ? { Authorization: `Bearer ${token}` } : {};
+
 export const jsonHeaders = (token?: string): HeadersInit => ({
   'Content-Type': 'application/json',
-  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  ...authHeaders(token),
 });
 
-// Redireciona quando a sessão expira
 function handleUnauthorized() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token');
-    // guarda a rota actual para voltar depois do login
-    sessionStorage.setItem(
-      'postLoginRedirect',
-      window.location.pathname + window.location.search
-    );
-    // passa um motivo para o /login mostrar aviso
+    sessionStorage.setItem('postLoginRedirect', window.location.pathname + window.location.search);
     window.location.href = '/login?reason=expired';
   }
 }
 
-// tenta obter o token do localStorage se não for passado
 function resolveToken(passed?: string) {
   if (passed) return passed;
   if (typeof window === 'undefined') return undefined;
   return localStorage.getItem('token') || undefined;
 }
 
+async function parseError(res: Response): Promise<Error> {
+  const ct = res.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) {
+      const j = await res.json();
+      // FastAPI validation: detail é array -> junta msgs
+      if (Array.isArray(j?.detail)) {
+        const msg = j.detail.map((d: any) => d?.msg || d?.detail || JSON.stringify(d)).join('; ');
+        return new Error(msg);
+      }
+      const msg = j?.detail || j?.message || JSON.stringify(j);
+      return new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    const t = await res.text();
+    return new Error(t || `HTTP ${res.status}`);
+  } catch {
+    return new Error(`HTTP ${res.status}`);
+  }
+}
+
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: jsonHeaders(resolveToken(token)),
+    headers: authHeaders(resolveToken(token)),
     cache: 'no-store',
   });
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized();
-    throw new Error(await res.text());
+    throw await parseError(res);
   }
   return res.json() as Promise<T>;
 }
@@ -54,22 +69,25 @@ export async function apiSend<T>(
   });
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized();
-    throw new Error(await res.text());
+    throw await parseError(res);
   }
-  // Atenção: endpoints 204 (sem conteúdo) irão falhar aqui.
-  // Usa apiDelete() para DELETEs 204.
   return res.json() as Promise<T>;
 }
 
-// DELETE que lida com 204 No Content
-export async function apiDelete(path: string, token?: string): Promise<void> {
+// NOVO: POST form-url-encoded (para /auth/login com OAuth2PasswordRequestForm)
+
+
+// src/lib/api.ts
+export async function apiPostJson<T>(path: string, body: unknown, token?: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'DELETE',
+    method: 'POST',
     headers: jsonHeaders(resolveToken(token)),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized();
     throw new Error(await res.text());
   }
-  // 204 -> sem body; não retornamos nada
+  return res.json() as Promise<T>;
 }
+
