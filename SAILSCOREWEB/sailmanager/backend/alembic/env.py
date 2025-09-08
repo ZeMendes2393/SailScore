@@ -1,20 +1,24 @@
+# alembic/env.py
 from logging.config import fileConfig
 import os
 import sys
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# --- garantir que o pacote 'app' é importável ---
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # .../backend
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+# ------------------------------------------------------------
+# Deixar o pacote "app" importável (pasta backend no sys.path)
+# ------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parents[1]  # .../backend
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-# importa Base/engine e CARREGA os modelos (regista tabelas no metadata)
-from app.database import Base, engine  # Base.metadata é o target_metadata
-import app.models  # noqa: F401
+# Importa apenas o Base (NÃO importar o engine)
+from app.database import Base  # Base.metadata será o target_metadata
+import app.models  # noqa: F401  # garante que todas as tabelas estão registadas
 
-# Alembic Config (alembic.ini)
+# Alembic config (alembic.ini)
 config = context.config
 
 # Logging do Alembic
@@ -24,24 +28,31 @@ if config.config_file_name is not None:
 # Metadados dos modelos para autogenerate
 target_metadata = Base.metadata
 
-# usa exatamente o mesmo URL de BD da tua app
-if engine is not None and getattr(engine, "url", None):
-    config.set_main_option("sqlalchemy.url", str(engine.url))
+# ------------------------------------------------------------
+# URL da BD: env var > alembic.ini
+# (Não usar o engine da app aqui para não sobrepor a URL)
+# ------------------------------------------------------------
+db_url = (
+    os.environ.get("SQLALCHEMY_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or config.get_main_option("sqlalchemy.url")
+)
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline() -> None:
-    """Executa migrações em modo offline (sem Engine)."""
-    url = config.get_main_option("sqlalchemy.url")
-
+    """Executa migrações em modo offline (sem Engine/Connection)."""
     context.configure(
-        url=url,
+        url=db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,   # necessário em SQLite para ALTER TABLE
+        # SQLite precisa disto para ALTER TABLE (batch ops)
+        render_as_batch=True,
+        # detetar alterações de tipos/servidor
         compare_type=True,
+        compare_server_default=True,
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
@@ -49,19 +60,18 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Executa migrações em modo online (com Engine/Connection)."""
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        config.get_section(config.config_ini_section) or {},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # necessário em SQLite para ALTER TABLE
+            render_as_batch=True,       # importante para SQLite
             compare_type=True,
+            compare_server_default=True,
         )
-
         with context.begin_transaction():
             context.run_migrations()
 

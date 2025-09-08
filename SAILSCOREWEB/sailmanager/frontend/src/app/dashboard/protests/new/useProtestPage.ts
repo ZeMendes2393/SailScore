@@ -23,7 +23,7 @@ export type RespondentKindApi = 'entry' | 'other';
 
 export interface EntryOption {
   id: number;
-  regatta_id?: number; // ideal o backend devolver
+  regatta_id?: number;
   sail_number?: string | null;
   boat_name?: string | null;
   class_name: string;
@@ -62,11 +62,11 @@ const genId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
-export default function useProtestPage(regattaId: number | null) {
+export default function useProtestPage(regattaId: number | null, token?: string) {
   // ---------- Form state ----------
   const [type, setType] = useState<ProtestType>('protest');
   const [raceDate, setRaceDate] = useState<string>('');
-  const [raceNumber, setRaceNumber] = useState<string>('');
+  const [raceNumber, setRaceNumber] = useState<string>(''); // string
   const [groupName, setGroupName] = useState<string>('');
 
   // iniciador
@@ -104,7 +104,8 @@ export default function useProtestPage(regattaId: number | null) {
     if (!key || entriesByClass[key] || !regattaId) return;
     try {
       const data = await apiGet<EntryOption[]>(
-        `/entries/by_regatta/${regattaId}?class=${encodeURIComponent(key)}`
+        `/entries/by_regatta/${regattaId}?class=${encodeURIComponent(key)}`,
+        token
       );
       setEntriesByClass((m) => ({ ...m, [key]: data || [] }));
     } catch {
@@ -114,7 +115,7 @@ export default function useProtestPage(regattaId: number | null) {
 
   // loaders
   useEffect(() => {
-    if (!regattaId) return;
+    if (!regattaId || !token) return;
     let cancelled = false;
 
     async function load() {
@@ -125,11 +126,12 @@ export default function useProtestPage(regattaId: number | null) {
       try {
         // 1) Minhas entries desta regata
         let mine = await apiGet<EntryOption[]>(
-          `/entries?mine=true&regatta_id=${regattaId}`
+          `/entries?mine=true&regatta_id=${regattaId}`,
+          token
         ).catch(() => []);
 
         if (!mine?.length) {
-          mine = await apiGet<EntryOption[]>(`/entries?mine=true`).catch(() => []);
+          mine = await apiGet<EntryOption[]>(`/entries?mine=true`, token).catch(() => []);
         }
         const mineForThis = (mine || []).filter(
           (e) => !e.regatta_id || e.regatta_id === regattaId
@@ -147,13 +149,14 @@ export default function useProtestPage(regattaId: number | null) {
         }
 
         // 2) Classes da regata
-        const cls = await apiGet<string[]>(`/regattas/${regattaId}/classes`).catch(() => []);
+        const cls = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token).catch(() => []);
         let finalClasses = (cls || []).filter(Boolean);
 
         // 3) Fallback dentro da regata
         if (finalClasses.length === 0) {
           const regEntries = await apiGet<EntryOption[]>(
-            `/entries/by_regatta/${regattaId}`
+            `/entries/by_regatta/${regattaId}`,
+            token
           ).catch(() => []);
           finalClasses = Array.from(
             new Set(
@@ -175,7 +178,7 @@ export default function useProtestPage(regattaId: number | null) {
     return () => {
       cancelled = true;
     };
-  }, [regattaId]);
+  }, [regattaId, token]);
 
   // “represented by” quando muda iniciador
   useEffect(() => {
@@ -193,7 +196,6 @@ export default function useProtestPage(regattaId: number | null) {
       copy[0] = { ...copy[0], class_name: iniClass.trim(), entry_id: undefined };
       return copy;
     });
-    // preload entries da classe do iniciador
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     ensureClassEntries(iniClass);
   }, [initiatorEntryId, myEntries]);
@@ -209,7 +211,7 @@ export default function useProtestPage(regattaId: number | null) {
     setRespondents((prev) => prev.map((r) => (r.id === rid ? { ...r, ...patch } : r)));
   };
 
-  // submit
+  // submit (race_number como string + incident aninhado)
   const submit = async (): Promise<boolean> => {
     setSubmitting(true);
     setError(null);
@@ -258,18 +260,26 @@ export default function useProtestPage(regattaId: number | null) {
         };
       });
 
+      const payload: any = {
+        type,
+        race_date: raceDate || undefined,
+        race_number: raceNumber?.trim() || undefined, // string
+        group_name: groupName?.trim() || undefined,
+        initiator_entry_id: initiatorEntryId,
+        initiator_represented_by: (initiatorRep || '').trim() || undefined,
+        respondents: respondentsApi,
+        incident: {
+          when_where: incidentWhenWhere?.trim() || undefined,
+          description: incidentDescription?.trim() || undefined,
+          rules_applied: rulesAlleged?.trim() || undefined,
+        },
+      };
+
       await apiSend<{ id: number; short_code: string }>(
         `/regattas/${regattaId}/protests`,
         'POST',
-        {
-          type,
-          race_date: raceDate || undefined,
-          race_number: raceNumber || undefined,
-          group_name: groupName || undefined,
-          initiator_entry_id: initiatorEntryId,
-          initiator_represented_by: (initiatorRep || '').trim() || undefined,
-          respondents: respondentsApi,
-        }
+        payload,
+        token
       );
 
       return true;
@@ -283,23 +293,16 @@ export default function useProtestPage(regattaId: number | null) {
 
   return {
     // state básico
-    type,
-    setType,
-    raceDate,
-    setRaceDate,
-    raceNumber,
-    setRaceNumber,
-    groupName,
-    setGroupName,
+    type, setType,
+    raceDate, setRaceDate,
+    raceNumber, setRaceNumber,
+    groupName, setGroupName,
 
     // iniciador
     myEntries,
-    initiatorEntryId,
-    setInitiatorEntryId,
-    initiatorRep,
-    setInitiatorRep,
-    repLocked,
-    setRepLocked,
+    initiatorEntryId, setInitiatorEntryId,
+    initiatorRep, setInitiatorRep,
+    repLocked, setRepLocked,
     loadingEntries,
     selectedInitiator,
 
@@ -315,12 +318,9 @@ export default function useProtestPage(regattaId: number | null) {
     updateRespondent,
 
     // incidente (UI)
-    incidentWhenWhere,
-    setIncidentWhenWhere,
-    incidentDescription,
-    setIncidentDescription,
-    rulesAlleged,
-    setRulesAlleged,
+    incidentWhenWhere, setIncidentWhenWhere,
+    incidentDescription, setIncidentDescription,
+    rulesAlleged, setRulesAlleged,
 
     // submit
     error,

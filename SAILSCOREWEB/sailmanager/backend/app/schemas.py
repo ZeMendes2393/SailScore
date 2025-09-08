@@ -1,6 +1,6 @@
 # app/schemas.py
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List,  Dict
+from typing import Optional, List,  Dict, Literal
 from datetime import datetime
 
 
@@ -210,10 +210,11 @@ class SailorProfileUpdate(BaseModel):
 
 
 
+# ---------- PROTESTS (Listagem + criação) ----------
+from typing import Optional, List, Literal
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 
-
-
-# ---------- PROTESTS (Listagem + criação futura) ----------
 class ProtestPartySummary(BaseModel):
     sail_no: str | None = None
     boat_name: str | None = None
@@ -242,9 +243,8 @@ class ProtestListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-# (para o Passo 2 – já deixo preparado)
 class ProtestRespondentIn(BaseModel):
-    kind: str = "entry"           # entry | other
+    kind: Literal['entry', 'other'] = 'entry'   # mais seguro que str solto
     entry_id: Optional[int] = None
     free_text: Optional[str] = None
     represented_by: Optional[str] = None
@@ -261,15 +261,15 @@ class ProtestValidityIn(BaseModel):
 
 
 class ProtestIncidentIn(BaseModel):
-    when_where: str
+    when_where: Optional[str] = None
+    description: Optional[str] = None
     rules_applied: Optional[str] = None
-    description: str
     damage_injury: Optional[str] = None
     witnesses: Optional[List[dict]] = None  # simplificado para já
 
 
 class ProtestCreate(BaseModel):
-    type: str
+    type: Literal['protest','redress','reopen','support_person_report','misconduct_rss69']
     race_date: Optional[str] = None
     race_number: Optional[str] = None
     group_name: Optional[str] = None
@@ -277,7 +277,15 @@ class ProtestCreate(BaseModel):
     initiator_represented_by: Optional[str] = None
     respondents: List[ProtestRespondentIn]
     validity: Optional[ProtestValidityIn] = None
-    incident: ProtestIncidentIn
+    incident: Optional[ProtestIncidentIn] = None
+
+
+
+
+
+
+
+
 
 
 
@@ -285,6 +293,50 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
     regatta_id: Optional[int] = None  # <-- só usado para regatistas
+
+
+# ---------- REGATTA UPDATE ----------
+class RegattaUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+    # opcionais
+    description: Optional[str] = None
+    poster_url: Optional[str] = None
+    notice_board_url: Optional[str] = None
+    entry_list_url: Optional[str] = None
+    online_entry_url: Optional[str] = None
+
+
+class RegattaClassesReplace(BaseModel):
+    classes: List[str]  # lista final de classes para a regata (substitui tudo)
+
+
+
+NoticeSourceLiteral = Literal[
+    "ORGANIZING_AUTHORITY", "RACE_COMMITTEE", "JURY", "TECHNICAL_COMMITTEE", "OTHER"
+]
+NoticeDocTypeLiteral = Literal[
+    "RACE_DOCUMENT", "RULE_42", "JURY_DOC", "TECHNICAL", "OTHER"
+]
+
+class NoticeRead(BaseModel):
+    id: int
+    filename: str
+    filepath: str
+    title: str
+    regatta_id: int
+    published_at: datetime
+    source: NoticeSourceLiteral
+    doc_type: NoticeDocTypeLiteral
+    is_important: bool
+    applies_to_all: bool
+    classes: List[str]  # nomes (ex.: ["49er","ILCA 7"])
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 

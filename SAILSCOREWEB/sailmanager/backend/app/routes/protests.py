@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy import and_, desc, exists, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -16,6 +16,7 @@ from app.schemas import (
 )
 from utils.auth_utils import get_current_user
 from utils.guards import ensure_regatta_scope
+from app.services.email import send_email  # 👈 usa o teu serviço
 
 router = APIRouter(prefix="/regattas/{regatta_id}/protests", tags=["Protests"])
 
@@ -30,10 +31,6 @@ def list_protests(
     current_user=Depends(get_current_user),
     _=Depends(ensure_regatta_scope),
 ):
-    """
-    Lista protestos onde o utilizador é iniciador (made) e/ou respondente (against)
-    na regata do token (para regatista). Admin vê tudo.
-    """
     # entries do utilizador nesta regata
     my_entries_subq = (
         db.query(Entry.id)
@@ -60,7 +57,7 @@ def list_protests(
     else:  # all
         q = q.filter(or_(made_filter, against_filter))
 
-    # cursor (id menor que o cursor anterior)
+    # cursor
     if cursor is not None:
         q = q.filter(Protest.id < cursor)
 
@@ -79,7 +76,7 @@ def list_protests(
                     ini.boat_name.ilike(like),
                     resp.sail_number.ilike(like),
                     resp.boat_name.ilike(like),
-                    Protest.race_number.ilike(like),
+                    Protest.race_number.ilike(like),  # race_number é String no teu modelo
                 )
             )
              .group_by(Protest.id)
@@ -88,7 +85,6 @@ def list_protests(
     q = q.order_by(desc(Protest.updated_at), desc(Protest.id)).limit(limit + 1)
     rows: List[Protest] = q.all()
 
-    # construir resposta
     items = []
     for p in rows[:limit]:
         initiator = ProtestInitiatorSummary(
@@ -144,8 +140,9 @@ def create_protest(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
     _=Depends(ensure_regatta_scope),
+    background: BackgroundTasks = None,  # 👈 background tasks
 ):
-    # valida iniciador (tem de ser entry do user nesta regata)
+    # valida iniciador
     initiator = (
         db.query(Entry)
         .filter(
@@ -161,7 +158,29 @@ def create_protest(
     if not body.respondents:
         raise HTTPException(status_code=422, detail="Pelo menos um respondente é obrigatório")
 
-    # cria protesto
+    # valida respondentes
+    for idx, r in enumerate(body.respondents):
+        if r.kind == "entry":
+            entry = db.query(Entry).filter(Entry.id == r.entry_id, Entry.regatta_id == regatta_id).first()
+            if not entry:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Respondente #{idx+1}: entry inválida para esta regata"
+                )
+            if r.entry_id == body.initiator_entry_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail="O iniciador não pode ser também respondente"
+                )
+        else:
+            if not (r.free_text and r.free_text.strip()):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Respondente #{idx+1}: free_text é obrigatório quando kind='other'"
+                )
+
+    # cria protesto (com 'incident' aninhado ou fallback plano)
+    incident = getattr(body, "incident", None)
     p = Protest(
         regatta_id=regatta_id,
         type=body.type,
@@ -173,11 +192,13 @@ def create_protest(
         status="submitted",
         received_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
+        incident_when_where=(incident.when_where if incident else getattr(body, "incident_when_where", None)),
+        incident_description=(incident.description if incident else getattr(body, "incident_description", None)),
+        rules_alleged=(incident.rules_applied if incident else getattr(body, "rules_alleged", None)),
     )
     db.add(p)
-    db.flush()  # para ter p.id
+    db.flush()  # p.id disponível
 
-    # partes (respondentes)
     for r in body.respondents:
         party = ProtestParty(
             protest_id=p.id,
@@ -189,4 +210,31 @@ def create_protest(
         db.add(party)
 
     db.commit()
+
+    # ---------- Notificação por email (respondentes) ----------
+    # junta emails de todas as entries respondentes
+    try:
+        resp_ids = [r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id]
+        if resp_ids and background:
+            entries = db.query(Entry).filter(Entry.id.in_(resp_ids)).all()
+            to_emails = sorted({(e.email or "").strip().lower() for e in entries if e.email})
+            if to_emails:
+                subject = f"[SailScore] Foste protestado (P-{p.id})"
+                text = (
+                    "Olá,\n\n"
+                    "Foste indicado como parte num protesto.\n\n"
+                    f"Protesto: P-{p.id}\n"
+                    f"Tipo: {p.type}\n"
+                    f"Regata ID: {p.regatta_id}\n"
+                    f"Prova/Race: {p.race_number or '—'} | Data: {p.race_date or '—'}\n"
+                    f"Grupo: {p.group_name or '—'}\n\n"
+                    "Inicia sessão para ver detalhes e acompanhar o estado.\n\n"
+                    "— SailScore"
+                )
+                for to in to_emails:
+                    background.add_task(send_email, to, subject, None, text)  # usa o teu serviço
+    except Exception:
+        # não falhar o request por causa do email
+        pass
+
     return {"id": p.id, "short_code": f"P-{p.id}"}

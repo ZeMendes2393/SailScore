@@ -76,11 +76,16 @@ export default function DashboardPage() {
             </p>
           </div>
           <button
-            onClick={logout}
-            className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
-          >
-            Terminar sessão
-          </button>
+  onClick={() =>
+    logout({
+      redirectTo: Number.isFinite(regattaId) ? `/regattas/${regattaId}` : '/',
+    })
+  }
+  className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
+>
+  Terminar sessão
+</button>
+
         </header>
 
         {/* Info bar */}

@@ -21,7 +21,8 @@ from utils.auth_utils import (
     verify_role,
 )
 
-router = APIRouter()
+# 👇 ADICIONA O PREFIXO /auth (isto resolve o 404)
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ---------- LOGIN (JSON) ----------
 # Espera schemas.UserLogin: { email: str, password: str, regatta_id?: int }
@@ -77,8 +78,6 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=403, detail="Conta inativa")
 
     claims: dict = {"sub": user.email, "role": user.role}
-    # Neste fluxo não sabemos regatta_id → só admins e regatistas sem “contexto”
-    # Se precisares, podes aceitar ?regatta_id= na query e validar como no /login.
     token = create_access_token(claims)
     return schemas.Token(access_token=token)
 

@@ -1,45 +1,44 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { parseRegattaId } from '@/utils/parseRegattaId';
 
-type Props = {
-  children: ReactNode;
-  roles?: string[];           // ex.: ['admin'] ou ['admin','regatista']
-  redirectTo?: string;        // default: '/login'
-};
-
-export default function RequireAuth({ children, roles, redirectTo = '/login' }: Props) {
-  const { user, token, loading } = useAuth();
+export default function RequireAuth({
+  children,
+  roles,
+}: {
+  children: React.ReactNode;
+  roles?: string[];
+}) {
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  const qs = useSearchParams();
 
-  const roleAllowed = useMemo(() => {
-    if (!roles || roles.length === 0) return true;
-    if (!user?.role) return false;
-    return roles.includes(user.role);
-  }, [roles, user?.role]);
+  // ⚠️ NUNCA converter "" com Number('')
+  const qsId = parseRegattaId(qs); // -> number | null
 
   useEffect(() => {
+    // não redirecionar enquanto a sessão está a carregar
     if (loading) return;
 
-    // sem sessão → vai para login e guarda a rota para voltar depois
-    if (!token || !user) {
-      try { sessionStorage.setItem('postLoginRedirect', pathname); } catch {}
-      router.replace(`${redirectTo}?reason=expired`);
+    // sem sessão → login (se houver regattaId válido, mantém-no no URL)
+    if (!user) {
+      const to = qsId ? `/login?regattaId=${qsId}` : '/login';
+      router.replace(to);
       return;
     }
 
-    // sessão ok mas sem permissão → leva para dashboard (ou 403 se tiveres)
-    if (!roleAllowed) {
-      router.replace('/dashboard');
+    // role não autorizado
+    if (roles && !roles.includes(user.role)) {
+      router.replace('/'); // (ou '/admin')
+      return;
     }
-  }, [loading, token, user, roleAllowed, pathname, redirectTo, router]);
+  }, [loading, user, roles, router, qsId]);
 
-  // enquanto hidrata ou redireciona, não pisca a UI
-  if (loading || !token || !user || !roleAllowed) {
-    return null; // (ou um spinner)
+  if (loading || !user) {
+    return <div className="p-6 text-gray-500">A verificar sessão…</div>;
   }
 
   return <>{children}</>;

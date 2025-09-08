@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 interface Regatta {
   id: number;
@@ -20,21 +20,21 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const fetchRegattas = async () => {
+    (async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/regattas/");
-        const data = await res.json();
+        const res = await fetch('http://127.0.0.1:8000/regattas/', { cache: 'no-store' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = (await res.json()) as Regatta[];
         setRegattas(data);
       } catch (err) {
-        console.error("Erro ao buscar regatas:", err);
+        console.error('Erro ao buscar regatas:', err);
       }
-    };
-    fetchRegattas();
+    })();
   }, []);
 
   const handleLogout = () => {
     logout();
-    router.push("/"); // Ou "/" se preferires voltar ao início
+    router.push('/');
   };
 
   return (
@@ -50,10 +50,7 @@ export default function AdminPage() {
           <Link href="/admin/settings" className="hover:underline">Settings</Link>
         </nav>
 
-        <button
-          onClick={handleLogout}
-          className="mt-6 text-sm text-red-600 hover:underline"
-        >
+        <button onClick={handleLogout} className="mt-6 text-sm text-red-600 hover:underline">
           Terminar sessão
         </button>
       </aside>
@@ -65,10 +62,11 @@ export default function AdminPage() {
         <div className="bg-white shadow rounded p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Regatta Management</h2>
-            <Link href="/admin/create-regatta">
-              <button className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700">
-                Add Regatta
-              </button>
+            <Link
+              href="/admin/create-regatta"
+              className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700"
+            >
+              Add Regatta
             </Link>
           </div>
 
@@ -79,7 +77,7 @@ export default function AdminPage() {
                 <th>Dates</th>
                 <th>Location</th>
                 <th>Status</th>
-                <th></th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -90,18 +88,27 @@ export default function AdminPage() {
                   <td>{regatta.location}</td>
                   <td>
                     <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs">
-                      {regatta.status || "Scheduled"}
+                      {regatta.status || 'Scheduled'}
                     </span>
                   </td>
-                  <td>
-                    <Link href={`/admin/manage-regattas/${regatta.id}`}>
-                      <button className="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700">
-                        Ver Info
-                      </button>
+                  <td className="text-right">
+                    <Link
+                      href={`/admin/manage-regattas/${regatta.id}`}
+                      className="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700"
+                    >
+                      Ver Info
                     </Link>
                   </td>
                 </tr>
               ))}
+
+              {regattas.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-500">
+                    Ainda não existem regatas.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

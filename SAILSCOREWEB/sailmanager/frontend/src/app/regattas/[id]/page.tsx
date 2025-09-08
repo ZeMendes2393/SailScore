@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+
 import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
 import EntryList from './components/entrylist/EntryList';
 import NoticeBoard from './components/noticeboard/NoticeBoard';
+import NoticeBoardPublic from './components/noticeboard/components/NoticeBoardPublic';
 
 interface Regatta {
   id: number;
@@ -25,8 +26,6 @@ export default function RegattaDetails() {
   const id = params.id as string;
   const regattaId = useMemo(() => Number(id), [id]);
   const router = useRouter();
-
-  const { user } = useAuth();
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
   const [activeTab, setActiveTab] = useState<'entry' | 'notice' | 'form' | null>(null);
@@ -77,9 +76,6 @@ export default function RegattaDetails() {
 
   if (!regatta) return <p className="p-8">A carregar regata...</p>;
 
-  const isSailor = user?.role === 'regatista';
-  const inThisRegatta = isSailor && user?.current_regatta_id === regattaId;
-
   return (
     <main className="min-h-screen p-8 bg-gray-50">
       <div className="bg-white shadow rounded p-6 mb-6">
@@ -115,7 +111,7 @@ export default function RegattaDetails() {
         )}
       </div>
 
-      {/* NAVIGATION + Sailor button (regatta-scoped) */}
+      {/* NAVIGATION + Sailor Account */}
       <div className="bg-white shadow rounded mb-4 px-6 py-4 flex items-center justify-between">
         <div className="flex gap-6 text-blue-600 font-semibold">
           <button onClick={() => setActiveTab('entry')} className="hover:underline">
@@ -132,36 +128,19 @@ export default function RegattaDetails() {
           </button>
         </div>
 
-        {/* Botão Sailor: só aqui (scoped à regata). Admin usa /login global. */}
         <div>
-          {isSailor ? (
-            inThisRegatta ? (
-              <Link href={`/dashboard?regattaId=${regattaId}`}>
-                <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
-                  My Sailor Area
-                </button>
-              </Link>
-            ) : (
-              <Link href={`/login?regattaId=${regattaId}`}>
-                <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
-                  Sailor account
-                </button>
-              </Link>
-            )
-          ) : (
-            <Link href={`/login?regattaId=${regattaId}`}>
-              <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
-                Sailor account
-              </button>
-            </Link>
-          )}
+          <Link href={`/login?regattaId=${regattaId}`}>
+            <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
+              Sailor account
+            </button>
+          </Link>
         </div>
       </div>
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
         {activeTab === 'entry' && <EntryList regattaId={regattaId} selectedClass={selectedClass} />}
-        {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}
+        {activeTab === 'notice' && <NoticeBoardPublic regattaId={regattaId} />}
         {activeTab === 'form' && <MultiStepEntryForm regattaId={regattaId} />}
 
         {!activeTab && (

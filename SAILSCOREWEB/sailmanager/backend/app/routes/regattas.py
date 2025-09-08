@@ -11,7 +11,7 @@ from app import models, schemas
 from app.database import get_db
 from utils.auth_utils import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/regattas", tags=["regattas"])
 
 # ---------------- Regattas CRUD ----------------
 
@@ -20,7 +20,13 @@ def list_regattas(db: Session = Depends(get_db)):
     return db.query(models.Regatta).all()
 
 @router.post("/", response_model=schemas.RegattaRead)
-def create_regatta(regatta: schemas.RegattaCreate, db: Session = Depends(get_db)):
+def create_regatta(
+    regatta: schemas.RegattaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
     new_regatta = models.Regatta(**regatta.dict())
     db.add(new_regatta)
     db.commit()
@@ -34,6 +40,45 @@ def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Regata não encontrada")
     return regatta
 
+@router.patch("/{regatta_id}", response_model=schemas.RegattaRead)
+def update_regatta(
+    regatta_id: int,
+    body: schemas.RegattaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+
+    for field, value in body.dict(exclude_unset=True).items():
+        setattr(reg, field, value)
+
+    db.commit()
+    db.refresh(reg)
+    return reg
+
+@router.delete("/{regatta_id}", status_code=204)
+def delete_regatta(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+
+    # ⚠️ Os teus models têm ondelete="CASCADE" e relationship(cascade="all, delete-orphan")
+    # Portanto apagar a regata apaga entries/races/results/notices/classes associados.
+    db.delete(reg)
+    db.commit()
+    return
 
 # ---------------- Scoring patch ----------------
 
@@ -175,16 +220,8 @@ def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Regata não encontrada")
     return _compute_regatta_status(reg)
 
-
-# app/routes/regattas.py
-
 @router.get("/{regatta_id}/classes", response_model=List[str])
 def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    """
-    Lista de classes EXISTENTES nesta regata, normalizadas (trim),
-    deduplicadas sem diferenciar maiúsc./minúsc.
-    """
-    # group by lower(trim(class_name)) e escolhe uma forma "bonita" (min)
     rows = (
         db.query(
             func.min(func.trim(models.Entry.class_name)).label("cls")
@@ -196,3 +233,51 @@ def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return [r.cls for r in rows]
+
+# --------- SUBSTITUIR classes (em lote) ---------
+@router.put("/{regatta_id}/classes", response_model=List[schemas.RegattaClassRead])
+def replace_regatta_classes(
+    regatta_id: int,
+    body: schemas.RegattaClassesReplace,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+
+    # Normalizar lista (trim, remove vazios, deduplicar case-insensitive)
+    normalized = []
+    seen = set()
+    for raw in body.classes or []:
+        s = (raw or "").strip()
+        if not s:
+            continue
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(s)
+
+    # Ler classes atuais
+    existing = db.query(models.RegattaClass).filter_by(regatta_id=regatta_id).all()
+    existing_by_key = {rc.class_name.strip().lower(): rc for rc in existing}
+
+    # Calcular remoções e adições
+    target_keys = {c.lower() for c in normalized}
+    to_delete = [rc for k, rc in existing_by_key.items() if k not in target_keys]
+    to_add = [c for c in normalized if c.lower() not in existing_by_key]
+
+    # Executar
+    for rc in to_delete:
+        db.delete(rc)
+    for c in to_add:
+        db.add(models.RegattaClass(regatta_id=regatta_id, class_name=c))
+
+    db.commit()
+
+    # devolver o estado final
+    return db.query(models.RegattaClass).filter_by(regatta_id=regatta_id).order_by(models.RegattaClass.class_name).all()

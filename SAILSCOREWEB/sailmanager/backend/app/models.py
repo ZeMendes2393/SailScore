@@ -1,12 +1,19 @@
+# app/models.py
+from datetime import datetime, timedelta
+from enum import Enum
+
 from sqlalchemy import (
     Column, Integer, String, DateTime, ForeignKey, Boolean, Float,
-    UniqueConstraint, Index, JSON, exists
+    UniqueConstraint, Index, JSON, Text, Table, Enum as SAEnum, func
 )
 from sqlalchemy.orm import relationship
+
 from app.database import Base
-from datetime import datetime, timedelta
 
 
+# =========================
+#        USERS
+# =========================
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -18,9 +25,17 @@ class User(Base):
     email_verified_at = Column(DateTime, nullable=True)
 
     entries = relationship("Entry", back_populates="user")
-    sailor_profile = relationship("SailorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    sailor_profile = relationship(
+        "SailorProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 
 
+# =========================
+#        REGATTAS
+# =========================
 class Regatta(Base):
     __tablename__ = "regattas"
     id = Column(Integer, primary_key=True, index=True)
@@ -44,22 +59,56 @@ class Regatta(Base):
     results = relationship("Result", back_populates="regatta", cascade="all, delete-orphan")
     races = relationship("Race", back_populates="regatta", cascade="all, delete-orphan")
     classes = relationship("RegattaClass", back_populates="regatta", cascade="all, delete-orphan")
-    scoring_codes = Column(JSON, nullable=True, default=dict)  # ex: {"DNF": 10, "DNC": 15}
+
+    # Pontuações para códigos (ex.: {"DNF": 10, "DNC": 15})
+    scoring_codes = Column(JSON, nullable=True, default=dict)
 
 
+# =========================
+#   ENUMS (Notice)
+# =========================
+class NoticeSource(str, Enum):
+    ORGANIZING_AUTHORITY = "ORGANIZING_AUTHORITY"
+    RACE_COMMITTEE = "RACE_COMMITTEE"
+    JURY = "JURY"
+    TECHNICAL_COMMITTEE = "TECHNICAL_COMMITTEE"
+    OTHER = "OTHER"
+
+
+class NoticeDocType(str, Enum):
+    RACE_DOCUMENT = "RACE_DOCUMENT"
+    RULE_42 = "RULE_42"
+    JURY_DOC = "JURY_DOC"
+    TECHNICAL = "TECHNICAL"
+    OTHER = "OTHER"
+
+
+# =========================
+#   REGATTA CLASSES
+# =========================
 class RegattaClass(Base):
     __tablename__ = "regatta_classes"
     id = Column(Integer, primary_key=True, index=True)
-    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True)
-    class_name = Column(String, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_name = Column(String, nullable=False, index=True)
 
     regatta = relationship("Regatta", back_populates="classes")
+
+    # ligação inversa para notices (many-to-many)
+    notices = relationship(
+        "Notice",
+        secondary=lambda: notice_classes,
+        back_populates="classes"
+    )
 
     __table_args__ = (
         UniqueConstraint("regatta_id", "class_name", name="uq_regatta_class"),
     )
 
 
+# =========================
+#        ENTRIES
+# =========================
 class Entry(Base):
     __tablename__ = "entries"
     id = Column(Integer, primary_key=True, index=True)
@@ -99,16 +148,68 @@ class Entry(Base):
     )
 
 
+# =========================
+#   NOTICE ⟷ CLASS (M2M)
+# =========================
+notice_classes = Table(
+    "notice_classes",
+    Base.metadata,
+    Column("notice_id", Integer, ForeignKey("notices.id", ondelete="CASCADE"), primary_key=True),
+    Column("regatta_class_id", Integer, ForeignKey("regatta_classes.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_notice_classes_notice", "notice_id"),
+    Index("ix_notice_classes_regatta_class", "regatta_class_id"),
+)
+
+
+# =========================
+#         NOTICES
+# =========================
 class Notice(Base):
     __tablename__ = "notices"
+
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, nullable=False)
     filepath = Column(String, nullable=False)
-    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
     title = Column(String, nullable=False)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # NOVOS CAMPOS
+    published_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()  # timestamp no servidor
+    )
+    source = Column(
+        SAEnum(NoticeSource, native_enum=False, name="notice_source"),
+        nullable=False,
+        server_default=NoticeSource.OTHER.value
+    )
+    doc_type = Column(
+        SAEnum(NoticeDocType, native_enum=False, name="notice_doc_type"),
+        nullable=False,
+        server_default=NoticeDocType.RACE_DOCUMENT.value
+    )
+    is_important = Column(Boolean, nullable=False, server_default="0")
+
+    # “All Classes” sem duplicação
+    applies_to_all = Column(Boolean, nullable=False, server_default="1")
+
+    # Relações
+    classes = relationship(
+        "RegattaClass",
+        secondary=notice_classes,
+        back_populates="notices",
+        cascade="all"
+    )
+
+    __table_args__ = (
+        Index("ix_notices_regatta_published", "regatta_id", "published_at"),
+    )
 
 
+# =========================
+#          RACES
+# =========================
 class Race(Base):
     __tablename__ = "races"
     id = Column(Integer, primary_key=True, index=True)
@@ -116,7 +217,7 @@ class Race(Base):
     name = Column(String, nullable=False)
     date = Column(String, nullable=True)
     class_name = Column(String, nullable=False, index=True)
-    order_index = Column(Integer, nullable=False, default=0, index=True)  # << NOVO
+    order_index = Column(Integer, nullable=False, default=0, index=True)  # ajuda no overall e ordenação
 
     regatta = relationship("Regatta", back_populates="races")
     results = relationship("Result", back_populates="race", cascade="all, delete-orphan")
@@ -124,10 +225,13 @@ class Race(Base):
     __table_args__ = (
         UniqueConstraint("regatta_id", "class_name", "name", name="uq_race_regatta_class_name"),
         Index("ix_races_regatta_class", "regatta_id", "class_name"),
-        Index("ix_races_regatta_order", "regatta_id", "order_index"),  # ajuda no overall
+        Index("ix_races_regatta_order", "regatta_id", "order_index"),
     )
 
 
+# =========================
+#         RESULTS
+# =========================
 class Result(Base):
     __tablename__ = "results"
     id = Column(Integer, primary_key=True, index=True)
@@ -150,6 +254,9 @@ class Result(Base):
     )
 
 
+# =========================
+#     SAILOR PROFILE
+# =========================
 class SailorProfile(Base):
     __tablename__ = "sailor_profiles"
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -169,6 +276,10 @@ class SailorProfile(Base):
 
     user = relationship("User", back_populates="sailor_profile")
 
+
+# =========================
+#       INVITATIONS
+# =========================
 class Invitation(Base):
     __tablename__ = "invitations"
     id = Column(Integer, primary_key=True)
@@ -178,14 +289,10 @@ class Invitation(Base):
     expires_at = Column(DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(days=7))
     accepted_at = Column(DateTime, nullable=True)
 
-# … (mantém Regatta, RegattaClass, Entry, Notice, Race, Result como tens)
 
-
-
-
-
-# ---------- PROTESTS ----------
-
+# =========================
+#         PROTESTS
+# =========================
 class Protest(Base):
     __tablename__ = "protests"
 
@@ -201,6 +308,11 @@ class Protest(Base):
     # iniciador
     initiator_entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
     initiator_represented_by = Column(String, nullable=True)
+
+    # Incident (detalhes)
+    incident_when_where = Column(Text, nullable=True)
+    incident_description = Column(Text, nullable=True)
+    rules_alleged = Column(Text, nullable=True)
 
     # sistema
     status = Column(String, nullable=False, default="submitted")  # submitted | under_review | scheduled | closed | invalid | withdrawn
@@ -238,10 +350,11 @@ class ProtestParty(Base):
         Index("ix_protest_parties_protest", "protest_id"),
     )
 
+
 class ProtestAttachment(Base):
-     __tablename__ = "protest_attachments"
-     id = Column(Integer, primary_key=True, index=True)
-     protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True)
-     filename = Column(String, nullable=False)
-     filepath = Column(String, nullable=False)
-     uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    __tablename__ = "protest_attachments"
+    id = Column(Integer, primary_key=True, index=True)
+    protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True)
+    filename = Column(String, nullable=False)
+    filepath = Column(String, nullable=False)
+    uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
