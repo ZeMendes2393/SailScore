@@ -1,9 +1,9 @@
 # app/models.py
 from datetime import datetime, timedelta
 from enum import Enum
-
+from sqlalchemy.sql import func
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, Boolean, Float,
+    Column, Integer, String, DateTime, Date, ForeignKey, Boolean, Float,
     UniqueConstraint, Index, JSON, Text, Table, Enum as SAEnum, func
 )
 from sqlalchemy.orm import relationship
@@ -358,3 +358,41 @@ class ProtestAttachment(Base):
     filename = Column(String, nullable=False)
     filepath = Column(String, nullable=False)
     uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+
+class Rule42Record(Base):
+    __tablename__ = "rule42_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, index=True, nullable=False)
+
+    sail_num = Column(String(64), nullable=False)
+    penalty_number = Column(String(64), nullable=False)   # nº da penalidade
+    race = Column(String(64), nullable=False)              # ex.: "R1", "2", "Final A"
+    group = Column(String(64), nullable=True)              # ex.: "Group A"
+
+    rule = Column(String(64), nullable=False, default="RRS 42")
+    comp_action = Column(String(128), nullable=True)       # ex.: "retired", "DSQ"
+    description = Column(Text, nullable=True)
+
+    class_name = Column(String(64), nullable=False)
+    date = Column(Date, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+# --- Hearings / Decisions ---
+class Hearing(Base):
+    __tablename__ = "hearings"
+
+    id = Column(Integer, primary_key=True)
+    regatta_id = Column(Integer, index=True, nullable=False)
+
+    protest_id = Column(Integer, index=True, nullable=False)  # FK lógica para models.Protest.id
+    case_number = Column(Integer, nullable=False)             # sequencial por regata
+
+    decision = Column(Text, nullable=True)
+    sch_date = Column(Date, nullable=True)
+    sch_time = Column(DateTime().prop.columns[0].type.time) if False else Column  # no-op p/ linters
+    # ↑ ignora; segue a linha abaixo (é apenas para IDEs que implicam com import de Time)

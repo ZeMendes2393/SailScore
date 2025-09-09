@@ -1,19 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useProtests, ProtestScope } from '@/hooks/useProtests';
 import { ProtestListItem } from '@/types/protest';
 import { useRegattaStatus } from '@/hooks/useRegattaStatus';
 import { useAuth } from '@/context/AuthContext';
+import { apiGet } from '@/lib/api';
 
 const DEFAULT_WINDOWS = {
-  entryData: true,
-  documents: true,
-  rule42: true,
-  scoreReview: true,
-  requests: true,
-  protest: true,
+  entryData: true, documents: true, rule42: true,
+  scoreReview: true, requests: true, protest: true,
 };
 
 function Row({ item }: { item: ProtestListItem }) {
@@ -34,7 +31,7 @@ function Row({ item }: { item: ProtestListItem }) {
 export default function ProtestsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, token } = useAuth(); // 👈 VAMOS PASSAR ESTE TOKEN
 
   // regata efetiva: regatista usa token; admin aceita query (?regattaId=)
   const regattaId = useMemo(() => {
@@ -47,16 +44,32 @@ export default function ProtestsPage() {
   const [tab, setTab] = useState<ProtestScope>('all');
   const [query, setQuery] = useState('');
 
-  const { items, loading, error, hasMore, loadMore } = useProtests(regattaId, {
-    scope: tab,
-    search: query,
-  });
+  // 👇 Passa o token explicitamente para garantir Authorization
+  const { items, loading, error, hasMore, loadMore } = useProtests(
+    regattaId,
+    { scope: tab, search: query, limit: 20 },
+    token || undefined
+  );
 
   const { data: regStatus } = useRegattaStatus(regattaId);
   const windows = regStatus?.windows ?? DEFAULT_WINDOWS;
 
+  // --- DEBUG: 1 ping direto para veres o pedido no Network com Authorization ---
+  useEffect(() => {
+    if (!regattaId || !token) return;
+    // Isto aparece na Network como GET /regattas/:id/protests
+    apiGet(`/regattas/${regattaId}/protests?scope=all&limit=1`, token)
+      .then(() => console.log('[protests-page] ping OK'))
+      .catch((e) => console.warn('[protests-page] ping FAIL', e));
+  }, [regattaId, token]);
+
   return (
     <div className="max-w-6xl mx-auto p-4">
+      {/* Painel mini de debug (podes remover depois) */}
+      <div className="mb-3 text-xs text-gray-600">
+        regattaId: <b>{String(regattaId)}</b> · token?: <b>{token ? 'sim' : 'não'}</b>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Protests</h1>
 
@@ -64,13 +77,9 @@ export default function ProtestsPage() {
           disabled={!windows.protest}
           onClick={() => router.push(`/dashboard/protests/new?regattaId=${regattaId}`)}
           className={`px-4 py-2 rounded ${
-            windows.protest
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            windows.protest ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
           }`}
-          title={
-            windows.protest ? 'Criar novo protesto' : 'Fora da janela para apresentar protestos'
-          }
+          title={windows.protest ? 'Criar novo protesto' : 'Fora da janela para apresentar protestos'}
         >
           Novo Protesto
         </button>
@@ -80,9 +89,7 @@ export default function ProtestsPage() {
         {(['all', 'made', 'against'] as ProtestScope[]).map((s) => (
           <button
             key={s}
-            className={`px-3 py-1 rounded border ${
-              tab === s ? 'bg-gray-900 text-white' : 'bg-white'
-            }`}
+            className={`px-3 py-1 rounded border ${tab === s ? 'bg-gray-900 text-white' : 'bg-white'}`}
             onClick={() => setTab(s)}
           >
             {s === 'all' ? 'Todos' : s === 'made' ? 'Feitos por mim' : 'Contra mim'}
@@ -113,9 +120,7 @@ export default function ProtestsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
-              <Row key={it.id} item={it} />
-            ))}
+            {items.map((it) => <Row key={it.id} item={it} />)}
           </tbody>
         </table>
 

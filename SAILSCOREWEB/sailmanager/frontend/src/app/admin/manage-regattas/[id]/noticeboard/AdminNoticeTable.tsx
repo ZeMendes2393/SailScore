@@ -36,7 +36,6 @@ export default function AdminNoticeTable({ items, onChanged }: Props) {
               </td>
               <td className="p-3 text-right">
                 <div className="inline-flex gap-3">
-                  {/* Download com filename correto via endpoint */}
                   <a
                     href={`${API_BASE}/notices/${n.id}/download`}
                     className="text-blue-600 hover:underline"

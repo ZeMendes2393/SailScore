@@ -1,24 +1,55 @@
 "use client";
-import { useEffect, useState } from "react";
-import UploadNoticeForm from "./UploadNoticeForm";
-import AdminNoticeTable from "./AdminNoticeTable";
-import { useNotices } from "@/lib/hooks/useNotices";
+
+import { useState } from "react";
+import Documents from "./sections/Documents";
+import Rule42 from "./sections/Rule42";
+import HearingsDecisions from "./sections/HearingsDecisions";
+
+type Section = "documents" | "rule42" | "protest-decisions";
 
 export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
-  const { data, loading, error, refresh } = useNotices(regattaId);
-  const [justUploaded, setJustUploaded] = useState(false);
+  const [section, setSection] = useState<Section>("documents"); // default
 
-  useEffect(() => {
-    if (justUploaded) { refresh(); setJustUploaded(false); }
-  }, [justUploaded, refresh]);
+  const Tab = ({
+    value,
+    label,
+  }: {
+    value: Section;
+    label: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => setSection(value)}
+      className={[
+        "px-4 py-2 text-sm font-medium rounded-t-lg border-b-2",
+        section === value
+          ? "border-blue-600 text-blue-700"
+          : "border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300",
+      ].join(" ")}
+      aria-selected={section === value}
+      role="tab"
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Notice Board — Admin</h2>
-      <UploadNoticeForm regattaId={regattaId} onUploadSuccess={() => setJustUploaded(true)} />
-      {loading && <div className="text-gray-500">A carregar…</div>}
-      {error && <div className="text-red-600">{error}</div>}
-      <AdminNoticeTable items={data} onChanged={refresh} />
+
+      {/* Tabs */}
+      <div role="tablist" aria-label="Notice board sections" className="flex gap-2 border-b">
+        <Tab value="documents" label="Documents" />
+        <Tab value="rule42" label="Rule 42" />
+        <Tab value="protest-decisions" label="Protest Decisions" />
+      </div>
+
+      {/* Section content */}
+      <div className="pt-4">
+        {section === "documents" && <Documents regattaId={regattaId} />}
+        {section === "rule42" && <Rule42 regattaId={regattaId} />}
+        {section === "protest-decisions" && <HearingsDecisions regattaId={regattaId} />}
+      </div>
     </div>
   );
 }

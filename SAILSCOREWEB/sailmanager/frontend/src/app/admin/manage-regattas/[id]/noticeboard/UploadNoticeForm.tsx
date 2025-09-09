@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RegattaClass, NoticeDocType, NoticeSource } from "@/types/notice";
+import { RegattaClass, NoticeSource } from "@/types/notice";
 import { BASE_URL as API_BASE } from "@/lib/api";
 
 interface UploadNoticeFormProps {
@@ -13,12 +13,12 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<NoticeSource>("OTHER");
-  const [docType, setDocType] = useState<NoticeDocType>("RACE_DOCUMENT");
-  const [isImportant, setIsImportant] = useState(false);
   const [appliesToAll, setAppliesToAll] = useState(true);
+
   const [availableClasses, setAvailableClasses] = useState<RegattaClass[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
       }
     };
     if (regattaId) fetchClasses();
-  }, [regattaId]);
+  }, [API_BASE, regattaId]);
 
   useEffect(() => {
     if (appliesToAll) setSelectedClasses([]);
@@ -53,8 +53,8 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
   }, [title, file, appliesToAll, selectedClasses.length]);
 
   const toggleClass = (cls: string) => {
-    setSelectedClasses(prev =>
-      prev.includes(cls) ? prev.filter(c => c !== cls) : [...prev, cls]
+    setSelectedClasses((prev) =>
+      prev.includes(cls) ? prev.filter((c) => c !== cls) : [...prev, cls]
     );
   };
 
@@ -80,10 +80,8 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
       fd.append("regatta_id", String(regattaId));
       fd.append("title", title.trim());
       fd.append("source", source);
-      fd.append("doc_type", docType);
-      fd.append("is_important", String(isImportant));
       fd.append("applies_to_all", String(appliesToAll));
-      if (!appliesToAll) selectedClasses.forEach(c => fd.append("classes", c));
+      if (!appliesToAll) selectedClasses.forEach((c) => fd.append("classes", c));
       fd.append("file", file);
 
       const res = await fetch(`${API_BASE}/notices/upload/`, {
@@ -95,11 +93,10 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
         throw new Error(err?.detail || "Falha no upload do documento.");
       }
 
+      // reset
       setTitle("");
       setFile(null);
       setSource("OTHER");
-      setDocType("RACE_DOCUMENT");
-      setIsImportant(false);
       setAppliesToAll(true);
       setSelectedClasses([]);
       setSuccess("Documento carregado com sucesso.");
@@ -119,7 +116,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
           <input
             className="mt-1 block w-full rounded border p-2"
             value={title}
-            onChange={e => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value)}
             required
           />
         </label>
@@ -129,7 +126,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
           <select
             className="mt-1 block w-full rounded border p-2 bg-white"
             value={source}
-            onChange={e => setSource(e.target.value as any)}
+            onChange={(e) => setSource(e.target.value as NoticeSource)}
           >
             <option value="ORGANIZING_AUTHORITY">Organizing Authority</option>
             <option value="RACE_COMMITTEE">Race Committee</option>
@@ -137,31 +134,6 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
             <option value="TECHNICAL_COMMITTEE">Technical Committee</option>
             <option value="OTHER">Other</option>
           </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium">Tipo de Documento</span>
-          <select
-            className="mt-1 block w-full rounded border p-2 bg-white"
-            value={docType}
-            onChange={e => setDocType(e.target.value as any)}
-          >
-            <option value="RACE_DOCUMENT">Race Document</option>
-            <option value="RULE_42">Rule 42</option>
-            <option value="JURY_DOC">Jury Document</option>
-            <option value="TECHNICAL">Technical</option>
-            <option value="OTHER">Other</option>
-          </select>
-        </label>
-
-        <label className="flex items-center gap-2 mt-6">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={isImportant}
-            onChange={e => setIsImportant(e.target.checked)}
-          />
-          <span className="text-sm">Destacar (Important)</span>
         </label>
       </div>
 
@@ -171,7 +143,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
             type="checkbox"
             className="h-4 w-4"
             checked={appliesToAll}
-            onChange={e => setAppliesToAll(e.target.checked)}
+            onChange={(e) => setAppliesToAll(e.target.checked)}
           />
           <span className="text-sm">Aplicável a todas as classes</span>
         </label>
@@ -186,7 +158,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
                 <div className="text-sm text-gray-500">Sem classes disponíveis.</div>
               ) : (
                 <ul className="space-y-1">
-                  {availableClasses.map(c => (
+                  {availableClasses.map((c) => (
                     <li key={c.id}>
                       <label className="inline-flex items-center gap-2">
                         <input
@@ -206,16 +178,23 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
         )}
       </div>
 
-      <div>
+      {/* Input de ficheiro mais visível */}
+      <label className="block">
         <span className="text-sm font-medium">Ficheiro PDF *</span>
-        <input
-          className="mt-2 block w-full"
-          type="file"
-          accept="application/pdf"
-          onChange={e => handleFiles(e.target.files?.[0] || null)}
-        />
+        <div className="mt-2">
+          <label className="inline-flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white cursor-pointer hover:bg-blue-700">
+            <span>Escolher ficheiro</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files?.[0] || null)}
+            />
+          </label>
+          {file && <span className="ml-3 text-sm text-gray-600">{file.name}</span>}
+        </div>
         <p className="mt-1 text-xs text-gray-500">Apenas PDFs. Tamanho recomendado &lt; 10MB.</p>
-      </div>
+      </label>
 
       {error && (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -242,8 +221,6 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
             setTitle("");
             setFile(null);
             setSource("OTHER");
-            setDocType("RACE_DOCUMENT");
-            setIsImportant(false);
             setAppliesToAll(true);
             setSelectedClasses([]);
             setError(null);

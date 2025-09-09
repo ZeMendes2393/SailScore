@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiSend } from '@/lib/api';
 
+// ----- Tipos -----
 export type ProtestType =
   | 'protest'
   | 'redress'
@@ -41,6 +42,30 @@ export interface RespondentRowUI {
   represented_by?: string;
 }
 
+// Payload (igual ao que o backend espera)
+export interface ProtestRespondentIn {
+  kind: RespondentKindApi;      // 'entry' | 'other'
+  entry_id?: number | null;     // quando kind='entry'
+  free_text?: string | null;    // quando kind='other'
+  represented_by?: string | null;
+}
+export interface ProtestIncidentIn {
+  when_where?: string | null;
+  description?: string | null;
+  rules_applied?: string | null;
+  damage_injury?: string | null;
+}
+export interface ProtestCreate {
+  type: ProtestType;
+  race_date?: string | null;
+  race_number?: string | null;   // string no backend
+  group_name?: string | null;
+  initiator_entry_id: number;
+  initiator_represented_by?: string | null;
+  respondents: ProtestRespondentIn[];
+  incident?: ProtestIncidentIn;
+}
+
 const RESPONDENT_TYPE_LABEL: Record<RespondentUiType, string> = {
   boat: 'Boat',
   coach: 'Coach',
@@ -62,30 +87,31 @@ const genId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
+// ----- Hook -----
 export default function useProtestPage(regattaId: number | null, token?: string) {
-  // ---------- Form state ----------
+  // Básico
   const [type, setType] = useState<ProtestType>('protest');
   const [raceDate, setRaceDate] = useState<string>('');
   const [raceNumber, setRaceNumber] = useState<string>(''); // string
   const [groupName, setGroupName] = useState<string>('');
 
-  // iniciador
+  // Iniciador
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
   const [initiatorEntryId, setInitiatorEntryId] = useState<number | undefined>(undefined);
   const [initiatorRep, setInitiatorRep] = useState<string>('');
   const [repLocked, setRepLocked] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(true);
 
-  // dados para “Boat”
+  // Dados para “Boat”
   const [classes, setClasses] = useState<string[]>([]);
   const [entriesByClass, setEntriesByClass] = useState<Record<string, EntryOption[]>>({});
 
-  // respondentes
+  // Respondentes
   const [respondents, setRespondents] = useState<RespondentRowUI[]>([
     { id: genId(), type: 'boat' },
   ]);
 
-  // incident (UI)
+  // Incident (UI)
   const [incidentWhenWhere, setIncidentWhenWhere] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [rulesAlleged, setRulesAlleged] = useState('');
@@ -98,7 +124,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     [myEntries, initiatorEntryId]
   );
 
-  // entries por classe (para respondente “boat”)
+  // Carregar entries por classe
   const ensureClassEntries = async (className: string) => {
     const key = (className || '').trim();
     if (!key || entriesByClass[key] || !regattaId) return;
@@ -113,7 +139,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     }
   };
 
-  // loaders
+  // Load inicial
   useEffect(() => {
     if (!regattaId || !token) return;
     let cancelled = false;
@@ -148,11 +174,14 @@ export default function useProtestPage(regattaId: number | null, token?: string)
           }
         }
 
-        // 2) Classes da regata
-        const cls = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token).catch(() => []);
+        // 2) Classes da regata (string[])
+        const cls = await apiGet<string[]>(
+          `/regattas/${regattaId}/classes`,
+          token
+        ).catch(() => []);
         let finalClasses = (cls || []).filter(Boolean);
 
-        // 3) Fallback dentro da regata
+        // 3) Fallback pelo entries/by_regatta
         if (finalClasses.length === 0) {
           const regEntries = await apiGet<EntryOption[]>(
             `/entries/by_regatta/${regattaId}`,
@@ -173,8 +202,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    load();
+    load().catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -186,7 +214,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     if (en) setInitiatorRep(entryFullName(en));
   }, [initiatorEntryId, myEntries]);
 
-  // pré-preenche 1ª linha de respondente “boat” com a classe do iniciador
+  // Pré-preenche 1ª linha com classe do iniciador
   useEffect(() => {
     const iniClass = myEntries.find((e) => e.id === initiatorEntryId)?.class_name;
     if (!iniClass) return;
@@ -196,11 +224,10 @@ export default function useProtestPage(regattaId: number | null, token?: string)
       copy[0] = { ...copy[0], class_name: iniClass.trim(), entry_id: undefined };
       return copy;
     });
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    ensureClassEntries(iniClass);
-  }, [initiatorEntryId, myEntries]);
+    void ensureClassEntries(iniClass);
+  }, [initiatorEntryId, myEntries]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // helpers respondentes
+  // Helpers respondentes
   const addRespondent = () => {
     setRespondents((prev) => [...prev, { id: genId(), type: 'boat' }]);
   };
@@ -211,67 +238,56 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     setRespondents((prev) => prev.map((r) => (r.id === rid ? { ...r, ...patch } : r)));
   };
 
-  // submit (race_number como string + incident aninhado)
+  // Submit
   const submit = async (): Promise<boolean> => {
     setSubmitting(true);
     setError(null);
     try {
-      if (!regattaId) {
-        setError('Falta identificar a regata.');
-        return false;
-      }
-      if (!initiatorEntryId) {
-        setError('Seleciona o barco iniciador.');
-        return false;
-      }
-      if (respondents.length === 0) {
-        setError('Adiciona pelo menos um respondente.');
-        return false;
-      }
+      if (!regattaId) return (setError('Falta identificar a regata.'), false);
+      if (!initiatorEntryId) return (setError('Seleciona o barco iniciador.'), false);
+      if (respondents.length === 0) return (setError('Adiciona pelo menos um respondente.'), false);
+
       for (const r of respondents) {
         if (r.type === 'boat' && !r.entry_id) {
-          setError('Seleciona a classe e o barco (sailor) a protestar.');
-          return false;
+          return (setError('Seleciona a classe e o barco (sailor) a protestar.'), false);
         }
         if (r.type === 'coach' && !r.name_text?.trim()) {
-          setError('Indica o nome do Coach.');
-          return false;
+          return (setError('Indica o nome do Coach.'), false);
         }
       }
       if (respondents.some((r) => r.type === 'boat' && r.entry_id === initiatorEntryId)) {
-        setError('O iniciador não pode ser também respondente.');
-        return false;
+        return (setError('O iniciador não pode ser também respondente.'), false);
       }
 
-      const respondentsApi = respondents.map((r) => {
+      const respondentsApi: ProtestRespondentIn[] = respondents.map((r) => {
         if (r.type === 'boat') {
           return {
-            kind: 'entry' as RespondentKindApi,
-            entry_id: r.entry_id,
+            kind: 'entry',
+            entry_id: r.entry_id!,
             represented_by: r.represented_by || undefined,
           };
         }
         let label = RESPONDENT_TYPE_LABEL[r.type];
         if (r.type === 'coach' && r.name_text) label = `Coach: ${r.name_text}`;
         return {
-          kind: 'other' as RespondentKindApi,
+          kind: 'other',
           free_text: label,
           represented_by: r.represented_by || undefined,
         };
       });
 
-      const payload: any = {
+      const payload: ProtestCreate = {
         type,
-        race_date: raceDate || undefined,
-        race_number: raceNumber?.trim() || undefined, // string
-        group_name: groupName?.trim() || undefined,
+        race_date: raceDate || null,
+        race_number: (raceNumber || '').trim() || null,
+        group_name: (groupName || '').trim() || null,
         initiator_entry_id: initiatorEntryId,
-        initiator_represented_by: (initiatorRep || '').trim() || undefined,
+        initiator_represented_by: (initiatorRep || '').trim() || null,
         respondents: respondentsApi,
         incident: {
-          when_where: incidentWhenWhere?.trim() || undefined,
-          description: incidentDescription?.trim() || undefined,
-          rules_applied: rulesAlleged?.trim() || undefined,
+          when_where: (incidentWhenWhere || '').trim() || null,
+          description: (incidentDescription || '').trim() || null,
+          rules_applied: (rulesAlleged || '').trim() || null,
         },
       };
 
@@ -292,7 +308,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
   };
 
   return {
-    // state básico
+    // básico
     type, setType,
     raceDate, setRaceDate,
     raceNumber, setRaceNumber,
@@ -306,7 +322,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     loadingEntries,
     selectedInitiator,
 
-    // boat data
+    // boats
     classes,
     entriesByClass,
     ensureClassEntries,
@@ -317,7 +333,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     removeRespondent,
     updateRespondent,
 
-    // incidente (UI)
+    // incidente
     incidentWhenWhere, setIncidentWhenWhere,
     incidentDescription, setIncidentDescription,
     rulesAlleged, setRulesAlleged,

@@ -1,9 +1,10 @@
 # app/schemas.py
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List,  Dict, Literal
-from datetime import datetime
+from datetime import datetime, date, time
 
-
+# ---------- Rule 42 ----------
+from datetime import date, time
 
 # ---------- NOTICE ----------
 class NoticeOut(BaseModel):
@@ -338,5 +339,55 @@ class NoticeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class Rule42Create(BaseModel):
+    regatta_id: int
+    sail_num: str
+    penalty_number: str
+    race: str
+    group: Optional[str] = None
+    rule: str = "RRS 42"
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: str
+    date: date
 
+class Rule42Out(BaseModel):
+    id: int
+    regatta_id: int
+    sail_num: str
+    penalty_number: str
+    race: str
+    group: Optional[str] = None
+    rule: str
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: str
+    date: date
+
+    model_config = {"from_attributes": True}
+
+
+# ---------- Hearings ----------
+Status = Literal["SCHEDULED", "ONGOING", "CLOSED"]
+
+class HearingOut(BaseModel):
+    id: int
+    case_number: int
+    race: str
+    initiator: str
+    respondent: str
+    decision: Optional[str] = None
+    sch_date: Optional[date] = None
+    sch_time: Optional[time] = None
+    room: Optional[str] = None
+    status: Status
+
+    model_config = {"from_attributes": True}
+
+class HearingPatch(BaseModel):
+    decision: Optional[str] = None
+    sch_date: Optional[date] = None
+    sch_time: Optional[time] = None
+    room: Optional[str] = None
+    status: Optional[Status] = None
 

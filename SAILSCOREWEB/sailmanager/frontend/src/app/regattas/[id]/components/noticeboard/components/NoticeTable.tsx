@@ -1,5 +1,7 @@
 "use client";
+
 import { Notice } from "@/types/notice";
+import { BASE_URL as API_BASE } from "@/lib/api";
 
 interface Props {
   items: Notice[];
@@ -22,34 +24,49 @@ export default function NoticeTable({ items, onPreview }: Props) {
         </thead>
         <tbody>
           {items.length === 0 && (
-            <tr><td colSpan={6} className="p-6 text-center text-gray-500">Sem documentos.</td></tr>
+            <tr>
+              <td colSpan={6} className="p-6 text-center text-gray-500">
+                Sem documentos.
+              </td>
+            </tr>
           )}
-          {items.map(n => {
+          {items.map((n) => {
             const d = new Date(n.published_at);
             const date = d.toLocaleDateString("pt-PT");
             const time = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+
             return (
               <tr key={n.id} className="border-t hover:bg-gray-50">
                 <td className="p-3">{date}</td>
                 <td className="p-3">{time}</td>
                 <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    {n.is_important && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">Importante</span>}
-                    <span className="font-medium">{n.title}</span>
-                  </div>
+                  <span className="font-medium">{n.title}</span>
                 </td>
-                <td className="p-3">{n.source.replaceAll("_"," ")}</td>
+                <td className="p-3">{n.source.replaceAll("_", " ")}</td>
                 <td className="p-3">
-                  {n.applies_to_all ? <span className="text-xs rounded bg-gray-100 px-2 py-0.5">All Classes</span>
-                    : <div className="flex flex-wrap gap-1">{n.classes.map(c =>
-                        <span key={c} className="text-xs rounded bg-gray-100 px-2 py-0.5">{c}</span>
-                      )}
-                      </div>}
+                  {n.applies_to_all ? (
+                    <span className="text-xs rounded bg-gray-100 px-2 py-0.5">All Classes</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {(n.classes ?? []).map((c) => (
+                        <span key={`cls-${c}`} className="text-xs rounded bg-gray-100 px-2 py-0.5">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </td>
                 <td className="p-3 text-right">
                   <div className="inline-flex gap-2">
-                    <button onClick={() => onPreview(n)} className="text-blue-600 hover:underline">Ver</button>
-                    <a href={n.filepath} download className="text-blue-600 hover:underline">Download</a>
+                    <button onClick={() => onPreview(n)} className="text-blue-600 hover:underline">
+                      Ver
+                    </button>
+                    <a
+                      href={`${API_BASE}/notices/${n.id}/download`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Download
+                    </a>
                   </div>
                 </td>
               </tr>
