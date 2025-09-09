@@ -1,55 +1,66 @@
 // src/lib/api.ts
 
-export const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+// Base da API (sem trailing slash)
+export const BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 
-/** Normaliza "Authorization" para SEMPRE ficar "Bearer <token>" (sem duplicar) */
+// ------------------------------
+// Helpers de token / headers
+// ------------------------------
+type HeadersDict = Record<string, string>;
+
 const normalizeBearer = (raw?: string): string | undefined => {
   const t = (raw ?? "").trim();
   if (!t) return undefined;
-  return `Bearer ${t.replace(/^Bearer\s+/i, "")}`;
+  return t.toLowerCase().startsWith("bearer ") ? t : `Bearer ${t}`;
 };
 
-/** Resolve token: usa o passado ou (no browser) o do localStorage */
-function resolveToken(passed?: string) {
-  if (passed) return passed;
+const getStoredToken = (): string | undefined => {
   if (typeof window === "undefined") return undefined;
-  return localStorage.getItem("token") || undefined;
-}
-
-/** Headers com auth (robustos ao prefixo) */
-const authHeaders = (token?: string): HeadersInit => {
-  const header = normalizeBearer(resolveToken(token));
-  return header ? { Authorization: header } : {};
+  // aceita "access_token" (recomendado) ou "token" (legado)
+  return (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("token") ||
+    undefined
+  );
 };
 
-export const jsonHeaders = (token?: string): HeadersInit => ({
+export const setStoredToken = (token: string | null) => {
+  if (typeof window === "undefined") return;
+  if (!token) {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("token");
+    return;
+  }
+  localStorage.setItem("access_token", token);
+  // manter compatibilidade com código antigo
+  localStorage.setItem("token", token);
+};
+
+export const clearStoredAuth = () => setStoredToken(null);
+
+const authHeader = (token?: string): HeadersDict => {
+  const clean = normalizeBearer(token ?? getStoredToken());
+  return clean ? { Authorization: clean } : {};
+};
+
+const jsonHeaders = (token?: string): HeadersDict => ({
   "Content-Type": "application/json",
-  ...authHeaders(token),
+  ...authHeader(token),
 });
 
-/** Fetch simples (quando não precisas de headers especiais) */
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, init);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = await res.json();
-      detail = j?.detail || j?.message || JSON.stringify(j);
-    } catch {}
-    throw new Error(detail || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
+// ------------------------------
+// Tratamento de erros/401
+// ------------------------------
 function handleUnauthorized() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("token");
+    clearStoredAuth();
     localStorage.removeItem("user");
     const after = window.location.pathname + window.location.search;
     sessionStorage.setItem("postLoginRedirect", after);
-    const isAdminArea = window.location.pathname.startsWith("/admin");
-    window.location.href = isAdminArea
+    const isAdmin = window.location.pathname.startsWith("/admin");
+    window.location.href = isAdmin
       ? "/admin/login?reason=expired"
       : "/login?reason=expired";
   }
@@ -76,15 +87,21 @@ async function parseError(res: Response): Promise<Error> {
   }
 }
 
+async function ensureOk(res: Response) {
+  if (res.ok) return;
+  if (res.status === 401) handleUnauthorized();
+  throw await parseError(res);
+}
+
+// ------------------------------
+// Fetch helpers
+// ------------------------------
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: authHeaders(token),
+    headers: authHeader(token),
     cache: "no-store",
   });
-  if (!res.ok) {
-    if (res.status === 401) handleUnauthorized();
-    throw await parseError(res);
-  }
+  await ensureOk(res);
   return res.json() as Promise<T>;
 }
 
@@ -96,53 +113,95 @@ export async function apiSend<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: jsonHeaders(token),
+    headers: method === "DELETE" ? authHeader(token) : jsonHeaders(token),
     body: method === "DELETE" ? undefined : JSON.stringify(body ?? {}),
   });
-  if (!res.ok) {
-    if (res.status === 401) handleUnauthorized();
-    throw await parseError(res);
-  }
+  await ensureOk(res);
   if (res.status === 204) return undefined as unknown as T;
-
   const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return undefined as unknown as T;
+  return ct.includes("application/json")
+    ? ((await res.json()) as T)
+    : (undefined as unknown as T);
+}
 
-  return res.json() as Promise<T>;
+// FormData (uploads)
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  token?: string
+): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: authHeader(token), // NÃO definir Content-Type aqui!
+    body: formData,
+  });
+  await ensureOk(res);
+  return (await res.json()) as T;
 }
 
 // Açúcar
-export const apiPostJson = <T,>(path: string, body: unknown, token?: string) =>
-  apiSend<T>(path, "POST", body, token);
-export const apiDelete = <T,>(path: string, token?: string) =>
-  apiSend<T>(path, "DELETE", undefined, token);
 export const apiPost = <T,>(path: string, body: unknown, token?: string) =>
   apiSend<T>(path, "POST", body, token);
 export const apiPatch = <T,>(path: string, body: unknown, token?: string) =>
   apiSend<T>(path, "PATCH", body, token);
 export const apiPut = <T,>(path: string, body: unknown, token?: string) =>
   apiSend<T>(path, "PUT", body, token);
+export const apiDelete = <T,>(path: string, token?: string) =>
+  apiSend<T>(path, "DELETE", undefined, token);
 
-/** Login (forma-URL-encoded, devolve { access_token, token_type, role, ... }) */
-export async function apiLogin(username: string, password: string) {
-  const res = await fetch(`${BASE_URL}/auth/token`, {
+// ------------------------------
+// Auth endpoints p/ teu backend
+// ------------------------------
+
+// JSON login (recomendado): POST /auth/login
+// body: { email, password, regatta_id? }
+export async function apiLoginJson(args: {
+  email: string;
+  password: string;
+  regatta_id?: number;
+}) {
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify(args),
+  });
+  await ensureOk(res);
+  const data = await res.json();
+  if (data?.access_token) setStoredToken(data.access_token);
+  return data;
+}
+
+// Alternativa (se precisares): POST /auth/login-form
+export async function apiLoginForm(username: string, password: string) {
+  const res = await fetch(`${BASE_URL}/auth/login-form`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username, password }),
   });
-  if (!res.ok) throw await parseError(res);
+  await ensureOk(res);
   const data = await res.json();
-  // guarda para chamadas futuras do FE (opcional)
-  if (typeof window !== "undefined" && data?.access_token) {
-    localStorage.setItem("token", data.access_token);
-    if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
-  }
+  if (data?.access_token) setStoredToken(data.access_token);
   return data;
 }
 
-/* ------------------------------------------------------------------ */
-/*  (Podes mover estes tipos para /src/types/protest.ts se preferires) */
-/* ------------------------------------------------------------------ */
+// /auth/me
+export const apiMe = () => apiGet("/auth/me");
+
+// /auth/switch-regatta → devolve novo token
+export async function apiSwitchRegatta(regattaId: number) {
+  const res = await fetch(`${BASE_URL}/auth/switch-regatta?regatta_id=${regattaId}`, {
+    method: "POST",
+    headers: authHeader(),
+  });
+  await ensureOk(res);
+  const data = await res.json();
+  if (data?.access_token) setStoredToken(data.access_token);
+  return data;
+}
+
+// ------------------------------
+// Tipos (mantive os teus)
+// ------------------------------
 export type ProtestType =
   | "protest"
   | "redress"

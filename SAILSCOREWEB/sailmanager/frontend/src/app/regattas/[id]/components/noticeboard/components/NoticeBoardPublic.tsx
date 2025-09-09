@@ -1,15 +1,15 @@
+// src/app/admin/manage-regattas/[id]/noticeboard/NoticeBoardPublic.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useNotices } from "@/lib/hooks/useNotices";
 import NoticeFilters from "./NoticeFilters";
-import { api, BASE_URL as API_BASE } from "@/lib/api";
-import type { RegattaClass, Notice } from "@/types/notice";
+import { apiGet, BASE_URL as API_BASE } from "@/lib/api";
+import type { Notice } from "@/types/notice";
 
 type Props = { regattaId: number };
 
 export default function NoticeBoardPublic({ regattaId }: Props) {
-  // Hook de notices – versão “light” (sem doc_type / is_important)
   const {
     data,
     loading,
@@ -20,11 +20,18 @@ export default function NoticeBoardPublic({ regattaId }: Props) {
     refresh,
   } = useNotices(regattaId);
 
+  // <- classes vêm como string[]
   const [classes, setClasses] = useState<string[]>([]);
 
   useEffect(() => {
-    api<RegattaClass[]>(`/regattas/${regattaId}/classes`)
-      .then((list) => setClasses(Array.from(new Set(list.map((c) => c.class_name)))))
+    apiGet<string[]>(`/regattas/${regattaId}/classes`)
+      .then((list) => {
+        // protege contra respostas tortas
+        const arr = Array.isArray(list) ? list : [];
+        setClasses(
+          Array.from(new Set(arr.filter((x): x is string => typeof x === "string")))
+        );
+      })
       .catch(() => setClasses([]));
   }, [regattaId]);
 
@@ -52,7 +59,9 @@ export default function NoticeBoardPublic({ regattaId }: Props) {
         onClassChange={setClassName}
         onOnlyAllChange={setOnlyAll}
         onQueryChange={setQuery}
-        /* removidos: onDocTypeChange, onImportantChange */
+        // se o teu NoticeFilters exigir estes props, passa no-op:
+        // onDocTypeChange={() => {}}
+        // onImportantChange={() => {}}
       />
 
       {loading && <div className="text-gray-500">A carregar…</div>}
@@ -74,28 +83,26 @@ export default function NoticeBoardPublic({ regattaId }: Props) {
                 <td className="p-3">{n.title}</td>
                 <td className="p-3">
                   {n.published_at
-                    ? new Date(n.published_at).toLocaleString()
+                    ? new Date(n.published_at).toLocaleString("pt-PT")
                     : "—"}
                 </td>
                 <td className="p-3">
                   {n.applies_to_all ? "ALL" : (n.classes ?? []).join(", ")}
                 </td>
                 <td className="p-3 text-right">
+                  {/* Usa o caminho público que o backend expõe via /uploads */}
                   <a
-                    href={`${API_BASE}/notices/${n.id}/download`}
+                    href={`${API_BASE}${n.filepath}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
                   >
-                    Download
+                    Abrir PDF
                   </a>
-                  {/* Se preferires apenas abrir numa nova aba o ficheiro estático:
-                      <a href={`${API_BASE}${n.filepath}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        Abrir
-                      </a>
-                  */}
                 </td>
               </tr>
             ))}
-            {data.length === 0 && (
+            {data.length === 0 && !loading && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={4}>
                   Sem documentos.

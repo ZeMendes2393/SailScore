@@ -4,7 +4,7 @@ from enum import Enum
 from sqlalchemy.sql import func
 from sqlalchemy import (
     Column, Integer, String, DateTime, Date, ForeignKey, Boolean, Float,
-    UniqueConstraint, Index, JSON, Text, Table, Enum as SAEnum, func
+    UniqueConstraint, Index, JSON, Text, Table, Enum as SAEnum, Time
 )
 from sqlalchemy.orm import relationship
 
@@ -383,16 +383,29 @@ class Rule42Record(Base):
 
 
 # --- Hearings / Decisions ---
+
+   # --- Hearings / Decisions ---
 class Hearing(Base):
     __tablename__ = "hearings"
 
     id = Column(Integer, primary_key=True)
     regatta_id = Column(Integer, index=True, nullable=False)
 
-    protest_id = Column(Integer, index=True, nullable=False)  # FK lógica para models.Protest.id
-    case_number = Column(Integer, nullable=False)             # sequencial por regata
+    # Se quiseres FK real (só se o teu schema já tem a tabela e ligações):
+    # protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True, nullable=False)
+    protest_id = Column(Integer, index=True, nullable=False)
+
+    case_number = Column(Integer, nullable=False)   # único por regata (ver __table_args__)
 
     decision = Column(Text, nullable=True)
     sch_date = Column(Date, nullable=True)
-    sch_time = Column(DateTime().prop.columns[0].type.time) if False else Column  # no-op p/ linters
-    # ↑ ignora; segue a linha abaixo (é apenas para IDEs que implicam com import de Time)
+    sch_time = Column(Time, nullable=True)          # ← agora com o tipo correto
+    room = Column(String(128), nullable=True)
+    status = Column(String(32), nullable=False, default="SCHEDULED")  # SCHEDULED | ONGOING | CLOSED
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "case_number", name="uq_hearing_case_per_regatta"),
+    )
