@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiPostJson } from '@/lib/api';
+import { apiGet, apiPostJson } from '@/lib/api'; // troca para apiPost se não tiveres apiPostJson
 
 type TokenRes = { access_token: string };
 
@@ -21,21 +21,30 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
     try {
-      // ⚠️ sem regatta_id (modo ADMIN)
+      // Login JSON (endpoint /auth/login do backend)
       const { access_token } = await apiPostJson<TokenRes>('/auth/login', {
         email,
         password,
       });
 
+      // GUARDA o token para os próximos fetches com Authorization
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', access_token);
+      }
+
+      // Confirma que é admin
       const me = await apiGet('/auth/me', access_token);
       if ((me as any)?.role !== 'admin') {
         throw new Error('Esta conta não é admin.');
       }
 
+      // Atualiza o contexto (se ele também persistir user/token, óptimo)
       login(access_token, me as any);
 
-      // respeita redirect pendente (guardado pelo api.ts quando apanha 401)
-      const after = sessionStorage.getItem('postLoginRedirect');
+      // Respeita redirect pendente
+      const after = typeof window !== 'undefined'
+        ? sessionStorage.getItem('postLoginRedirect')
+        : null;
       if (after) {
         sessionStorage.removeItem('postLoginRedirect');
         router.replace(after);

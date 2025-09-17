@@ -1,4 +1,15 @@
-import type { EntryOption } from '../useProtestPage';
+// ProtestorCard.tsx
+'use client';
+
+type EntryOption = {
+  id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  class_name?: string | null;
+  sail_number?: string | null;
+  boat_name?: string | null;
+  email?: string | null;
+};
 
 interface Props {
   loadingEntries: boolean;
@@ -55,14 +66,17 @@ export default function ProtestorCard({
           <select
             className="w-full border rounded px-3 py-2"
             value={initiatorEntryId ?? ''}
-            onChange={(e) => setInitiatorEntryId(Number(e.target.value))}
+            onChange={(e) => {
+              const v = e.target.value;
+              setInitiatorEntryId(v ? Number(v) : undefined);
+            }}
           >
             <option value="" disabled>
               Seleciona…
             </option>
             {myEntries.map((en) => (
               <option key={en.id} value={en.id}>
-                {en.sail_number || '—'} · {en.boat_name || '—'} · {en.class_name}
+                {en.sail_number || '—'} · {en.boat_name || '—'} · {en.class_name || '—'}
               </option>
             ))}
           </select>

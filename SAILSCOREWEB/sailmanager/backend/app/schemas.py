@@ -391,3 +391,15 @@ class HearingPatch(BaseModel):
     room: Optional[str] = None
     status: Optional[Status] = None
 
+
+
+class Rule42Patch(BaseModel):
+    sail_num: Optional[str] = None
+    penalty_number: Optional[str] = None
+    race: Optional[str] = None
+    group: Optional[str] = None
+    rule: Optional[str] = None
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: Optional[str] = None
+    date: Optional[date] = None

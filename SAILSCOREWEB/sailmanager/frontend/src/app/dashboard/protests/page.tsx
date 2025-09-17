@@ -1,20 +1,28 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useProtests, ProtestScope } from '@/hooks/useProtests';
-import { ProtestListItem } from '@/types/protest';
 import { useRegattaStatus } from '@/hooks/useRegattaStatus';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet } from '@/lib/api';
+
+// 👉 importa os tipos do sítio onde estão definidos (no teu caso, @/lib/api)
+import type { ProtestListItem, ProtestPartySummary } from '@/lib/api';
 
 const DEFAULT_WINDOWS = {
-  entryData: true, documents: true, rule42: true,
-  scoreReview: true, requests: true, protest: true,
+  entryData: true,
+  documents: true,
+  rule42: true,
+  scoreReview: true,
+  requests: true,
+  protest: true,
 };
 
 function Row({ item }: { item: ProtestListItem }) {
-  const respondents = item.respondents.map((r) => r.sail_no || r.free_text || '—').join(', ');
+  const respondents = item.respondents
+    .map((r: ProtestPartySummary) => r.sail_no || r.free_text || '—')
+    .join(', ');
+
   return (
     <tr className="border-b">
       <td className="py-2 px-3">{item.short_code}</td>
@@ -31,9 +39,9 @@ function Row({ item }: { item: ProtestListItem }) {
 export default function ProtestsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, token } = useAuth(); // 👈 VAMOS PASSAR ESTE TOKEN
+  const { user, token } = useAuth();
 
-  // regata efetiva: regatista usa token; admin aceita query (?regattaId=)
+  // regata: sailor usa a do token; admin aceita ?regattaId=; senão fallback .env
   const regattaId = useMemo(() => {
     if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
     const fromQS = Number(searchParams.get('regattaId') || '');
@@ -44,42 +52,43 @@ export default function ProtestsPage() {
   const [tab, setTab] = useState<ProtestScope>('all');
   const [query, setQuery] = useState('');
 
-  // 👇 Passa o token explicitamente para garantir Authorization
-  const { items, loading, error, hasMore, loadMore } = useProtests(
-    regattaId,
-    { scope: tab, search: query, limit: 20 },
-    token || undefined
+  // ✅ memoiza params para não recriar objeto (evita refetches)
+  const protestParams = useMemo(
+    () => ({ scope: tab, search: query, limit: 20 }),
+    [tab, query]
   );
+
+  // passa token explicitamente ao hook
+  const { items, loading, error, hasMore, loadMore } =
+    useProtests(regattaId, protestParams, token || undefined);
 
   const { data: regStatus } = useRegattaStatus(regattaId);
   const windows = regStatus?.windows ?? DEFAULT_WINDOWS;
 
-  // --- DEBUG: 1 ping direto para veres o pedido no Network com Authorization ---
-  useEffect(() => {
-    if (!regattaId || !token) return;
-    // Isto aparece na Network como GET /regattas/:id/protests
-    apiGet(`/regattas/${regattaId}/protests?scope=all&limit=1`, token)
-      .then(() => console.log('[protests-page] ping OK'))
-      .catch((e) => console.warn('[protests-page] ping FAIL', e));
-  }, [regattaId, token]);
+  // proteção simples enquanto não há regattaId / token
+  if (!regattaId || !token) {
+    return (
+      <div className="max-w-6xl mx-auto p-4 text-sm text-gray-600">
+        A inicializar protestos…
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      {/* Painel mini de debug (podes remover depois) */}
-      <div className="mb-3 text-xs text-gray-600">
-        regattaId: <b>{String(regattaId)}</b> · token?: <b>{token ? 'sim' : 'não'}</b>
-      </div>
-
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Protests</h1>
-
         <button
           disabled={!windows.protest}
           onClick={() => router.push(`/dashboard/protests/new?regattaId=${regattaId}`)}
           className={`px-4 py-2 rounded ${
-            windows.protest ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            windows.protest
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-300 text-gray-600 cursor-not-allowed'
           }`}
-          title={windows.protest ? 'Criar novo protesto' : 'Fora da janela para apresentar protestos'}
+          title={
+            windows.protest ? 'Criar novo protesto' : 'Fora da janela para apresentar protestos'
+          }
         >
           Novo Protesto
         </button>
@@ -89,7 +98,9 @@ export default function ProtestsPage() {
         {(['all', 'made', 'against'] as ProtestScope[]).map((s) => (
           <button
             key={s}
-            className={`px-3 py-1 rounded border ${tab === s ? 'bg-gray-900 text-white' : 'bg-white'}`}
+            className={`px-3 py-1 rounded border ${
+              tab === s ? 'bg-gray-900 text-white' : 'bg-white'
+            }`}
             onClick={() => setTab(s)}
           >
             {s === 'all' ? 'Todos' : s === 'made' ? 'Feitos por mim' : 'Contra mim'}
@@ -120,7 +131,9 @@ export default function ProtestsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => <Row key={it.id} item={it} />)}
+            {items.map((it) => (
+              <Row key={it.id} item={it} />
+            ))}
           </tbody>
         </table>
 
@@ -132,7 +145,11 @@ export default function ProtestsPage() {
       </div>
 
       <div className="flex items-center gap-3 mt-3">
-        <button onClick={loadMore} disabled={!hasMore || loading} className="px-4 py-2 rounded border">
+        <button
+          onClick={loadMore}
+          disabled={!hasMore || loading}
+          className="px-4 py-2 rounded border"
+        >
           {loading ? 'A carregar…' : hasMore ? 'Carregar mais' : 'Sem mais resultados'}
         </button>
         {error && <div className="text-red-600">{error}</div>}

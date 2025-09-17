@@ -16,6 +16,13 @@ const normalizeBearer = (raw?: string): string | undefined => {
   return t.toLowerCase().startsWith("bearer ") ? t : `Bearer ${t}`;
 };
 
+// --- manter compatibilidade com código antigo ---
+export const apiPostJson = <T,>(
+  path: string,
+  body: unknown,
+  token?: string
+) => apiSend<T>(path, "POST", body, token);
+
 const getStoredToken = (): string | undefined => {
   if (typeof window === "undefined") return undefined;
   // aceita "access_token" (recomendado) ou "token" (legado)
@@ -86,6 +93,21 @@ async function parseError(res: Response): Promise<Error> {
     return new Error(`HTTP ${res.status}`);
   }
 }
+
+// GET simples sem headers especiais (útil para endpoints públicos)
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, init);
+  if (!res.ok) {
+    throw await parseError(res);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    // algumas rotas podem devolver 204/empty
+    return undefined as unknown as T;
+  }
+  return res.json() as Promise<T>;
+}
+
 
 async function ensureOk(res: Response) {
   if (res.ok) return;

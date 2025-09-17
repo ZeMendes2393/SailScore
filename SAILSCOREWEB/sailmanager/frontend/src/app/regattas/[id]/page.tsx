@@ -6,8 +6,7 @@ import Link from 'next/link';
 
 import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
 import EntryList from './components/entrylist/EntryList';
-import NoticeBoard from './components/noticeboard/NoticeBoard';
-import NoticeBoardPublic from './components/noticeboard/components/NoticeBoardPublic';
+import NoticeBoard from './components/noticeboard/NoticeBoard'; // ✅ usa o novo componente com tabs
 
 interface Regatta {
   id: number;
@@ -140,7 +139,7 @@ export default function RegattaDetails() {
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
         {activeTab === 'entry' && <EntryList regattaId={regattaId} selectedClass={selectedClass} />}
-        {activeTab === 'notice' && <NoticeBoardPublic regattaId={regattaId} />}
+        {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}{/* ✅ tabs públicas */}
         {activeTab === 'form' && <MultiStepEntryForm regattaId={regattaId} />}
 
         {!activeTab && (

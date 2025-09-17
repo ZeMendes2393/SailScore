@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiSend } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 // ----- Tipos -----
 export type ProtestType =
@@ -24,7 +25,7 @@ export type RespondentKindApi = 'entry' | 'other';
 
 export interface EntryOption {
   id: number;
-  regatta_id?: number;
+  regatta_id?: number | string | null; // 👈 aceitar string/number/null
   sail_number?: string | null;
   boat_name?: string | null;
   class_name: string;
@@ -42,11 +43,10 @@ export interface RespondentRowUI {
   represented_by?: string;
 }
 
-// Payload (igual ao que o backend espera)
 export interface ProtestRespondentIn {
-  kind: RespondentKindApi;      // 'entry' | 'other'
-  entry_id?: number | null;     // quando kind='entry'
-  free_text?: string | null;    // quando kind='other'
+  kind: RespondentKindApi;
+  entry_id?: number | null;
+  free_text?: string | null;
   represented_by?: string | null;
 }
 export interface ProtestIncidentIn {
@@ -58,7 +58,7 @@ export interface ProtestIncidentIn {
 export interface ProtestCreate {
   type: ProtestType;
   race_date?: string | null;
-  race_number?: string | null;   // string no backend
+  race_number?: string | null;
   group_name?: string | null;
   initiator_entry_id: number;
   initiator_represented_by?: string | null;
@@ -89,6 +89,20 @@ const genId = () =>
 
 // ----- Hook -----
 export default function useProtestPage(regattaId: number | null, token?: string) {
+  const { user } = useAuth();
+  const userEmail =
+    user?.email ||
+    (typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const raw = localStorage.getItem('user');
+            return raw ? JSON.parse(raw)?.email : undefined;
+          } catch {
+            return undefined;
+          }
+        })()
+      : undefined);
+
   // Básico
   const [type, setType] = useState<ProtestType>('protest');
   const [raceDate, setRaceDate] = useState<string>('');
@@ -102,7 +116,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
   const [repLocked, setRepLocked] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(true);
 
-  // Dados para “Boat”
+  // Dados “Boat”
   const [classes, setClasses] = useState<string[]>([]);
   const [entriesByClass, setEntriesByClass] = useState<Record<string, EntryOption[]>>({});
 
@@ -139,7 +153,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     }
   };
 
-  // Load inicial
+  // Load inicial (com fallbacks)
   useEffect(() => {
     if (!regattaId || !token) return;
     let cancelled = false;
@@ -149,64 +163,106 @@ export default function useProtestPage(regattaId: number | null, token?: string)
       setEntriesByClass({});
       setClasses([]);
 
+      let mineForThis: EntryOption[] = [];
+
+      // 1) tenta /entries?mine=true&regatta_id=...
       try {
-        // 1) Minhas entries desta regata
-        let mine = await apiGet<EntryOption[]>(
-          `/entries?mine=true&regatta_id=${regattaId}`,
-          token
-        ).catch(() => []);
+        mineForThis =
+          (await apiGet<EntryOption[]>(
+            `/entries?mine=true&regatta_id=${regattaId}`,
+            token
+          )) || [];
+        console.debug('[protest-page] mine por regatta_id:', mineForThis.length);
+      } catch (e) {
+        console.warn('[protest-page] 1) falhou -> tentar sem regatta_id', e);
+      }
 
-        if (!mine?.length) {
-          mine = await apiGet<EntryOption[]>(`/entries?mine=true`, token).catch(() => []);
+      // 2) se vazio, tenta /entries?mine=true e filtra pelo regatta_id (coerção)
+      if (!mineForThis.length) {
+        try {
+          const allMine = (await apiGet<EntryOption[]>(
+            `/entries?mine=true`,
+            token
+          )) || [];
+          mineForThis = allMine.filter((e) => {
+            const rid =
+              e.regatta_id === undefined || e.regatta_id === null
+                ? undefined
+                : Number(e.regatta_id);
+            return rid === undefined || rid === regattaId;
+          });
+          console.debug('[protest-page] mine (filtrado FE):', mineForThis.length);
+        } catch (e) {
+          console.warn('[protest-page] 2) falhou -> tentar by_regatta + email', e);
         }
-        const mineForThis = (mine || []).filter(
-          (e) => !e.regatta_id || e.regatta_id === regattaId
-        );
+      }
 
-        if (!cancelled) {
-          setMyEntries(mineForThis);
-          if (mineForThis.length === 1) {
-            setInitiatorEntryId(mineForThis[0].id);
-            setInitiatorRep(entryFullName(mineForThis[0]));
+      // 3) se ainda vazio, /entries/by_regatta/:id e filtra por email do user
+      if (!mineForThis.length) {
+        try {
+          const regEntries =
+            (await apiGet<EntryOption[]>(
+              `/entries/by_regatta/${regattaId}`,
+              token
+            )) || [];
+          if (userEmail) {
+            const mail = String(userEmail).toLowerCase();
+            mineForThis = regEntries.filter(
+              (e) => (e.email || '').toLowerCase() === mail
+            );
+            console.debug('[protest-page] by_regatta (filtrado por email):', mineForThis.length);
           } else {
-            setInitiatorEntryId(undefined);
-            setInitiatorRep('');
+            console.warn('[protest-page] sem userEmail, não dá para filtrar by_regatta');
           }
+        } catch (e) {
+          console.warn('[protest-page] 3) by_regatta falhou', e);
         }
+      }
 
-        // 2) Classes da regata (string[])
-        const cls = await apiGet<string[]>(
+      if (!cancelled) {
+        setMyEntries(mineForThis);
+        if (mineForThis.length === 1) {
+          setInitiatorEntryId(mineForThis[0].id);
+          setInitiatorRep(entryFullName(mineForThis[0]));
+        } else {
+          setInitiatorEntryId(undefined);
+          setInitiatorRep('');
+        }
+      }
+
+      // Classes (com fallback)
+      try {
+        const cls = (await apiGet<string[]>(
           `/regattas/${regattaId}/classes`,
           token
-        ).catch(() => []);
+        )) || [];
         let finalClasses = (cls || []).filter(Boolean);
-
-        // 3) Fallback pelo entries/by_regatta
-        if (finalClasses.length === 0) {
-          const regEntries = await apiGet<EntryOption[]>(
+        if (!finalClasses.length) {
+          const regEntries = (await apiGet<EntryOption[]>(
             `/entries/by_regatta/${regattaId}`,
             token
-          ).catch(() => []);
+          )) || [];
           finalClasses = Array.from(
             new Set(
-              (regEntries || [])
-                .map((e) => (e.class_name || '').trim())
-                .filter(Boolean)
+              regEntries.map((e) => (e.class_name || '').trim()).filter(Boolean)
             )
           );
         }
-
         if (!cancelled) setClasses(finalClasses);
-      } finally {
-        if (!cancelled) setLoadingEntries(false);
+      } catch (e) {
+        console.warn('[protest-page] classes falhou', e);
+        if (!cancelled) setClasses([]);
       }
+
+      if (!cancelled) setLoadingEntries(false);
     }
 
-    load().catch(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    load();
     return () => {
       cancelled = true;
     };
-  }, [regattaId, token]);
+  }, [regattaId, token, userEmail]);
 
   // “represented by” quando muda iniciador
   useEffect(() => {
@@ -228,15 +284,11 @@ export default function useProtestPage(regattaId: number | null, token?: string)
   }, [initiatorEntryId, myEntries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helpers respondentes
-  const addRespondent = () => {
-    setRespondents((prev) => [...prev, { id: genId(), type: 'boat' }]);
-  };
-  const removeRespondent = (rid: string) => {
-    setRespondents((prev) => prev.filter((r) => r.id !== rid));
-  };
-  const updateRespondent = (rid: string, patch: Partial<RespondentRowUI>) => {
-    setRespondents((prev) => prev.map((r) => (r.id === rid ? { ...r, ...patch } : r)));
-  };
+  const addRespondent = () => setRespondents((p) => [...p, { id: genId(), type: 'boat' }]);
+  const removeRespondent = (rid: string) =>
+    setRespondents((p) => p.filter((r) => r.id !== rid));
+  const updateRespondent = (rid: string, patch: Partial<RespondentRowUI>) =>
+    setRespondents((p) => p.map((r) => (r.id === rid ? { ...r, ...patch } : r)));
 
   // Submit
   const submit = async (): Promise<boolean> => {
