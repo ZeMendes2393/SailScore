@@ -1,5 +1,5 @@
 # app/routes/entries.py
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from datetime import datetime
@@ -9,7 +9,7 @@ from typing import Optional, List
 
 from app.database import SessionLocal
 from app import models, schemas
-from utils.auth_utils import get_current_user, hash_password, get_current_regatta_id
+from utils.auth_utils import get_current_user, hash_password, get_current_regatta_id, get_current_regatta_id_optional as _get_current_regatta_id_optional
 from app.services.email import send_email  # usa SMTP/LOG conforme .env
 
 router = APIRouter()
@@ -26,22 +26,16 @@ def get_db():
     finally:
         db.close()
 
-# ---- wrapper opcional: nunca lança erro se token não tiver regata ----
-def get_current_regatta_id_optional(request: Request) -> Optional[int]:
-    try:
-        return get_current_regatta_id(request)
-    except Exception:
-        return None
-
 # ---------------- LIST /entries ----------------
-@router.get("/", response_model=List[schemas.EntryRead])
+@router.get("", response_model=List[schemas.EntryRead])   # <— sem barra
+@router.get("/", response_model=List[schemas.EntryRead])  # <— com barra
 def list_entries(
     regatta_id: Optional[int] = Query(None, description="Filtrar por regata."),
     mine: bool = Query(False, description="Se true, devolve apenas as tuas entries."),
     class_name: Optional[str] = Query(None, alias="class", description="Filtra por classe (opcional)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-    current_regatta_id: Optional[int] = Depends(get_current_regatta_id_optional),
+    current_regatta_id: Optional[int] = Depends(_get_current_regatta_id_optional),
 ):
     q = db.query(models.Entry)
 
@@ -59,8 +53,7 @@ def list_entries(
     if mine:
         rid = regatta_id or current_regatta_id  # query tem prioridade
         if rid is None:
-            # Sem regata ativa → devolve lista vazia para o FE mostrar o aviso
-            return []
+            return []  # Sem regata ativa → FE mostra aviso
         q = (
             q.filter(models.Entry.regatta_id == rid)
              .filter(
@@ -149,7 +142,8 @@ Acesso:
     background.add_task(send_email, to_email, subject, html, text, from_name=CLUB_NAME, reply_to=REPLY_TO)
 
 # ---------------- endpoints ----------------
-@router.post("/")
+@router.post("", status_code=status.HTTP_201_CREATED)   # <— sem barra
+@router.post("/", status_code=status.HTTP_201_CREATED)  # <— com barra
 def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
     try:
         user = _ensure_sailor_user_and_profile(db, entry)
@@ -193,6 +187,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             user_phone=entry.contact_phone_1 or "",
             temp_password=temp_pwd,
         )
+        # manténs o formato que o teu FE parece esperar
         return {"message": "Inscrição criada com sucesso", "id": new_entry.id, "user_id": user.id}
     except Exception as e:
         db.rollback()

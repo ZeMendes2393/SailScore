@@ -1,7 +1,9 @@
-"use client";
+// EntryList.tsx
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { apiGet, BASE_URL } from '@/lib/api';
 
 interface Entry {
   id: number;
@@ -19,71 +21,88 @@ interface Entry {
 
 interface EntryListProps {
   regattaId: number;
-  selectedClass: string | null; // ✅ nova prop
+  selectedClass: string | null;
 }
 
 export default function EntryList({ regattaId, selectedClass }: EntryListProps) {
   const { user, token } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === 'admin';
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
+  const filteredEntries = useMemo(() => {
+    if (!selectedClass) return entries;
+    const cls = selectedClass.trim().toLowerCase();
+    return entries.filter(e => (e.class_name || '').trim().toLowerCase() === cls);
+  }, [entries, selectedClass]);
+
   useEffect(() => {
-    const fetchEntries = async () => {
-      try {
-        const url = selectedClass
-          ? `http://localhost:8000/entries/by_regatta/${regattaId}?class=${encodeURIComponent(selectedClass)}`
-          : `http://localhost:8000/entries/by_regatta/${regattaId}`;
+    let alive = true;
 
-        const res = await fetch(url);
-        const data = await res.json();
-        setEntries(data);
-      } catch (err) {
-        console.error("❌ Erro a carregar inscrições:", err);
+    async function tryLoad(): Promise<Entry[]> {
+      // tenta diferentes nomes de query param que os backends costumam usar
+      const candidates = [
+        `/entries?regatta_id=${Number(regattaId)}`,
+        `/entries?regattaId=${Number(regattaId)}`,
+        `/entries?regatta=${Number(regattaId)}`,
+      ];
+
+      for (const path of candidates) {
+        try {
+          const data: any = await apiGet<any>(path, token || undefined);
+          const arr = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.items) ? data.items : [];
+          if (arr.length || Array.isArray(data)) return arr as Entry[];
+        } catch (e) {
+          // continua a tentar o próximo
+        }
       }
-    };
+      return [];
+    }
 
-    fetchEntries();
-  }, [regattaId, selectedClass]); // ✅ depende também da classe selecionada
+    (async () => {
+      try {
+        const list = await tryLoad();
+        if (alive) setEntries(Array.isArray(list) ? list : []);
+      } catch (e) {
+        console.error('❌ Erro a carregar inscrições:', e);
+        if (alive) setEntries([]); // evita .map is not a function
+      }
+    })();
+
+    return () => { alive = false; };
+  }, [regattaId, token]);
 
   const togglePaid = async (entryId: number) => {
     if (!isAdmin || !token) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/entries/${entryId}/toggle_paid`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const res = await fetch(`${BASE_URL}/entries/${entryId}/toggle_paid`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
-        const errorData = await res.json();
-        console.error("❌ Erro ao atualizar pagamento:", errorData.detail);
+        const errorData = await res.json().catch(() => null);
+        console.error('❌ Erro ao atualizar pagamento:', errorData?.detail ?? res.status);
         return;
       }
-
       const data = await res.json();
-
-      setEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === entryId ? { ...entry, paid: data.paid } : entry
-        )
-      );
+      setEntries(prev => prev.map(e => (e.id === entryId ? { ...e, paid: data.paid } : e)));
     } catch (error) {
-      console.error("⚠️ Erro na requisição:", error);
+      console.error('⚠️ Erro na requisição:', error);
     }
   };
 
   const toggleDetails = (id: number) => {
     if (!isAdmin) return;
-    setSelectedId((prev) => (prev === id ? null : id));
+    setSelectedId(prev => (prev === id ? null : id));
   };
 
   return (
     <div>
-      {entries.length === 0 ? (
+      {filteredEntries.length === 0 ? (
         <p className="text-gray-500">Ainda não há inscrições para esta classe nesta regata.</p>
       ) : (
         <table className="w-full table-auto border mt-2 text-sm">
@@ -96,11 +115,11 @@ export default function EntryList({ regattaId, selectedClass }: EntryListProps) 
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => (
+            {filteredEntries.map(entry => (
               <React.Fragment key={entry.id}>
                 <tr
                   onClick={() => toggleDetails(entry.id)}
-                  className={isAdmin ? "cursor-pointer hover:bg-gray-50" : ""}
+                  className={isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}
                 >
                   <td className="p-2 border">{entry.class_name}</td>
                   <td className="p-2 border">{entry.first_name} {entry.last_name}</td>
@@ -111,7 +130,7 @@ export default function EntryList({ regattaId, selectedClass }: EntryListProps) 
                         type="checkbox"
                         checked={Boolean(entry.paid)}
                         onChange={() => togglePaid(entry.id)}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={e => e.stopPropagation()}
                       />
                     </td>
                   )}
@@ -121,11 +140,11 @@ export default function EntryList({ regattaId, selectedClass }: EntryListProps) 
                   <tr>
                     <td colSpan={4} className="p-2 border bg-gray-50">
                       <div className="text-gray-700 space-y-1">
-                        <p><strong>Email:</strong> {entry.email || "—"}</p>
-                        <p><strong>Contacto:</strong> {entry.contact_phone_1 || "—"}</p>
-                        <p><strong>Número de vela:</strong> {entry.sail_number || "—"}</p>
-                        <p><strong>Nome do barco:</strong> {entry.boat_name || "—"}</p>
-                        <p><strong>Categoria:</strong> {entry.category || "—"}</p>
+                        <p><strong>Email:</strong> {entry.email || '—'}</p>
+                        <p><strong>Contacto:</strong> {entry.contact_phone_1 || '—'}</p>
+                        <p><strong>Número de vela:</strong> {entry.sail_number || '—'}</p>
+                        <p><strong>Nome do barco:</strong> {entry.boat_name || '—'}</p>
+                        <p><strong>Categoria:</strong> {entry.category || '—'}</p>
                       </div>
                     </td>
                   </tr>

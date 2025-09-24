@@ -346,3 +346,11 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     submit,
   } as const;
 }
+
+
+// types/protests.ts
+export type CreateProtestResponse = {
+  id: number;
+  short_code: string;      // "P-123"
+  hearing_created: boolean;
+};

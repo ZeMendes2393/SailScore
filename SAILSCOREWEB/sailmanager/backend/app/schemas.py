@@ -1,29 +1,23 @@
 # app/schemas.py
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List,  Dict, Literal
+from __future__ import annotations
+
+from typing import Optional, List, Dict, Literal
 from datetime import datetime, date, time
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
-# ---------- Rule 42 ----------
-from datetime import date, time
-
-# ---------- NOTICE ----------
-class NoticeOut(BaseModel):
-    id: int
-    filename: str
-    filepath: str
-    uploaded_at: datetime
-
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-
-# ---------- AUTH ----------
+# =========================
+# AUTH
+# =========================
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
 
 
-
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+    regatta_id: Optional[int] = None  # usado por regatistas, opcional
 
 
 class Token(BaseModel):
@@ -31,7 +25,9 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-# ---------- REGATTA ----------
+# =========================
+# REGATTAS
+# =========================
 class RegattaCreate(BaseModel):
     name: str
     location: str
@@ -46,17 +42,36 @@ class RegattaCreate(BaseModel):
     online_entry_url: Optional[str] = None
 
     # scoring / descartes
-    discard_count: int = 0          # quantos descartes aplicar
-    discard_threshold: int = 4       # a partir de quantas regatas começa a descartar
+    discard_count: int = 0
+    discard_threshold: int = 4
 
 
 class RegattaRead(RegattaCreate):
     id: int
-    scoring_codes: Optional[Dict[str, float]] = None  # <- ADICIONA
+    scoring_codes: Optional[Dict[str, float]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-# ---------- REGATTA CLASS ----------
+class RegattaUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+    description: Optional[str] = None
+    poster_url: Optional[str] = None
+    notice_board_url: Optional[str] = None
+    entry_list_url: Optional[str] = None
+    online_entry_url: Optional[str] = None
+
+
+class RegattaClassesReplace(BaseModel):
+    classes: List[str]
+
+
+# =========================
+# REGATTA CLASSES
+# =========================
 class RegattaClassCreate(BaseModel):
     regatta_id: int
     class_name: str
@@ -66,11 +81,12 @@ class RegattaClassRead(BaseModel):
     id: int
     regatta_id: int
     class_name: str
-
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-# ---------- ENTRY ----------
+# =========================
+# ENTRIES
+# =========================
 class EntryCreate(BaseModel):
     # boat
     class_name: str
@@ -104,6 +120,40 @@ class EntryRead(EntryCreate):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+# =========================
+# RACES
+# =========================
+class RaceCreate(BaseModel):
+    name: str
+    regatta_id: int
+    date: Optional[str] = None
+    class_name: str
+    order_index: Optional[int] = None  # se None, backend coloca no fim
+
+
+class RaceUpdate(BaseModel):
+    name: Optional[str] = None
+    date: Optional[str] = None
+    order_index: Optional[int] = None
+
+
+class RacesReorder(BaseModel):
+    ordered_ids: List[int]
+
+
+class RaceRead(BaseModel):
+    id: int
+    name: str
+    regatta_id: int
+    date: Optional[str] = None
+    class_name: str
+    order_index: int
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+# =========================
+# RESULTS
+# =========================
 class ResultCreate(BaseModel):
     regatta_id: int
     race_id: int
@@ -114,6 +164,7 @@ class ResultCreate(BaseModel):
     position: int
     points: float
     code: Optional[str] = None
+
 
 class ResultRead(BaseModel):
     id: int
@@ -128,52 +179,14 @@ class ResultRead(BaseModel):
     code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-# ---------- RACE ----------
-class RaceCreate(BaseModel):
-    name: str
-    regatta_id: int
-    date: Optional[str] = None
-    class_name: str
-    order_index: Optional[int] = None  # << opcional; se None, backend define ao fim
 
-class RaceUpdate(BaseModel):  # << NOVO
-    name: Optional[str] = None
-    date: Optional[str] = None
-    order_index: Optional[int] = None
-
-class RacesReorder(BaseModel):  # << NOVO
-    ordered_ids: List[int]
-
-class RaceRead(BaseModel):
-    id: int
-    name: str
-    regatta_id: int
-    date: Optional[str] = None
-    class_name: str
-    order_index: int  # << NOVO
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-# … (Notice, Auth UserCreate/Login/Token mantêm)
-
-# ---------- INVITATIONS ----------
+# =========================
+# INVITATIONS
+# =========================
 class InvitationCreate(BaseModel):
     email: EmailStr
     role: str  # "admin" | "regatista"
+
 
 class InvitationRead(BaseModel):
     id: int
@@ -183,11 +196,15 @@ class InvitationRead(BaseModel):
     accepted_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
+
 class AcceptInviteInput(BaseModel):
     token: str
-    password: Optional[str] = None  # para criar password se quiseres
+    password: Optional[str] = None
 
-# ---------- SAILOR PROFILE ----------
+
+# =========================
+# SAILOR PROFILE
+# =========================
 class SailorProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -204,18 +221,78 @@ class SailorProfileUpdate(BaseModel):
     territory: Optional[str] = None
 
 
+# =========================
+# NOTICES
+# =========================
+NoticeSourceLiteral = Literal[
+    "ORGANIZING_AUTHORITY", "RACE_COMMITTEE", "JURY", "TECHNICAL_COMMITTEE", "OTHER"
+]
+NoticeDocTypeLiteral = Literal[
+    "RACE_DOCUMENT", "RULE_42", "JURY_DOC", "TECHNICAL", "OTHER"
+]
 
 
+class NoticeRead(BaseModel):
+    id: int
+    filename: str
+    filepath: str
+    title: str
+    regatta_id: int
+    published_at: datetime
+    source: NoticeSourceLiteral
+    doc_type: NoticeDocTypeLiteral
+    is_important: bool
+    applies_to_all: bool
+    classes: List[str]  # nomes das classes (ex.: ["49er","ILCA 7"])
+    model_config = ConfigDict(from_attributes=True)
 
 
+# =========================
+# RULE 42
+# =========================
+class Rule42Create(BaseModel):
+    regatta_id: int
+    sail_num: str
+    penalty_number: str
+    race: str
+    group: Optional[str] = None
+    rule: str = "RRS 42"
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: str
+    date: date
 
 
+class Rule42Out(BaseModel):
+    id: int
+    regatta_id: int
+    sail_num: str
+    penalty_number: str
+    race: str
+    group: Optional[str] = None
+    rule: str
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: str
+    date: date
+    model_config = ConfigDict(from_attributes=True)
 
-# ---------- PROTESTS (Listagem + criação) ----------
-from typing import Optional, List, Literal
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
 
+class Rule42Patch(BaseModel):
+    sail_num: Optional[str] = None
+    penalty_number: Optional[str] = None
+    race: Optional[str] = None
+    group: Optional[str] = None
+    rule: Optional[str] = None
+    comp_action: Optional[str] = None
+    description: Optional[str] = None
+    class_name: Optional[str] = None
+    date: Optional[date] = None
+
+
+# =========================
+# PROTESTS: listagem
+# =========================
 class ProtestPartySummary(BaseModel):
     sail_no: str | None = None
     boat_name: str | None = None
@@ -240,12 +317,14 @@ class ProtestListItem(BaseModel):
     initiator: ProtestInitiatorSummary
     respondents: List[ProtestPartySummary]
     updated_at: datetime
-
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+# =========================
+# PROTESTS: criação
+# =========================
 class ProtestRespondentIn(BaseModel):
-    kind: Literal['entry', 'other'] = 'entry'   # mais seguro que str solto
+    kind: Literal["entry", "other"] = "entry"
     entry_id: Optional[int] = None
     free_text: Optional[str] = None
     represented_by: Optional[str] = None
@@ -255,7 +334,7 @@ class ProtestValidityIn(BaseModel):
     informed_by_hailing: Optional[bool] = None
     hailing_words: Optional[str] = None
     hailing_when: Optional[datetime] = None
-    red_flag: Optional[str] = None         # not_required | yes | no
+    red_flag: Optional[str] = None
     red_flag_when: Optional[datetime] = None
     informed_other_way: Optional[bool] = None
     informed_other_how_when_where: Optional[str] = None
@@ -266,11 +345,11 @@ class ProtestIncidentIn(BaseModel):
     description: Optional[str] = None
     rules_applied: Optional[str] = None
     damage_injury: Optional[str] = None
-    witnesses: Optional[List[dict]] = None  # simplificado para já
+    witnesses: Optional[List[dict]] = None
 
 
 class ProtestCreate(BaseModel):
-    type: Literal['protest','redress','reopen','support_person_report','misconduct_rss69']
+    type: Literal["protest", "redress", "reopen", "support_person_report", "misconduct_rss69"]
     race_date: Optional[str] = None
     race_number: Optional[str] = None
     group_name: Optional[str] = None
@@ -281,94 +360,44 @@ class ProtestCreate(BaseModel):
     incident: Optional[ProtestIncidentIn] = None
 
 
+# =========================
+# PROTESTS: decisão (admin/júri)
+# =========================
+class ProtestDecisionIn(BaseModel):
+    # campos de cabeçalho / contexto
+    case_number: Optional[str] = None
+    race_number: Optional[str] = None
+    hearing_status: Optional[str] = None
+    type: Optional[str] = None
+    valid: Optional[bool] = None
+    date_of_race: Optional[str] = None
+    received_time: Optional[str] = None
+    class_fleet: Optional[str] = None
+
+    # participantes
+    parties: List[str] = []
+    witnesses: List[str] = []
+
+    # conteúdo
+    case_summary: Optional[str] = None
+    procedural_matters: Optional[str] = None
+    facts_found: Optional[str] = None
+    conclusions_and_rules: Optional[str] = None
+    decision_text: Optional[str] = None
+    short_decision: Optional[str] = None
+
+    # assinatura/fecho
+    decision_date: Optional[str] = None
+    decision_time: Optional[str] = None
+    panel_chair: Optional[str] = None
+    panel_members: List[str] = []
 
 
+# =========================
+# HEARINGS
+# =========================
+HearingStatusLiteral = Literal["OPEN", "CLOSED"]  # alinhado com a API
 
-
-
-
-
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-    regatta_id: Optional[int] = None  # <-- só usado para regatistas
-
-
-# ---------- REGATTA UPDATE ----------
-class RegattaUpdate(BaseModel):
-    name: Optional[str] = None
-    location: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-
-    # opcionais
-    description: Optional[str] = None
-    poster_url: Optional[str] = None
-    notice_board_url: Optional[str] = None
-    entry_list_url: Optional[str] = None
-    online_entry_url: Optional[str] = None
-
-
-class RegattaClassesReplace(BaseModel):
-    classes: List[str]  # lista final de classes para a regata (substitui tudo)
-
-
-
-NoticeSourceLiteral = Literal[
-    "ORGANIZING_AUTHORITY", "RACE_COMMITTEE", "JURY", "TECHNICAL_COMMITTEE", "OTHER"
-]
-NoticeDocTypeLiteral = Literal[
-    "RACE_DOCUMENT", "RULE_42", "JURY_DOC", "TECHNICAL", "OTHER"
-]
-
-class NoticeRead(BaseModel):
-    id: int
-    filename: str
-    filepath: str
-    title: str
-    regatta_id: int
-    published_at: datetime
-    source: NoticeSourceLiteral
-    doc_type: NoticeDocTypeLiteral
-    is_important: bool
-    applies_to_all: bool
-    classes: List[str]  # nomes (ex.: ["49er","ILCA 7"])
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class Rule42Create(BaseModel):
-    regatta_id: int
-    sail_num: str
-    penalty_number: str
-    race: str
-    group: Optional[str] = None
-    rule: str = "RRS 42"
-    comp_action: Optional[str] = None
-    description: Optional[str] = None
-    class_name: str
-    date: date
-
-class Rule42Out(BaseModel):
-    id: int
-    regatta_id: int
-    sail_num: str
-    penalty_number: str
-    race: str
-    group: Optional[str] = None
-    rule: str
-    comp_action: Optional[str] = None
-    description: Optional[str] = None
-    class_name: str
-    date: date
-
-    model_config = {"from_attributes": True}
-
-
-# ---------- Hearings ----------
-Status = Literal["SCHEDULED", "ONGOING", "CLOSED"]
 
 class HearingOut(BaseModel):
     id: int
@@ -380,26 +409,13 @@ class HearingOut(BaseModel):
     sch_date: Optional[date] = None
     sch_time: Optional[time] = None
     room: Optional[str] = None
-    status: Status
+    status: HearingStatusLiteral
+    model_config = ConfigDict(from_attributes=True)
 
-    model_config = {"from_attributes": True}
 
 class HearingPatch(BaseModel):
     decision: Optional[str] = None
     sch_date: Optional[date] = None
     sch_time: Optional[time] = None
     room: Optional[str] = None
-    status: Optional[Status] = None
-
-
-
-class Rule42Patch(BaseModel):
-    sail_num: Optional[str] = None
-    penalty_number: Optional[str] = None
-    race: Optional[str] = None
-    group: Optional[str] = None
-    rule: Optional[str] = None
-    comp_action: Optional[str] = None
-    description: Optional[str] = None
-    class_name: Optional[str] = None
-    date: Optional[date] = None
+    status: Optional[HearingStatusLiteral] = None

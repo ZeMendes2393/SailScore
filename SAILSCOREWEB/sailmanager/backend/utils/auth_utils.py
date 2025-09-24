@@ -1,3 +1,4 @@
+# utils/auth_utils.py
 from __future__ import annotations
 
 import os
@@ -29,15 +30,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
-# tokenUrl deve apontar para a tua rota de login
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def create_access_token(claims: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Gera um JWT a partir de um dicionário de claims.
-    - Para REGATISTA inclui: {"sub": email, "role": "regatista", "regatta_id": <id>}
-    - Para ADMIN inclui:     {"sub": email, "role": "admin"}   (sem regatta_id)
-    """
     to_encode = claims.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
@@ -51,7 +46,7 @@ def get_db():
     finally:
         db.close()
 
-# ---------------- Current user / regatta ----------------
+# ---------------- Current user ----------------
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
@@ -74,9 +69,11 @@ def get_current_user(
         raise credentials_exception
     return user
 
+# ---------------- Regatta id (estrito vs opcional) ----------------
 def get_current_regatta_id(token: str = Depends(oauth2_scheme)) -> Optional[int]:
     """
-    Lê 'regatta_id' do token. Para admin pode não existir (None).
+    Lê 'regatta_id' do token. Pode ser None (ex.: admin).
+    Lança 401 se o token for inválido.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -84,6 +81,18 @@ def get_current_regatta_id(token: str = Depends(oauth2_scheme)) -> Optional[int]
         return int(rid) if rid is not None else None
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+
+def get_current_regatta_id_optional(token: str = Depends(oauth2_scheme)) -> Optional[int]:
+    """
+    Versão TOLERANTE: nunca levanta 422/401 por causa do regatta_id.
+    Se o token for inválido ou não tiver 'regatta_id', devolve None.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        rid = payload.get("regatta_id", None)
+        return int(rid) if rid is not None else None
+    except Exception:
+        return None
 
 # ---------------- Role guard ----------------
 def verify_role(required_roles: list[str]):

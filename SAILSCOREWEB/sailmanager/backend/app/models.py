@@ -315,18 +315,69 @@ class Protest(Base):
     rules_alleged = Column(Text, nullable=True)
 
     # sistema
-    status = Column(String, nullable=False, default="submitted")  # submitted | under_review | scheduled | closed | invalid | withdrawn
+    status = Column(
+        String,
+        nullable=False,
+        default="submitted"
+    )  # submitted | under_review | scheduled | closed | invalid | withdrawn
     received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    # relationships
+    # ---- NOVOS CAMPOS (pedidos) ----
+    submitted_snapshot_json = Column(JSON, nullable=True)
+    submitted_pdf_url = Column(String(500), nullable=True)
+
+    decision_json = Column(JSON, nullable=True)
+    decision_pdf_url = Column(String(500), nullable=True)
+    decided_at = Column(DateTime, nullable=True)
+
+    decided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    decided_by = relationship("User", foreign_keys=[decided_by_user_id])
+
+    # relationships existentes
     initiator_entry = relationship("Entry", foreign_keys=[initiator_entry_id])
-    parties = relationship("ProtestParty", back_populates="protest", cascade="all, delete-orphan")
+
+    # parties (respondentes)
+    parties = relationship(
+        "ProtestParty",
+        back_populates="protest",
+        cascade="all, delete-orphan"
+    )
+
+    # anexos (novo)
+    attachments = relationship(
+        "ProtestAttachment",
+        back_populates="protest",
+        cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_protests_regatta_updated", "regatta_id", "updated_at"),
     )
 
+
+class ProtestAttachment(Base):
+    __tablename__ = "protest_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    # 'submitted_pdf' | 'decision_pdf' | 'admin_upload' (exemplos)
+    kind = Column(String(50), nullable=False)
+
+    filename = Column(String(300), nullable=False)
+    content_type = Column(String(120), nullable=True)
+    size = Column(Integer, nullable=False, default=0)
+
+    # URL público (ou interno) do ficheiro
+    url = Column(String(500), nullable=False)
+
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # relações
+    protest = relationship("Protest", back_populates="attachments")
+    uploaded_by = relationship("User")
 
 class ProtestParty(Base):
     """
@@ -351,13 +402,6 @@ class ProtestParty(Base):
     )
 
 
-class ProtestAttachment(Base):
-    __tablename__ = "protest_attachments"
-    id = Column(Integer, primary_key=True, index=True)
-    protest_id = Column(Integer, ForeignKey("protests.id", ondelete="CASCADE"), index=True)
-    filename = Column(String, nullable=False)
-    filepath = Column(String, nullable=False)
-    uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 

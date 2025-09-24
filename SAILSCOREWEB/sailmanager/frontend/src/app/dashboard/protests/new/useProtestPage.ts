@@ -25,7 +25,7 @@ export type RespondentKindApi = 'entry' | 'other';
 
 export interface EntryOption {
   id: number;
-  regatta_id?: number | string | null; // 👈 aceitar string/number/null
+  regatta_id?: number | string | null; // aceitar string/number/null
   sail_number?: string | null;
   boat_name?: string | null;
   class_name: string;
@@ -165,25 +165,20 @@ export default function useProtestPage(regattaId: number | null, token?: string)
 
       let mineForThis: EntryOption[] = [];
 
-      // 1) tenta /entries?mine=true&regatta_id=...
+      // 1) tenta já filtrado por regata  (mine=1)
       try {
         mineForThis =
           (await apiGet<EntryOption[]>(
-            `/entries?mine=true&regatta_id=${regattaId}`,
+            `/entries?mine=1&regatta_id=${regattaId}`,
             token
           )) || [];
-        console.debug('[protest-page] mine por regatta_id:', mineForThis.length);
-      } catch (e) {
-        console.warn('[protest-page] 1) falhou -> tentar sem regatta_id', e);
-      }
+      } catch {}
 
-      // 2) se vazio, tenta /entries?mine=true e filtra pelo regatta_id (coerção)
+      // 2) se vazio, vai buscar todas as minhas e filtra no FE
       if (!mineForThis.length) {
         try {
-          const allMine = (await apiGet<EntryOption[]>(
-            `/entries?mine=true`,
-            token
-          )) || [];
+          const allMine =
+            (await apiGet<EntryOption[]>(`/entries?mine=1`, token)) || [];
           mineForThis = allMine.filter((e) => {
             const rid =
               e.regatta_id === undefined || e.regatta_id === null
@@ -191,13 +186,10 @@ export default function useProtestPage(regattaId: number | null, token?: string)
                 : Number(e.regatta_id);
             return rid === undefined || rid === regattaId;
           });
-          console.debug('[protest-page] mine (filtrado FE):', mineForThis.length);
-        } catch (e) {
-          console.warn('[protest-page] 2) falhou -> tentar by_regatta + email', e);
-        }
+        } catch {}
       }
 
-      // 3) se ainda vazio, /entries/by_regatta/:id e filtra por email do user
+      // 3) se ainda vazio, by_regatta e filtra por email
       if (!mineForThis.length) {
         try {
           const regEntries =
@@ -210,13 +202,8 @@ export default function useProtestPage(regattaId: number | null, token?: string)
             mineForThis = regEntries.filter(
               (e) => (e.email || '').toLowerCase() === mail
             );
-            console.debug('[protest-page] by_regatta (filtrado por email):', mineForThis.length);
-          } else {
-            console.warn('[protest-page] sem userEmail, não dá para filtrar by_regatta');
           }
-        } catch (e) {
-          console.warn('[protest-page] 3) by_regatta falhou', e);
-        }
+        } catch {}
       }
 
       if (!cancelled) {
@@ -232,16 +219,15 @@ export default function useProtestPage(regattaId: number | null, token?: string)
 
       // Classes (com fallback)
       try {
-        const cls = (await apiGet<string[]>(
-          `/regattas/${regattaId}/classes`,
-          token
-        )) || [];
+        const cls =
+          (await apiGet<string[]>(`/regattas/${regattaId}/classes`, token)) || [];
         let finalClasses = (cls || []).filter(Boolean);
         if (!finalClasses.length) {
-          const regEntries = (await apiGet<EntryOption[]>(
-            `/entries/by_regatta/${regattaId}`,
-            token
-          )) || [];
+          const regEntries =
+            (await apiGet<EntryOption[]>(
+              `/entries/by_regatta/${regattaId}`,
+              token
+            )) || [];
           finalClasses = Array.from(
             new Set(
               regEntries.map((e) => (e.class_name || '').trim()).filter(Boolean)
@@ -249,8 +235,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
           );
         }
         if (!cancelled) setClasses(finalClasses);
-      } catch (e) {
-        console.warn('[protest-page] classes falhou', e);
+      } catch {
         if (!cancelled) setClasses([]);
       }
 

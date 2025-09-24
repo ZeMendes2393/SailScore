@@ -5,6 +5,10 @@ export const BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
+// --------- utils URL ---------
+const buildUrl = (path: string) =>
+  `${BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+
 // ------------------------------
 // Helpers de token / headers
 // ------------------------------
@@ -16,16 +20,8 @@ const normalizeBearer = (raw?: string): string | undefined => {
   return t.toLowerCase().startsWith("bearer ") ? t : `Bearer ${t}`;
 };
 
-// --- manter compatibilidade com código antigo ---
-export const apiPostJson = <T,>(
-  path: string,
-  body: unknown,
-  token?: string
-) => apiSend<T>(path, "POST", body, token);
-
 const getStoredToken = (): string | undefined => {
   if (typeof window === "undefined") return undefined;
-  // aceita "access_token" (recomendado) ou "token" (legado)
   return (
     localStorage.getItem("access_token") ||
     localStorage.getItem("token") ||
@@ -41,8 +37,7 @@ export const setStoredToken = (token: string | null) => {
     return;
   }
   localStorage.setItem("access_token", token);
-  // manter compatibilidade com código antigo
-  localStorage.setItem("token", token);
+  localStorage.setItem("token", token); // compat legado
 };
 
 export const clearStoredAuth = () => setStoredToken(null);
@@ -54,6 +49,7 @@ const authHeader = (token?: string): HeadersDict => {
 
 const jsonHeaders = (token?: string): HeadersDict => ({
   "Content-Type": "application/json",
+  Accept: "application/json",
   ...authHeader(token),
 });
 
@@ -94,21 +90,6 @@ async function parseError(res: Response): Promise<Error> {
   }
 }
 
-// GET simples sem headers especiais (útil para endpoints públicos)
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, init);
-  if (!res.ok) {
-    throw await parseError(res);
-  }
-  const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) {
-    // algumas rotas podem devolver 204/empty
-    return undefined as unknown as T;
-  }
-  return res.json() as Promise<T>;
-}
-
-
 async function ensureOk(res: Response) {
   if (res.ok) return;
   if (res.status === 401) handleUnauthorized();
@@ -118,10 +99,22 @@ async function ensureOk(res: Response) {
 // ------------------------------
 // Fetch helpers
 // ------------------------------
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(buildUrl(path), init);
+  if (!res.ok) throw await parseError(res);
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    return undefined as unknown as T;
+  }
+  return res.json() as Promise<T>;
+}
+
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: authHeader(token),
+  const res = await fetch(buildUrl(path), {
+    method: "GET",
+    headers: { Accept: "application/json", ...authHeader(token) },
     cache: "no-store",
+    credentials: "include",
   });
   await ensureOk(res);
   return res.json() as Promise<T>;
@@ -133,10 +126,11 @@ export async function apiSend<T>(
   body?: unknown,
   token?: string
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(buildUrl(path), {
     method,
-    headers: method === "DELETE" ? authHeader(token) : jsonHeaders(token),
+    headers: method === "DELETE" ? { ...authHeader(token) } : jsonHeaders(token),
     body: method === "DELETE" ? undefined : JSON.stringify(body ?? {}),
+    credentials: "include",
   });
   await ensureOk(res);
   if (res.status === 204) return undefined as unknown as T;
@@ -146,16 +140,17 @@ export async function apiSend<T>(
     : (undefined as unknown as T);
 }
 
-// FormData (uploads)
+// Upload
 export async function apiUpload<T>(
   path: string,
   formData: FormData,
   token?: string
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(buildUrl(path), {
     method: "POST",
-    headers: authHeader(token), // NÃO definir Content-Type aqui!
+    headers: { ...authHeader(token) }, // NÃO definir Content-Type manualmente
     body: formData,
+    credentials: "include",
   });
   await ensureOk(res);
   return (await res.json()) as T;
@@ -171,18 +166,16 @@ export const apiPut = <T,>(path: string, body: unknown, token?: string) =>
 export const apiDelete = <T,>(path: string, token?: string) =>
   apiSend<T>(path, "DELETE", undefined, token);
 
-// ------------------------------
-// Auth endpoints p/ teu backend
-// ------------------------------
+// -------- Auth helpers --------
+export const apiPostJson = <T,>(path: string, body: unknown, token?: string) =>
+  apiSend<T>(path, "POST", body, token);
 
-// JSON login (recomendado): POST /auth/login
-// body: { email, password, regatta_id? }
 export async function apiLoginJson(args: {
   email: string;
   password: string;
   regatta_id?: number;
 }) {
-  const res = await fetch(`${BASE_URL}/auth/login`, {
+  const res = await fetch(buildUrl("/auth/login"), {
     method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify(args),
@@ -193,9 +186,8 @@ export async function apiLoginJson(args: {
   return data;
 }
 
-// Alternativa (se precisares): POST /auth/login-form
 export async function apiLoginForm(username: string, password: string) {
-  const res = await fetch(`${BASE_URL}/auth/login-form`, {
+  const res = await fetch(buildUrl("/auth/login-form"), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ username, password }),
@@ -206,12 +198,10 @@ export async function apiLoginForm(username: string, password: string) {
   return data;
 }
 
-// /auth/me
 export const apiMe = () => apiGet("/auth/me");
 
-// /auth/switch-regatta → devolve novo token
 export async function apiSwitchRegatta(regattaId: number) {
-  const res = await fetch(`${BASE_URL}/auth/switch-regatta?regatta_id=${regattaId}`, {
+  const res = await fetch(buildUrl(`/auth/switch-regatta?regatta_id=${regattaId}`), {
     method: "POST",
     headers: authHeader(),
   });
@@ -221,9 +211,7 @@ export async function apiSwitchRegatta(regattaId: number) {
   return data;
 }
 
-// ------------------------------
-// Tipos (mantive os teus)
-// ------------------------------
+// -------- Tipos (iguais aos teus) --------
 export type ProtestType =
   | "protest"
   | "redress"
@@ -245,13 +233,11 @@ export interface ProtestPartySummary {
   class_name?: string | null;
   free_text?: string | null;
 }
-
 export interface ProtestInitiatorSummary {
   sail_no?: string | null;
   boat_name?: string | null;
   class_name?: string | null;
 }
-
 export interface ProtestListItem {
   id: number;
   short_code: string;
@@ -262,9 +248,8 @@ export interface ProtestListItem {
   group_name?: string | null;
   initiator: ProtestInitiatorSummary;
   respondents: ProtestPartySummary[];
-  updated_at: string; // ISO
+  updated_at: string;
 }
-
 export interface ProtestsListResponse {
   items: ProtestListItem[];
   page_info: { has_more: boolean; next_cursor?: number | null };

@@ -19,6 +19,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [patch, setPatch] = useState<Partial<HearingItem>>({});
 
+  // LIST PATH — envia "open"/"closed" em minúsculas
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
     if (statusFilter !== "all") p.set("status_q", statusFilter); // "open" | "closed"
@@ -129,7 +130,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
               <th className="p-2">Room</th>
               <th className="p-2">Status</th>
               <th className="p-2">Decision</th>
-              <th className="p-2">More</th>
+              <th className="p-2">Documents</th>
               <th className="p-2 text-right">Ações</th>
             </tr>
           </thead>
@@ -226,19 +227,37 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                     )}
                   </td>
 
+                  {/* DOCUMENTS: Submitted + Decision */}
                   <td className="p-2">
-                    {r.decision_pdf_url ? (
-                      <a
-                        href={r.decision_pdf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        PDF
-                      </a>
-                    ) : (
-                      "—"
-                    )}
+                    <div className="flex flex-wrap gap-3">
+                      {r.submitted_pdf_url ? (
+                        <a
+                          href={r.submitted_pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                          title="PDF submetido (snapshot do protesto)"
+                        >
+                          Submitted PDF
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">Submitted PDF —</span>
+                      )}
+
+                      {r.decision_pdf_url ? (
+                        <a
+                          href={r.decision_pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                          title="PDF da decisão"
+                        >
+                          Decision PDF
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">Decision PDF —</span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-2 text-right">

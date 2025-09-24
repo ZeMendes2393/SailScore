@@ -1,7 +1,9 @@
+// useRegattaStatus.ts
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { BASE_URL } from '@/lib/api';
 
 export type RegattaWindows = {
   entryData: boolean;
@@ -21,9 +23,7 @@ export type RegattaStatusResponse = {
   regatta?: { id: number; name: string } | null;
 };
 
-const API_BASE = 'http://localhost:8000';
-
-// Fallback “tudo aberto” para evitar bloquear UI em DEV
+// Fallback “tudo aberto” para DEV
 const DEFAULT_WINDOWS: RegattaWindows = {
   entryData: true,
   documents: true,
@@ -35,16 +35,28 @@ const DEFAULT_WINDOWS: RegattaWindows = {
 
 export function useRegattaStatus(explicitRegattaId?: number) {
   const { user, token } = useAuth();
+
+  // Determina o regattaId (aceita snake_case ou camelCase e normaliza para número)
   const regattaId = useMemo(() => {
-    // regatista: usa regata do token
-    if (user?.role === 'regatista' && user?.currentRegattaId) {
-      return user.currentRegattaId;
+    let id: unknown = null;
+
+    // Se for regatista, tenta ir buscar do token (/auth/me)
+    if (user?.role === 'regatista') {
+      id =
+        (user as any)?.current_regatta_id ??
+        (user as any)?.currentRegattaId ??
+        null;
     }
-    // admin: aceita um id passado
-    if (explicitRegattaId) return explicitRegattaId;
-    // fallback DEV
-    return Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-  }, [user?.role, user?.currentRegattaId, explicitRegattaId]);
+
+    // Admin (ou sem valor no token): usa o explícito se vier
+    if (!id && explicitRegattaId) id = explicitRegattaId;
+
+    // Fallback DEV por env
+    if (!id) id = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
+
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }, [user?.role, (user as any)?.current_regatta_id, (user as any)?.currentRegattaId, explicitRegattaId]);
 
   const [data, setData] = useState<RegattaStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +67,7 @@ export function useRegattaStatus(explicitRegattaId?: number) {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_BASE}/regattas/${regattaId}/status`, {
+    fetch(`${BASE_URL}/regattas/${regattaId}/status`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(async (r) => {
@@ -66,6 +78,7 @@ export function useRegattaStatus(explicitRegattaId?: number) {
       .catch((e) => {
         if (!alive) return;
         setError(String(e));
+        // fallback suave para não bloquear a UI
         setData({
           status: 'active',
           now_utc: new Date().toISOString(),
@@ -75,7 +88,9 @@ export function useRegattaStatus(explicitRegattaId?: number) {
           regatta: { id: regattaId, name: 'Regatta' },
         });
       })
-      .finally(() => alive && setLoading(false));
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
 
     return () => {
       alive = false;

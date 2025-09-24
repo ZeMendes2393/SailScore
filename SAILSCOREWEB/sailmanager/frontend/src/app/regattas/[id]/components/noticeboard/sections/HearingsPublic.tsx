@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { apiGet } from "@/lib/api";
-import type { HearingItem } from "@/types/hearings"; // <- singular
+import { useEffect, useMemo, useState } from 'react';
+import { apiGet } from '@/lib/api';
+import type { HearingsList, HearingItem } from '@/types/hearings';
 
 export default function HearingsPublic({ regattaId }: { regattaId: number }) {
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"open" | "closed" | "all">("open");
+  const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [error, setError] = useState<string | null>(null);
 
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
-    if (statusFilter !== "all") p.set("status_q", statusFilter);
-    return `/hearings/${regattaId}${p.toString() ? `?${p.toString()}` : ""}`;
+    if (statusFilter !== 'all') p.set('status_q', statusFilter); // "open" | "closed"
+    return `/hearings/${regattaId}${p.toString() ? `?${p.toString()}` : ''}`;
   }, [regattaId, statusFilter]);
 
   useEffect(() => {
@@ -22,21 +22,18 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiGet<any>(listPath);
-        const items: HearingItem[] = Array.isArray(data) ? data : (data?.items ?? []);
-        if (!cancelled) setRows(items);
+        const data = await apiGet<HearingsList>(listPath);
+        if (!cancelled) setRows(Array.isArray(data?.items) ? data.items : []);
       } catch (e: any) {
         if (!cancelled) {
           setRows([]);
-          setError(e?.message || "Erro a carregar hearings.");
+          setError(e?.message || 'Erro a carregar hearings.');
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [listPath]);
 
   return (
@@ -46,7 +43,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
         <select
           className="border rounded px-2 py-1"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as "open" | "closed" | "all")}
+          onChange={(e) => setStatusFilter(e.target.value as 'open' | 'closed' | 'all')}
         >
           <option value="open">Open</option>
           <option value="closed">Closed</option>
@@ -62,7 +59,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
           <thead className="bg-gray-50">
             <tr>
               <th className="p-2">Case</th>
-              <th className="p-2">Race</th> {/* <- removido </h3> */}
+              <th className="p-2">Race</th>
               <th className="p-2">Initiator</th>
               <th className="p-2">Respondent</th>
               <th className="p-2">Date</th>
@@ -74,7 +71,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && !loading && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={10}>
                   Sem hearings.
@@ -87,11 +84,11 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
                 <td className="p-2">{r.race}</td>
                 <td className="p-2">{r.initiator}</td>
                 <td className="p-2">{r.respondent}</td>
-                <td className="p-2">{r.sch_date || "—"}</td>
-                <td className="p-2">{r.sch_time || "—"}</td>
-                <td className="p-2">{r.room || "—"}</td>
+                <td className="p-2">{r.sch_date || '—'}</td>
+                <td className="p-2">{r.sch_time || '—'}</td>
+                <td className="p-2">{r.room || '—'}</td>
                 <td className="p-2">{r.status}</td>
-                <td className="p-2">{r.decision || "—"}</td>
+                <td className="p-2">{r.decision || '—'}</td>
                 <td className="p-2">
                   {r.decision_pdf_url ? (
                     <a
@@ -103,7 +100,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
                       PDF
                     </a>
                   ) : (
-                    "—"
+                    '—'
                   )}
                 </td>
               </tr>

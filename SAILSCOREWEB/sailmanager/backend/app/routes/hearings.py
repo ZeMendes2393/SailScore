@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import date, time, datetime
-from typing import List, Optional, Literal
+from typing import Optional, Literal, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, joinedload, load_only  # 👈 acrescenta load_only
+from sqlalchemy.orm import Session, load_only, joinedload  # <- joinedload aqui
 
 from app.database import get_db
-from app import models, schemas
+from app import models, schemas                 # <- usa o módulo models
 from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/hearings", tags=["hearings"])
@@ -20,8 +20,10 @@ def _fmt_date(d) -> Optional[str]:
     if not d:
         return None
     try:
-        if isinstance(d, (date, datetime)):
-            return d.date().isoformat() if isinstance(d, datetime) else d.isoformat()
+        if isinstance(d, datetime):
+            return d.date().isoformat()
+        if isinstance(d, date):
+            return d.isoformat()
         return str(d)
     except Exception:
         return None
@@ -62,13 +64,15 @@ def _initiator_str(p) -> str:
 def _respondent_str(p) -> str:
     try:
         parties = getattr(p, "parties", None) or []
-        for party in parties:  # preferir entry
+        # preferir entry
+        for party in parties:
             e = getattr(party, "entry", None)
             if e:
                 s = _fmt_entry(e)
                 if s:
                     return s
-        for party in parties:  # fallback: free_text
+        # fallback: free_text
+        for party in parties:
             ft = (getattr(party, "free_text", None) or "").strip()
             if ft:
                 return ft
@@ -93,20 +97,30 @@ def _race_label(p) -> str:
 
 def _normalize_status(s: Optional[str]) -> str:
     s = (s or "").upper()
-    if s == "CLOSED":
-        return "CLOSED"
-    return "OPEN"  # qualquer outro valor conta como aberto
+    return "CLOSED" if s == "CLOSED" else "OPEN"
 
 
-def _fallback_updated_at(h) -> str:
-    """Como não tens coluna updated_at na BD, devolvemos um ISO aproximado."""
+def _safe_updated_at(h) -> str:
+    """
+    Mantém contrato do FE para updated_at.
+    Tenta updated_at/created_at; senão cai para sch_date/sch_time; senão UTC now.
+    """
+    val = getattr(h, "updated_at", None) or getattr(h, "created_at", None)
+    try:
+        if isinstance(val, datetime):
+            return val.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        if val:
+            return str(val)
+    except Exception:
+        pass
+
     d = _fmt_date(getattr(h, "sch_date", None))
     t = _fmt_time(getattr(h, "sch_time", None))
     if d and t:
         return f"{d}T{t}:00Z"
     if d:
         return f"{d}T00:00:00Z"
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
 # -------------------------
@@ -119,17 +133,11 @@ def list_hearings(
     status_q: Literal["all", "open", "closed"] = Query("all"),
     db: Session = Depends(get_db),
 ):
-    """
-    Lista pública (sem auth).
-    Resposta:
-    { "items": [...], "page_info": { "has_more": false, "next_cursor": null } }
-    """
-    # ⚠️ Carrega apenas colunas que EXISTEM na tabela
     q = (
         db.query(models.Hearing)
         .filter(models.Hearing.regatta_id == regatta_id)
         .options(
-            load_only(  # 👈 evita created_at/updated_at e outras que não existam
+            load_only(
                 models.Hearing.id,
                 models.Hearing.regatta_id,
                 models.Hearing.protest_id,
@@ -143,26 +151,23 @@ def list_hearings(
         )
         .order_by(models.Hearing.case_number.asc(), models.Hearing.id.asc())
     )
-
     rows = q.all()
 
-    # filtro de estado (normalizado)
     if status_q != "all":
         want = "OPEN" if status_q == "open" else "CLOSED"
         rows = [h for h in rows if _normalize_status(getattr(h, "status", None)) == want]
 
-    # pré-carrega Protests com initiator_entry e parties.entry
-    protests_by_id = {}
+    # Pré-carrega Protest (com atributos ORM, sem strings)
+    protests_by_id: Dict[int, object] = {}
     protest_ids = [h.protest_id for h in rows if getattr(h, "protest_id", None)]
-    Protest = getattr(models, "Protest", None)
-    if Protest and protest_ids:
+    if protest_ids:
         protests = (
-            db.query(Protest)
+            db.query(models.Protest)
             .options(
-                joinedload("initiator_entry"),
-                joinedload("parties").joinedload("entry"),
+                joinedload(models.Protest.initiator_entry),
+                joinedload(models.Protest.parties).joinedload(models.ProtestParty.entry),
             )
-            .filter(Protest.id.in_(protest_ids))
+            .filter(models.Protest.id.in_(protest_ids))
             .all()
         )
         protests_by_id = {p.id: p for p in protests}
@@ -182,24 +187,22 @@ def list_hearings(
                 "sch_time": _fmt_time(getattr(h, "sch_time", None)),
                 "room": getattr(h, "room", None),
                 "status": _normalize_status(getattr(h, "status", None)),
-                "updated_at": _fallback_updated_at(h),  # 👈 mantém o contrato do FE
+                "updated_at": _safe_updated_at(h),
+
+                # 👇 novos campos úteis no FE
+                "protest_id": getattr(h, "protest_id", None),
+                "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
+                # Se guardares a decisão no Protest:
+                "decision_pdf_url": getattr(p, "decision_pdf_url", None) if p else None,
+                # (Se em vez disso o campo existir no Hearing, troca pela linha abaixo:)
+                # "decision_pdf_url": getattr(h, "decision_pdf_url", None),
             }
         )
 
     return {"items": items, "page_info": {"has_more": False, "next_cursor": None}}
 
-
-@router.post(
-    "/for-protest/{protest_id}",
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(verify_role(["admin"]))],
-)
 def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
-    Protest = getattr(models, "Protest", None)
-    if Protest is None:
-        raise HTTPException(status_code=400, detail="Modelo Protest não disponível.")
-
-    p = db.query(Protest).filter(Protest.id == protest_id).first()
+    p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Protesto não encontrado")
 
