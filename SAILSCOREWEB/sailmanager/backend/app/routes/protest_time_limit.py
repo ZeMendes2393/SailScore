@@ -1,100 +1,81 @@
 # app/routes/protest_time_limit.py
-from __future__ import annotations
-
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-
 from app.database import get_db
 from app import models, schemas
 from utils.auth_utils import verify_role
 
-router = APIRouter(prefix="/ptl", tags=["protest-time-limits"])
+router = APIRouter(prefix="/ptl", tags=["protest-time-limit"])
 
 @router.get("/{regatta_id}")
 def list_ptl(regatta_id: int, db: Session = Depends(get_db)):
-    rows: List[models.ProtestTimeLimit] = (
+    rows = (
         db.query(models.ProtestTimeLimit)
         .filter(models.ProtestTimeLimit.regatta_id == regatta_id)
-        .order_by(
-            models.ProtestTimeLimit.date.asc(),
-            models.ProtestTimeLimit.class_name.asc(),
-            models.ProtestTimeLimit.fleet.asc(),
-        )
+        .order_by(models.ProtestTimeLimit.date.desc(), models.ProtestTimeLimit.class_name.asc())
         .all()
     )
+    # devolve uma lista simples (ou adapta para o formato que já usas no FE)
     return [
         {
             "id": r.id,
             "regatta_id": r.regatta_id,
             "class_name": r.class_name,
             "fleet": r.fleet,
-            "date": r.date.isoformat() if r.date else None,
-            "time_limit_minutes": r.time_limit_minutes,
-            "notes": r.notes,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            "time_limit_hm": r.time_limit_hm,
+            "date": r.date.isoformat(),
         }
         for r in rows
     ]
 
-@router.post("/", dependencies=[Depends(verify_role(["admin"]))], status_code=201)
-def create_ptl(payload: schemas.ProtestTimeLimitCreate, db: Session = Depends(get_db)):
-    obj = models.ProtestTimeLimit(
-        regatta_id=payload.regatta_id,
-        class_name=payload.class_name.strip(),
-        fleet=(payload.fleet or None),
-        date=payload.date,
-        time_limit_minutes=int(payload.time_limit_minutes),
-        notes=(payload.notes or None),
-    )
-    db.add(obj)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="Já existe time limit para (regatta, class, fleet, date).",
+@router.post("/", dependencies=[Depends(verify_role(["admin"]))])
+def create_ptl(payload: schemas.PTLCreate, db: Session = Depends(get_db)):
+    # unicidade
+    exists = (
+        db.query(models.ProtestTimeLimit.id)
+        .filter(
+            models.ProtestTimeLimit.regatta_id == payload.regatta_id,
+            models.ProtestTimeLimit.class_name == payload.class_name,
+            models.ProtestTimeLimit.fleet == payload.fleet,
+            models.ProtestTimeLimit.date == payload.date,
         )
-    db.refresh(obj)
-    return {
-        "id": obj.id,
-        "regatta_id": obj.regatta_id,
-        "class_name": obj.class_name,
-        "fleet": obj.fleet,
-        "date": obj.date.isoformat() if obj.date else None,
-        "time_limit_minutes": obj.time_limit_minutes,
-        "notes": obj.notes,
-        "created_at": obj.created_at.isoformat() if obj.created_at else None,
-        "updated_at": obj.updated_at.isoformat() if obj.updated_at else None,
-    }
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="Já existe um registo para esta Class/Fleet/Date")
 
-# Mantive PATCH/DELETE caso precises no futuro; se não quiseres "Ações" no FE,
-# podes simplesmente não expô-las no UI e deixar o backend preparado.
+    row = models.ProtestTimeLimit(
+        regatta_id=payload.regatta_id,
+        class_name=payload.class_name,
+        fleet=payload.fleet,
+        time_limit_hm=payload.time_limit_hm,  # ✅ HH:MM
+        date=payload.date,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"ok": True, "id": row.id}
 
-@router.patch("/{ptl_id}", dependencies=[Depends(verify_role(["admin"]))])
-def update_ptl(ptl_id: int, payload: schemas.ProtestTimeLimitPatch, db: Session = Depends(get_db)):
-    obj = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == ptl_id).first()
-    if not obj:
-        raise HTTPException(status_code=404, detail="Protest time limit não encontrado")
-    patch = payload.model_dump(exclude_unset=True)
-    for k, v in patch.items():
-        setattr(obj, k, v)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Combinação duplicada.")
-    db.refresh(obj)
+@router.patch("/{row_id}", dependencies=[Depends(verify_role(["admin"]))])
+def patch_ptl(row_id: int, payload: schemas.PTLPatch, db: Session = Depends(get_db)):
+    row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Registo não encontrado")
+
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(row, k, v)
+
+    db.add(row)
+    db.commit()
+    db.refresh(row)
     return {"ok": True}
 
-@router.delete("/{ptl_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(verify_role(["admin"]))])
-def delete_ptl(ptl_id: int, db: Session = Depends(get_db)):
-    obj = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == ptl_id).first()
-    if not obj:
-        raise HTTPException(status_code=404, detail="Protest time limit não encontrado")
-    db.delete(obj)
+@router.delete("/{row_id}", dependencies=[Depends(verify_role(["admin"]))])
+def delete_ptl(row_id: int, db: Session = Depends(get_db)):
+    row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Registo não encontrado")
+    db.delete(row)
     db.commit()
-    return
+    return {"ok": True}

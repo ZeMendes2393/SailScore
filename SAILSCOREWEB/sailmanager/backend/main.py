@@ -1,13 +1,14 @@
 # app/main.py
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
-import os
 
 from app.database import create_database
 from app.routes import (
@@ -21,7 +22,7 @@ from app.routes import (
     protests,
     rule42,
     hearings,
-    protest_time_limit,  # 👈 novo import
+    protest_time_limit,  # 👈 PTL
 )
 
 app = FastAPI(title="SailScore API")
@@ -35,22 +36,27 @@ ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
 ]
+
+# Permite acrescentar origens via env (separadas por vírgulas)
+# Ex.: ALLOWED_ORIGINS="https://dev.sailscore.pt,https://staging.sailscore.pt"
 extra_origins = os.getenv("ALLOWED_ORIGINS")
 if extra_origins:
-    ALLOWED_ORIGINS = [o.strip() for o in extra_origins.split(",") if o.strip()]
+    for o in [x.strip() for x in extra_origins.split(",") if x.strip()]:
+        if o not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(o)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # se não usares cookies, podes usar ["*"]
-    allow_credentials=True,         # se não usares cookies/sessões, podes pôr False
+    allow_origins=ALLOWED_ORIGINS,  # usa lista explícita quando allow_credentials=True
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------- Paths base (compat: /media e /files) ----------
+# ---------- Paths base ----------
 UPLOADS_DIR = Path("uploads").resolve()
-MEDIA_DIR   = Path("media").resolve()
-FILES_DIR   = Path("files").resolve()
+MEDIA_DIR = Path("media").resolve()
+FILES_DIR = Path("files").resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 FILES_DIR.mkdir(parents=True, exist_ok=True)
@@ -62,7 +68,7 @@ def _ensure_upload_dirs():
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
 
-# inicializa DB
+# Inicializa DB (dev)
 create_database()
 
 # ---------- Routers ----------
@@ -76,7 +82,7 @@ app.include_router(regatta_classes.router)
 app.include_router(protests.router)
 app.include_router(rule42.router)
 app.include_router(hearings.router)
-app.include_router(protest_time_limit.router)  # 👈 novo include
+app.include_router(protest_time_limit.router)  # 👈 PTL
 
 # ---------- Utilitários ----------
 @app.get("/health")
@@ -87,7 +93,8 @@ def health():
 def _debug_routes():
     return [
         {"path": r.path, "methods": sorted(list(r.methods)), "name": r.name}
-        for r in app.routes if isinstance(r, APIRoute)
+        for r in app.routes
+        if isinstance(r, APIRoute)
     ]
 
 def custom_openapi():
@@ -103,5 +110,5 @@ app.openapi_schema = None
 
 # ---------- Ficheiros estáticos ----------
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
-app.mount("/media",   StaticFiles(directory=str(MEDIA_DIR)),   name="media")
-app.mount("/files",   StaticFiles(directory=str(FILES_DIR)),   name="files")
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
+app.mount("/files", StaticFiles(directory=str(FILES_DIR)), name="files")

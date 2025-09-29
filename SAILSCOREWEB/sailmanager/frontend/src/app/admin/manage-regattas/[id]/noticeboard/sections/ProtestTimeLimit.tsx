@@ -1,48 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 
 type Row = {
   id: number;
   regatta_id: number;
   class_name: string;
   fleet: string | null;
-  time_limit: string;        // ex: "60 min after", "18:00"
-  posting_time: string | null; // ex: "17:15"
-  date: string;              // YYYY-MM-DD
+  date: string;               // "YYYY-MM-DD"
+  time_limit_hm: string;      // "HH:MM"
+  notes: string | null;
 };
 
-function safeDateToPt(dateStr?: string) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (!isNaN(d.getTime())) return d.toLocaleDateString("pt-PT");
-  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) {
-    const d2 = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    if (!isNaN(d2.getTime())) return d2.toLocaleDateString("pt-PT");
+// Validação "HH:MM"
+function normalizeHHMM(v: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v?.trim() || "");
+  if (!m) throw new Error("Time limit deve ser HH:MM");
+  const h = parseInt(m[1], 10);
+  const mi = parseInt(m[2], 10);
+  if (Number.isNaN(h) || Number.isNaN(mi) || mi < 0 || mi > 59 || h < 0) {
+    throw new Error("Time limit inválido (minutos 00–59).");
   }
-  return "—";
+  return `${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}`;
 }
 
-export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
+export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // criação
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<Omit<Row, "id" | "regatta_id">>({
+  const [form, setForm] = useState<{
+    class_name: string;
+    fleet: string;
+    date: string;          // "YYYY-MM-DD"
+    time_limit_hm: string; // "HH:MM"
+    notes: string;
+  }>({
     class_name: "",
     fleet: "",
-    time_limit: "",
-    posting_time: "",
     date: new Date().toISOString().slice(0, 10),
-  } as any);
-
-  // edição inline
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [edit, setEdit] = useState<Partial<Row>>({});
+    time_limit_hm: "01:00",
+    notes: "",
+  });
 
   async function fetchRows() {
     setLoading(true);
@@ -64,46 +65,35 @@ export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
   }, [regattaId]);
 
   async function createRow() {
-    if (!form.class_name.trim() || !form.time_limit.trim() || !form.date) {
-      alert("Preenche Class, Time Limit e Date.");
-      return;
-    }
-    setCreating(true);
     try {
-      await apiPost<Row>("/ptl/", { ...form, regatta_id: regattaId });
+      if (!form.class_name.trim() || !form.date) {
+        alert("Preenche Class e Date.");
+        return;
+      }
+      const hhmm = normalizeHHMM(form.time_limit_hm);
+
+      setCreating(true);
+      await apiPost<Row>("/ptl/", {
+        regatta_id: regattaId,
+        class_name: form.class_name.trim(),
+        fleet: form.fleet?.trim() || null,
+        date: form.date,
+        time_limit_hm: hhmm,
+        notes: form.notes?.trim() || null,
+      });
+
       setForm({
         class_name: "",
         fleet: "",
-        time_limit: "",
-        posting_time: "",
         date: new Date().toISOString().slice(0, 10),
-      } as any);
+        time_limit_hm: "01:00",
+        notes: "",
+      });
       fetchRows();
     } catch (e: any) {
       alert(e?.message || "Erro ao criar.");
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function deleteRow(id: number) {
-    if (!confirm("Apagar este registo?")) return;
-    try {
-      await apiDelete(`/ptl/${id}`);
-      fetchRows();
-    } catch (e: any) {
-      alert(e?.message || "Falha ao apagar.");
-    }
-  }
-
-  async function saveEdit(id: number) {
-    try {
-      await apiPatch(`/ptl/${id}`, edit);
-      setEditingId(null);
-      setEdit({});
-      fetchRows();
-    } catch (e: any) {
-      alert(e?.message || "Falha ao guardar.");
     }
   }
 
@@ -122,7 +112,7 @@ export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
 
       {/* Criar */}
       <div className="grid gap-3 bg-white border rounded p-4">
-        <div className="grid md:grid-cols-5 gap-3">
+        <div className="grid md:grid-cols-4 gap-3">
           <input
             className="border rounded p-2"
             placeholder="Class"
@@ -131,29 +121,34 @@ export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
           />
           <input
             className="border rounded p-2"
-            placeholder="Fleet"
-            value={form.fleet ?? ""}
+            placeholder="Fleet (opcional)"
+            value={form.fleet}
             onChange={(e) => setForm({ ...form, fleet: e.target.value })}
           />
           <input
-            className="border rounded p-2"
-            placeholder="Time Limit (ex: 18:00 ou 60 min after)"
-            value={form.time_limit}
-            onChange={(e) => setForm({ ...form, time_limit: e.target.value })}
-          />
-          <input
-            className="border rounded p-2"
-            placeholder="Posting Time (ex: 17:15)"
-            value={form.posting_time ?? ""}
-            onChange={(e) => setForm({ ...form, posting_time: e.target.value })}
+            type="time"
+            min="00:00"
+            max="23:59"
+            step={60} // 1 min
+            className="border rounded p-2 font-mono"
+            value={form.time_limit_hm}
+            onChange={(e) => setForm({ ...form, time_limit_hm: e.target.value })}
           />
           <input
             type="date"
             className="border rounded p-2"
             value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value as any })}
+            onChange={(e) => setForm({ ...form, date: e.target.value })}
           />
         </div>
+
+        <textarea
+          className="border rounded p-2"
+          rows={3}
+          placeholder="Notes (opcional)"
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+        />
 
         <div className="flex gap-2">
           <button
@@ -171,10 +166,10 @@ export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
               setForm({
                 class_name: "",
                 fleet: "",
-                time_limit: "",
-                posting_time: "",
                 date: new Date().toISOString().slice(0, 10),
-              } as any)
+                time_limit_hm: "01:00",
+                notes: "",
+              })
             }
           >
             Limpar
@@ -184,102 +179,51 @@ export default function ProtestTimeLimit({ regattaId }: { regattaId: number }) {
 
       {/* Lista */}
       <div className="overflow-x-auto rounded border bg-white">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-[28%]" />
+            <col className="w-[18%]" />
+            <col className="w-[22%]" />
+            <col className="w-[20%]" />
+            <col className="w-[12%]" />
+          </colgroup>
+
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2">Class</th>
-              <th className="p-2">Fleet</th>
-              <th className="p-2">Time Limit</th>
-              <th className="p-2">Posting Time</th>
-              <th className="p-2">Date</th>
-              <th className="p-2 text-right">Ações</th>
+              <th className="px-3 py-2 text-left">Class</th>
+              <th className="px-3 py-2 text-left">Fleet</th>
+              <th className="px-3 py-2 text-left">Time Limit (HH:MM)</th>
+              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Notes</th>
             </tr>
           </thead>
+
           <tbody>
             {loading && (
               <tr>
-                <td className="p-3" colSpan={6}>A carregar…</td>
+                <td className="px-3 py-2" colSpan={5}>
+                  A carregar…
+                </td>
               </tr>
             )}
+
             {!loading && rows.length === 0 && (
               <tr>
-                <td className="p-6 text-center text-gray-500" colSpan={6}>
+                <td className="px-3 py-2 text-center text-gray-500" colSpan={5}>
                   Sem registos.
                 </td>
               </tr>
             )}
-            {rows.map((r) => {
-              const isEd = editingId === r.id;
-              return (
-                <tr key={r.id} className="border-t align-top">
-                  <td className="p-2">
-                    {isEd ? (
-                      <input className="border rounded p-1 w-40"
-                        value={edit.class_name ?? r.class_name}
-                        onChange={(e) => setEdit({ ...edit, class_name: e.target.value })}
-                      />
-                    ) : r.class_name}
-                  </td>
-                  <td className="p-2">
-                    {isEd ? (
-                      <input className="border rounded p-1 w-28"
-                        value={edit.fleet ?? r.fleet ?? ""}
-                        onChange={(e) => setEdit({ ...edit, fleet: e.target.value })}
-                      />
-                    ) : (r.fleet || "—")}
-                  </td>
-                  <td className="p-2">
-                    {isEd ? (
-                      <input className="border rounded p-1 w-40"
-                        value={edit.time_limit ?? r.time_limit}
-                        onChange={(e) => setEdit({ ...edit, time_limit: e.target.value })}
-                      />
-                    ) : r.time_limit}
-                  </td>
-                  <td className="p-2">
-                    {isEd ? (
-                      <input className="border rounded p-1 w-28"
-                        value={edit.posting_time ?? r.posting_time ?? ""}
-                        onChange={(e) => setEdit({ ...edit, posting_time: e.target.value })}
-                      />
-                    ) : (r.posting_time || "—")}
-                  </td>
-                  <td className="p-2">
-                    {isEd ? (
-                      <input type="date" className="border rounded p-1"
-                        value={edit.date ?? r.date}
-                        onChange={(e) => setEdit({ ...edit, date: e.target.value as any })}
-                      />
-                    ) : safeDateToPt(r.date)}
-                  </td>
-                  <td className="p-2 text-right">
-                    {!isEd ? (
-                      <div className="inline-flex gap-3">
-                        <button className="text-blue-600 hover:underline"
-                          onClick={() => { setEditingId(r.id); setEdit({}); }}>
-                          Editar
-                        </button>
-                        <button className="text-red-600 hover:underline"
-                          onClick={() => deleteRow(r.id)}>
-                          Apagar
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="inline-flex gap-3">
-                        <button className="text-blue-600 hover:underline"
-                          onClick={() => saveEdit(r.id)}>
-                          Guardar
-                        </button>
-                        <button className="text-gray-600 hover:underline"
-                          onClick={() => { setEditingId(null); setEdit({}); }}>
-                          Cancelar
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="px-3 py-2 text-left">{r.class_name}</td>
+                <td className="px-3 py-2 text-left">{r.fleet || "—"}</td>
+                <td className="px-3 py-2 text-left font-mono">{r.time_limit_hm}</td>
+                <td className="px-3 py-2 text-left">{r.date}</td>
+                <td className="px-3 py-2 text-left">{r.notes || "—"}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

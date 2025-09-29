@@ -469,19 +469,20 @@ class ProtestTimeLimit(Base):
     __tablename__ = "protest_time_limits"
 
     id = Column(Integer, primary_key=True)
-    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True, nullable=False)
+    regatta_id = Column(Integer, nullable=False, index=True)
+    class_name = Column(String(100), nullable=False)
+    fleet = Column(String(50), nullable=True)
 
-    class_name = Column(String(100), nullable=False)     # "Class"
-    fleet = Column(String(100), nullable=True)           # "Fleet"
-    time_limit_minutes = Column(String(50), nullable=False)      # "18:00" ou "60 min after"
-    posting_time = Column(String(50), nullable=True)     # "17:15"
-    date = Column(Date, nullable=False)                  # YYYY-MM-DD
+    # ✅ agora guardamos "HH:MM"
+    time_limit_hm = Column(String(5), nullable=False, default="00:00")  # ex.: "01:30"
 
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    date = Column(Date, nullable=False)
 
-    regatta = relationship("Regatta", backref="protest_time_limits")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
-
-# índice sugerido
-Index("ix_ptl_regatta_id_date", ProtestTimeLimit.regatta_id, ProtestTimeLimit.date)
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "class_name", "fleet", "date", name="uq_ptl_regatta_class_fleet_date"),
+    )

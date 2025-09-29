@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from typing import Optional, List, Dict, Literal
 from datetime import datetime, date, time
-from pydantic import BaseModel, EmailStr, ConfigDict, Field
-
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 # =========================
 # AUTH
 # =========================
@@ -433,28 +432,58 @@ class ProtestDecisionOut(BaseModel):
 
 # app/schemas.py (adiciona num bloco novo, p.ex. após Rule42)
 
-class ProtestTimeLimitCreate(BaseModel):
+class PTLBase(BaseModel):
     regatta_id: int
     class_name: str
     fleet: Optional[str] = None
-    time_limit: str
-    posting_time: Optional[str] = None
-    date: date
+    # "HH:MM" (aceita "H:MM" e normaliza)
+    time_limit_hm: str
+    date: date  # tipo nativo
 
-class ProtestTimeLimitRead(BaseModel):
+    @field_validator("time_limit_hm")
+    @classmethod
+    def _valid_hhmm(cls, v: str) -> str:
+        import re
+        if not re.match(r"^\d{1,2}:\d{2}$", v or ""):
+            raise ValueError("time_limit_hm deve ser HH:MM")
+        h, m = v.split(":")
+        h_i, m_i = int(h), int(m)
+        if h_i < 0 or m_i < 0 or m_i > 59:
+            raise ValueError("time_limit_hm inválido (minutos 00–59)")
+        return f"{h_i:02d}:{m_i:02d}"
+
+
+class PTLCreate(PTLBase):
+    pass
+
+
+class PTLPatch(BaseModel):
+    class_name: Optional[str] = None
+    fleet: Optional[str] = None
+    time_limit_hm: Optional[str] = None
+    date: Optional[date] = None
+
+    @field_validator("time_limit_hm")
+    @classmethod
+    def _valid_hhmm_opt(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        import re
+        if not re.match(r"^\d{1,2}:\d{2}$", v):
+            raise ValueError("time_limit_hm deve ser HH:MM")
+        h, m = v.split(":")
+        h_i, m_i = int(h), int(m)
+        if h_i < 0 or m_i < 0 or m_i > 59:
+            raise ValueError("time_limit_hm inválido (minutos 00–59)")
+        return f"{h_i:02d}:{m_i:02d}"
+
+
+class PTLRead(BaseModel):
     id: int
     regatta_id: int
     class_name: str
-    fleet: Optional[str] = None
-    time_limit_minutes: str
-    posting_time: Optional[str] = None
+    fleet: Optional[str]
+    time_limit_hm: str
     date: date
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-class ProtestTimeLimitPatch(BaseModel):
-    class_name: Optional[str] = None
-    fleet: Optional[str] = None
-    time_limit: Optional[str] = None
-    posting_time: Optional[str] = None
-    date: Optional[date] = None
-
+    model_config = ConfigDict(from_attributes=True)

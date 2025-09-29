@@ -5,8 +5,9 @@ import { useState } from 'react';
 import Documents from './sections/DocumentsPublic';
 import Rule42 from './sections/Rule42Public';
 import Hearings from './sections/HearingsPublic';
+import ProtestTimeLimitPublic from './sections/ProtestTimeLimitPublic'; // 👈 NOVO
 
-type Section = 'documents' | 'rule42' | 'protests';
+type Section = 'documents' | 'rule42' | 'protests' | 'ptl'; // 👈 NOVO
 
 export default function Page() {
   const { id } = useParams<{ id: string }>();
@@ -40,12 +41,14 @@ export default function Page() {
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
         <Tab value="protests" label="Protest Decisions" />
+        <Tab value="ptl" label="Protest Time Limit" /> {/* 👈 NOVO */}
       </div>
 
       <div className="pt-4">
         {section === 'documents' && <Documents regattaId={regattaId} />}
         {section === 'rule42' && <Rule42 regattaId={regattaId} />}
         {section === 'protests' && <Hearings regattaId={regattaId} />}
+        {section === 'ptl' && <ProtestTimeLimitPublic regattaId={regattaId} />} {/* 👈 NOVO */}
       </div>
     </div>
   );
