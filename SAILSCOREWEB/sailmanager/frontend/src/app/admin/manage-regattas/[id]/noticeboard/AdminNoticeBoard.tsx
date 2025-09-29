@@ -4,19 +4,14 @@ import { useState } from "react";
 import Documents from "./sections/Documents";
 import Rule42 from "./sections/Rule42";
 import HearingsDecisions from "./sections/HearingsDecisions";
+import ProtestTimeLimit from "./sections/ProtestTimeLimit"; // 👈 NOVO
 
-type Section = "documents" | "rule42" | "protest-decisions";
+type Section = "documents" | "rule42" | "protest-decisions" | "protest-time-limit";
 
 export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
-  const [section, setSection] = useState<Section>("documents"); // default
+  const [section, setSection] = useState<Section>("documents");
 
-  const Tab = ({
-    value,
-    label,
-  }: {
-    value: Section;
-    label: string;
-  }) => (
+  const Tab = ({ value, label }: { value: Section; label: string }) => (
     <button
       type="button"
       onClick={() => setSection(value)}
@@ -42,6 +37,7 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
         <Tab value="protest-decisions" label="Protest Decisions" />
+        <Tab value="protest-time-limit" label="Protest Time Limit" /> {/* 👈 NOVO */}
       </div>
 
       {/* Section content */}
@@ -49,6 +45,7 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
         {section === "documents" && <Documents regattaId={regattaId} />}
         {section === "rule42" && <Rule42 regattaId={regattaId} />}
         {section === "protest-decisions" && <HearingsDecisions regattaId={regattaId} />}
+        {section === "protest-time-limit" && <ProtestTimeLimit regattaId={regattaId} />} {/* 👈 NOVO */}
       </div>
     </div>
   );

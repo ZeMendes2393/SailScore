@@ -4,10 +4,10 @@ from datetime import date, time, datetime
 from typing import Optional, Literal, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, load_only, joinedload  # <- joinedload aqui
+from sqlalchemy.orm import Session, load_only, joinedload
 
 from app.database import get_db
-from app import models, schemas                 # <- usa o módulo models
+from app import models, schemas
 from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/hearings", tags=["hearings"])
@@ -157,7 +157,6 @@ def list_hearings(
         want = "OPEN" if status_q == "open" else "CLOSED"
         rows = [h for h in rows if _normalize_status(getattr(h, "status", None)) == want]
 
-    # Pré-carrega Protest (com atributos ORM, sem strings)
     protests_by_id: Dict[int, object] = {}
     protest_ids = [h.protest_id for h in rows if getattr(h, "protest_id", None)]
     if protest_ids:
@@ -175,6 +174,18 @@ def list_hearings(
     items = []
     for h in rows:
         p = protests_by_id.get(getattr(h, "protest_id", None)) if protests_by_id else None
+
+        # Decision text (fallbacks)
+        decision_txt = getattr(h, "decision", None)
+        if not decision_txt and p is not None:
+            snap_p = getattr(p, "decision_json", None) or {}
+            decision_txt = snap_p.get("short_decision") or snap_p.get("decision_text")
+        if decision_txt and len(str(decision_txt)) > 280:
+            decision_txt = str(decision_txt)[:277] + "…"
+
+        # PDF URL (hearing > protest)
+        decision_pdf_url = getattr(h, "decision_pdf_url", None) or (getattr(p, "decision_pdf_url", None) if p else None)
+
         items.append(
             {
                 "id": h.id,
@@ -182,24 +193,24 @@ def list_hearings(
                 "race": _race_label(p),
                 "initiator": _initiator_str(p),
                 "respondent": _respondent_str(p),
-                "decision": getattr(h, "decision", None),
+                "decision": decision_txt,
                 "sch_date": _fmt_date(getattr(h, "sch_date", None)),
                 "sch_time": _fmt_time(getattr(h, "sch_time", None)),
                 "room": getattr(h, "room", None),
                 "status": _normalize_status(getattr(h, "status", None)),
                 "updated_at": _safe_updated_at(h),
 
-                # 👇 novos campos úteis no FE
+                # úteis no FE
                 "protest_id": getattr(h, "protest_id", None),
+                "decision_pdf_url": decision_pdf_url,
+
+                # ✅ SUBMITTED volta a sair no payload
                 "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
-                # Se guardares a decisão no Protest:
-                "decision_pdf_url": getattr(p, "decision_pdf_url", None) if p else None,
-                # (Se em vez disso o campo existir no Hearing, troca pela linha abaixo:)
-                # "decision_pdf_url": getattr(h, "decision_pdf_url", None),
             }
         )
 
     return {"items": items, "page_info": {"has_more": False, "next_cursor": None}}
+
 
 def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
@@ -268,3 +279,46 @@ def delete_hearing(hearing_id: int, db: Session = Depends(get_db)):
     db.delete(h)
     db.commit()
     return
+
+
+@router.get("/by-id/{hearing_id}")
+def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
+    h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
+    if not h:
+        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+
+    p = None
+    if h.protest_id:
+        p = (
+            db.query(models.Protest)
+            .options(
+                joinedload(models.Protest.initiator_entry),
+                joinedload(models.Protest.parties).joinedload(models.ProtestParty.entry),
+            )
+            .filter(models.Protest.id == h.protest_id)
+            .first()
+        )
+
+    snap_h = getattr(h, "decision_snapshot_json", None) or {}
+    snap_p = getattr(p, "decision_json", None) or {}
+
+    decision_txt = (
+        getattr(h, "decision", None)
+        or snap_h.get("short_decision")
+        or snap_h.get("decision_text")
+        or snap_p.get("short_decision")
+        or snap_p.get("decision_text")
+    )
+    if decision_txt and len(str(decision_txt)) > 280:
+        decision_txt = str(decision_txt)[:277] + "…"
+
+    return {
+        "id": h.id,
+        "regatta_id": h.regatta_id,
+        "protest_id": h.protest_id,
+        "case_number": h.case_number,
+        "status": _normalize_status(getattr(h, "status", None)),
+        "decision": decision_txt,
+        "decision_pdf_url": (getattr(h, "decision_pdf_url", None) or (getattr(p, "decision_pdf_url", None) if p else None)),
+        "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
+    }

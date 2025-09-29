@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, desc, exists, or_, select
 from sqlalchemy.orm import Session, aliased
 
@@ -13,7 +13,7 @@ from utils.guards import ensure_regatta_scope
 
 router = APIRouter()
 
-@router.get("", response_model=dict)
+@router.get("/", response_model=dict)  # <- importante: "/" (não vazio)
 def list_protests(
     regatta_id: int,
     scope: str = Query("all", regex="^(all|made|against)$"),

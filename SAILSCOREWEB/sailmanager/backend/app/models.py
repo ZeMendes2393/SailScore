@@ -177,7 +177,7 @@ class Notice(Base):
     published_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now()  # timestamp no servidor
+        server_default=func.now()
     )
     source = Column(
         SAEnum(NoticeSource, native_enum=False, name="notice_source"),
@@ -319,11 +319,11 @@ class Protest(Base):
         String,
         nullable=False,
         default="submitted"
-    )  # submitted | under_review | scheduled | closed | invalid | withdrawn
+    )  # submitted | under_review | scheduled | decided | closed | invalid | withdrawn
     received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    # ---- NOVOS CAMPOS (pedidos) ----
+    # ---- snapshots & pdfs ----
     submitted_snapshot_json = Column(JSON, nullable=True)
     submitted_pdf_url = Column(String(500), nullable=True)
 
@@ -334,7 +334,7 @@ class Protest(Base):
     decided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     decided_by = relationship("User", foreign_keys=[decided_by_user_id])
 
-    # relationships existentes
+    # relationships
     initiator_entry = relationship("Entry", foreign_keys=[initiator_entry_id])
 
     # parties (respondentes)
@@ -344,7 +344,7 @@ class Protest(Base):
         cascade="all, delete-orphan"
     )
 
-    # anexos (novo)
+    # anexos
     attachments = relationship(
         "ProtestAttachment",
         back_populates="protest",
@@ -379,6 +379,7 @@ class ProtestAttachment(Base):
     protest = relationship("Protest", back_populates="attachments")
     uploaded_by = relationship("User")
 
+
 class ProtestParty(Base):
     """
     Respondentes / partes envolvidas (1:N por Protest).
@@ -400,9 +401,6 @@ class ProtestParty(Base):
     __table_args__ = (
         Index("ix_protest_parties_protest", "protest_id"),
     )
-
-
-
 
 
 class Rule42Record(Base):
@@ -427,8 +425,6 @@ class Rule42Record(Base):
 
 
 # --- Hearings / Decisions ---
-
-   # --- Hearings / Decisions ---
 class Hearing(Base):
     __tablename__ = "hearings"
 
@@ -441,10 +437,21 @@ class Hearing(Base):
 
     case_number = Column(Integer, nullable=False)   # único por regata (ver __table_args__)
 
-    decision = Column(Text, nullable=True)
+    # scheduling
     sch_date = Column(Date, nullable=True)
-    sch_time = Column(Time, nullable=True)          # ← agora com o tipo correto
+    sch_time = Column(Time, nullable=True)          # tipo correto
     room = Column(String(128), nullable=True)
+
+    # decisão “clássica” (texto livre, opcional)
+    decision = Column(Text, nullable=True)
+
+    # NOVO: campos usados nas rotas de decisão
+    decision_snapshot_json = Column(JSON, nullable=True)
+    decision_pdf_url = Column(String(500), nullable=True)
+    decision_at = Column(DateTime, nullable=True)
+    panel_chair = Column(String(200), nullable=True)
+    panel_members = Column(JSON, nullable=True)  # lista de nomes
+
     status = Column(String(32), nullable=False, default="SCHEDULED")  # SCHEDULED | ONGOING | CLOSED
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -453,3 +460,28 @@ class Hearing(Base):
     __table_args__ = (
         UniqueConstraint("regatta_id", "case_number", name="uq_hearing_case_per_regatta"),
     )
+
+
+# =========================
+#   Protest Time Limits
+# =========================
+class ProtestTimeLimit(Base):
+    __tablename__ = "protest_time_limits"
+
+    id = Column(Integer, primary_key=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    class_name = Column(String(100), nullable=False)     # "Class"
+    fleet = Column(String(100), nullable=True)           # "Fleet"
+    time_limit_minutes = Column(String(50), nullable=False)      # "18:00" ou "60 min after"
+    posting_time = Column(String(50), nullable=True)     # "17:15"
+    date = Column(Date, nullable=False)                  # YYYY-MM-DD
+
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    regatta = relationship("Regatta", backref="protest_time_limits")
+
+
+# índice sugerido
+Index("ix_ptl_regatta_id_date", ProtestTimeLimit.regatta_id, ProtestTimeLimit.date)

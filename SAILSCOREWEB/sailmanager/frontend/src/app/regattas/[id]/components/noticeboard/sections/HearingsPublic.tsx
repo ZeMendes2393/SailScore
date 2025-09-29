@@ -7,7 +7,7 @@ import type { HearingsList, HearingItem } from '@/types/hearings';
 export default function HearingsPublic({ regattaId }: { regattaId: number }) {
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
+  const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('all');
   const [error, setError] = useState<string | null>(null);
 
   const listPath = useMemo(() => {
@@ -33,7 +33,9 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [listPath]);
 
   return (
@@ -97,7 +99,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
-                      PDF
+                      Decision
                     </a>
                   ) : (
                     '—'

@@ -419,3 +419,42 @@ class HearingPatch(BaseModel):
     sch_time: Optional[time] = None
     room: Optional[str] = None
     status: Optional[HearingStatusLiteral] = None
+
+
+class ProtestDecisionTemplateOut(BaseModel):
+    template: Dict
+
+
+class ProtestDecisionOut(BaseModel):
+    decision_pdf_url: str
+    protest_id: int
+    hearing_id: int
+    status_after: str
+
+# app/schemas.py (adiciona num bloco novo, p.ex. após Rule42)
+
+class ProtestTimeLimitCreate(BaseModel):
+    regatta_id: int
+    class_name: str
+    fleet: Optional[str] = None
+    time_limit: str
+    posting_time: Optional[str] = None
+    date: date
+
+class ProtestTimeLimitRead(BaseModel):
+    id: int
+    regatta_id: int
+    class_name: str
+    fleet: Optional[str] = None
+    time_limit_minutes: str
+    posting_time: Optional[str] = None
+    date: date
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+class ProtestTimeLimitPatch(BaseModel):
+    class_name: Optional[str] = None
+    fleet: Optional[str] = None
+    time_limit: Optional[str] = None
+    posting_time: Optional[str] = None
+    date: Optional[date] = None
+

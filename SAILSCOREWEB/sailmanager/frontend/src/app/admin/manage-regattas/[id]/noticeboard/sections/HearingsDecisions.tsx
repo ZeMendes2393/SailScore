@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiGet, apiPatch, apiDelete, apiPost } from "@/lib/api";
 import type { HearingItem, HearingStatus, HearingsList } from "@/types/hearings";
 
 export default function HearingsDecisions({ regattaId }: { regattaId: number }) {
+  const router = useRouter();
+
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
   // LIST PATH — envia "open"/"closed" em minúsculas
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
-    if (statusFilter !== "all") p.set("status_q", statusFilter); // "open" | "closed"
+    if (statusFilter !== "all") p.set("status_q", statusFilter);
     return `/hearings/${regattaId}${p.toString() ? `?${p.toString()}` : ""}`;
   }, [regattaId, statusFilter]);
 
@@ -227,9 +230,9 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                     )}
                   </td>
 
-                  {/* DOCUMENTS: Submitted + Decision */}
+                  {/* DOCUMENTS: Submitted + Decision (Fill/Edit para a página curta) */}
                   <td className="p-2">
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 items-center">
                       {r.submitted_pdf_url ? (
                         <a
                           href={r.submitted_pdf_url}
@@ -245,17 +248,40 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                       )}
 
                       {r.decision_pdf_url ? (
-                        <a
-                          href={r.decision_pdf_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                          title="PDF da decisão"
-                        >
-                          Decision PDF
-                        </a>
+                        <>
+                          <a
+                            href={r.decision_pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                            title="PDF da decisão"
+                          >
+                            Decision PDF
+                          </a>
+                          <button
+                            className="px-2 py-1 border rounded hover:bg-gray-50"
+                            onClick={() =>
+                              router.push(
+                                `/admin/manage-regattas/${regattaId}/decision/${r.protest_id}`
+                              )
+                            }
+                            title="Editar decisão"
+                          >
+                            Edit
+                          </button>
+                        </>
                       ) : (
-                        <span className="text-gray-400">Decision PDF —</span>
+                        <button
+                          className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
+                          onClick={() =>
+                            router.push(
+                              `/admin/manage-regattas/${regattaId}/decisions/${r.protest_id}`
+                            )
+                          }
+                          title="Preencher decisão e gerar PDF"
+                        >
+                          Fill decision
+                        </button>
                       )}
                     </div>
                   </td>

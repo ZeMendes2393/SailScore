@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import os
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,33 +16,39 @@ from utils.auth_utils import get_current_user
 from utils.guards import ensure_regatta_scope
 from app.services.email import send_email
 
-from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, generate_submitted_pdf, normalize_public_url
+# helpers comuns que criaste
+from .helpers import (
+    PUBLIC_BASE_URL,
+    tiny_valid_pdf_bytes,
+    generate_submitted_pdf,
+    normalize_public_url,
+)
 
 router = APIRouter()
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)  # path vazio (correto)
 def create_protest(
     regatta_id: int,
     body: ProtestCreate,
+    background: BackgroundTasks,                     # <-- sem Optional e ANTES dos Depends
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
     _=Depends(ensure_regatta_scope),
-    background: BackgroundTasks = None,
 ):
-    # validações
+    # --- validações ---
     ini = db.query(Entry).filter(Entry.id == body.initiator_entry_id).first()
     if not ini or ini.regatta_id != regatta_id:
         raise HTTPException(status_code=403, detail="Initiator não pertence a esta regata.")
     if ini.user_id != current_user.id and (ini.email or "").strip().lower() != (current_user.email or "").strip().lower():
         raise HTTPException(status_code=403, detail="Não és titular desta inscrição (initiator).")
 
-    resp_ids = [r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id]
+    resp_ids: List[int] = [r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id]
     if resp_ids:
         cnt_same = db.query(Entry).filter(Entry.id.in_(resp_ids), Entry.regatta_id == regatta_id).count()
         if cnt_same != len(resp_ids):
             raise HTTPException(status_code=422, detail="Há respondentes que não pertencem a esta regata.")
 
-    # cria protesto
+    # --- cria protesto ---
     incident = getattr(body, "incident", None)
     p = Protest(
         regatta_id=regatta_id,
@@ -60,78 +66,111 @@ def create_protest(
         rules_alleged=(incident.rules_applied if incident else getattr(body, "rules_alleged", None)),
     )
     db.add(p)
-    db.flush()  # p.id
+    db.flush()  # p.id já existe
 
     for r in body.respondents:
-        party = ProtestParty(
+        db.add(ProtestParty(
             protest_id=p.id,
             kind=getattr(r, "kind", "entry") or "entry",
             entry_id=r.entry_id if getattr(r, "kind", "entry") == "entry" else None,
             free_text=r.free_text if getattr(r, "kind", "entry") != "entry" else None,
             represented_by=getattr(r, "represented_by", None),
-        )
-        db.add(party)
+        ))
 
     db.commit()
     db.refresh(p)
 
-    # snapshot + PDF + attach (Submitted)
+    # -------- snapshot enriquecido --------
+    regatta_name = None
+    regatta_venue = None
     try:
-        snapshot = {
-            "regatta_id": regatta_id,
-            "type": body.type,
-            "race_date": body.race_date,
-            "race_number": body.race_number,
-            "group_name": body.group_name,
-            "initiator_entry_id": body.initiator_entry_id,
-            "initiator_represented_by": body.initiator_represented_by,
-            "respondents": [
-                (r.model_dump() if hasattr(r, "model_dump") else dict(
-                    kind=getattr(r, "kind", None),
-                    entry_id=getattr(r, "entry_id", None),
-                    free_text=getattr(r, "free_text", None),
-                    represented_by=getattr(r, "represented_by", None),
-                ))
-                for r in body.respondents
-            ],
-            "incident": (
-                body.incident.model_dump()
-                if getattr(body, "incident", None) and hasattr(body.incident, "model_dump")
-                else (
-                    {
-                        "when_where": getattr(body, "incident_when_where", None),
-                        "description": getattr(body, "incident_description", None),
-                        "rules_applied": getattr(body, "rules_alleged", None),
-                        "damage_injury": None,
-                    }
-                    if getattr(body, "incident_when_where", None) or getattr(body, "incident_description", None) or getattr(body, "rules_alleged", None)
-                    else None
-                )
-            ),
-            "submitted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        }
-        p.submitted_snapshot_json = snapshot
+        from app.models import Regatta
+        reg = db.query(Regatta).filter(Regatta.id == regatta_id).first()
+        if reg:
+            regatta_name = getattr(reg, "name", None)
+            regatta_venue = getattr(reg, "venue", None) or getattr(reg, "location", None)
+    except Exception:
+        pass
 
+    initiator_view = {
+        "entry_id": ini.id if ini else body.initiator_entry_id,
+        "sail_no": getattr(ini, "sail_number", None),
+        "boat_name": getattr(ini, "boat_name", None),
+        "class_name": getattr(ini, "class_name", None),
+        "represented_by": body.initiator_represented_by,
+    }
+
+    respondents_view: List[dict] = []
+    for r in body.respondents:
+        item = {
+            "kind": getattr(r, "kind", "entry") or "entry",
+            "entry_id": getattr(r, "entry_id", None),
+            "free_text": getattr(r, "free_text", None),
+            "represented_by": getattr(r, "represented_by", None),
+            "sail_no": None,
+            "boat_name": None,
+            "class_name": None,
+        }
+        if item["kind"] == "entry" and item["entry_id"]:
+            e = db.query(Entry).filter(Entry.id == item["entry_id"]).first()
+            if e:
+                item.update({
+                    "sail_no": e.sail_number,
+                    "boat_name": e.boat_name,
+                    "class_name": e.class_name,
+                })
+        respondents_view.append(item)
+
+    snapshot = {
+        "regatta_id": regatta_id,
+        "regatta_name": regatta_name,
+        "venue": regatta_venue,  # usa a chave 'venue' para o cabeçalho do PDF
+        "type": body.type,
+        "group_name": body.group_name,
+        "race_date": body.race_date,
+        "race_number": body.race_number,
+        "submitted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "initiator": initiator_view,
+        "respondents": respondents_view,
+        "incident": (
+            body.incident.model_dump()
+            if getattr(body, "incident", None) and hasattr(body.incident, "model_dump")
+            else (
+                {
+                    "when_where": getattr(body, "incident_when_where", None),
+                    "description": getattr(body, "incident_description", None),
+                    "rules_applied": getattr(body, "rules_alleged", None),
+                    "damage_injury": None,
+                }
+                if getattr(body, "incident_when_where", None) or getattr(body, "incident_description", None) or getattr(body, "rules_alleged", None)
+                else None
+            )
+        ),
+    }
+    p.submitted_snapshot_json = snapshot
+
+    # -------- PDF + attachment (submitted) --------
+    try:
         public_url: Optional[str] = None
         file_path: Optional[Path] = None
         written_ok = False
 
-        if generate_submitted_pdf:
-            try:
-                ret = generate_submitted_pdf(regatta_id, p.id, snapshot)  # (disk_path, public_url)
-                if isinstance(ret, (list, tuple)) and len(ret) >= 2:
-                    file_path, public_url = Path(ret[0]) if ret[0] else None, ret[1]
-                else:
-                    file_path, public_url = None, ret  # type: ignore[assignment]
+        # 1) serviço oficial
+        try:
+            ret = generate_submitted_pdf(regatta_id, p.id, snapshot)  # (disk_path, public_url)
+            if isinstance(ret, (list, tuple)) and len(ret) >= 2:
+                file_path, public_url = Path(ret[0]) if ret[0] else None, ret[1]
+            else:
+                file_path, public_url = None, ret  # type: ignore[assignment]
+            if file_path and file_path.exists() and file_path.stat().st_size > 0:
+                written_ok = True
+            public_url = normalize_public_url(public_url)
+        except Exception as e:
+            print("[PDF][submitted] serviço falhou, fallback:", e)
+            public_url = None
+            file_path = None
 
-                if file_path and file_path.exists() and file_path.stat().st_size > 0:
-                    written_ok = True
-                public_url = normalize_public_url(public_url)
-            except Exception as e:
-                print("[PDF][submitted] serviço falhou, fallback:", e)
-                public_url = None
-                file_path = None
-
+        # 2) fallback
         if not written_ok:
             uploads_dir = Path("uploads") / "protests" / str(p.regatta_id)
             uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -158,7 +197,7 @@ def create_protest(
         db.rollback()
         print(f"[PROTEST_SUBMIT_PDF][protest={p.id}] falhou: {pdf_err}")
 
-    # hearing auto
+    # -------- hearing auto --------
     hearing_created = False
     try:
         exists_h = db.query(models.Hearing.id).filter(models.Hearing.protest_id == p.id).first()
@@ -184,7 +223,7 @@ def create_protest(
         db.rollback()
         print(f"[HEARING_AUTOCREATE][regatta={regatta_id} protest={p.id}] falhou: {err}")
 
-    # emails (best-effort)
+    # -------- emails (best-effort) --------
     try:
         if resp_ids and background:
             entries = db.query(Entry).filter(Entry.id.in_(resp_ids)).all()

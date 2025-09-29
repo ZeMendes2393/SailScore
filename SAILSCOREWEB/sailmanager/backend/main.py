@@ -13,7 +13,7 @@ from app.database import create_database
 from app.routes import (
     auth,
     regattas,
-    entries,          # único include com prefixo
+    entries,
     notices,
     results,
     races,
@@ -21,6 +21,7 @@ from app.routes import (
     protests,
     rule42,
     hearings,
+    protest_time_limit,  # 👈 novo import
 )
 
 app = FastAPI(title="SailScore API")
@@ -29,26 +30,27 @@ app = FastAPI(title="SailScore API")
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
-# Permite override por env (lista separada por vírgulas)
 extra_origins = os.getenv("ALLOWED_ORIGINS")
 if extra_origins:
     ALLOWED_ORIGINS = [o.strip() for o in extra_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,  # se não usares cookies, podes usar ["*"]
+    allow_credentials=True,         # se não usares cookies/sessões, podes pôr False
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ---------- Paths base (compat: /media e /files) ----------
 UPLOADS_DIR = Path("uploads").resolve()
-MEDIA_DIR   = Path("media").resolve()     # usado por /media
-FILES_DIR   = Path("files").resolve()     # usado por /files (fallback compat)
-
-# Garante que as pastas-base existem ANTES de montar StaticFiles
+MEDIA_DIR   = Path("media").resolve()
+FILES_DIR   = Path("files").resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 FILES_DIR.mkdir(parents=True, exist_ok=True)
@@ -56,10 +58,7 @@ FILES_DIR.mkdir(parents=True, exist_ok=True)
 # ---------- Startup ----------
 @app.on_event("startup")
 def _ensure_upload_dirs():
-    # uploads antigos (notices, etc.)
     (UPLOADS_DIR / "notices").mkdir(parents=True, exist_ok=True)
-
-    # PDFs e anexos gerados pela app (suporte a ambas convenções)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
 
@@ -77,6 +76,7 @@ app.include_router(regatta_classes.router)
 app.include_router(protests.router)
 app.include_router(rule42.router)
 app.include_router(hearings.router)
+app.include_router(protest_time_limit.router)  # 👈 novo include
 
 # ---------- Utilitários ----------
 @app.get("/health")
@@ -102,11 +102,6 @@ app.openapi = custom_openapi
 app.openapi_schema = None
 
 # ---------- Ficheiros estáticos ----------
-# uploads (notices, PDFs e anexos gerados pelo backend)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
-
-# PDFs e ficheiros públicos — montamos AMBOS para compatibilidade com versões antigas
-# Ex.: /media/protests/<id>/submitted_x.pdf
-app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
-# Ex.: /files/protests/<id>/submitted_x.pdf
-app.mount("/files", StaticFiles(directory=str(FILES_DIR)), name="files")
+app.mount("/media",   StaticFiles(directory=str(MEDIA_DIR)),   name="media")
+app.mount("/files",   StaticFiles(directory=str(FILES_DIR)),   name="files")
