@@ -13,6 +13,8 @@ def _stored_name(base_name: str, class_tag: str) -> str:
     class_tag = (class_tag or "").strip()
     return base_name if (class_tag and class_tag in base_name) else f"{base_name} ({class_tag})"
 
+    
+@router.post("",  response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED)
 def create_race(
     race: schemas.RaceCreate,

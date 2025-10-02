@@ -127,90 +127,6 @@ def _safe_updated_at(h) -> str:
 # Endpoints
 # -------------------------
 
-@router.get("/{regatta_id}")
-def list_hearings(
-    regatta_id: int,
-    status_q: Literal["all", "open", "closed"] = Query("all"),
-    db: Session = Depends(get_db),
-):
-    q = (
-        db.query(models.Hearing)
-        .filter(models.Hearing.regatta_id == regatta_id)
-        .options(
-            load_only(
-                models.Hearing.id,
-                models.Hearing.regatta_id,
-                models.Hearing.protest_id,
-                models.Hearing.case_number,
-                models.Hearing.decision,
-                models.Hearing.sch_date,
-                models.Hearing.sch_time,
-                models.Hearing.room,
-                models.Hearing.status,
-            )
-        )
-        .order_by(models.Hearing.case_number.asc(), models.Hearing.id.asc())
-    )
-    rows = q.all()
-
-    if status_q != "all":
-        want = "OPEN" if status_q == "open" else "CLOSED"
-        rows = [h for h in rows if _normalize_status(getattr(h, "status", None)) == want]
-
-    protests_by_id: Dict[int, object] = {}
-    protest_ids = [h.protest_id for h in rows if getattr(h, "protest_id", None)]
-    if protest_ids:
-        protests = (
-            db.query(models.Protest)
-            .options(
-                joinedload(models.Protest.initiator_entry),
-                joinedload(models.Protest.parties).joinedload(models.ProtestParty.entry),
-            )
-            .filter(models.Protest.id.in_(protest_ids))
-            .all()
-        )
-        protests_by_id = {p.id: p for p in protests}
-
-    items = []
-    for h in rows:
-        p = protests_by_id.get(getattr(h, "protest_id", None)) if protests_by_id else None
-
-        # Decision text (fallbacks)
-        decision_txt = getattr(h, "decision", None)
-        if not decision_txt and p is not None:
-            snap_p = getattr(p, "decision_json", None) or {}
-            decision_txt = snap_p.get("short_decision") or snap_p.get("decision_text")
-        if decision_txt and len(str(decision_txt)) > 280:
-            decision_txt = str(decision_txt)[:277] + "…"
-
-        # PDF URL (hearing > protest)
-        decision_pdf_url = getattr(h, "decision_pdf_url", None) or (getattr(p, "decision_pdf_url", None) if p else None)
-
-        items.append(
-            {
-                "id": h.id,
-                "case_number": h.case_number,
-                "race": _race_label(p),
-                "initiator": _initiator_str(p),
-                "respondent": _respondent_str(p),
-                "decision": decision_txt,
-                "sch_date": _fmt_date(getattr(h, "sch_date", None)),
-                "sch_time": _fmt_time(getattr(h, "sch_time", None)),
-                "room": getattr(h, "room", None),
-                "status": _normalize_status(getattr(h, "status", None)),
-                "updated_at": _safe_updated_at(h),
-
-                # úteis no FE
-                "protest_id": getattr(h, "protest_id", None),
-                "decision_pdf_url": decision_pdf_url,
-
-                # ✅ SUBMITTED volta a sair no payload
-                "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
-            }
-        )
-
-    return {"items": items, "page_info": {"has_more": False, "next_cursor": None}}
-
 
 def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
@@ -239,6 +155,21 @@ def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(h)
     return {"id": h.id, "case_number": h.case_number}
+
+
+# >>> NOVO ENDPOINT MANUAL PARA CRIAR HEARING DE UM PROTEST <<<
+@router.post(
+    "/for-protest/{protest_id}",
+    status_code=201,
+    dependencies=[Depends(verify_role(["admin"]))],
+)
+def create_for_protest(protest_id: int, db: Session = Depends(get_db)):
+    # evita duplicados: se já existir hearing para este protesto, devolve-o
+    exists = db.query(models.Hearing).filter(models.Hearing.protest_id == protest_id).first()
+    if exists:
+        return {"id": exists.id, "case_number": exists.case_number}
+
+    return create_hearing_for_protest(protest_id, db)
 
 
 @router.patch(
@@ -281,6 +212,98 @@ def delete_hearing(hearing_id: int, db: Session = Depends(get_db)):
     return
 
 
+@router.get("/{regatta_id}")
+def list_hearings(
+    regatta_id: int,
+    status_q: Literal["all", "open", "closed"] = Query("all"),
+    db: Session = Depends(get_db),
+):
+    q = (
+        db.query(models.Hearing)
+        .filter(models.Hearing.regatta_id == regatta_id)
+        .options(
+            load_only(
+                models.Hearing.id,
+                models.Hearing.regatta_id,
+                models.Hearing.protest_id,
+                models.Hearing.case_number,
+                models.Hearing.decision,
+                models.Hearing.sch_date,
+                models.Hearing.sch_time,
+                models.Hearing.room,
+                models.Hearing.status,
+                # NOTA: NÃO incluir decision_pdf_url aqui
+            )
+        )
+        .order_by(models.Hearing.case_number.asc(), models.Hearing.id.asc())
+    )
+    rows = q.all()
+
+    if status_q != "all":
+        want = "OPEN" if status_q == "open" else "CLOSED"
+        rows = [h for h in rows if _normalize_status(getattr(h, "status", None)) == want]
+
+    protests_by_id: Dict[int, object] = {}
+    protest_ids = [h.protest_id for h in rows if getattr(h, "protest_id", None)]
+    if protest_ids:
+        protests = (
+            db.query(models.Protest)
+            .options(
+                joinedload(models.Protest.initiator_entry),
+                joinedload(models.Protest.parties).joinedload(models.ProtestParty.entry),
+            )
+            .filter(models.Protest.id.in_(protest_ids))
+            .all()
+        )
+        protests_by_id = {p.id: p for p in protests}
+
+    items = []
+    for h in rows:
+        p = protests_by_id.get(getattr(h, "protest_id", None)) if protests_by_id else None
+
+        # Texto da decisão (com fallbacks)
+        decision_txt = getattr(h, "decision", None)
+        if not decision_txt and p is not None:
+            snap_p = getattr(p, "decision_json", None) or {}
+            decision_txt = snap_p.get("short_decision") or snap_p.get("decision_text")
+        if decision_txt and len(str(decision_txt)) > 280:
+            decision_txt = str(decision_txt)[:277] + "…"
+
+        # URL do PDF da decisão (hearing -> protest) com try/except
+        try:
+            dec_pdf = getattr(h, "decision_pdf_url")
+        except Exception:
+            dec_pdf = None
+        if not dec_pdf and p:
+            dec_pdf = getattr(p, "decision_pdf_url", None)
+        decision_pdf_url = dec_pdf
+
+        items.append(
+            {
+                "id": h.id,
+                "case_number": h.case_number,
+                "race": _race_label(p),
+                "initiator": _initiator_str(p),
+                "respondent": _respondent_str(p),
+                "decision": decision_txt,
+                "sch_date": _fmt_date(getattr(h, "sch_date", None)),
+                "sch_time": _fmt_time(getattr(h, "sch_time", None)),
+                "room": getattr(h, "room", None),
+                "status": _normalize_status(getattr(h, "status", None)),
+                "updated_at": _safe_updated_at(h),
+
+                # úteis no FE
+                "protest_id": getattr(h, "protest_id", None),
+                "decision_pdf_url": decision_pdf_url,
+
+                # ✅ SUBMITTED volta a sair no payload
+                "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
+            }
+        )
+
+    return {"items": items, "page_info": {"has_more": False, "next_cursor": None}}
+
+
 @router.get("/by-id/{hearing_id}")
 def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
@@ -312,6 +335,14 @@ def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
     if decision_txt and len(str(decision_txt)) > 280:
         decision_txt = str(decision_txt)[:277] + "…"
 
+    # PDF da decisão com try/except + fallback ao Protest
+    try:
+        dec_pdf = getattr(h, "decision_pdf_url")
+    except Exception:
+        dec_pdf = None
+    if not dec_pdf and p:
+        dec_pdf = getattr(p, "decision_pdf_url", None)
+
     return {
         "id": h.id,
         "regatta_id": h.regatta_id,
@@ -319,6 +350,6 @@ def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
         "case_number": h.case_number,
         "status": _normalize_status(getattr(h, "status", None)),
         "decision": decision_txt,
-        "decision_pdf_url": (getattr(h, "decision_pdf_url", None) or (getattr(p, "decision_pdf_url", None) if p else None)),
+        "decision_pdf_url": dec_pdf,
         "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
     }

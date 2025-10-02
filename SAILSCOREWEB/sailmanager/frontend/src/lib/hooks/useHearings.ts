@@ -12,7 +12,7 @@ export function useHearings(regattaId: number, status: "all"|"open"|"closed"="al
     setLoading(true); setError("");
     try {
       const qs = new URLSearchParams();
-      if (status !== "all") qs.set("status", status);
+      if (status !== "all") qs.set("status_q", status);
       if (q) qs.set("q", q);
       const res = await apiGet<HearingsList>(`/hearings/${regattaId}?${qs.toString()}`);
       setData(res.items || []);

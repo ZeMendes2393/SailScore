@@ -15,16 +15,17 @@ from app.schemas import ProtestCreate
 from utils.auth_utils import get_current_user
 from utils.guards import ensure_regatta_scope
 from app.services.email import send_email
+from app.services.pdf import generate_submitted_pdf  # ✅ gerador central
 
-# helpers comuns que criaste
+# helpers comuns
 from .helpers import (
     PUBLIC_BASE_URL,
-    tiny_valid_pdf_bytes,
-    generate_submitted_pdf,
+    tiny_valid_pdf_bytes,     # ⚠️ deve aceitar também lista de linhas (List[str])
     normalize_public_url,
 )
 
 router = APIRouter()
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED)  # path vazio (correto)
 def create_protest(
@@ -170,15 +171,49 @@ def create_protest(
             public_url = None
             file_path = None
 
-        # 2) fallback
+        # 2) fallback informativo (usa dados do snapshot)
         if not written_ok:
             uploads_dir = Path("uploads") / "protests" / str(p.regatta_id)
             uploads_dir.mkdir(parents=True, exist_ok=True)
             file_path = uploads_dir / f"submitted_{p.id}.pdf"
-            file_path.write_bytes(tiny_valid_pdf_bytes("Submitted protest", f"Protest ID: {p.id}"))
+
+            # construir conteúdo rico a partir do snapshot
+            init = (snapshot.get("initiator") or {})
+            incident = (snapshot.get("incident") or {})
+            respondents = (snapshot.get("respondents") or [])
+
+            lines = [
+                f"Protest ID: {p.id}",
+                f"Regatta: {snapshot.get('regatta_name') or '—'}",
+                f"Venue: {snapshot.get('venue') or '—'}",
+                f"Type: {snapshot.get('type') or '—'}   Group/Fleet: {snapshot.get('group_name') or '—'}",
+                f"Race Date: {snapshot.get('race_date') or '—'}   Race Number: {snapshot.get('race_number') or '—'}",
+                f"Submitted At: {snapshot.get('submitted_at') or '—'}",
+                "",
+                f"Initiator Sail No: {init.get('sail_no') or '—'}",
+                f"Initiator Boat: {init.get('boat_name') or '—'}   Class: {init.get('class_name') or '—'}",
+                "",
+                "Respondents:" if respondents else "Respondents: —",
+            ]
+            for i, r in enumerate(respondents, 1):
+                lines.append(
+                    f"  - [{i}] Kind: {r.get('kind') or '—'}  Entry: {r.get('entry_id') or '—'}  "
+                    f"Sail/Boat: {(r.get('sail_no') or '—')}/{(r.get('boat_name') or '—')}  "
+                    f"Class: {r.get('class_name') or '—'}"
+                )
+            lines += [
+                "",
+                f"When/Where: {incident.get('when_where') or snapshot.get('incident_when_where') or '—'}",
+                f"Description: {incident.get('description') or snapshot.get('incident_description') or '—'}",
+                f"Rules Alleged: {incident.get('rules_applied') or snapshot.get('rules_alleged') or '—'}",
+            ]
+
+            # tiny_valid_pdf_bytes deve aceitar lista de linhas
+            file_path.write_bytes(tiny_valid_pdf_bytes("Protest — Submission", lines))
             public_url = f"{PUBLIC_BASE_URL}/uploads/protests/{p.regatta_id}/submitted_{p.id}.pdf"
 
-        p.submitted_pdf_url = str(public_url)
+        # guardar URL público normalizado
+        p.submitted_pdf_url = normalize_public_url(str(public_url))
 
         db.add(ProtestAttachment(
             protest_id=p.id,

@@ -28,6 +28,7 @@ from app.routes import (
 app = FastAPI(title="SailScore API")
 
 # ---------- CORS ----------
+# Lista base para dev
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -45,12 +46,23 @@ if extra_origins:
         if o not in ALLOWED_ORIGINS:
             ALLOWED_ORIGINS.append(o)
 
+# Regex opcional para abranger localhost/127.* em qualquer porta (podes desativar por env)
+# Ex.: ALLOWED_ORIGIN_REGEX="^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+)
+
+# ⚠️ Nota: quando allow_credentials=True, não uses "*" em allow_origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # usa lista explícita quando allow_credentials=True
+    allow_origins=ALLOWED_ORIGINS,         # lista explícita
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,  # e fallback por regex
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # necessário para downloads no FE
+    max_age=86400,
 )
 
 # ---------- Paths base ----------
@@ -72,12 +84,13 @@ def _ensure_upload_dirs():
 create_database()
 
 # ---------- Routers ----------
+# (a ordem aqui já é depois do middleware — OK)
 app.include_router(auth.router)
 app.include_router(regattas.router)
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(notices.router)
-app.include_router(results.router)
-app.include_router(races.router)
+app.include_router(results.router, prefix="/results", tags=["Results"])
+app.include_router(races.router, prefix="/races", tags=["Races"])
 app.include_router(regatta_classes.router)
 app.include_router(protests.router)
 app.include_router(rule42.router)
