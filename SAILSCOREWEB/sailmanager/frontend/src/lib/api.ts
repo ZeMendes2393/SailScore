@@ -254,3 +254,33 @@ export interface ProtestsListResponse {
   items: ProtestListItem[];
   page_info: { has_more: boolean; next_cursor?: number | null };
 }
+
+// em @/lib/api (onde tens os tipos)
+export type Rule42EntrySummary = {
+  entry_id?: number | null;
+  sail_number?: string | null;
+  boat_name?: string | null;
+  skipper_name?: string | null;
+  class_name?: string | null;
+  user_id?: number | null;
+  club?: string | null;
+};
+
+export type Rule42ListItem = {
+  id: number;
+  regatta_id: number;
+  class_name: string;
+  sail_num: string;
+  race: string;
+  penalty_number: string;
+  group?: string | null;
+  rule: string;
+  comp_action?: string | null;
+  date: string; // ISO
+  entry?: Rule42EntrySummary | null;
+};
+
+export type Rule42ListResponse = {
+  items: Rule42ListItem[];
+  page_info: { has_more: boolean; next_cursor: number | null };
+};

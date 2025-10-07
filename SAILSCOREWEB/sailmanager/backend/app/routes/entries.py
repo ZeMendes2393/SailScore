@@ -1,7 +1,7 @@
 # app/routes/entries.py
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, status, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, and_
 from datetime import datetime
 import secrets, os
 from traceback import print_exc
@@ -9,7 +9,12 @@ from typing import Optional, List
 
 from app.database import SessionLocal
 from app import models, schemas
-from utils.auth_utils import get_current_user, hash_password, get_current_regatta_id, get_current_regatta_id_optional as _get_current_regatta_id_optional
+from utils.auth_utils import (
+    get_current_user,
+    hash_password,
+    get_current_regatta_id,
+    get_current_regatta_id_optional as _get_current_regatta_id_optional,
+)
 from app.services.email import send_email  # usa SMTP/LOG conforme .env
 
 router = APIRouter()
@@ -211,6 +216,140 @@ def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
+
+# ============ NOVO: PATCH /entries/{entry_id} (admin) ============
+def _norm_str(s: Optional[str]) -> Optional[str]:
+    if s is None:
+        return None
+    t = s.strip()
+    return t if t != "" else None
+
+def _norm_sail(s: Optional[str]) -> Optional[str]:
+    s = _norm_str(s)
+    return s.upper() if s else None
+
+def _class_exists_in_regatta(db: Session, regatta_id: int, class_name: str) -> bool:
+    # Preferir tabela RegattaClass se existir
+    try:
+        exists_row = (
+            db.query(models.RegattaClass)
+              .filter(
+                  models.RegattaClass.regatta_id == regatta_id,
+                  func.lower(func.trim(models.RegattaClass.class_name)) == func.lower(func.trim(class_name)),
+              )
+              .first()
+        )
+        if exists_row:
+            return True
+    except Exception:
+        pass
+    # Fallback: qualquer entry com essa classe nesta regata
+    row = (
+        db.query(models.Entry.id)
+          .filter(
+              models.Entry.regatta_id == regatta_id,
+              func.lower(func.trim(models.Entry.class_name)) == func.lower(func.trim(class_name)),
+          )
+          .first()
+    )
+    return bool(row)
+
+@router.patch("/{entry_id}", response_model=schemas.EntryRead)
+def patch_entry(
+    entry_id: int,
+    body: schemas.EntryPatch = Body(...),
+    propagate_keys: bool = Query(False, description="Propagate class/sail changes to Results and Rule42"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # ---- auth ----
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+
+    # valores antigos (para propagação)
+    old_class = entry.class_name
+    old_sail  = entry.sail_number
+
+    # ---- normalizar inputs ----
+    data = body.model_dump(exclude_unset=True)
+
+    if "class_name" in data:
+        data["class_name"] = _norm_str(data["class_name"])
+    if "sail_number" in data:
+        data["sail_number"] = _norm_sail(data["sail_number"])
+
+    # ---- validações ----
+    new_class = data.get("class_name", entry.class_name)
+    new_sail  = data.get("sail_number", entry.sail_number)
+
+    if new_class:
+        if not _class_exists_in_regatta(db, entry.regatta_id, new_class):
+            raise HTTPException(status_code=400, detail=f"Class '{new_class}' not allowed for this regatta")
+
+    # duplicado (case-insensitive) dentro da mesma regata + classe
+    if new_sail:
+        dup = (
+            db.query(models.Entry.id)
+              .filter(
+                  models.Entry.regatta_id == entry.regatta_id,
+                  func.lower(models.Entry.class_name) == func.lower(new_class or entry.class_name),
+                  func.lower(models.Entry.sail_number) == func.lower(new_sail),
+                  models.Entry.id != entry.id,
+              )
+              .first()
+        )
+        if dup:
+            raise HTTPException(status_code=409, detail="Another entry with the same sail number already exists for this class/regatta")
+
+    # ---- aplicar alterações na Entry ----
+    for k, v in data.items():
+        setattr(entry, k, v)
+
+    # ---- propagação (opcional) ----
+    did_change_class = (new_class is not None and new_class != old_class)
+    did_change_sail  = (new_sail  is not None and new_sail  != old_sail)
+
+    if propagate_keys and (did_change_class or did_change_sail):
+        # RESULTS
+        q_res = db.query(models.Result).filter(models.Result.regatta_id == entry.regatta_id)
+        if old_class:
+            q_res = q_res.filter(models.Result.class_name == old_class)
+        if old_sail:
+            q_res = q_res.filter(models.Result.sail_number == old_sail)
+        updates_res = {}
+        if did_change_class and new_class:
+            updates_res[models.Result.class_name] = new_class
+        if did_change_sail and new_sail:
+            updates_res[models.Result.sail_number] = new_sail
+        if updates_res:
+            q_res.update(updates_res, synchronize_session=False)
+
+        # RULE42
+        try:
+            q_r42 = db.query(models.Rule42Record).filter(models.Rule42Record.regatta_id == entry.regatta_id)
+            if old_class:
+                q_r42 = q_r42.filter(models.Rule42Record.class_name == old_class)
+            if old_sail:
+                q_r42 = q_r42.filter(models.Rule42Record.sail_num == old_sail)
+            updates_r42 = {}
+            if did_change_class and new_class:
+                updates_r42[models.Rule42Record.class_name] = new_class
+            if did_change_sail and new_sail:
+                updates_r42[models.Rule42Record.sail_num] = new_sail
+            if updates_r42:
+                q_r42.update(updates_r42, synchronize_session=False)
+        except Exception:
+            # se a tabela não existir no projeto, ignorar silenciosamente
+            pass
+
+    db.commit()
+    db.refresh(entry)
+    return entry
+# ============ FIM PATCH /entries/{entry_id} ============
 
 @router.patch("/{entry_id}/toggle_paid")
 def toggle_paid(

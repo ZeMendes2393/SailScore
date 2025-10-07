@@ -112,6 +112,7 @@ class EntryCreate(BaseModel):
 
     regatta_id: int
     paid: Optional[bool] = False
+    confirmed: Optional[bool] = False
 
 
 class EntryRead(EntryCreate):
@@ -487,3 +488,36 @@ class PTLRead(BaseModel):
     date: date
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+# app/schemas.py  (coloca após EntryRead)
+
+class EntryPatch(BaseModel):
+    # boat
+    class_name: Optional[str] = None
+    boat_country: Optional[str] = None
+    sail_number: Optional[str] = None
+    boat_name: Optional[str] = None
+    category: Optional[str] = None
+
+    # helm
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    helm_country: Optional[str] = None
+    territory: Optional[str] = None
+    club: Optional[str] = None
+    email: Optional[str] = None
+    contact_phone_1: Optional[str] = None
+    contact_phone_2: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    town: Optional[str] = None
+    helm_country_secondary: Optional[str] = None
+
+    # meta
+    regatta_id: Optional[int] = None
+    paid: Optional[bool] = None
+    confirmed: Optional[bool] = None

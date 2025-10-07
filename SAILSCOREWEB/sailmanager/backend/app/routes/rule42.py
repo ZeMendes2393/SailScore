@@ -1,15 +1,21 @@
 # app/routes/rule42.py
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from __future__ import annotations
+
 from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import and_, or_, desc
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas
-from utils.auth_utils import verify_role
+from utils.auth_utils import verify_role, get_current_user
 
 router = APIRouter(prefix="/rule42", tags=["rule42"])
 
-# LISTAR
+# ============================================
+# LISTAR (original) — array "cru"
+# ============================================
 @router.get("/{regatta_id}", response_model=List[schemas.Rule42Out])
 def list_rule42(
     regatta_id: int,
@@ -30,7 +36,100 @@ def list_rule42(
         q = q.filter(models.Rule42Record.group == group)
     return q.order_by(models.Rule42Record.date.desc(), models.Rule42Record.id.desc()).all()
 
+
+# ============================================
+# LISTAR (NOVO) — paginado + scope=mine|all
+# devolve {"items": [...], "page_info": {...}}
+# ============================================
+@router.get("/{regatta_id}/list", response_model=dict)
+def list_rule42_paged(
+    regatta_id: int,
+    scope: str = Query("mine", pattern="^(mine|all)$"),
+    search: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: Optional[int] = Query(None, description="Keyset cursor: último id visto"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # base (LEFT JOIN para tentar ligar à Entry)
+    q = (
+        db.query(models.Rule42Record, models.Entry)
+        .outerjoin(
+            models.Entry,
+            and_(
+                models.Entry.regatta_id == models.Rule42Record.regatta_id,
+                models.Entry.class_name == models.Rule42Record.class_name,
+                models.Entry.sail_number == models.Rule42Record.sail_num,
+            ),
+        )
+        .filter(models.Rule42Record.regatta_id == regatta_id)
+    )
+
+    # apenas "minhas" por defeito → via entries do utilizador
+    if scope == "mine":
+        q = q.filter(models.Entry.user_id == current_user.id)
+
+    # keyset cursor (ids decrescentes)
+    if cursor is not None:
+        q = q.filter(models.Rule42Record.id < cursor)
+
+    # pesquisa simples
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            or_(
+                models.Rule42Record.sail_num.ilike(like),
+                models.Rule42Record.penalty_number.ilike(like),
+                models.Rule42Record.race.ilike(like),
+                models.Rule42Record.group.ilike(like),
+                models.Entry.boat_name.ilike(like),
+            )
+        )
+
+    rows = (
+        q.order_by(desc(models.Rule42Record.date), desc(models.Rule42Record.id))
+         .limit(limit + 1)  # +1 para detectar se há mais
+         .all()
+    )
+
+    # construir items
+    items = []
+    for rec, ent in rows[:limit]:
+        items.append({
+            "id": rec.id,
+            "regatta_id": rec.regatta_id,
+            "class_name": rec.class_name,
+            "sail_num": rec.sail_num,
+            "race": rec.race,
+            "penalty_number": rec.penalty_number,
+            "group": rec.group,
+            "rule": rec.rule,
+            "comp_action": rec.comp_action,
+            "date": rec.date,
+            "entry": {
+                "entry_id": getattr(ent, "id", None),
+                "sail_number": getattr(ent, "sail_number", None),
+                "boat_name": getattr(ent, "boat_name", None),
+                "skipper_name": f"{getattr(ent, 'first_name', '') or ''} {getattr(ent, 'last_name', '') or ''}".strip() or None,
+                "class_name": getattr(ent, "class_name", None),
+                "user_id": getattr(ent, "user_id", None),
+                "club": getattr(ent, "club", None),
+            } if ent else None,
+        })
+
+    has_more = len(rows) > limit
+    # usar o id do "extra" como cursor seguinte (padrão keyset)
+    next_cursor = rows[-1][0].id if has_more else None
+
+    return {
+        "items": items,
+        "page_info": {"has_more": has_more, "next_cursor": next_cursor},
+    }
+
+
+# ============================================
 # CRIAR (ADMIN)
+# ============================================
 @router.post(
     "/",
     response_model=schemas.Rule42Out,
@@ -44,7 +143,10 @@ def create_rule42(payload: schemas.Rule42Create, db: Session = Depends(get_db)):
     db.refresh(rec)
     return rec
 
-# EDITAR (ADMIN)  ← NOVO
+
+# ============================================
+# EDITAR (ADMIN)
+# ============================================
 @router.patch(
     "/{id}",
     response_model=schemas.Rule42Out,
@@ -63,7 +165,10 @@ def update_rule42(id: int, payload: schemas.Rule42Patch, db: Session = Depends(g
     db.refresh(rec)
     return rec
 
+
+# ============================================
 # APAGAR (ADMIN)
+# ============================================
 @router.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,

@@ -55,7 +55,7 @@ export default function EntryList({ regattaId, selectedClass }: EntryListProps) 
             ? data
             : Array.isArray(data?.items) ? data.items : [];
           if (arr.length || Array.isArray(data)) return arr as Entry[];
-        } catch (e) {
+        } catch {
           // continua a tentar o próximo
         }
       }
@@ -122,7 +122,24 @@ export default function EntryList({ regattaId, selectedClass }: EntryListProps) 
                   className={isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}
                 >
                   <td className="p-2 border">{entry.class_name}</td>
-                  <td className="p-2 border">{entry.first_name} {entry.last_name}</td>
+
+                  {/* NAVEGAÇÃO: clique no nome abre página de edição */}
+                  <td className="p-2 border">
+                    <a
+                      className={isAdmin ? 'text-blue-600 underline' : ''}
+                      onClick={(e) => {
+                        e.stopPropagation(); // não abrir/fechar detalhes
+                        if (!isAdmin) return;
+                        e.preventDefault();
+                        // abrir página dedicada
+                        window.location.href = `/admin/entries/${entry.id}?regattaId=${regattaId}`;
+                      }}
+                      href={`/admin/entries/${entry.id}?regattaId=${regattaId}`}
+                    >
+                      {entry.first_name} {entry.last_name}
+                    </a>
+                  </td>
+
                   <td className="p-2 border">{entry.club}</td>
                   {isAdmin && (
                     <td className="p-2 border text-center">

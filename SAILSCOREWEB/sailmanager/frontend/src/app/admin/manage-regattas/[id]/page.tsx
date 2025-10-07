@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import EntryList from '@/app/regattas/[id]/components/entrylist/EntryList';
 import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
 import NoticeBoard from '../../../regattas/[id]/components/noticeboard/NoticeBoard';
 import AdminResultsClient from './results/AdminResultsClient';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
+import AdminEntryList from './entries/AdminEntryList';
 
 interface Regatta {
   id: number;
@@ -170,7 +170,10 @@ export default function AdminRegattaPage() {
       {/* OUTRAS TABS no card “estreito” */}
       {!isResults && activeTab !== 'edit' && activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
-          {activeTab === 'entry' && <EntryList regattaId={regattaId} selectedClass={selectedClass} />}
+          {activeTab === 'entry' && (
+  <AdminEntryList regattaId={regattaId} selectedClass={selectedClass} />
+)}
+
           {activeTab === 'notice' && <AdminNoticeBoard regattaId={regattaId} />}
           {activeTab === 'form' && (
             <p className="text-sm text-gray-500">

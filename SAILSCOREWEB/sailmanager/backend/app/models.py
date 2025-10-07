@@ -139,6 +139,7 @@ class Entry(Base):
     regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     paid = Column(Boolean, default=False)
+    confirmed = Column(Boolean, default=False, nullable=False)
 
     regatta = relationship("Regatta", back_populates="entries")
     user = relationship("User", back_populates="entries")
