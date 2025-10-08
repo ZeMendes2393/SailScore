@@ -19,6 +19,8 @@ type RegattaStatusResponse = {
     scoreReview: boolean;
     requests: boolean;
     protest: boolean;
+    // se mais tarde adicionares no BE:
+    // scoringEnquiry?: boolean;
   };
   regatta?: { id: number; name: string };
 };
@@ -76,16 +78,15 @@ export default function DashboardPage() {
             </p>
           </div>
           <button
-  onClick={() =>
-    logout({
-      redirectTo: Number.isFinite(regattaId) ? `/regattas/${regattaId}` : '/',
-    })
-  }
-  className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
->
-  Terminar sessão
-</button>
-
+            onClick={() =>
+              logout({
+                redirectTo: Number.isFinite(regattaId) ? `/regattas/${regattaId}` : '/',
+              })
+            }
+            className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
+          >
+            Terminar sessão
+          </button>
         </header>
 
         {/* Info bar */}
@@ -131,6 +132,17 @@ export default function DashboardPage() {
             enabled={Boolean(status?.windows?.rule42)}
             cta="Ir para Rule 42"
           />
+
+          {/* NOVO — Scoring Enquiries */}
+          <FeatureCard
+            title="Scoring Enquiries"
+            description="Submete e acompanha questões de pontuação ao Race Committee."
+            href={`/dashboard/scoring?regattaId=${regattaId}`}   // ← trocar para /dashboard/scoring
+            enabled={Boolean((status as any)?.windows?.scoringEnquiry ?? status?.windows?.scoreReview)}
+            cta="Ir para Scoring Enquiries"
+          />
+
+
           <FeatureCard
             title="Score Review"
             description="Submete pedidos de revisão de pontuação e acompanha decisões."

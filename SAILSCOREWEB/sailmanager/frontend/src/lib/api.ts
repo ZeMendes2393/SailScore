@@ -284,3 +284,38 @@ export type Rule42ListResponse = {
   items: Rule42ListItem[];
   page_info: { has_more: boolean; next_cursor: number | null };
 };
+
+// ---------- Scoring Enquiries ----------
+export type ScoringStatus =
+  | "submitted"
+  | "under_review"
+  | "answered"
+  | "closed"
+  | "invalid";
+
+export interface ScoringCreate {
+  initiator_entry_id: number;
+  race_id?: number | null;
+  race_number?: string | null;
+  class_name?: string | null;
+  sail_number?: string | null;
+  reason?: string | null;
+  requested_change?: string | null;
+}
+
+export interface ScoringRead {
+  id: number;
+  regatta_id: number;
+  initiator_entry_id?: number | null;
+  race_id?: number | null;
+  race_number?: string | null;
+  class_name?: string | null;
+  sail_number?: string | null;
+  reason?: string | null;
+  requested_change?: string | null;
+  status: ScoringStatus;
+  admin_note?: string | null;
+  decision_pdf_path?: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -521,3 +521,48 @@ class EntryPatch(BaseModel):
     regatta_id: Optional[int] = None
     paid: Optional[bool] = None
     confirmed: Optional[bool] = None
+
+
+# =========================
+# SCORING ENQUIRIES
+# =========================
+class ScoringCreate(BaseModel):
+    initiator_entry_id: int
+    race_id: Optional[int] = None
+    race_number: Optional[str] = None
+    class_name: Optional[str] = None
+    sail_number: Optional[str] = None
+    reason: Optional[str] = None
+    requested_change: Optional[str] = None
+
+
+class ScoringPatch(BaseModel):
+    # editável pelo admin
+    race_id: Optional[int] = None
+    race_number: Optional[str] = None
+    class_name: Optional[str] = None
+    sail_number: Optional[str] = None
+    reason: Optional[str] = None
+    requested_change: Optional[str] = None
+    status: Optional[str] = None           # submitted|under_review|answered|closed|invalid
+    admin_note: Optional[str] = None
+    decision_pdf_path: Optional[str] = None
+
+
+class ScoringRead(BaseModel):
+    id: int
+    regatta_id: int
+    initiator_entry_id: Optional[int] = None
+    race_id: Optional[int] = None
+    race_number: Optional[str] = None
+    class_name: Optional[str] = None
+    sail_number: Optional[str] = None
+    reason: Optional[str] = None
+    requested_change: Optional[str] = None
+    status: str
+    admin_note: Optional[str] = None
+    decision_pdf_path: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

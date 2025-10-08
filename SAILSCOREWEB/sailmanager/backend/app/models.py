@@ -11,6 +11,8 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 
 
+
+
 # =========================
 #        USERS
 # =========================
@@ -487,3 +489,45 @@ class ProtestTimeLimit(Base):
     __table_args__ = (
         UniqueConstraint("regatta_id", "class_name", "fleet", "date", name="uq_ptl_regatta_class_fleet_date"),
     )
+
+
+# =========================
+# SCORING ENQUIRIES
+# =========================
+
+
+class ScoringEnquiry(Base):
+    __tablename__ = "scoring_enquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    initiator_entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # alvo (identificação do que está a ser questionado)
+    race_id = Column(Integer, ForeignKey("races.id", ondelete="SET NULL"), nullable=True, index=True)
+    race_number = Column(String, nullable=True)
+    class_name = Column(String, nullable=True, index=True)
+    sail_number = Column(String, nullable=True, index=True)
+
+    # conteúdo
+    reason = Column(String, nullable=True)
+    requested_change = Column(String, nullable=True)
+
+    # estado & meta
+    status = Column(String, default="submitted", nullable=False, index=True)  # submitted|under_review|answered|closed|invalid
+    admin_note = Column(String, nullable=True)
+    decision_pdf_path = Column(String, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # relations (opcional usar backrefs)
+    regatta = relationship("Regatta")
+    initiator_entry = relationship("Entry")
+    race = relationship("Race")
+
+    __table_args__ = (
+        Index("ix_scoring_regatta_status", "regatta_id", "status"),
+    )
+

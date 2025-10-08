@@ -23,6 +23,7 @@ from app.routes import (
     rule42,
     hearings,
     protest_time_limit,  # 👈 PTL
+    scoring as scoring_routes,  # 👈 NOVO
 )
 
 app = FastAPI(title="SailScore API")
@@ -96,6 +97,7 @@ app.include_router(protests.router)
 app.include_router(rule42.router)
 app.include_router(hearings.router)
 app.include_router(protest_time_limit.router)  # 👈 PTL
+app.include_router(scoring_routes.router)      # 👈 NOVO
 
 # ---------- Utilitários ----------
 @app.get("/health")
