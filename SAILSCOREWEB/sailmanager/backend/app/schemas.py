@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Literal
 from datetime import datetime, date, time
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
+
+
 # =========================
 # AUTH
 # =========================
@@ -27,7 +29,8 @@ class Token(BaseModel):
 # =========================
 # REGATTAS
 # =========================
-class RegattaCreate(BaseModel):
+class RegattaBase(BaseModel):
+    # obrigatórios
     name: str
     location: str
     start_date: str
@@ -44,8 +47,15 @@ class RegattaCreate(BaseModel):
     discard_count: int = 0
     discard_threshold: int = 4
 
+    # controlo de inscrições online (visível no GET)
+    online_entry_open: bool = True
 
-class RegattaRead(RegattaCreate):
+
+class RegattaCreate(RegattaBase):
+    pass
+
+
+class RegattaRead(RegattaBase):
     id: int
     scoring_codes: Optional[Dict[str, float]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -62,6 +72,9 @@ class RegattaUpdate(BaseModel):
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
+
+    # PATCH opcional
+    online_entry_open: Optional[bool] = None
 
 
 class RegattaClassesReplace(BaseModel):
@@ -431,8 +444,10 @@ class ProtestDecisionOut(BaseModel):
     hearing_id: int
     status_after: str
 
-# app/schemas.py (adiciona num bloco novo, p.ex. após Rule42)
 
+# =========================
+# PROTEST TIME LIMIT (PTL)
+# =========================
 class PTLBase(BaseModel):
     regatta_id: int
     class_name: str
@@ -490,9 +505,9 @@ class PTLRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
-# app/schemas.py  (coloca após EntryRead)
-
+# =========================
+# ENTRY PATCH
+# =========================
 class EntryPatch(BaseModel):
     # boat
     class_name: Optional[str] = None
@@ -526,43 +541,156 @@ class EntryPatch(BaseModel):
 # =========================
 # SCORING ENQUIRIES
 # =========================
+ScoringStatusLiteral = Literal["submitted", "under_review", "answered", "closed", "invalid"]
+
+
 class ScoringCreate(BaseModel):
     initiator_entry_id: int
     race_id: Optional[int] = None
     race_number: Optional[str] = None
+    # estes dois podem ser preenchidos automaticamente no BE a partir da Entry
     class_name: Optional[str] = None
     sail_number: Optional[str] = None
-    reason: Optional[str] = None
+
     requested_change: Optional[str] = None
+    requested_score: Optional[float] = None
+    boat_ahead: Optional[str] = None
+    boat_behind: Optional[str] = None
+    # NOTA: 'response' não entra no Create (é dado pelo admin, mais tarde)
 
 
-class ScoringPatch(BaseModel):
-    # editável pelo admin
-    race_id: Optional[int] = None
-    race_number: Optional[str] = None
-    class_name: Optional[str] = None
-    sail_number: Optional[str] = None
-    reason: Optional[str] = None
-    requested_change: Optional[str] = None
-    status: Optional[str] = None           # submitted|under_review|answered|closed|invalid
-    admin_note: Optional[str] = None
-    decision_pdf_path: Optional[str] = None
-
-
-class ScoringRead(BaseModel):
+class ScoringRead(ScoringCreate):
     id: int
     regatta_id: int
-    initiator_entry_id: Optional[int] = None
-    race_id: Optional[int] = None
-    race_number: Optional[str] = None
-    class_name: Optional[str] = None
-    sail_number: Optional[str] = None
-    reason: Optional[str] = None
-    requested_change: Optional[str] = None
-    status: str
+    status: ScoringStatusLiteral
     admin_note: Optional[str] = None
     decision_pdf_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    response: Optional[str] = None  # 👈 NOVO
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ScoringPatch(BaseModel):
+    # o admin pode ajustar estes campos
+    race_id: Optional[int] = None
+    race_number: Optional[str] = None
+    class_name: Optional[str] = None
+    sail_number: Optional[str] = None
+
+    requested_change: Optional[str] = None
+    requested_score: Optional[float] = None
+    boat_ahead: Optional[str] = None
+    boat_behind: Optional[str] = None
+
+    status: Optional[ScoringStatusLiteral] = None
+    admin_note: Optional[str] = None
+    decision_pdf_path: Optional[str] = None
+
+    response: Optional[str] = None  # 👈 NOVO
+
+
+# =========================
+# REQUESTS
+# =========================
+class RequestCreate(BaseModel):
+    initiator_entry_id: int
+    request_text: str
+
+
+class RequestPatch(BaseModel):
+    status: Optional[str] = None          # submitted | under_review | closed (admin)
+    admin_response: Optional[str] = None  # admin
+    request_text: Optional[str] = None    # opcional permitir editar se ainda submitted (sailor)
+
+
+class RequestRead(BaseModel):
+    id: int
+    regatta_id: int
+    request_no: int
+    initiator_entry_id: Optional[int] = None
+
+    class_name: Optional[str] = None
+    sail_number: Optional[str] = None
+    sailor_name: Optional[str] = None
+
+    request_text: str
+    status: str
+    admin_response: Optional[str] = None
+
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+# =========================
+# QUESTIONS
+# =========================
+QuestionStatus = Literal["open", "answered", "closed"]
+QuestionVisibility = Literal["public", "private"]
+
+
+class QuestionBase(BaseModel):
+    class_name: str
+    sail_number: str
+    sailor_name: str
+    subject: str
+    body: str
+
+
+class QuestionCreate(QuestionBase):
+    visibility: QuestionVisibility = "private"
+
+
+class QuestionUpdate(BaseModel):
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    visibility: Optional[QuestionVisibility] = None
+    status: Optional[QuestionStatus] = None
+    answer_text: Optional[str] = None
+
+
+class QuestionRead(BaseModel):
+    id: int
+    regatta_id: int
+    seq_no: int
+    class_name: str
+    sail_number: str
+    sailor_name: str
+    subject: str
+    body: str
+    status: QuestionStatus
+    visibility: QuestionVisibility
+    answer_text: Optional[str]
+    answered_by: Optional[int]
+    answered_at: Optional[datetime]
+    created_by: Optional[int]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# ENTRY ATTACHMENTS
+# =========================
+class EntryAttachmentRead(BaseModel):
+    id: int
+    entry_id: int
+    title: str
+    url: Optional[str] = None
+    content_type: str
+    size_bytes: int
+    visible_to_sailor: bool
+    uploaded_by_name: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryAttachmentPatch(BaseModel):
+    title: Optional[str] = None
+    visible_to_sailor: Optional[bool] = None

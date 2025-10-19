@@ -33,12 +33,15 @@ def create_regatta(
     db.refresh(new_regatta)
     return new_regatta
 
+
+# app/routes/regattas.py
 @router.get("/{regatta_id}", response_model=schemas.RegattaRead)
 def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
-    if not regatta:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
-    return regatta
+    r = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    return r
+
 
 @router.patch("/{regatta_id}", response_model=schemas.RegattaRead)
 def update_regatta(
@@ -219,6 +222,7 @@ def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
     return _compute_regatta_status(reg)
+
 
 @router.get("/{regatta_id}/classes", response_model=List[str])
 def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):

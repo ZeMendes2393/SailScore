@@ -6,7 +6,6 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
 import type { ScoringCreate } from '@/lib/api';
 
-// Reaproveita o tipo que já usas para entries noutras páginas:
 type EntryOption = {
   id: number;
   regatta_id?: number | string | null;
@@ -41,27 +40,28 @@ export default function NewScoringPage() {
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // form
+  // selection + derived read-only fields
   const [initiatorEntryId, setInitiatorEntryId] = useState<number | ''>('');
-  const [raceNumber, setRaceNumber] = useState('');
-  const [className, setClassName] = useState('');
-  const [sailNumber, setSailNumber] = useState('');
-  const [reason, setReason] = useState('');
-  const [requestedChange, setRequestedChange] = useState('');
+  const selectedEntry = useMemo(
+    () => myEntries.find((e) => e.id === initiatorEntryId),
+    [myEntries, initiatorEntryId]
+  );
 
-  // Carrega as "minhas" entries (mesma abordagem dos protests)
+  // other fields
+  const [raceNumber, setRaceNumber] = useState('');
+  const [requestedChange, setRequestedChange] = useState('');
+  const [requestedScore, setRequestedScore] = useState<string>(''); // keep as string in UI, convert to number
+  const [boatAhead, setBoatAhead] = useState('');
+  const [boatBehind, setBoatBehind] = useState('');
+
   useEffect(() => {
     if (!regattaId || !token) return;
     let cancelled = false;
-
     (async () => {
       setLoadingEntries(true); setErr(null);
       try {
-        // tenta já filtrado por regata
         let mine: EntryOption[] =
           (await apiGet<EntryOption[]>(`/entries?mine=1&regatta_id=${regattaId}`, token)) || [];
-
-        // fallback: todas -> filtra
         if (!mine.length) {
           const allMine = await apiGet<EntryOption[]>(`/entries?mine=1`, token).catch(() => []);
           mine = (allMine || []).filter((e) => {
@@ -69,15 +69,9 @@ export default function NewScoringPage() {
             return rid === undefined || rid === regattaId;
           });
         }
-
         if (!cancelled) {
           setMyEntries(mine);
-          // se houver 1 única entry, pré-preenche e puxa class/sail dessa entry
-          if (mine.length === 1) {
-            setInitiatorEntryId(mine[0].id);
-            setClassName(mine[0].class_name || '');
-            setSailNumber(mine[0].sail_number || '');
-          }
+          if (mine.length === 1) setInitiatorEntryId(mine[0].id);
         }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Failed to load your entries.');
@@ -85,18 +79,8 @@ export default function NewScoringPage() {
         if (!cancelled) setLoadingEntries(false);
       }
     })();
-
     return () => { cancelled = true; };
   }, [regattaId, token]);
-
-  // quando muda o initiator, sincroniza classe/sail para facilitar submissão
-  useEffect(() => {
-    const e = myEntries.find((x) => x.id === initiatorEntryId);
-    if (e) {
-      setClassName(e.class_name || '');
-      setSailNumber(e.sail_number || '');
-    }
-  }, [initiatorEntryId, myEntries]);
 
   async function handleSubmit() {
     setErr(null);
@@ -109,13 +93,22 @@ export default function NewScoringPage() {
       return;
     }
 
+    const numericScore =
+      requestedScore.trim() === '' ? null : Number(requestedScore.replace(',', '.'));
+    if (requestedScore.trim() !== '' && !Number.isFinite(numericScore as number)) {
+      setErr('Requested score must be a number (e.g. 23).');
+      return;
+    }
+
     const payload: ScoringCreate = {
       initiator_entry_id: Number(initiatorEntryId),
       race_number: (raceNumber || '').trim() || null,
-      class_name: (className || '').trim() || null,
-      sail_number: (sailNumber || '').trim() || null,
-      reason: (reason || '').trim() || null,
+      class_name: selectedEntry?.class_name || null,    // read-only (filled from entry)
+      sail_number: selectedEntry?.sail_number || null,  // read-only (filled from entry)
       requested_change: (requestedChange || '').trim() || null,
+      requested_score: numericScore as number | null,
+      boat_ahead: (boatAhead || '').trim() || null,
+      boat_behind: (boatBehind || '').trim() || null,
     };
 
     try {
@@ -147,9 +140,10 @@ export default function NewScoringPage() {
             className="w-full border rounded px-3 py-2"
             value={initiatorEntryId}
             onChange={(e) => setInitiatorEntryId(e.target.value ? Number(e.target.value) : '')}
-            disabled={loadingEntries}
+            disabled={loadingEntries || myEntries.length <= 1}
           >
-            <option value="">— Select —</option>
+            {/* If the user only has one entry, we show it and keep the select disabled */}
+            <option value="">{myEntries.length > 1 ? '— Select —' : '—'}</option>
             {myEntries.map((e) => (
               <option key={e.id} value={e.id}>{entryLabel(e)}</option>
             ))}
@@ -157,24 +151,19 @@ export default function NewScoringPage() {
           {loadingEntries && <div className="text-gray-500 text-sm mt-1">Loading your entries…</div>}
         </div>
 
+        {/* Read-only derived fields */}
         <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm mb-1">Class</label>
-            <input
-              className="w-full border rounded px-3 py-2"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              placeholder="ILCA 6 / 49er …"
-            />
+            <div className="w-full border rounded px-3 py-2 bg-gray-50">
+              {selectedEntry?.class_name || '—'}
+            </div>
           </div>
           <div>
             <label className="block text-sm mb-1">Sail number</label>
-            <input
-              className="w-full border rounded px-3 py-2"
-              value={sailNumber}
-              onChange={(e) => setSailNumber(e.target.value)}
-              placeholder="POR 123"
-            />
+            <div className="w-full border rounded px-3 py-2 bg-gray-50">
+              {selectedEntry?.sail_number || '—'}
+            </div>
           </div>
         </div>
 
@@ -184,19 +173,36 @@ export default function NewScoringPage() {
             className="w-full border rounded px-3 py-2"
             value={raceNumber}
             onChange={(e) => setRaceNumber(e.target.value)}
-            placeholder="Ex: 3"
           />
         </div>
 
-        <div>
-          <label className="block text-sm mb-1">Reason</label>
-          <textarea
-            rows={4}
-            className="w-full border rounded px-3 py-2"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Explain what seems wrong with your scoring…"
-          />
+        {/* New fields */}
+        <div className="grid md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm mb-1">Requested score</label>
+            <input
+              inputMode="decimal"
+              className="w-full border rounded px-3 py-2"
+              value={requestedScore}
+              onChange={(e) => setRequestedScore(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Boat ahead</label>
+            <input
+              className="w-full border rounded px-3 py-2"
+              value={boatAhead}
+              onChange={(e) => setBoatAhead(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Boat behind</label>
+            <input
+              className="w-full border rounded px-3 py-2"
+              value={boatBehind}
+              onChange={(e) => setBoatBehind(e.target.value)}
+            />
+          </div>
         </div>
 
         <div>
@@ -206,7 +212,7 @@ export default function NewScoringPage() {
             className="w-full border rounded px-3 py-2"
             value={requestedChange}
             onChange={(e) => setRequestedChange(e.target.value)}
-            placeholder="What change do you request? (e.g., adjust points to 12, change code to RDG, etc.)"
+            placeholder="Describe the scoring change you request…"
           />
         </div>
 

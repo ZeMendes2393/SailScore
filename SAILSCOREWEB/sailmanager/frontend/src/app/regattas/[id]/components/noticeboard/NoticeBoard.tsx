@@ -1,18 +1,27 @@
 'use client';
 
-import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import Documents from './sections/DocumentsPublic';
 import Rule42 from './sections/Rule42Public';
 import Hearings from './sections/HearingsPublic';
-import ProtestTimeLimitPublic from './sections/ProtestTimeLimitPublic'; // 👈 NOVO
+import ProtestTimeLimitPublic from './sections/ProtestTimeLimitPublic';
+import ScoringEnquiriesPublic from './sections/ScoringEnquiriesPublic';
+import RequestsPublic from './sections/RequestsPublic';
+import QuestionsPublic from './sections/QuestionsPublic';
 
-type Section = 'documents' | 'rule42' | 'protests' | 'ptl'; // 👈 NOVO
+type Section =
+  | 'documents'
+  | 'rule42'
+  | 'protests'
+  | 'ptl'
+  | 'scoring'
+  | 'requests'
+  | 'questions';
 
-export default function Page() {
-  const { id } = useParams<{ id: string }>();
-  const regattaId = Number(id);
-  if (!Number.isFinite(regattaId)) return <div className="p-4">Regatta inválida.</div>;
+export default function NoticeBoard({ regattaId }: { regattaId: number }) {
+  if (!Number.isFinite(regattaId)) {
+    return <div className="p-4">Invalid regatta.</div>;
+  }
 
   const [section, setSection] = useState<Section>('documents');
 
@@ -37,18 +46,24 @@ export default function Page() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Notice Board</h2>
 
-      <div role="tablist" aria-label="Secções públicas" className="flex gap-2 border-b">
+      <div role="tablist" aria-label="Public sections" className="flex gap-2 border-b">
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
         <Tab value="protests" label="Protest Decisions" />
-        <Tab value="ptl" label="Protest Time Limit" /> {/* 👈 NOVO */}
+        <Tab value="scoring" label="Scoring Enquiries" />
+        <Tab value="requests" label="Requests" />
+        <Tab value="questions" label="Questions" />
+        <Tab value="ptl" label="Protest Time Limit" />
       </div>
 
       <div className="pt-4">
         {section === 'documents' && <Documents regattaId={regattaId} />}
         {section === 'rule42' && <Rule42 regattaId={regattaId} />}
         {section === 'protests' && <Hearings regattaId={regattaId} />}
-        {section === 'ptl' && <ProtestTimeLimitPublic regattaId={regattaId} />} {/* 👈 NOVO */}
+        {section === 'scoring' && <ScoringEnquiriesPublic regattaId={regattaId} />}
+        {section === 'requests' && <RequestsPublic regattaId={regattaId} />}
+        {section === 'questions' && <QuestionsPublic regattaId={regattaId} />}
+        {section === 'ptl' && <ProtestTimeLimitPublic regattaId={regattaId} />}
       </div>
     </div>
   );

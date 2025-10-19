@@ -124,9 +124,25 @@ def _safe_updated_at(h) -> str:
 
 
 # -------------------------
+# Helpers de PDF (opção 1: sempre derivado do snapshot)
+# -------------------------
+def _render_decision_pdf(snapshot: dict, hearing: models.Hearing) -> str:
+    """
+    Gera/sobrescreve o PDF da decisão a partir do snapshot e devolve o URL público.
+    Implementa aqui a tua rotina real (WeasyPrint, ReportLab, etc).
+    Mantém SEMPRE o mesmo path para sobrescrever (sem versionamento).
+    """
+    # Exemplo de caminho fixo (ajusta para o teu setup de static files):
+    pdf_path = f"static/decisions/hearing-{hearing.id}.pdf"
+    # TODO: render_pdf(snapshot, out_path=pdf_path)
+    # e.g.: weasyprint.HTML(string=html).write_pdf(pdf_path)
+    public_url = f"/{pdf_path}"  # assumindo que /static é servido publicamente
+    return public_url
+
+
+# -------------------------
 # Endpoints
 # -------------------------
-
 
 def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
@@ -157,7 +173,7 @@ def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     return {"id": h.id, "case_number": h.case_number}
 
 
-# >>> NOVO ENDPOINT MANUAL PARA CRIAR HEARING DE UM PROTEST <<<
+# >>> criar hearing a partir de um protesto (admin) <<<
 @router.post(
     "/for-protest/{protest_id}",
     status_code=201,
@@ -168,7 +184,6 @@ def create_for_protest(protest_id: int, db: Session = Depends(get_db)):
     exists = db.query(models.Hearing).filter(models.Hearing.protest_id == protest_id).first()
     if exists:
         return {"id": exists.id, "case_number": exists.case_number}
-
     return create_hearing_for_protest(protest_id, db)
 
 
@@ -353,3 +368,38 @@ def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
         "decision_pdf_url": dec_pdf,
         "submitted_pdf_url": getattr(p, "submitted_pdf_url", None) if p else None,
     }
+
+
+# >>> NOVO: (Re)gerar PDF da decisão a partir do snapshot (sem versões) <<<
+@router.post(
+    "/{hearing_id}/decision/pdf",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(verify_role(["admin"]))],
+)
+def regenerate_decision_pdf(hearing_id: int, db: Session = Depends(get_db)):
+    h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
+    if not h:
+        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+
+    if not getattr(h, "decision_snapshot_json", None):
+        raise HTTPException(
+            status_code=400,
+            detail="Não há decisão guardada. 'Open decision' e 'Save' primeiro."
+        )
+
+    try:
+        url = _render_decision_pdf(h.decision_snapshot_json, h)  # sobrescreve o mesmo ficheiro
+        h.decision_pdf_url = url
+        h.decision_at = datetime.utcnow()
+        db.commit()
+        db.refresh(h)
+        # devolve payload leve; o FE faz refresh a seguir
+        return {
+            "ok": True,
+            "id": h.id,
+            "decision_pdf_url": h.decision_pdf_url,
+            "decision_at": h.decision_at.isoformat() if h.decision_at else None,
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Falha ao gerar PDF: {e}")

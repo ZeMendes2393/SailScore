@@ -27,28 +27,24 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
       setLoading(true);
       setErr(null);
       try {
-        // ⚠️ Ajusta este caminho ao teu backend.
-        // Se o teu endpoint for /regattas/{id}/rule42, troca aqui.
         const data = await apiGet<Row[]>(`/rule42/${regattaId}`);
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch (e: any) {
         if (!cancelled) {
           setRows([]);
-          setErr(e?.message || 'Falha a carregar.');
+          setErr(e?.message || 'Failed to load.');
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [regattaId]);
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Rule 42</h3>
-      {loading && <div className="text-gray-500">A carregar…</div>}
+      {loading && <div className="text-gray-500">Loading…</div>}
       {err && <div className="text-red-600">{err}</div>}
 
       <div className="overflow-x-auto rounded border bg-white">
@@ -60,7 +56,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
               <th className="p-2">Race</th>
               <th className="p-2">Group</th>
               <th className="p-2">Rule</th>
-              <th className="p-2">Competitor action</th>
+              <th className="p-2">Competitor Action</th>
               <th className="p-2">Notes</th>
               <th className="p-2">Class</th>
               <th className="p-2">Date</th>
@@ -69,15 +65,13 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
           <tbody>
             {loading && (
               <tr>
-                <td className="p-3" colSpan={9}>
-                  A carregar…
-                </td>
+                <td className="p-3" colSpan={9}>Loading…</td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={9}>
-                  Sem registos.
+                  No records.
                 </td>
               </tr>
             )}
@@ -91,9 +85,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                 <td className="p-2">{r.comp_action || '—'}</td>
                 <td className="p-2">{r.description || '—'}</td>
                 <td className="p-2">{r.class_name}</td>
-                <td className="p-2">
-                  {new Date(r.date).toLocaleDateString('pt-PT')}
-                </td>
+                <td className="p-2">{new Date(r.date).toLocaleDateString('en-GB')}</td>
               </tr>
             ))}
           </tbody>

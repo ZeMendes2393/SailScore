@@ -42,9 +42,31 @@ export const setStoredToken = (token: string | null) => {
 
 export const clearStoredAuth = () => setStoredToken(null);
 
+// ---- helpers expiração JWT (curto-circuito do header) ----
+function decodeJwtPayload(token: string) {
+  try {
+    const [, payload] = token.split(".");
+    // atob exige base64 “url-safe” tratado
+    return JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    );
+  } catch {
+    return null;
+  }
+}
+function isExpired(token: string) {
+  const p = decodeJwtPayload(token);
+  if (!p?.exp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return now >= p.exp;
+}
+
 const authHeader = (token?: string): HeadersDict => {
-  const clean = normalizeBearer(token ?? getStoredToken());
-  return clean ? { Authorization: clean } : {};
+  // aceita token explícito OU o que estiver no storage
+  const raw = (token ?? getStoredToken()) || "";
+  const bare = raw.trim().replace(/^bearer\s+/i, "");
+  if (!bare || isExpired(bare)) return {}; // não enviar Authorization se expirado
+  return { Authorization: `Bearer ${bare}` };
 };
 
 const jsonHeaders = (token?: string): HeadersDict => ({
@@ -56,18 +78,38 @@ const jsonHeaders = (token?: string): HeadersDict => ({
 // ------------------------------
 // Tratamento de erros/401
 // ------------------------------
+
+// 👇 evita múltiplos redirects em cascata
+let handling401 = false;
+
 function handleUnauthorized() {
-  if (typeof window !== "undefined") {
-    clearStoredAuth();
-    localStorage.removeItem("user");
-    const after = window.location.pathname + window.location.search;
-    sessionStorage.setItem("postLoginRedirect", after);
-    const isAdmin = window.location.pathname.startsWith("/admin");
-    window.location.href = isAdmin
-      ? "/admin/login?reason=expired"
-      : "/login?reason=expired";
+  if (typeof window === "undefined") return;
+  if (handling401) return;
+  handling401 = true;
+
+  // 👇 não redirecionar se estamos numa página pública
+  const path = window.location.pathname;
+  const isPublicPage =
+    /^\/regattas\/\d+\/?/i.test(path) &&
+    (path.includes("notice") || path.includes("public"));
+
+  clearStoredAuth();
+  localStorage.removeItem("user");
+
+  if (isPublicPage) {
+    handling401 = false; // desbloqueia para futuros 401
+    return;              // não redireciona em páginas públicas
   }
+
+  // redireciono só para páginas privadas (dashboard/admin)
+  const after = path + window.location.search;
+  sessionStorage.setItem("postLoginRedirect", after);
+
+  const isAdmin = path.startsWith("/admin");
+  const url = isAdmin ? "/admin/login?reason=expired" : "/login?reason=expired";
+  window.location.replace(url);
 }
+
 
 async function parseError(res: Response): Promise<Error> {
   const ct = res.headers.get("content-type") || "";
@@ -78,22 +120,36 @@ async function parseError(res: Response): Promise<Error> {
         const msg = j.detail
           .map((d: any) => d?.msg || d?.detail || JSON.stringify(d))
           .join("; ");
-        return new Error(msg);
+        const err = new Error(msg);
+        (err as any).status = res.status;
+        return err;
       }
       const msg = j?.detail || j?.message || JSON.stringify(j);
-      return new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const err = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      (err as any).status = res.status;
+      return err;
     }
     const t = await res.text();
-    return new Error(t || `HTTP ${res.status}`);
+    const err = new Error(t || `HTTP ${res.status}`);
+    (err as any).status = res.status;
+    return err;
   } catch {
-    return new Error(`HTTP ${res.status}`);
+    const err = new Error(`HTTP ${res.status}`);
+    (err as any).status = res.status;
+    return err;
   }
 }
 
 async function ensureOk(res: Response) {
   if (res.ok) return;
-  if (res.status === 401) handleUnauthorized();
-  throw await parseError(res);
+  if (res.status === 401) {
+    handleUnauthorized();
+    const e: any = new Error("Unauthorized");
+    e.status = 401;
+    throw e;
+  }
+  const err = await parseError(res);
+  throw err;
 }
 
 // ------------------------------
@@ -101,7 +157,7 @@ async function ensureOk(res: Response) {
 // ------------------------------
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(buildUrl(path), init);
-  if (!res.ok) throw await parseError(res);
+  await ensureOk(res);
   const ct = res.headers.get("content-type") || "";
   if (!ct.includes("application/json")) {
     return undefined as unknown as T;
@@ -114,7 +170,7 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
     method: "GET",
     headers: { Accept: "application/json", ...authHeader(token) },
     cache: "no-store",
-    credentials: "include",
+    // credentials: "include", // ❌ só usar se precisares MESMO de cookies de sessão
   });
   await ensureOk(res);
   return res.json() as Promise<T>;
@@ -130,7 +186,7 @@ export async function apiSend<T>(
     method,
     headers: method === "DELETE" ? { ...authHeader(token) } : jsonHeaders(token),
     body: method === "DELETE" ? undefined : JSON.stringify(body ?? {}),
-    credentials: "include",
+    // credentials: "include", // ❌ evita por defeito
   });
   await ensureOk(res);
   if (res.status === 204) return undefined as unknown as T;
@@ -150,7 +206,7 @@ export async function apiUpload<T>(
     method: "POST",
     headers: { ...authHeader(token) }, // NÃO definir Content-Type manualmente
     body: formData,
-    credentials: "include",
+    // credentials: "include", // ❌ só se for preciso cookies
   });
   await ensureOk(res);
   return (await res.json()) as T;
@@ -251,8 +307,8 @@ export interface ProtestListItem {
   updated_at: string;
 }
 export interface ProtestsListResponse {
-  items: ProtestListItem[];
-  page_info: { has_more: boolean; next_cursor?: number | null };
+  items: ProtestListItem[],
+  page_info: { has_more: boolean; next_cursor?: number | null }
 }
 
 // em @/lib/api (onde tens os tipos)
@@ -297,25 +353,77 @@ export interface ScoringCreate {
   initiator_entry_id: number;
   race_id?: number | null;
   race_number?: string | null;
-  class_name?: string | null;
-  sail_number?: string | null;
-  reason?: string | null;
+  class_name?: string | null;      // auto-filled, read-only in UI
+  sail_number?: string | null;     // auto-filled, read-only in UI
   requested_change?: string | null;
+  requested_score?: number | null;
+  boat_ahead?: string | null;
+  boat_behind?: string | null;
 }
 
-export interface ScoringRead {
+export interface ScoringRead extends ScoringCreate {
   id: number;
   regatta_id: number;
-  initiator_entry_id?: number | null;
-  race_id?: number | null;
-  race_number?: string | null;
-  class_name?: string | null;
-  sail_number?: string | null;
-  reason?: string | null;
-  requested_change?: string | null;
   status: ScoringStatus;
   admin_note?: string | null;
   decision_pdf_path?: string | null;
   created_at: string;
   updated_at: string;
+  response?: string | null;   // 👈 NOVO
+}
+
+export type RequestRead = {
+  id: number;
+  regatta_id: number;
+  request_no: number;
+  initiator_entry_id: number | null;
+  class_name?: string | null;
+  sail_number?: string | null;
+  sailor_name?: string | null;
+  request_text: string;
+  status: 'submitted' | 'under_review' | 'closed';
+  admin_response?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// --------- Questions API ---------
+export async function apiListQuestions(
+  regattaId: number,
+  params?: Record<string, string | number | boolean | undefined>
+) {
+  const s = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) s.set(k, String(v));
+  });
+  return apiGet(`/regattas/${regattaId}/questions${s.toString() ? `?${s.toString()}` : ""}`);
+}
+
+export async function apiCreateQuestion(
+  regattaId: number,
+  data: {
+    class_name: string;
+    sail_number: string;
+    sailor_name: string;
+    subject: string;
+    body: string;
+    visibility?: "public" | "private";
+  }
+) {
+  // deixa passar visibility (o BE já força public por segurança)
+  return apiPost(`/regattas/${regattaId}/questions`, data);
+}
+
+export async function apiUpdateQuestion(
+  regattaId: number,
+  id: number,
+  data: Partial<{
+    subject: string;
+    body: string;
+    visibility: "public" | "private";
+    status: "open" | "answered" | "closed";
+    answer_text: string | null;
+  }>
+) {
+  return apiPatch(`/regattas/${regattaId}/questions/${id}`, data);
 }

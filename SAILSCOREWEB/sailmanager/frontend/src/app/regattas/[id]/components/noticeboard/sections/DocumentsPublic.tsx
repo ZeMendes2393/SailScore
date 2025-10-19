@@ -7,7 +7,7 @@ import NoticeTable from '../components/NoticeTable';
 import PdfModal from '../components/PdfModal';
 
 export default function Documents({ regattaId }: { regattaId: number }) {
-  const { data, loading, error, refresh } = useNotices(regattaId);
+  const { data, loading, error } = useNotices(regattaId);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Notice | null>(null);
 
@@ -15,15 +15,9 @@ export default function Documents({ regattaId }: { regattaId: number }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Documents</h3>
-        <button
-          onClick={refresh}
-          className="text-sm px-3 py-1 border rounded hover:bg-gray-50"
-        >
-          Atualizar
-        </button>
       </div>
 
-      {loading && <div className="text-gray-500">A carregar…</div>}
+      {loading && <div className="text-gray-500">Loading…</div>}
       {error && <div className="text-red-600">{String(error)}</div>}
 
       <NoticeTable

@@ -19,7 +19,7 @@ type RegattaStatusResponse = {
     scoreReview: boolean;
     requests: boolean;
     protest: boolean;
-    // se mais tarde adicionares no BE:
+    questions: boolean;
     // scoringEnquiry?: boolean;
   };
   regatta?: { id: number; name: string };
@@ -27,11 +27,11 @@ type RegattaStatusResponse = {
 
 function StatusBadge({ status }: { status?: string }) {
   const map: Record<string, { label: string; classes: string }> = {
-    upcoming: { label: 'por começar', classes: 'bg-amber-100 text-amber-800' },
-    active:   { label: 'a decorrer',  classes: 'bg-emerald-100 text-emerald-800' },
-    finished: { label: 'terminada',   classes: 'bg-gray-200 text-gray-800' },
+    upcoming: { label: 'upcoming', classes: 'bg-amber-100 text-amber-800' },
+    active:   { label: 'active',   classes: 'bg-emerald-100 text-emerald-800' },
+    finished: { label: 'finished', classes: 'bg-gray-200 text-gray-800' },
   };
-  const s = (status && map[status]) || { label: 'desconhecido', classes: 'bg-gray-100 text-gray-700' };
+  const s = (status && map[status]) || { label: 'unknown', classes: 'bg-gray-100 text-gray-700' };
   return (
     <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${s.classes}`}>
       {s.label}
@@ -44,21 +44,13 @@ export default function DashboardPage() {
   const params = useParams();
   const search = useSearchParams();
 
-  // tenta extrair id do path (/regattas/[id]/dashboard)
   const idFromPath = Number((params as any)?.id);
-  // tenta extrair da query (?regattaId=)
   const idFromQS = Number(search.get('regattaId') || '');
 
   const regattaId = useMemo(() => {
-    // sailor: o token já trás a regata certa
-    if (user?.role === 'regatista' && user?.current_regatta_id) {
-      return user.current_regatta_id;
-    }
-    // admin (ou outros): aceita rota /regattas/[id]/dashboard
+    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
     if (Number.isFinite(idFromPath)) return idFromPath;
-    // ou aceita ?regattaId=
     if (Number.isFinite(idFromQS)) return idFromQS;
-    // fallback dev
     return Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
   }, [user?.role, user?.current_regatta_id, idFromPath, idFromQS]);
 
@@ -68,7 +60,7 @@ export default function DashboardPage() {
   return (
     <RequireAuth roles={['regatista', 'admin']}>
       <div className="space-y-6">
-        {/* Cabeçalho */}
+        {/* Header */}
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Sailor Dashboard</h1>
@@ -85,7 +77,7 @@ export default function DashboardPage() {
             }
             className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
           >
-            Terminar sessão
+            Sign out
           </button>
         </header>
 
@@ -94,14 +86,15 @@ export default function DashboardPage() {
           <div className="rounded-lg border bg-white p-4 text-sm text-gray-700">
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <div>
-                <span className="font-medium">Regata:</span>{' '}
+                <span className="font-medium">Regatta:</span>{' '}
                 <span>{status?.regatta?.name ?? `#${regattaId}`}</span>
               </div>
               <div className="text-gray-600">
-                <span className="font-medium">Janelas:</span>{' '}
-                Rule42 {status?.windows?.rule42 ? '✔' : '✖'} ·{' '}
+                <span className="font-medium">Windows:</span>{' '}
+                Rule 42 {status?.windows?.rule42 ? '✔' : '✖'} ·{' '}
                 Score Review {status?.windows?.scoreReview ? '✔' : '✖'} ·{' '}
                 Requests {status?.windows?.requests ? '✔' : '✖'} ·{' '}
+                Questions {status?.windows?.questions ? '✔' : '✖'} ·{' '}
                 Protest {status?.windows?.protest ? '✔' : '✖'}
               </div>
             </div>
@@ -112,63 +105,75 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <FeatureCard
             title="Entry data"
-            description="Revê os dados da tua inscrição e descarrega recibos."
+            description="Review your entry details and download receipts."
             href={`/dashboard/entry-data?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.entryData)}
-            cta="Ir para Entry Data"
+            cta="Go to Entry Data"
           />
           <FeatureCard
             title="Documents"
-            description="Documentos e comprovativos associados à tua inscrição."
+            description="Documents and proofs associated with your entry."
             href={`/dashboard/documents?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.documents)}
-            cta="Ir para Documents"
+            cta="Go to Documents"
           />
 
           <FeatureCard
             title="Rule 42"
-            description="Consulta penalizações por infrações na água (Regra 42)."
+            description="Check on-the-water penalties (Rule 42)."
             href={`/dashboard/rule42?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.rule42)}
-            cta="Ir para Rule 42"
+            cta="Go to Rule 42"
           />
 
-          {/* NOVO — Scoring Enquiries */}
+          {/* Scoring Enquiries (optional) */}
           <FeatureCard
             title="Scoring Enquiries"
-            description="Submete e acompanha questões de pontuação ao Race Committee."
-            href={`/dashboard/scoring?regattaId=${regattaId}`}   // ← trocar para /dashboard/scoring
+            description="Submit and track scoring questions to the Race Committee."
+            href={`/dashboard/scoring?regattaId=${regattaId}`}
             enabled={Boolean((status as any)?.windows?.scoringEnquiry ?? status?.windows?.scoreReview)}
-            cta="Ir para Scoring Enquiries"
+            cta="Go to Scoring Enquiries"
           />
-
 
           <FeatureCard
             title="Score Review"
-            description="Submete pedidos de revisão de pontuação e acompanha decisões."
+            description="Submit score review requests and follow decisions."
             href={`/dashboard/score-review?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.scoreReview)}
-            cta="Ir para Score Review"
+            cta="Go to Score Review"
           />
+
+          <FeatureCard
+            title="Questions"
+            description="Ask questions to the organization and see answers."
+            href={`/dashboard/questions?regattaId=${regattaId}`}
+            // Fallback: if windows.questions is undefined, use windows.requests; otherwise default TRUE
+            enabled={
+              (status?.windows?.questions ??
+               status?.windows?.requests ??
+               true) as boolean
+            }
+            cta="Go to Questions"
+          />
+
           <FeatureCard
             title="Requests"
-            description="Envia pedidos/perguntas ao Race Committee e acompanha respostas."
+            description="Send requests to the Race Committee and track responses."
             href={`/dashboard/requests?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.requests)}
-            cta="Ir para Requests"
+            cta="Go to Requests"
           />
+
           <FeatureCard
             title="Protests"
-            description="Submete e acompanha protestos (protestor, protestee ou testemunha)."
+            description="Submit and track protests (protestor, protestee, or witness)."
             href={`/dashboard/protests?regattaId=${regattaId}`}
             enabled={Boolean(status?.windows?.protest)}
-            cta="Ir para Protest"
+            cta="Go to Protests"
           />
         </div>
 
-        {loading && (
-          <div className="text-sm text-gray-500">A carregar estado da regata…</div>
-        )}
+        {loading && <div className="text-sm text-gray-500">Loading regatta status…</div>}
       </div>
     </RequireAuth>
   );

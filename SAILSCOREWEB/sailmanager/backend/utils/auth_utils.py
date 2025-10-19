@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status  # 👈 Header adicionado
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -46,7 +46,23 @@ def get_db():
     finally:
         db.close()
 
-# ---------------- Current user ----------------
+# ---------------- Helpers ----------------
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """
+    Extrai o token Bearer de um header Authorization.
+    Se não existir/for inválido, devolve None.
+    """
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1]
+    return None
+
+def _decode_token(token: str) -> dict:
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+# ---------------- Current user (obrigatório) ----------------
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
@@ -57,7 +73,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = _decode_token(token)
         email: str | None = payload.get("sub")
         if not email:
             raise credentials_exception
@@ -69,26 +85,55 @@ def get_current_user(
         raise credentials_exception
     return user
 
+# ---------------- Current user (opcional / público) ----------------
+def get_current_user_optional(
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+) -> Optional[models.User]:
+    """
+    Versão tolerante: se não houver Authorization ou o token for inválido,
+    devolve None (utilizador anónimo). Não lança 401.
+    """
+    token = _extract_bearer_token(authorization)
+    if not token:
+        return None
+    try:
+        payload = _decode_token(token)
+        email: Optional[str] = payload.get("sub")
+        if not email:
+            return None
+        user = db.query(models.User).filter(models.User.email == email).first()
+        return user
+    except Exception:
+        return None
+
 # ---------------- Regatta id (estrito vs opcional) ----------------
-def get_current_regatta_id(token: str = Depends(oauth2_scheme)) -> Optional[int]:
+def get_current_regatta_id(
+    token: str = Depends(oauth2_scheme),
+) -> Optional[int]:
     """
     Lê 'regatta_id' do token. Pode ser None (ex.: admin).
     Lança 401 se o token for inválido.
     """
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = _decode_token(token)
         rid = payload.get("regatta_id", None)
         return int(rid) if rid is not None else None
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
-def get_current_regatta_id_optional(token: str = Depends(oauth2_scheme)) -> Optional[int]:
+def get_current_regatta_id_optional(
+    authorization: Optional[str] = Header(default=None),
+) -> Optional[int]:
     """
-    Versão TOLERANTE: nunca levanta 422/401 por causa do regatta_id.
+    Versão TOLERANTE: nunca levanta 401/422 por falta de token.
     Se o token for inválido ou não tiver 'regatta_id', devolve None.
     """
+    token = _extract_bearer_token(authorization)
+    if not token:
+        return None
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = _decode_token(token)
         rid = payload.get("regatta_id", None)
         return int(rid) if rid is not None else None
     except Exception:

@@ -1,19 +1,18 @@
-# app/models.py
+# app/models.py — imports
 from datetime import datetime, timedelta
-from enum import Enum
-from sqlalchemy.sql import func
+from enum import Enum  # Enum do Python (para declarar membros)
+
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Date, ForeignKey, Boolean, Float,
-    UniqueConstraint, Index, JSON, Text, Table, Enum as SAEnum, Time
+    Column, Integer, String, DateTime, Date, Time, ForeignKey, Boolean, Float,
+    UniqueConstraint, Index, JSON, Text, Table,  # <-- adiciona Table aqui
+    Enum as SAEnum,                              # <-- Enum do SQLAlchemy
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from sqlalchemy import BigInteger  # <-- adiciona
 
 from app.database import Base
 
-
-
-
-# =========================
 #        USERS
 # =========================
 class User(Base):
@@ -52,6 +51,7 @@ class Regatta(Base):
     notice_board_url = Column(String, nullable=True)
     entry_list_url = Column(String, nullable=True)
     online_entry_url = Column(String, nullable=True)
+    online_entry_open = Column(Boolean, nullable=False, server_default="1")  # default True
 
     # Regras de descarte
     discard_count = Column(Integer, nullable=False, default=0)
@@ -510,19 +510,22 @@ class ScoringEnquiry(Base):
     class_name = Column(String, nullable=True, index=True)
     sail_number = Column(String, nullable=True, index=True)
 
-    # conteúdo
-    reason = Column(String, nullable=True)
+    # conteúdo (atualizado)
     requested_change = Column(String, nullable=True)
+    requested_score  = Column(Float, nullable=True)
+    boat_ahead       = Column(String, nullable=True)
+    boat_behind      = Column(String, nullable=True)
 
     # estado & meta
     status = Column(String, default="submitted", nullable=False, index=True)  # submitted|under_review|answered|closed|invalid
     admin_note = Column(String, nullable=True)
     decision_pdf_path = Column(String, nullable=True)
+    response = Column(String, nullable=True)  # ou Text se preferires
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # relations (opcional usar backrefs)
+    # relations
     regatta = relationship("Regatta")
     initiator_entry = relationship("Entry")
     race = relationship("Race")
@@ -530,4 +533,132 @@ class ScoringEnquiry(Base):
     __table_args__ = (
         Index("ix_scoring_regatta_status", "regatta_id", "status"),
     )
+
+
+
+
+# =========================
+# REGATTA COUNTERS (sequências por regata)
+# =========================
+class RegattaCounter(Base):
+    __tablename__ = "regatta_counters"
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), primary_key=True)
+    request_seq = Column(Integer, default=0, nullable=False)
+
+# =========================
+# REQUESTS
+# =========================
+class Request(Base):
+    __tablename__ = "requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True, nullable=False)
+    initiator_entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # snapshot do sailor
+    class_name = Column(String, nullable=True, index=True)
+    sail_number = Column(String, nullable=True, index=True)
+    sailor_name = Column(String, nullable=True)  # "First Last"
+
+    # conteúdo
+    request_text = Column(String, nullable=False)
+
+    # fluxo
+    status = Column(String, default="submitted", index=True)  # submitted | under_review | closed
+    admin_response = Column(String, nullable=True)
+
+    # numeração por regata
+    request_no = Column(Integer, nullable=False, index=True)  # 1,2,3… por regatta_id
+
+    # timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    regatta = relationship("Regatta")
+    initiator_entry = relationship("Entry")
+
+
+# --- Questions (Enums + Modelo) ---
+
+class QuestionStatus(str, Enum):
+    open = "open"
+    answered = "answered"
+    closed = "closed"
+
+class QuestionVisibility(str, Enum):
+    public = "public"
+    private = "private"
+
+
+
+
+
+class Question(Base):
+    __tablename__ = "questions"
+
+    id = Column(Integer, primary_key=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False)
+
+    # numeração sequencial por regata
+    seq_no = Column(Integer, nullable=False)  # Q#
+
+    class_name = Column(String(80), nullable=False)
+    sail_number = Column(String(40), nullable=False)
+    sailor_name = Column(String(160), nullable=False)
+
+    subject = Column(String(160), nullable=False)
+    body = Column(Text, nullable=False)
+
+    # usar SAEnum explicitamente para não colidir com enum.Enum do Python
+    status = Column(
+        SAEnum(QuestionStatus, name="questionstatus"),
+        nullable=False,
+        default=QuestionStatus.open,
+    )
+    visibility = Column(
+        SAEnum(QuestionVisibility, name="questionvisibility"),
+        nullable=False,
+        default=QuestionVisibility.private,
+    )
+
+    answer_text = Column(Text, nullable=True)
+    answered_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    answered_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "seq_no", name="uq_questions_regatta_seq"),
+        Index("ix_questions_regatta_status", "regatta_id", "status"),
+        Index("ix_questions_regatta_visibility", "regatta_id", "visibility"),
+    )
+
+
+
+class EntryAttachment(Base):
+    __tablename__ = "entry_attachments"
+    id = Column(Integer, primary_key=True, index=True)
+    entry_id = Column(Integer, ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # metadados
+    title = Column(String(255), nullable=False)
+    content_type = Column(String(100), nullable=False, default="application/pdf")
+    size_bytes = Column(BigInteger, nullable=False, default=0)
+    visible_to_sailor = Column(Boolean, nullable=False, default=True)
+
+    # ficheiros (local storage)
+    original_filename = Column(String(255), nullable=False)
+    storage_path = Column(String(512), nullable=False)  # caminho do disco (ex.: "uploads/entry_attachments/123/uuid.pdf")
+    public_path = Column(String(512), nullable=False)    # caminho público (ex.: "/uploads/entry_attachments/123/uuid.pdf")
+
+    uploaded_by_id = Column(Integer, nullable=True)
+    uploaded_by_name = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+
+    entry = relationship("Entry", backref="attachments")
+
 

@@ -1,12 +1,22 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import Documents from "./sections/Documents";
 import Rule42 from "./sections/Rule42";
 import HearingsDecisions from "./sections/HearingsDecisions";
-import ProtestTimeLimit from "./sections/ProtestTimeLimit"; // 👈 NOVO
+import ProtestTimeLimit from "./sections/ProtestTimeLimit";
+import ScoringEnquiries from "./sections/ScoringEnquiries";
+import Requests from "./sections/Requests";
+import Questions from "./sections/Questions"; // ⬅️ NEW
 
-type Section = "documents" | "rule42" | "protest-decisions" | "protest-time-limit";
+type Section =
+  | "documents"
+  | "rule42"
+  | "protest-decisions"
+  | "protest-time-limit"
+  | "scoring"
+  | "requests"
+  | "questions"; // ⬅️ NEW
 
 export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
   const [section, setSection] = useState<Section>("documents");
@@ -37,7 +47,10 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
         <Tab value="protest-decisions" label="Protest Decisions" />
-        <Tab value="protest-time-limit" label="Protest Time Limit" /> {/* 👈 NOVO */}
+        <Tab value="protest-time-limit" label="Protest Time Limit" />
+        <Tab value="scoring" label="Scoring Enquiries" />
+        <Tab value="requests" label="Requests" />
+        <Tab value="questions" label="Questions" /> {/* ⬅️ NEW */}
       </div>
 
       {/* Section content */}
@@ -45,7 +58,10 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
         {section === "documents" && <Documents regattaId={regattaId} />}
         {section === "rule42" && <Rule42 regattaId={regattaId} />}
         {section === "protest-decisions" && <HearingsDecisions regattaId={regattaId} />}
-        {section === "protest-time-limit" && <ProtestTimeLimit regattaId={regattaId} />} {/* 👈 NOVO */}
+        {section === "protest-time-limit" && <ProtestTimeLimit regattaId={regattaId} />}
+        {section === "scoring" && <ScoringEnquiries regattaId={regattaId} />}
+        {section === "requests" && <Requests regattaId={regattaId} />}
+        {section === "questions" && <Questions regattaId={regattaId} />} {/* ⬅️ NEW */}
       </div>
     </div>
   );

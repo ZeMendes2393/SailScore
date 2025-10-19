@@ -147,11 +147,21 @@ Acesso:
     background.add_task(send_email, to_email, subject, html, text, from_name=CLUB_NAME, reply_to=REPLY_TO)
 
 # ---------------- endpoints ----------------
-@router.post("", status_code=status.HTTP_201_CREATED)   # <— sem barra
-@router.post("/", status_code=status.HTTP_201_CREATED)  # <— com barra
+# app/routes/entries.py
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
     try:
+        # === NOVO: bloquear se a regata tiver inscrições fechadas ===
+        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+        if not regatta:
+            raise HTTPException(status_code=404, detail="Regatta not found")
+        if regatta.online_entry_open is False:
+            raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
+
         user = _ensure_sailor_user_and_profile(db, entry)
+
         new_entry = models.Entry(
             class_name=entry.class_name,
             boat_country=entry.boat_country,
@@ -179,7 +189,6 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         db.add(new_entry); db.commit(); db.refresh(new_entry)
 
         athlete_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or entry.email
-        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
         regatta_name = regatta.name if regatta else "Regata"
         temp_pwd = getattr(user, "_plaintext_password", None)
 
@@ -192,8 +201,9 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             user_phone=entry.contact_phone_1 or "",
             temp_password=temp_pwd,
         )
-        # manténs o formato que o teu FE parece esperar
         return {"message": "Inscrição criada com sucesso", "id": new_entry.id, "user_id": user.id}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         print("\n[ERROR] create_entry falhou:", e); print_exc()

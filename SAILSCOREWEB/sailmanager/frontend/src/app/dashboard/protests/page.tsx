@@ -41,7 +41,7 @@ export default function ProtestsPage() {
   const router = useRouter();
   const { user, token } = useAuth();
 
-  // regata: sailor usa a do token; admin aceita ?regattaId=; senão fallback .env
+  // regatta: sailor usa a do token; admin aceita ?regattaId=; senão fallback .env
   const regattaId = useMemo(() => {
     if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
     const fromQS = Number(searchParams.get('regattaId') || '');
@@ -50,12 +50,11 @@ export default function ProtestsPage() {
   }, [user?.role, user?.current_regatta_id, searchParams]);
 
   const [tab, setTab] = useState<ProtestScope>('all');
-  const [query, setQuery] = useState('');
 
-  // ✅ memoiza params para não recriar objeto (evita refetches)
+  // ✅ sem pesquisa
   const protestParams = useMemo(
-    () => ({ scope: tab, search: query, limit: 20 }),
-    [tab, query]
+    () => ({ scope: tab, limit: 20 }),
+    [tab]
   );
 
   // passa token explicitamente ao hook
@@ -69,7 +68,7 @@ export default function ProtestsPage() {
   if (!regattaId || !token) {
     return (
       <div className="max-w-6xl mx-auto p-4 text-sm text-gray-600">
-        A inicializar protestos…
+        Initializing protests…
       </div>
     );
   }
@@ -87,10 +86,10 @@ export default function ProtestsPage() {
               : 'bg-gray-300 text-gray-600 cursor-not-allowed'
           }`}
           title={
-            windows.protest ? 'Criar novo protesto' : 'Fora da janela para apresentar protestos'
+            windows.protest ? 'Create new protest' : 'Outside the filing window for protests'
           }
         >
-          Novo Protesto
+          New Protest
         </button>
       </div>
 
@@ -103,18 +102,9 @@ export default function ProtestsPage() {
             }`}
             onClick={() => setTab(s)}
           >
-            {s === 'all' ? 'Todos' : s === 'made' ? 'Feitos por mim' : 'Contra mim'}
+            {s === 'all' ? 'All' : s === 'made' ? 'Made by me' : 'Against me'}
           </button>
         ))}
-      </div>
-
-      <div className="mb-4">
-        <input
-          placeholder="Procurar por sail no., boat, nº de regata…"
-          className="w-full border rounded px-3 py-2"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
       </div>
 
       <div className="overflow-x-auto bg-white rounded border">
@@ -122,12 +112,12 @@ export default function ProtestsPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left py-2 px-3">#</th>
-              <th className="text-left py-2 px-3">Tipo</th>
+              <th className="text-left py-2 px-3">Type</th>
               <th className="text-left py-2 px-3">Race</th>
-              <th className="text-left py-2 px-3">Data</th>
-              <th className="text-left py-2 px-3">Iniciador</th>
-              <th className="text-left py-2 px-3">Respondente(s)</th>
-              <th className="text-left py-2 px-3">Estado</th>
+              <th className="text-left py-2 px-3">Date</th>
+              <th className="text-left py-2 px-3">Initiator</th>
+              <th className="text-left py-2 px-3">Respondent(s)</th>
+              <th className="text-left py-2 px-3">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -139,19 +129,21 @@ export default function ProtestsPage() {
 
         {!loading && items.length === 0 && (
           <div className="p-6 text-center text-gray-600">
-            Ainda não existem protestos relacionados contigo nesta regata.
+            There are no protests related to you in this regatta yet.
           </div>
         )}
       </div>
 
       <div className="flex items-center gap-3 mt-3">
-        <button
-          onClick={loadMore}
-          disabled={!hasMore || loading}
-          className="px-4 py-2 rounded border"
-        >
-          {loading ? 'A carregar…' : hasMore ? 'Carregar mais' : 'Sem mais resultados'}
-        </button>
+        {hasMore && (
+          <button
+            onClick={loadMore}
+            disabled={loading}
+            className="px-4 py-2 rounded border"
+          >
+            {loading ? 'Loading…' : 'Load more'}
+          </button>
+        )}
         {error && <div className="text-red-600">{error}</div>}
       </div>
     </div>

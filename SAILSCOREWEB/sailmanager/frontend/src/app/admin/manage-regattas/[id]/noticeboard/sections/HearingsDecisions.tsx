@@ -12,17 +12,14 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // filtros
+  // filters
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
 
-  // criação rápida a partir de um protest_id
-  const [protestId, setProtestId] = useState("");
-
-  // edição inline
+  // inline edit
   const [editingId, setEditingId] = useState<number | null>(null);
   const [patch, setPatch] = useState<Partial<HearingItem>>({});
 
-  // LIST PATH — envia "open"/"closed" em minúsculas
+  // LIST PATH — sends "open"/"closed" in lowercase
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
     if (statusFilter !== "all") p.set("status_q", statusFilter);
@@ -37,7 +34,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
       setRows(Array.isArray(data?.items) ? data.items : []);
     } catch (e: any) {
       setRows([]);
-      setError(e?.message || "Erro a carregar hearings.");
+      setError(e?.message || "Failed to load hearings.");
     } finally {
       setLoading(false);
     }
@@ -48,39 +45,45 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  async function createFromProtest() {
-    const pid = Number(protestId);
-    if (!Number.isFinite(pid) || pid <= 0) {
-      alert("Indica um protest_id válido.");
-      return;
-    }
-    try {
-      await apiPost(`/hearings/for-protest/${pid}`, {}); // 201
-      setProtestId("");
-      fetchRows();
-    } catch (e: any) {
-      alert(e?.message || "Falha a criar hearing.");
-    }
+  function cleanPatch(p: Partial<HearingItem>): Record<string, unknown> {
+    // remove undefined and empty strings (evita 422/failed to fetch)
+    const out: Record<string, unknown> = {};
+    Object.entries(p).forEach(([k, v]) => {
+      if (v === undefined) return;
+      if (typeof v === "string" && v.trim() === "") return;
+      out[k] = v;
+    });
+    return out;
   }
 
   async function saveEdit(id: number) {
     try {
-      await apiPatch(`/hearings/${id}`, patch);
+      const body = cleanPatch(patch);
+      await apiPatch(`/hearings/${id}`, body);
       setEditingId(null);
       setPatch({});
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Falha ao guardar.");
+      alert(e?.message || "Failed to save.");
     }
   }
 
   async function remove(id: number) {
-    if (!confirm("Apagar este hearing?")) return;
+    if (!confirm("Delete this hearing?")) return;
     try {
       await apiDelete(`/hearings/${id}`);
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Falha ao apagar.");
+      alert(e?.message || "Failed to delete.");
+    }
+  }
+
+  async function regeneratePdf(id: number) {
+    try {
+      await apiPost(`/hearings/${id}/decision/pdf`, {}); // BE sobrescreve o mesmo ficheiro
+      await fetchRows(); // refresh para apanhar decision_pdf_url/decision_at
+    } catch (e: any) {
+      alert(e?.message || "Failed to generate PDF");
     }
   }
 
@@ -99,26 +102,12 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
             <option value="closed">Closed</option>
           </select>
           <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={fetchRows}>
-            Atualizar
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* Criar a partir de protest_id */}
-      <div className="flex flex-wrap items-end gap-2 bg-white border rounded p-3">
-        <div>
-          <label className="block text-sm mb-1">Protest ID</label>
-          <input
-            className="border rounded px-2 py-1 w-32"
-            placeholder="ex.: 45"
-            value={protestId}
-            onChange={(e) => setProtestId(e.target.value)}
-          />
-        </div>
-        <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={createFromProtest}>
-          Criar Hearing
-        </button>
-      </div>
+      {/* 🔥 Removed the "Create Hearing" block from admin UI */}
 
       <div className="overflow-x-auto rounded border bg-white">
         <table className="min-w-full text-sm">
@@ -134,21 +123,21 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
               <th className="p-2">Status</th>
               <th className="p-2">Decision</th>
               <th className="p-2">Documents</th>
-              <th className="p-2 text-right">Ações</th>
+              <th className="p-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
                 <td className="p-3" colSpan={11}>
-                  A carregar…
+                  Loading…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={11}>
-                  Sem hearings.
+                  No hearings.
                 </td>
               </tr>
             )}
@@ -230,7 +219,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                     )}
                   </td>
 
-                  {/* DOCUMENTS: Submitted + Decision (Fill/Edit para a página curta) */}
+                  {/* DOCUMENTS */}
                   <td className="p-2">
                     <div className="flex flex-wrap gap-3 items-center">
                       {r.submitted_pdf_url ? (
@@ -239,7 +228,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline"
-                          title="PDF submetido (snapshot do protesto)"
+                          title="Submitted protest snapshot (PDF)"
                         >
                           Submitted PDF
                         </a>
@@ -250,11 +239,11 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                       {r.decision_pdf_url ? (
                         <>
                           <a
-                            href={r.decision_pdf_url}
+                            href={`${r.decision_pdf_url}?v=${Date.now()}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline"
-                            title="PDF da decisão"
+                            title="Decision PDF"
                           >
                             Decision PDF
                           </a>
@@ -265,23 +254,39 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                                 `/admin/manage-regattas/${regattaId}/decision/${r.protest_id}`
                               )
                             }
-                            title="Editar decisão"
+                            title="Open decision editor"
                           >
-                            Edit
+                            Open decision
+                          </button>
+                          <button
+                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
+                            onClick={() => regeneratePdf(r.id)}
+                            title="Regenerate decision PDF"
+                          >
+                            Regenerate PDF
                           </button>
                         </>
                       ) : (
-                        <button
-                          className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
-                          onClick={() =>
-                            router.push(
-                              `/admin/manage-regattas/${regattaId}/decisions/${r.protest_id}`
-                            )
-                          }
-                          title="Preencher decisão e gerar PDF"
-                        >
-                          Fill decision
-                        </button>
+                        <>
+                          <button
+                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
+                            onClick={() =>
+                              router.push(
+                                `/admin/manage-regattas/${regattaId}/decisions/${r.protest_id}`
+                              )
+                            }
+                            title="Fill decision and generate PDF"
+                          >
+                            Fill decision
+                          </button>
+                          <button
+                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
+                            onClick={() => regeneratePdf(r.id)}
+                            title="Generate decision PDF"
+                          >
+                            Generate PDF
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -296,13 +301,13 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                             setPatch({});
                           }}
                         >
-                          Editar
+                          Edit
                         </button>
                         <button
                           className="text-red-600 hover:underline"
                           onClick={() => remove(r.id)}
                         >
-                          Apagar
+                          Delete
                         </button>
                       </div>
                     ) : (
@@ -311,7 +316,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                           className="text-blue-600 hover:underline"
                           onClick={() => saveEdit(r.id)}
                         >
-                          Guardar
+                          Save
                         </button>
                         <button
                           className="text-gray-600 hover:underline"
@@ -320,7 +325,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                             setPatch({});
                           }}
                         >
-                          Cancelar
+                          Cancel
                         </button>
                       </div>
                     )}

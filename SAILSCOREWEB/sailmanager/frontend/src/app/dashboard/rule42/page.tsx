@@ -18,7 +18,7 @@ function Row({ r }: { r: Rule42ListItem }) {
       <td className="p-2 whitespace-nowrap">{r.comp_action || '—'}</td>
       <td className="p-2">{r.entry?.boat_name || '—'}</td>
       <td className="p-2 whitespace-nowrap">{r.class_name}</td>
-      <td className="p-2 whitespace-nowrap">{new Date(r.date).toLocaleDateString('pt-PT')}</td>
+      <td className="p-2 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-GB')}</td>
     </tr>
   );
 }
@@ -35,14 +35,13 @@ export default function Page() {
     return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
   }, [user?.role, user?.current_regatta_id, searchParams]);
 
-  // Estado local (pesquisa + scope)
-  const [query, setQuery] = useState('');
+  // Estado local (apenas scope)
   const [scope, setScope] = useState<Rule42Scope>(user?.role === 'admin' ? 'all' : 'mine');
 
-  // Hook com paginação (contrato igual ao useProtests)
+  // Hook com paginação (sem search)
   const { items, loading, error, hasMore, loadMore } = useRule42(
     regattaId || null,
-    { scope, search: query, limit: 20 },
+    { scope, limit: 20 },
     token || undefined
   );
 
@@ -50,7 +49,7 @@ export default function Page() {
   if (!regattaId || !token) {
     return (
       <RequireAuth roles={['regatista', 'admin']}>
-        <div className="p-6 text-sm text-gray-600">A inicializar Rule 42…</div>
+        <div className="p-6 text-sm text-gray-600">Initializing Rule 42…</div>
       </RequireAuth>
     );
   }
@@ -63,29 +62,22 @@ export default function Page() {
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3">
-          <input
-            placeholder="Procurar por vela, prova, grupo, penalty…"
-            className="w-full md:w-auto flex-1 border rounded px-3 py-2"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-
-          {/* Selector de scope: só mostra o 'Todos' ao admin */}
+          {/* Scope selector: only show 'All' to admin */}
           <div className="flex gap-2">
             <button
               className={`px-3 py-1 rounded border ${scope === 'mine' ? 'bg-gray-900 text-white' : 'bg-white'}`}
               onClick={() => setScope('mine')}
-              title="Apenas os meus registos"
+              title="Only my records"
             >
-              Meus
+              Mine
             </button>
             {user?.role === 'admin' && (
               <button
                 className={`px-3 py-1 rounded border ${scope === 'all' ? 'bg-gray-900 text-white' : 'bg-white'}`}
                 onClick={() => setScope('all')}
-                title="Todos os registos da regata"
+                title="All regatta records"
               >
-                Todos
+                All
               </button>
             )}
           </div>
@@ -109,13 +101,13 @@ export default function Page() {
             <tbody>
               {loading && items.length === 0 && (
                 <tr>
-                  <td className="p-3" colSpan={9}>A carregar…</td>
+                  <td className="p-3" colSpan={9}>Loading…</td>
                 </tr>
               )}
               {!loading && items.length === 0 && !error && (
                 <tr>
                   <td className="p-6 text-center text-gray-600" colSpan={9}>
-                    Ainda não tens registos Rule 42 nesta regata.
+                    You don’t have any Rule 42 records in this regatta yet.
                   </td>
                 </tr>
               )}
@@ -127,13 +119,15 @@ export default function Page() {
         </div>
 
         <div className="flex items-center gap-3 mt-3">
-          <button
-            onClick={loadMore}
-            disabled={!hasMore || loading}
-            className="px-4 py-2 rounded border"
-          >
-            {loading ? 'A carregar…' : hasMore ? 'Carregar mais' : 'Sem mais resultados'}
-          </button>
+          {hasMore && (
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="px-4 py-2 rounded border"
+            >
+              {loading ? 'Loading…' : 'Load more'}
+            </button>
+          )}
           {error && <div className="text-red-600">{error}</div>}
         </div>
       </div>
