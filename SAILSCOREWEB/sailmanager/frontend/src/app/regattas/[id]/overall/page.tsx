@@ -178,7 +178,7 @@ export default function OverallResultsPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-2xl font-bold">🏆 Classificação Geral</h2>
+        <h2 className="text-2xl font-bold"> Classificação Geral</h2>
         {regatta && (
           <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
             Descartes: <strong>{regatta.discard_count}</strong>

@@ -27,21 +27,18 @@ def create_regatta(
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
-    new_regatta = models.Regatta(**regatta.dict())
+    new_regatta = models.Regatta(**regatta.model_dump())
     db.add(new_regatta)
     db.commit()
     db.refresh(new_regatta)
     return new_regatta
 
-
-# app/routes/regattas.py
 @router.get("/{regatta_id}", response_model=schemas.RegattaRead)
 def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
     r = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Regatta not found")
     return r
-
 
 @router.patch("/{regatta_id}", response_model=schemas.RegattaRead)
 def update_regatta(
@@ -57,7 +54,7 @@ def update_regatta(
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
 
-    for field, value in body.dict(exclude_unset=True).items():
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(reg, field, value)
 
     db.commit()
@@ -77,8 +74,6 @@ def delete_regatta(
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
 
-    # ⚠️ Os teus models têm ondelete="CASCADE" e relationship(cascade="all, delete-orphan")
-    # Portanto apagar a regata apaga entries/races/results/notices/classes associados.
     db.delete(reg)
     db.commit()
     return
@@ -223,7 +218,6 @@ def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Regata não encontrada")
     return _compute_regatta_status(reg)
 
-
 @router.get("/{regatta_id}/classes", response_model=List[str])
 def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
     rows = (
@@ -284,4 +278,9 @@ def replace_regatta_classes(
     db.commit()
 
     # devolver o estado final
-    return db.query(models.RegattaClass).filter_by(regatta_id=regatta_id).order_by(models.RegattaClass.class_name).all()
+    return (
+        db.query(models.RegattaClass)
+          .filter_by(regatta_id=regatta_id)
+          .order_by(models.RegattaClass.class_name)
+          .all()
+    )

@@ -1,137 +1,119 @@
-// src/app/admin/manage-regattas/[id]/results/AdminResultsClient.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-import RaceCreator from './components/RaceCreator';
 import RaceResultsManager from './components/RaceResultsManager';
+import ManageResults from './components/sections/ManageResults';
+import SettingsDrawer from './components/settings/SettingsDrawer';
 
-type Section = 'create' | 'edit' | 'fill';
+type View = 'existing' | 'draft' | 'add' | 'scoring' | 'manage';
 
-interface Props {
-  regattaId: number;
-}
+interface Props { regattaId: number; }
 
 export default function AdminResultsClient({ regattaId }: Props) {
+  const router = useRouter();
+  const search = useSearchParams();
+
   const [newlyCreatedRace, setNewlyCreatedRace] = useState<{
-    id: number;
-    name: string;
-    regatta_id: number;
-    class_name: string;
+    id: number; name: string; regatta_id: number; class_name: string;
   } | null>(null);
 
-  const search = useSearchParams();
-  const router = useRouter();
+  const urlView = (search.get('view') as View) || 'existing';
+  const [activeView, setActiveView] = useState<View>(urlView);
 
-  // Mapeamento view<->section
-  const sectionFromView = (view: string | null): Section => {
-    if (view === 'draft') return 'fill';
-    if (view === 'existing' || view === 'add' || view === 'scoring') return 'edit';
-    return 'edit';
-  };
-
-  const [section, setSection] = useState<Section>(sectionFromView(search.get('view')));
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    setSection(sectionFromView(search.get('view')));
+    setActiveView(((search.get('view') as View) || 'existing'));
   }, [search]);
 
-  const go = (next: Section) => {
-    setSection(next);
+  const setView = (v: View) => {
     const sp = new URLSearchParams(search?.toString() ?? '');
-    if (next === 'fill') {
-      sp.set('view', 'draft');
-    } else if (next === 'edit') {
-      sp.set('view', 'existing');
-    } else if (next === 'create') {
-      sp.delete('view');
-    }
+    sp.set('view', v);
     router.replace(`?${sp.toString()}`);
+    setActiveView(v);
   };
 
-  const NavItem = ({
-    label,
-    active,
-    onClick,
-    badge,
-  }: {
-    label: string;
-    active: boolean;
-    onClick: () => void;
-    badge?: number;
-  }) => (
+  const Tab = ({ value, label }: { value: View; label: string }) => (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={() => setView(value)}
       className={[
-        'w-full text-left px-3 py-2 rounded-lg border transition',
-        active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50',
+        'px-4 py-2 text-sm font-medium rounded-t-lg border-b-2',
+        activeView === value
+          ? 'border-blue-600 text-blue-700'
+          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300',
       ].join(' ')}
-      aria-current={active ? 'page' : undefined}
+      aria-selected={activeView === value}
+      role="tab"
     >
-      <span className="inline-flex items-center gap-2">
-        {label}
-        {typeof badge === 'number' && (
-          <span
-            className={[
-              'text-[10px] px-1 rounded-full',
-              active ? 'bg-white/20' : 'bg-gray-200 text-gray-700',
-            ].join(' ')}
-          >
-            {badge}
-          </span>
-        )}
-      </span>
+      {label}
     </button>
   );
 
-  // Opcionalmente, podes memorizar o link para resultados gerais
-  const overallHref = useMemo(() => `/regattas/${regattaId}/overall`, [regattaId]);
+  const overallHref = useMemo(
+    () => `/admin/manage-regattas/${regattaId}/overall`,
+    [regattaId]
+  );
 
   return (
-    <div className="w-full px-6 py-4">
-      <div className="grid grid-cols-12 gap-4">
-        {/* SIDEBAR ESQUERDA */}
-        <aside className="col-span-12 md:col-span-4 xl:col-span-3">
-          <div className="sticky top-24 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-600">Ações</h3>
-
-            <NavItem label="Criar regata" active={section === 'create'} onClick={() => go('create')} />
-            <NavItem label="Editar resultados" active={section === 'edit'} onClick={() => go('edit')} />
-            <NavItem label="Preencher resultados" active={section === 'fill'} onClick={() => go('fill')} />
-
-            <div className="pt-2">
-              <Link
-                href={overallHref}
-                className="inline-block w-full text-center bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-              >
-                Ver Resultados Gerais 🏆
-              </Link>
-            </div>
-          </div>
-        </aside>
-
-        {/* PAINEL PRINCIPAL */}
-        <main className="col-span-12 md:col-span-8 xl:col-span-9 space-y-4">
-          {section === 'create' && (
-            <div className="p-4 border rounded-2xl bg-white shadow-sm max-w-2xl">
-              <h4 className="text-lg font-semibold mb-3">Criar Corrida</h4>
-              <RaceCreator
-                regattaId={regattaId}
-                onRaceCreated={(race) => setNewlyCreatedRace(race)}
-              />
-              <p className="text-xs text-gray-500">
-                Dica: podes criar várias corridas seguidas mantendo a mesma classe.
-              </p>
-            </div>
-          )}
-
-          {(section === 'edit' || section === 'fill') && (
-            <RaceResultsManager regattaId={regattaId} newlyCreatedRace={newlyCreatedRace} />
-          )}
-        </main>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Resultados — Admin</h2>
+        <div className="flex items-center gap-2">
+          <Link
+            href={overallHref}
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Ver Resultados Gerais (Admin)
+          </Link>
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border hover:bg-gray-50"
+            title="Abrir definições por classe"
+          >
+            ⚙️ Settings
+          </button>
+        </div>
       </div>
+
+      <div role="tablist" aria-label="Sections" className="flex gap-2 border-b">
+        <Tab value="existing" label="Resultados" />
+        <Tab value="draft" label="Rascunho" />
+        <Tab value="add" label="Adicionar 1" />
+        <Tab value="scoring" label="Descartes (global)" />
+        <Tab value="manage" label="Gerir resultados" />
+      </div>
+
+      <div className="pt-4">
+        {activeView !== 'manage' && (
+          <RaceResultsManager
+            regattaId={regattaId}
+            newlyCreatedRace={newlyCreatedRace}
+            hideInnerTabs
+          />
+        )}
+
+        {activeView === 'manage' && (
+          <ManageResults
+            regattaId={regattaId}
+            onRaceCreated={(race) => {
+              setNewlyCreatedRace(race);
+              const sp = new URLSearchParams(search?.toString() ?? '');
+              sp.set('view', 'draft');
+              router.replace(`?${sp.toString()}`);
+              setActiveView('draft');
+            }}
+          />
+        )}
+      </div>
+
+      {showSettings && (
+        <SettingsDrawer onClose={() => setShowSettings(false)} regattaId={regattaId} />
+      )}
     </div>
   );
 }

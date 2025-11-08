@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Body, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text, bindparam
 from typing import List
 from app.database import get_db
 from app import models, schemas
@@ -13,7 +13,6 @@ def _stored_name(base_name: str, class_tag: str) -> str:
     class_tag = (class_tag or "").strip()
     return base_name if (class_tag and class_tag in base_name) else f"{base_name} ({class_tag})"
 
-    
 @router.post("",  response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED)
 def create_race(
@@ -125,8 +124,10 @@ def delete_race(
     return None
 
 # ====== REORDER ======
+# Continua a aceitar o schema atual: { "ordered_ids": [ ... ] }
+# app/routes/races.py (apenas a função de reorder)
 
-# Versão curta (o frontend está a usar esta): /races/regattas/{id}/reorder
+
 @router.put("/regattas/{regatta_id}/reorder", response_model=List[schemas.RaceRead])
 def reorder_races_short(
     regatta_id: int,
@@ -134,9 +135,8 @@ def reorder_races_short(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _reorder_impl(regatta_id, body, db, current_user)
+    return _reorder_impl_atomic(regatta_id, body, db, current_user)
 
-# Alias legacy para chamadas antigas: /races/regattas/{id}/races/reorder
 @router.put("/regattas/{regatta_id}/races/reorder", response_model=List[schemas.RaceRead])
 def reorder_races_legacy(
     regatta_id: int,
@@ -144,39 +144,79 @@ def reorder_races_legacy(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _reorder_impl(regatta_id, body, db, current_user)
+    return _reorder_impl_atomic(regatta_id, body, db, current_user)
 
-def _reorder_impl(
-    regatta_id: int,
-    body: schemas.RacesReorder,
-    db: Session,
-    current_user: models.User,
-):
+
+def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    rows = db.query(models.Race).filter(models.Race.regatta_id == regatta_id).all()
-    current_ids = {r.id for r in rows}
-    ordered = list(body.ordered_ids or [])
+    # Aceitamos { ordered_ids: [...] } opcional/parcelar
+    ordered = list(getattr(body, "ordered_ids", []) or [])
+    if not ordered:
+        raise HTTPException(status_code=400, detail="Lista de ids vazia.")
 
-    # validação: tem de conter exatamente os IDs existentes
-    if set(ordered) != current_ids:
-        raise HTTPException(status_code=400, detail="ordered_ids tem de conter exatamente todos os IDs da regata.")
+    # 1) Validar que os IDs enviados pertencem à mesma regata e obter a classe
+    sel_sent = (
+        text("""
+            SELECT id, class_name
+            FROM races
+            WHERE regatta_id = :rid AND id IN :ids
+        """).bindparams(bindparam("ids", expanding=True))
+    )
+    sent_rows = db.execute(sel_sent, {"rid": regatta_id, "ids": ordered}).fetchall()
+    if len(sent_rows) != len(ordered):
+        raise HTTPException(status_code=400, detail="IDs inválidos para esta regata.")
 
-    # ordena as corridas pelos IDs na lista e reatribui order_index por classe (0-based)
-    order_pos = {rid: i for i, rid in enumerate(ordered)}
-    by_class = {}
-    for r in rows:
-        by_class.setdefault(r.class_name, []).append(r)
+    classes = {r.class_name for r in sent_rows}
+    if len(classes) != 1:
+        raise HTTPException(status_code=400, detail="O reorder deve ser feito apenas dentro de uma classe.")
+    class_name = next(iter(classes))
 
-    for cls, lst in by_class.items():
-        lst.sort(key=lambda r: order_pos[r.id])
-        for i, r in enumerate(lst):
-            r.order_index = i  # 0-based, consistente com a migration
+    # 2) Obter **todas** as corridas dessa classe na regata, na ordem atual
+    all_rows = db.execute(
+        text("""
+            SELECT id, order_index
+            FROM races
+            WHERE regatta_id = :rid AND class_name = :cname
+            ORDER BY order_index ASC, id ASC
+        """),
+        {"rid": regatta_id, "cname": class_name}
+    ).fetchall()
+    all_ids = [r.id for r in all_rows]
 
+    # 3) Construir a nova ordem:
+    #    - primeiro os IDs pedidos (mantendo a ordem dada),
+    #    - depois o resto, mantendo ordem relativa atual.
+    ordered_set = set(ordered)
+    rest_ids = [rid for rid in all_ids if rid not in ordered_set]
+    final_order = ordered + rest_ids  # 0..N-1 (completo para a classe)
+
+    # 4) Fase A: levantar todos os índices desta classe para evitar colisões UNIQUE
+    BUMP = 100000
+    db.execute(
+        text("""
+            UPDATE races
+            SET order_index = order_index + :bump
+            WHERE regatta_id = :rid AND class_name = :cname
+        """),
+        {"bump": BUMP, "rid": regatta_id, "cname": class_name}
+    )
+    db.flush()
+
+    # 5) Fase B: aplicar os novos índices com CASE numa única query
+    when_sql = " ".join(f"WHEN {rid} THEN {idx}" for idx, rid in enumerate(final_order))
+    upd = text(f"""
+        UPDATE races
+        SET order_index = CASE id
+          {when_sql}
+        END
+        WHERE regatta_id = :rid AND class_name = :cname
+    """)
+    db.execute(upd, {"rid": regatta_id, "cname": class_name})
     db.commit()
 
-    # retorna a lista ordenada
+    # 6) Devolver a lista completa da regata, já ordenada
     return (
         db.query(models.Race)
         .filter_by(regatta_id=regatta_id)

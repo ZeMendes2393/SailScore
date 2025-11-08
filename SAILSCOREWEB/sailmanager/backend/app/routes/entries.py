@@ -147,13 +147,12 @@ Acesso:
     background.add_task(send_email, to_email, subject, html, text, from_name=CLUB_NAME, reply_to=REPLY_TO)
 
 # ---------------- endpoints ----------------
-# app/routes/entries.py
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
     try:
-        # === NOVO: bloquear se a regata tiver inscrições fechadas ===
+        # === BLOQUEIO: inscrições fechadas ===
         regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
         if not regatta:
             raise HTTPException(status_code=404, detail="Regatta not found")
@@ -227,7 +226,7 @@ def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
 
-# ============ NOVO: PATCH /entries/{entry_id} (admin) ============
+# ============ PATCH /entries/{entry_id} (admin) ============
 def _norm_str(s: Optional[str]) -> Optional[str]:
     if s is None:
         return None
@@ -359,7 +358,6 @@ def patch_entry(
     db.commit()
     db.refresh(entry)
     return entry
-# ============ FIM PATCH /entries/{entry_id} ============
 
 @router.patch("/{entry_id}/toggle_paid")
 def toggle_paid(

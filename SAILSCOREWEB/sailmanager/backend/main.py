@@ -24,13 +24,13 @@ from app.routes import (
     hearings,
     protest_time_limit,
     scoring as scoring_routes,
-    entry_attachments
+    entry_attachments,
+    class_settings,
 )
 from app.routes import requests as requests_routes
-
-# 👇 importa o módulo e o router diretamente
 from app.routes import questions as questions_module
 from app.routes.questions import router as questions_router
+from app.routes import fleets as fleets_router
 
 app = FastAPI(title="SailScore API")
 
@@ -95,22 +95,9 @@ app.include_router(protest_time_limit.router)
 app.include_router(scoring_routes.router)
 app.include_router(requests_routes.router)
 app.include_router(entry_attachments.router)
-
-# 🔎 DEBUG correto + include do router das questions
-print("Including questions router from:", getattr(questions_module, "__file__", "<unknown>"))
-print("Questions router has paths:", [r.path for r in questions_router.routes])
 app.include_router(questions_router)  # sem prefix extra
-
-# ✅ inclui o router de questions
-print("Including QUESTIONS router now…")
-
-# 🔎 LOG: lista as rotas atuais da app (amostra e todas as que contêm 'questions')
-_all = [r for r in app.routes if isinstance(r, APIRoute)]
-print("App routes sample (first 20):", [r.path for r in _all[:20]])
-print("App routes containing 'questions':", [r.path for r in _all if 'questions' in r.path])
-
-
-
+app.include_router(class_settings.router)  # 👈 adiciona após os outros routers
+app.include_router(fleets_router.router)
 
 # ---------- Utilitários ----------
 @app.get("/health")
@@ -143,84 +130,3 @@ app.mount("/files", StaticFiles(directory=str(FILES_DIR)), name="files")
 
 
 
-
-@app.get("/_debug/has_questions")
-def _has_questions():
-    routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
-    return {
-        "count": len(routes),
-        "questions_routes": [p for p in routes if "questions" in p],
-        "sample": routes[:30]
-    }
-
-# ---- DEBUG: pings diretos para isolar routing ----
-
-@app.get("/__questions_ping_root")
-def _ping_root():
-    # se este responder 200, a app está viva e a rota registou.
-    return {"ok": True, "where": "root"}
-
-@app.get("/__questions_ping_scoped/{regatta_id}")
-def _ping_scoped_direct(regatta_id: int):
-    # rota *idêntica* à do router, mas registada diretamente na app
-    return {"ok": True, "where": "main", "regatta_id": regatta_id}
-
-
-# === DEBUG MUITO VERBOSO ===
-from fastapi.routing import APIRoute
-
-print("🟡 MAIN LOADED FROM:", __file__)
-
-@app.on_event("startup")
-def _debug_on_startup():
-    routes = [r for r in app.routes if isinstance(r, APIRoute)]
-    print("🟢 STARTUP:", __file__, "com", len(routes), "rotas")
-    print("🟢 PRIMEIRAS 15 ROTAS:", [r.path for r in routes[:15]])
-
-@app.get("/__whoami")
-def __whoami():
-    routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
-    return {
-        "main_file": __file__,
-        "routes_count": len(routes),
-        "has_questions": [p for p in routes if "questions" in p],
-        "sample": routes[:30],
-    }
-
-@app.get("/__questions_ping_root")
-def __questions_ping_root():
-    return {"ok": True, "where": "root"}
-
-@app.get("/__questions_ping_scoped/{regatta_id}")
-def __questions_ping_scoped(regatta_id: int):
-    return {"ok": True, "where": "main", "regatta_id": regatta_id}
-# === FIM DEBUG ===
-# === DEBUG MUITO VERBOSO ===
-from fastapi.routing import APIRoute
-
-print("🟡 MAIN LOADED FROM:", __file__)
-
-@app.on_event("startup")
-def _debug_on_startup():
-    routes = [r for r in app.routes if isinstance(r, APIRoute)]
-    print("🟢 STARTUP:", __file__, "com", len(routes), "rotas")
-    print("🟢 PRIMEIRAS 15 ROTAS:", [r.path for r in routes[:15]])
-
-@app.get("/__whoami")
-def __whoami():
-    routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
-    return {
-        "main_file": __file__,
-        "routes_count": len(routes),
-        "has_questions": [p for p in routes if "questions" in p],
-        "sample": routes[:30],
-    }
-
-@app.get("/__questions_ping_root")
-def __questions_ping_root():
-    return {"ok": True, "where": "root"}
-
-@app.get("/__questions_ping_scoped/{regatta_id}")
-def __questions_ping_scoped(regatta_id: int):
-    return {"ok": True, "where": "main", "regatta_id": regatta_id}
-# === FIM DEBUG ===

@@ -20,6 +20,7 @@ type Regatta = {
   start_date: string;
   end_date: string;
   status?: string;
+  online_entry_open?: boolean; // 👈 novo
 };
 
 export default function RegattaDetails() {
@@ -30,6 +31,7 @@ export default function RegattaDetails() {
   const regattaId = useMemo(() => {
     const n = Number(id);
     return Number.isFinite(n) && n > 0 ? n : 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
@@ -149,11 +151,26 @@ export default function RegattaDetails() {
 
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
-        {activeTab === 'entry' && <EntryList regattaId={regattaId} selectedClass={selectedClass} />}
+        {activeTab === 'entry' && (
+          <EntryList regattaId={regattaId} selectedClass={selectedClass} />
+        )}
+
         {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}
-        {activeTab === 'form' && <OnlineEntryPublic regattaId={regattaId} />}
+
+        {activeTab === 'form' && (
+          regatta.online_entry_open !== false  // undefined => trata como aberto
+            ? <OnlineEntryPublic regattaId={regattaId} />
+            : (
+              <div className="p-4 rounded border bg-amber-50 text-amber-800">
+                Online entries are currently closed.
+              </div>
+            )
+        )}
+
         {!activeTab && (
-          <p className="text-gray-600">Choose a section above to see the details of this regatta.</p>
+          <p className="text-gray-600">
+            Choose a section above to see the details of this regatta.
+          </p>
         )}
       </div>
     </main>

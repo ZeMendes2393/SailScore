@@ -12,16 +12,21 @@ import ExistingResultsTable from './ExistingResultsTable';
 import AddSingleForm from './AddSingleForm';
 import DraftResultsEditor from './DraftResultsEditor';
 
-import type { Race } from '../types';
-
 type View = 'existing' | 'draft' | 'add' | 'scoring';
 
 interface Props {
   regattaId: number;
-  newlyCreatedRace?: Race | null;
+  newlyCreatedRace?: any | null;
+  hideInnerTabs?: boolean;
+  initialRaceId?: number; // 👈 NOVO
 }
 
-export default function RaceResultsManager({ regattaId, newlyCreatedRace }: Props) {
+export default function RaceResultsManager({
+  regattaId,
+  newlyCreatedRace,
+  hideInnerTabs = false,
+  initialRaceId,
+}: Props) {
   const { token } = useAuth();
 
   const {
@@ -33,22 +38,45 @@ export default function RaceResultsManager({ regattaId, newlyCreatedRace }: Prop
     addDraftBySail, addDraftEntry, removeDraft, moveDraft, saveBulk,
     moveRow, savePosition, saveOrder, addSingle, deleteResult,
     scoringCodes, onSetDraftCode, onSetDraftPos, markCode,
-    renameRace, deleteRace, reorderRaces,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
   const search = useSearchParams();
   const router = useRouter();
   const [view, setView] = useState<View>('existing');
 
+  // Atualiza view e pré-seleciona corrida se ?race= existir
   useEffect(() => {
     const v = (search.get('view') as View) || 'existing';
     setView(v);
-  }, [search]);
+
+    const raceParam = search.get('race');
+    if (raceParam) {
+      const id = Number(raceParam);
+      if (!Number.isNaN(id)) setSelectedRaceId(id);
+    }
+  }, [search, setSelectedRaceId]);
+
+  // 👇 NOVO: selecionar corrida inicial passada por prop
+  useEffect(() => {
+    if (!initialRaceId) return;
+    if (selectedRaceId !== initialRaceId) {
+      const exists = (races ?? []).some(r => r.id === initialRaceId);
+      if (exists) setSelectedRaceId(initialRaceId);
+    }
+  }, [initialRaceId, races, selectedRaceId, setSelectedRaceId]);
 
   const setViewAndUrl = (v: View) => {
     setView(v);
     const sp = new URLSearchParams(search?.toString());
     sp.set('view', v);
+    router.replace(`?${sp.toString()}`);
+  };
+
+  const handleSelectRace = (raceId: number | null) => {
+    setSelectedRaceId(raceId);
+    const sp = new URLSearchParams(search?.toString());
+    if (raceId) sp.set('race', String(raceId));
+    else sp.delete('race');
     router.replace(`?${sp.toString()}`);
   };
 
@@ -62,52 +90,21 @@ export default function RaceResultsManager({ regattaId, newlyCreatedRace }: Prop
     [existingResults, draft]
   );
 
-  // helpers de ordem para UI
   const orderedRaces = useMemo(() => {
     return (races ?? []).slice().sort((a: any, b: any) =>
       (a.order_index ?? a.id) - (b.order_index ?? b.id)
     );
   }, [races]);
 
-  const moveRaceUp = async (raceId: number) => {
-    const ids = orderedRaces.map(r => r.id);
-    const i = ids.indexOf(raceId);
-    if (i <= 0) return;
-    [ids[i-1], ids[i]] = [ids[i], ids[i-1]];
-    await reorderRaces(ids);
-  };
-
-  const moveRaceDown = async (raceId: number) => {
-    const ids = orderedRaces.map(r => r.id);
-    const i = ids.indexOf(raceId);
-    if (i < 0 || i >= ids.length - 1) return;
-    [ids[i], ids[i+1]] = [ids[i+1], ids[i]];
-    await reorderRaces(ids);
-  };
-
-  const promptRename = async (race: Race) => {
-    const base = race.name.replace(` (${race.class_name})`, '');
-    const name = prompt('Novo nome da corrida:', base);
-    if (name && name.trim()) {
-      await renameRace(race.id, name.trim());
-    }
-  };
-
-  const confirmDelete = async (race: Race) => {
-    if (confirm(`Eliminar a corrida "${race.name}"? (resultados desta corrida serão apagados)`)) {
-      await deleteRace(race.id);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Toolbar sticky com seletor e tabs */}
+      {/* Toolbar sticky com seletor e (opcional) tabs */}
       <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="w-full px-6">
           <div className="py-3 flex flex-col gap-3">
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h1 className="text-xl font-bold">Gerir Resultados</h1>
+                <h1 className="text-xl font-bold">Resultados</h1>
                 <p className="text-xs text-gray-600">
                   {selectedRaceId
                     ? `Corrida selecionada ${selectedClass ? `— ${selectedClass}` : ''}`
@@ -118,78 +115,45 @@ export default function RaceResultsManager({ regattaId, newlyCreatedRace }: Prop
                 <RaceSelector
                   races={orderedRaces}
                   selectedRaceId={selectedRaceId}
-                  onSelect={setSelectedRaceId}
+                  onSelect={handleSelectRace}
                 />
               </div>
             </div>
 
-            {/* Secção de gestão das corridas */}
-            <div className="rounded-lg border bg-white p-2">
-              <h4 className="text-sm font-semibold mb-2">Gerir corridas</h4>
-              <ul className="max-h-52 overflow-auto divide-y">
-                {orderedRaces.map((r) => (
-                  <li key={`mgr-${r.id}`} className="py-2 flex items-center gap-2">
-                    <span className="flex-1 truncate">
-                      {r.name} <span className="text-gray-500">({r.class_name})</span>
-                    </span>
+            {!hideInnerTabs && (
+              <nav role="tablist" aria-label="Secções de resultados" className="flex gap-2 overflow-x-auto pb-1">
+                {tabs.map(t => {
+                  const active = view === t.key;
+                  const disabled = !selectedRaceId;
+                  return (
                     <button
-                      className="px-2 py-1 rounded border hover:bg-gray-50"
-                      title="Subir"
-                      onClick={() => moveRaceUp(r.id)}
-                    >↑</button>
-                    <button
-                      className="px-2 py-1 rounded border hover:bg-gray-50"
-                      title="Descer"
-                      onClick={() => moveRaceDown(r.id)}
-                    >↓</button>
-                    <button
-                      className="px-2 py-1 rounded border hover:bg-gray-50"
-                      title="Renomear"
-                      onClick={() => promptRename(r)}
-                    >Renomear</button>
-                    <button
-                      className="px-2 py-1 rounded border hover:bg-red-50 text-red-600"
-                      title="Eliminar"
-                      onClick={() => confirmDelete(r)}
-                    >🗑</button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* NAV TABS */}
-            <nav role="tablist" aria-label="Secções de resultados" className="flex gap-2 overflow-x-auto pb-1">
-              {tabs.map(t => {
-                const active = view === t.key;
-                const disabled = !selectedRaceId;
-                return (
-                  <button
-                    key={t.key}
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setViewAndUrl(t.key)}
-                    disabled={disabled}
-                    className={[
-                      "px-3 py-1.5 rounded-full border text-sm transition",
-                      active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50",
-                      disabled ? "opacity-50 cursor-not-allowed" : ""
-                    ].join(' ')}
-                  >
-                    <span>{t.label}</span>
-                    {typeof t.badge === 'number' && (
-                      <span
-                        className={[
-                          "ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]",
-                          active ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"
-                        ].join(' ')}
-                      >
-                        {t.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
+                      key={t.key}
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setViewAndUrl(t.key)}
+                      disabled={disabled}
+                      className={[
+                        "px-3 py-1.5 rounded-full border text-sm transition",
+                        active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50",
+                        disabled ? "opacity-50 cursor-not-allowed" : ""
+                      ].join(' ')}
+                    >
+                      <span>{t.label}</span>
+                      {typeof t.badge === 'number' && (
+                        <span
+                          className={[
+                            "ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]",
+                            active ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700"
+                          ].join(' ')}
+                        >
+                          {t.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
           </div>
         </div>
       </div>
@@ -284,7 +248,7 @@ export default function RaceResultsManager({ regattaId, newlyCreatedRace }: Prop
         )}
       </div>
 
-      {/* Action bar flutuante (apenas quando há rascunho) */}
+      {/* Action bar flutuante */}
       {selectedRaceId && view !== 'existing' && (draft ?? []).length > 0 && (
         <div className="fixed bottom-4 left-4 right-4 z-30">
           <div className="w-full px-6">

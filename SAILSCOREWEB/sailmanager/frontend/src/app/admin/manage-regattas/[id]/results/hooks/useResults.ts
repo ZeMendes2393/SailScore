@@ -4,12 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet, apiSend, apiDelete } from '@/lib/api';
 import type { Entry, Race, ApiResult, DraftResult, ScoringConfig } from '../types';
 
+type EntryWithStatus = Entry & {
+  paid?: boolean | null;
+  confirmed?: boolean | null;
+};
+
 export function useResults(
   regattaId: number,
   token?: string,
   newlyCreatedRace?: Race | null
 ) {
-  // ---- Scoring / Descartes + Códigos
+  // ---- Scoring / Descartes + Códigos (globais da regata)
   const [scoring, setScoring] = useState<ScoringConfig>({
     discard_count: 0,
     discard_threshold: 4,
@@ -17,19 +22,8 @@ export function useResults(
   });
   const [savingScoring, setSavingScoring] = useState(false);
 
-  const scoringCodes = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(scoring.code_points ?? {}).map(([k, v]) => [
-          k.toUpperCase(),
-          Number(v),
-        ])
-      ),
-    [scoring.code_points]
-  );
-
   // ---- Dados base
-  const [entryList, setEntryList] = useState<Entry[]>([]);
+  const [entryList, setEntryList] = useState<EntryWithStatus[]>([]);
   const [races, setRaces] = useState<Race[]>([]);
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null);
   const selectedRace = useMemo(
@@ -50,7 +44,29 @@ export function useResults(
   const [singleSail, setSingleSail] = useState('');
   const [singlePos, setSinglePos] = useState<number | ''>('');
 
-  // Carregar scoring + listas
+  // ---- Helpers elegibilidade / escolha melhor entry quando há duplicados
+  const isEligible = (e: EntryWithStatus) => !!e.paid && !!e.confirmed;
+
+  function pickBestEntryBySail(
+    entries: EntryWithStatus[],
+    sailLower: string,
+    wantedClass: string | null
+  ): { best: EntryWithStatus | null; reason: 'ok' | 'not-found' | 'same-class-not-eligible' | 'diff-class' } {
+    const sameSail = entries.filter(e => (e.sail_number || '').toLowerCase() === sailLower);
+    if (!sameSail.length) return { best: null, reason: 'not-found' };
+
+    if (wantedClass) {
+      const sameClassEligible = sameSail.find(e => e.class_name === wantedClass && isEligible(e));
+      if (sameClassEligible) return { best: sameClassEligible, reason: 'ok' };
+
+      const sameClassAny = sameSail.find(e => e.class_name === wantedClass);
+      if (sameClassAny) return { best: sameClassAny, reason: 'same-class-not-eligible' };
+    }
+
+    return { best: sameSail[0], reason: 'diff-class' };
+  }
+
+  // Carregar scoring global + listas
   useEffect(() => {
     (async () => {
       try {
@@ -64,8 +80,8 @@ export function useResults(
 
       try {
         const [entries, rcs] = await Promise.all([
-          apiGet<Entry[]>(`/entries/by_regatta/${regattaId}`),
-          apiGet<Race[]>(`/races/by_regatta/${regattaId}`), // já vem ordenado por order_index (se existir)
+          apiGet<EntryWithStatus[]>(`/entries/by_regatta/${regattaId}`),
+          apiGet<Race[]>(`/races/by_regatta/${regattaId}`), // já vem ordenado
         ]);
         setEntryList(entries);
         setRaces(rcs);
@@ -79,7 +95,6 @@ export function useResults(
     setRaces(prev => {
       const exists = prev.some(r => r.id === newlyCreatedRace.id);
       const next = exists ? prev : [...prev, newlyCreatedRace];
-      // ordena por order_index se existir; fallback por id
       return next.slice().sort((a: any, b: any) =>
         (a.order_index ?? a.id) - (b.order_index ?? b.id)
       );
@@ -112,16 +127,81 @@ export function useResults(
     if (selectedRaceId) refreshExisting(selectedRaceId);
   }, [selectedRaceId, refreshExisting]);
 
-  // Derivados
-  const availableEntries = useMemo(
-    () =>
-      entryList.filter(
-        e => e.class_name === selectedClass && !draft.some(r => r.entryId === e.id)
-      ),
-    [entryList, selectedClass, draft]
-  );
+  // ---------- NOVO: Settings por classe ----------
+  const [classSettings, setClassSettings] = useState<{
+    discard_count: number;
+    discard_threshold: number;
+    scoring_codes: Record<string, number>;
+  } | null>(null);
 
-  // ---- Ações: scoring
+  // Carregar settings por classe quando a classe selecionada muda (aceita {resolved:{...}} ou direto)
+  useEffect(() => {
+    (async () => {
+      if (!selectedClass) { setClassSettings(null); return; }
+      try {
+        const res = await apiGet<any>(
+          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`
+        );
+        const resolved = (res?.resolved ?? res) || {};
+        setClassSettings({
+          discard_count: Number(
+            typeof resolved.discard_count === 'number'
+              ? resolved.discard_count
+              : (typeof scoring.discard_count === 'number' ? scoring.discard_count : 0)
+          ),
+          discard_threshold: Number(
+            typeof resolved.discard_threshold === 'number'
+              ? resolved.discard_threshold
+              : (typeof scoring.discard_threshold === 'number' ? scoring.discard_threshold : 0)
+          ),
+          scoring_codes: resolved.scoring_codes ? resolved.scoring_codes : {},
+        });
+      } catch {
+        setClassSettings(null); // fallback para globais
+      }
+    })();
+    // intencionalmente sem 'scoring' nas deps para evitar re-fetch em edits globais
+  }, [regattaId, selectedClass]);
+
+  // *Merge* de códigos: globais (regata) + override por classe (classe ganha)
+  const scoringCodes = useMemo(() => {
+    const global = scoring.code_points ?? {};
+    const perClass = classSettings?.scoring_codes ?? {};
+    const merged: Record<string, number> = {};
+
+    for (const [k, v] of Object.entries(global)) {
+      merged[String(k).toUpperCase()] = Number(v);
+    }
+    for (const [k, v] of Object.entries(perClass)) {
+      merged[String(k).toUpperCase()] = Number(v);
+    }
+    return merged;
+  }, [scoring.code_points, classSettings]);
+
+  // Descartes efetivos a usar na UI/lógica (classe > global)
+  const effectiveDiscardCount = classSettings?.discard_count ?? scoring.discard_count ?? 0;
+  const effectiveDiscardThreshold = classSettings?.discard_threshold ?? scoring.discard_threshold ?? 0;
+
+  // Derivados — apenas entries da classe selecionada, elegíveis, não já no rascunho
+  // + deduplicação por nº de vela (fica a primeira!)
+  const availableEntries = useMemo(() => {
+    const filtered = entryList.filter(
+      e =>
+        e.class_name === selectedClass &&
+        isEligible(e) &&
+        !draft.some(r => r.entryId === e.id)
+    );
+    const seen = new Set<string>();
+    return filtered.filter(e => {
+      const key = (e.sail_number || '').toLowerCase();
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [entryList, selectedClass, draft]);
+
+  // ---- Ações: scoring (globais da regata)
   const saveScoring = async () => {
     if (!token) return alert('Token em falta. Faz login novamente.');
     setSavingScoring(true);
@@ -137,9 +217,9 @@ export function useResults(
         token
       );
       window.dispatchEvent(new CustomEvent('regatta-scoring-updated', { detail: { regattaId } }));
-      alert('Regras de descarte / códigos guardadas com sucesso.');
+      alert('Regras de descarte / códigos (globais) guardadas com sucesso.');
     } catch {
-      alert('Falha ao guardar regras de descarte / códigos.');
+      alert('Falha ao guardar regras globais de descarte / códigos.');
     } finally {
       setSavingScoring(false);
     }
@@ -150,14 +230,26 @@ export function useResults(
     const trimmed = draftInput.trim().toLowerCase();
     if (!trimmed || !selectedClass) return;
 
-    const matched = entryList.find(e => (e.sail_number || '').toLowerCase() === trimmed);
-    if (!matched) return alert('Embarcação não encontrada com esse número de vela.');
-    if (matched.class_name !== selectedClass)
-      return alert(`Esta embarcação não pertence à classe ${selectedClass}.`);
-    if (draft.some(r => r.entryId === matched.id))
-      return alert('Essa embarcação já está no rascunho.');
+    const { best } = pickBestEntryBySail(entryList, trimmed, selectedClass);
 
-    setDraft(d => [...d, { position: d.length + 1, entryId: matched.id, code: null }]);
+    if (!best) {
+      alert('Embarcação não encontrada com esse número de vela.');
+      return;
+    }
+    if (best.class_name !== selectedClass) {
+      alert(`Esta embarcação não pertence à classe ${selectedClass}.`);
+      return;
+    }
+    if (!isEligible(best)) {
+      alert('Esta inscrição não está elegível (necessita estar PAGA e CONFIRMADA).');
+      return;
+    }
+    if (draft.some(r => r.entryId === best.id)) {
+      alert('Essa embarcação já está no rascunho.');
+      return;
+    }
+
+    setDraft(d => [...d, { position: d.length + 1, entryId: best.id, code: null }]);
     setDraftInput('');
   };
 
@@ -193,8 +285,12 @@ export function useResults(
     setDraft(d => d.map(r => (r.entryId === entryId ? { ...r, code: code || undefined } : r)));
   };
 
+  // Pontos: usa códigos *merged* (classe > global), senão posição
   const computePoints = (pos: number, code?: string | null) => {
-    if (code && scoringCodes && code in scoringCodes) return scoringCodes[code];
+    if (code) {
+      const key = String(code).toUpperCase();
+      if (key in scoringCodes) return Number(scoringCodes[key]);
+    }
     return pos;
   };
 
@@ -203,7 +299,6 @@ export function useResults(
     if (!selectedRaceId || !token) return;
     const normalized = code ? code.toUpperCase() : null;
 
-    // update otimista
     setExistingResults(prev =>
       prev.map(r =>
         r.id === rowId
@@ -300,7 +395,7 @@ export function useResults(
     }
   };
 
-  // ---- Adicionar 1 em falta (FALTAVA!)
+  // ---- Adicionar 1 em falta — validação com duplicados
   const addSingle = useCallback(async () => {
     if (!selectedRaceId || !token || !selectedClass) return;
     const sail = (singleSail ?? '').trim().toLowerCase();
@@ -310,22 +405,28 @@ export function useResults(
       return;
     }
 
-    const entry = entryList.find(
-      e => (e.sail_number || '').toLowerCase() === sail && e.class_name === selectedClass
-    );
-    if (!entry) {
+    const { best } = pickBestEntryBySail(entryList, sail, selectedClass);
+
+    if (!best) {
       alert('Entrada não encontrada para esta classe.');
+      return;
+    }
+    if (best.class_name !== selectedClass) {
+      alert(`Existe uma inscrição com esse nº, mas não na classe ${selectedClass}.`);
+      return;
+    }
+    if (!isEligible(best)) {
+      alert('Esta inscrição não está elegível (necessita estar PAGA e CONFIRMADA).');
       return;
     }
 
     const payload = {
       regatta_id: regattaId,
-      sail_number: entry.sail_number ?? null,
-      boat_name: entry.boat_name ?? null,
-      helm_name: `${entry.first_name} ${entry.last_name}`,
+      sail_number: best.sail_number ?? null,
+      boat_name: best.boat_name ?? null,
+      helm_name: `${best.first_name} ${best.last_name}`,
       points: pos,
       desired_position: pos,
-      // code: null, // ativa quando quiseres permitir "adicionar 1 com código"
     };
 
     try {
@@ -374,15 +475,14 @@ export function useResults(
     try {
       const rcs = await apiSend<Race[]>(
         `/races/regattas/${regattaId}/reorder`,
-
         'PUT',
         { ordered_ids: orderedIds },
         token
       );
       setRaces(rcs);
-    } catch (e) {
-      console.error('reorderRaces falhou:', e);
-      alert('Não foi possível reordenar as corridas.');
+    } catch (e: any) {
+      console.error('reorderRaces falhou:', e?.status, e?.message);
+      alert(e?.message || 'Não foi possível reordenar as corridas.');
     }
   };
 
@@ -393,7 +493,12 @@ export function useResults(
     existingResults, loadingExisting,
     availableEntries, draft, draftInput, setDraftInput,
     singleSail, setSingleSail, singlePos, setSinglePos,
-    scoringCodes,
+
+    // códigos e descartes efetivos (classe > global)
+    scoringCodes,                       // merged (classe override)
+    effectiveDiscardCount,
+    effectiveDiscardThreshold,
+    classSettings,                      // caso a UI queira mostrar a origem/override
 
     // actions
     saveScoring,
@@ -401,7 +506,7 @@ export function useResults(
     onSetDraftPos, onSetDraftCode,
     saveBulk,
     moveRow, savePosition, saveOrder,
-    addSingle,              // <- agora existe e não dá mais TS18004
+    addSingle,
     markCode,
     deleteResult,
 

@@ -1,9 +1,10 @@
 # app/schemas.py
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Literal
+from typing import Optional, List, Dict, Literal, Any
 from datetime import datetime, date, time
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
+
 
 
 # =========================
@@ -694,3 +695,63 @@ class EntryAttachmentRead(BaseModel):
 class EntryAttachmentPatch(BaseModel):
     title: Optional[str] = None
     visible_to_sailor: Optional[bool] = None
+
+
+class ClassSettingsRead(BaseModel):
+    regatta_id: int
+    class_name: str
+    discard_count: Optional[int] = None
+    discard_threshold: Optional[int] = None
+    scoring_codes: Optional[Dict[str, float]] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class ClassSettingsResolved(BaseModel):
+    # valores efetivamente em uso (override se existir, senão global)
+    discard_count: int
+    discard_threshold: int
+    scoring_codes: Dict[str, float]
+
+class ClassSettingsUpdate(BaseModel):
+    discard_count: Optional[int] = None  # enviar null para “limpar” override
+    discard_threshold: Optional[int] = None
+    scoring_codes: Optional[Dict[str, float]] = None
+
+
+
+# app/schemas/fleets.py
+
+
+class FleetRead(BaseModel):
+    id: int
+    name: str
+    order_index: Optional[int] = None
+    class Config: from_attributes = True
+
+class FleetAssignmentRead(BaseModel):
+    entry_id: int
+    fleet_id: int
+    class Config: from_attributes = True
+
+class FleetSetRead(BaseModel):
+    id: int
+    regatta_id: int
+    class_name: str
+    phase: str
+    label: Optional[str] = None
+    fleets: List[FleetRead] = []
+    class Config: from_attributes = True
+
+class CreateQualifyingSetIn(BaseModel):
+    label: Optional[str] = None
+    num_fleets: int = Field(ge=2, le=4)
+    race_ids: List[int] = []  # opcional: prende logo às corridas
+
+class ReshuffleIn(BaseModel):
+    label: Optional[str] = None
+    num_fleets: int = Field(ge=2, le=4)
+    race_ids: List[int] = []
+
+class StartFinalsIn(BaseModel):
+    label: Optional[str] = "Finals"
+    grouping: Dict[str, int]  # ex: {"Gold":50,"Silver":50}
+    race_ids: List[int] = []

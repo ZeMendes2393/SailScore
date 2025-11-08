@@ -13,6 +13,15 @@ from sqlalchemy import BigInteger  # <-- adiciona
 
 from app.database import Base
 
+
+
+import sqlalchemy as sa
+from sqlalchemy import orm
+
+
+
+
+
 #        USERS
 # =========================
 class User(Base):
@@ -224,6 +233,8 @@ class Race(Base):
 
     regatta = relationship("Regatta", back_populates="races")
     results = relationship("Result", back_populates="race", cascade="all, delete-orphan")
+    fleet_set_id = Column(Integer, ForeignKey("fleet_sets.id", ondelete="SET NULL"), nullable=True, index=True)
+    fleet_set = relationship("FleetSet", back_populates="races")
 
     __table_args__ = (
         UniqueConstraint("regatta_id", "class_name", "name", name="uq_race_regatta_class_name"),
@@ -662,3 +673,57 @@ class EntryAttachment(Base):
     entry = relationship("Entry", backref="attachments")
 
 
+class RegattaClassSettings(Base):
+    __tablename__ = "regatta_class_settings"
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    regatta_id = sa.Column(sa.Integer, sa.ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False)
+    class_name = sa.Column(sa.String(255), nullable=False)
+
+    discard_count = sa.Column(sa.Integer, nullable=True)
+    discard_threshold = sa.Column(sa.Integer, nullable=True)
+    scoring_codes = sa.Column(sa.JSON, nullable=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint("regatta_id", "class_name", name="uq_regatta_class_settings_regatta_class"),
+    )
+
+    regatta = orm.relationship("Regatta", backref=orm.backref("class_settings", cascade="all, delete-orphan"))
+
+
+
+
+
+class FleetSet(Base):
+    __tablename__ = "fleet_sets"
+    id = sa.Column(sa.Integer, primary_key=True)
+    regatta_id = sa.Column(sa.Integer, sa.ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    class_name = sa.Column(sa.String(255), nullable=False, index=True)
+    phase = sa.Column(sa.String(32), nullable=False)  # 'qualifying' | 'finals'
+    label = sa.Column(sa.String(255), nullable=True)
+    created_at = sa.Column(sa.DateTime, server_default=sa.func.now(), nullable=False)
+    races = relationship("Race", back_populates="fleet_set")
+
+    regatta = relationship("Regatta")
+    fleets = relationship("Fleet", cascade="all, delete-orphan", back_populates="fleet_set")
+    assignments = relationship("FleetAssignment", cascade="all, delete-orphan", back_populates="fleet_set")
+
+class Fleet(Base):
+    __tablename__ = "fleets"
+    id = sa.Column(sa.Integer, primary_key=True)
+    fleet_set_id = sa.Column(sa.Integer, sa.ForeignKey("fleet_sets.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = sa.Column(sa.String(64), nullable=False)
+    order_index = sa.Column(sa.Integer, nullable=True)
+
+    fleet_set = relationship("FleetSet", back_populates="fleets")
+    assignments = relationship("FleetAssignment", cascade="all, delete-orphan", back_populates="fleet")
+
+class FleetAssignment(Base):
+    __tablename__ = "fleet_assignments"
+    id = sa.Column(sa.Integer, primary_key=True)
+    fleet_set_id = sa.Column(sa.Integer, sa.ForeignKey("fleet_sets.id", ondelete="CASCADE"), nullable=False, index=True)
+    fleet_id = sa.Column(sa.Integer, sa.ForeignKey("fleets.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_id = sa.Column(sa.Integer, sa.ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    fleet_set = relationship("FleetSet", back_populates="assignments")
+    fleet = relationship("Fleet")
