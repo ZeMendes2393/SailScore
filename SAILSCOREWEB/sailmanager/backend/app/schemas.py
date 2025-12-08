@@ -163,6 +163,7 @@ class RaceRead(BaseModel):
     class_name: str
     order_index: int
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    fleet_set_id: Optional[int] = None  # 👈 ADICIONA
 
 
 # =========================
@@ -738,8 +739,17 @@ class FleetSetRead(BaseModel):
     class_name: str
     phase: str
     label: Optional[str] = None
+
+    # 🔥 NOVOS CAMPOS
+    is_published: bool
+    public_title: Optional[str] = None
+    published_at: Optional[datetime] = None
+
     fleets: List[FleetRead] = []
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
+
 
 class CreateQualifyingSetIn(BaseModel):
     label: Optional[str] = None

@@ -5,6 +5,8 @@ export interface Race {
   name: string;
   regatta_id: number;
   class_name: string;
+  fleet_set_id?: number | null;   // 👈 ADICIONAR ESTA LINHA
+
 }
 
 export interface Entry {

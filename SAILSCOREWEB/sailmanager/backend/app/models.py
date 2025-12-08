@@ -696,14 +696,21 @@ class RegattaClassSettings(Base):
 
 class FleetSet(Base):
     __tablename__ = "fleet_sets"
+
     id = sa.Column(sa.Integer, primary_key=True)
     regatta_id = sa.Column(sa.Integer, sa.ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
     class_name = sa.Column(sa.String(255), nullable=False, index=True)
     phase = sa.Column(sa.String(32), nullable=False)  # 'qualifying' | 'finals'
     label = sa.Column(sa.String(255), nullable=True)
     created_at = sa.Column(sa.DateTime, server_default=sa.func.now(), nullable=False)
-    races = relationship("Race", back_populates="fleet_set")
 
+    # 🔥 NOVOS CAMPOS
+    is_published = sa.Column(sa.Boolean, nullable=False, server_default="false")
+    public_title = sa.Column(sa.String(255), nullable=True)
+    published_at = sa.Column(sa.DateTime, nullable=True)
+
+    # RELATIONS
+    races = relationship("Race", back_populates="fleet_set")
     regatta = relationship("Regatta")
     fleets = relationship("Fleet", cascade="all, delete-orphan", back_populates="fleet_set")
     assignments = relationship("FleetAssignment", cascade="all, delete-orphan", back_populates="fleet_set")

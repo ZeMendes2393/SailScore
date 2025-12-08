@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
-// 👇 imports existentes
 import RaceCreator from './RaceCreator';
 import SettingsDrawer from './settings/SettingsDrawer';
 
-// 👇 NOVOS imports para Fleets
+// Fleets
 import FleetsDrawer from './fleets/FleetsDrawer';
 import FleetManager from './fleets/FleetManager';
 
@@ -25,57 +24,85 @@ type OverallResult = {
   class_name: string;
   skipper_name: string;
   total_points: number;
+  net_points: number;
   per_race: Record<string, number | string>;
+
+  // novos campos do backend
+  overall_rank: number;
+  finals_fleet?: string | null;
+
+  // NOVO: fleet usada para cada race (ex.: { R1: "Yellow" })
+  per_race_fleet?: Record<string, string | null>;
 };
 
 type ComputedRow = OverallResult & {
-  net_points: number;
   discardedRaceNames: Set<string>;
 };
 
-type RaceLite = { id: number; name: string; class_name: string; order_index?: number | null };
+type RaceLite = {
+  id: number;
+  name: string;
+  class_name: string;
+  order_index?: number | null;
+};
 
-export default function AdminOverallResultsClient() {
+type Props = { regattaId: number };
+
+// mapa de cores para os dots de fleet
+const FLEET_COLOR_CLASSES: Record<string, string> = {
+  Yellow: 'bg-yellow-300',
+  Blue: 'bg-blue-500',
+  Red: 'bg-red-500',
+  Green: 'bg-green-500',
+
+  Gold: 'bg-yellow-500',
+  Silver: 'bg-gray-400',
+  Bronze: 'bg-amber-700',
+  Emerald: 'bg-emerald-500',
+};
+
+export default function AdminOverallResultsClient({ regattaId }: Props) {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const regattaId = Number(params.id);
   const { token } = useAuth();
 
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [racesByClass, setRacesByClass] = useState<Record<string, RaceLite[]>>({});
+  const [racesByClass, setRacesByClass] = useState<Record<string, RaceLite[]>>(
+    {}
+  );
   const [rawResults, setRawResults] = useState<OverallResult[]>([]);
   const [regatta, setRegatta] = useState<RegattaConfig | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Reorder local
+  // reorder local
   const [pendingOrder, setPendingOrder] = useState<number[] | null>(null);
   const [saving, setSaving] = useState(false);
   const dirty = !!pendingOrder;
 
-  // Settings resolvidas por classe
+  // settings resolvidas por classe
   const [clsResolved, setClsResolved] = useState<{
     discard_count: number;
     discard_threshold: number;
     scoring_codes: Record<string, number>;
   } | null>(null);
 
-  // Action Bar: controlos de UI
+  // drawers
   const [showSettings, setShowSettings] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-
-  // 👉 NOVO: Drawer de Fleets
   const [showFleets, setShowFleets] = useState(false);
 
   // API helpers
   const apiGet = useCallback(
     async (path: string) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        credentials: 'include',
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          credentials: 'include',
+        }
+      );
       if (!res.ok) throw new Error(`GET ${path} falhou (${res.status})`);
       return res.json();
     },
@@ -84,15 +111,18 @@ export default function AdminOverallResultsClient() {
 
   const apiSend = useCallback(
     async (path: string, method: string, body?: any) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: 'include',
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`,
+        {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: 'include',
+          body: body ? JSON.stringify(body) : undefined,
+        }
+      );
       if (!res.ok) throw new Error(`Erro ${res.status} ao enviar para ${path}`);
       return res.json().catch(() => ({}));
     },
@@ -143,7 +173,9 @@ export default function AdminOverallResultsClient() {
           grouped[r.class_name].push(r);
         });
         for (const k of Object.keys(grouped)) {
-          grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
+          grouped[k].sort(
+            (a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id)
+          );
         }
         setRacesByClass(grouped);
       } catch (e) {
@@ -159,7 +191,9 @@ export default function AdminOverallResultsClient() {
       setLoadingResults(true);
       try {
         const data: OverallResult[] = await apiGet(
-          `/results/overall/${regattaId}?class_name=${encodeURIComponent(selectedClass)}`
+          `/results/overall/${regattaId}?class_name=${encodeURIComponent(
+            selectedClass
+          )}`
         );
         setRawResults(data || []);
       } catch {
@@ -170,12 +204,19 @@ export default function AdminOverallResultsClient() {
     })();
   }, [apiGet, regattaId, selectedClass]);
 
-  // Settings por classe (aceita {resolved:{...}} ou direto)
+  // Settings por classe
   useEffect(() => {
     (async () => {
-      if (!selectedClass) { setClsResolved(null); return; }
+      if (!selectedClass) {
+        setClsResolved(null);
+        return;
+      }
       try {
-        const res = await apiGet(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
+        const res = await apiGet(
+          `/regattas/${regattaId}/class-settings/${encodeURIComponent(
+            selectedClass
+          )}`
+        );
         const payload = (res?.resolved ?? res) || null;
         if (payload) {
           setClsResolved({
@@ -195,7 +236,9 @@ export default function AdminOverallResultsClient() {
   // Colunas (nomes das corridas)
   const raceNames = useMemo(() => {
     const s = new Set<string>();
-    rawResults.forEach((r) => Object.keys(r.per_race || {}).forEach((k) => s.add(k)));
+    rawResults.forEach((r) =>
+      Object.keys(r.per_race || {}).forEach((k) => s.add(k))
+    );
     return Array.from(s);
   }, [rawResults]);
 
@@ -228,7 +271,9 @@ export default function AdminOverallResultsClient() {
     const order = pendingOrder ?? list.map((r) => r.id);
     const idx = new Map(order.map((id, i) => [id, i]));
     return [...raceNames].sort(
-      (a, b) => (idx.get(nameToId.get(a) ?? 9999) ?? 9999) - (idx.get(nameToId.get(b) ?? 9999) ?? 9999)
+      (a, b) =>
+        (idx.get(nameToId.get(a) ?? 9999) ?? 9999) -
+        (idx.get(nameToId.get(b) ?? 9999) ?? 9999)
     );
   }, [pendingOrder, racesByClass, raceNames, selectedClass, nameToId]);
 
@@ -238,37 +283,33 @@ export default function AdminOverallResultsClient() {
     if (id) router.push(`/admin/manage-regattas/${regattaId}/races/${id}`);
   };
 
-  // Calcular NET + descartes (classe > global)
+  // Calcular descartes apenas para fins visuais (backend já tratou dos pontos)
   const results: ComputedRow[] = useMemo(() => {
-    const discards = (clsResolved?.discard_count ?? regatta?.discard_count ?? 0);
-    const threshold = (clsResolved?.discard_threshold ?? regatta?.discard_threshold ?? 0);
-
-    const extractPoints = (v: any) => {
-      if (typeof v === 'number') return v;
-      if (typeof v === 'string') {
-        const m = v.match(/-?\d+(\.\d+)?/);
-        return m ? Number(m[0]) : NaN;
-      }
-      return NaN;
-    };
-
     return rawResults
       .map((r) => {
-        const pairs = Object.entries(r.per_race || {})
-          .map(([n, v]) => ({ name: n, points: extractPoints(v) }))
-          .filter((x) => Number.isFinite(x.points));
-        const total = pairs.reduce((a, c) => a + c.points, 0);
-        let net = total;
-        let disc = new Set<string>();
-        if (pairs.length >= threshold && discards > 0) {
-          const worst = pairs.slice().sort((a, b) => b.points - a.points).slice(0, discards);
-          disc = new Set(worst.map((x) => x.name));
-          net = total - worst.reduce((a, c) => a + c.points, 0);
-        }
-        return { ...r, total_points: total, net_points: net, discardedRaceNames: disc };
+        const discarded = new Set<string>();
+        const cleanedPerRace: Record<string, number | string> = {};
+
+        Object.entries(r.per_race || {}).forEach(([name, val]) => {
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+              discarded.add(name);
+              cleanedPerRace[name] = trimmed.slice(1, -1);
+              return;
+            }
+          }
+          cleanedPerRace[name] = val ?? '-';
+        });
+
+        return {
+          ...r,
+          per_race: cleanedPerRace,
+          discardedRaceNames: discarded,
+        };
       })
-      .sort((a, b) => a.net_points - b.net_points);
-  }, [rawResults, regatta, clsResolved]);
+      .sort((a, b) => a.overall_rank - b.overall_rank);
+  }, [rawResults]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -278,9 +319,20 @@ export default function AdminOverallResultsClient() {
           <h2 className="text-2xl font-bold">Classificação Geral (Admin)</h2>
           {regatta && (
             <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Descartes: <strong>{clsResolved?.discard_count ?? regatta.discard_count}</strong>
+              Descartes:{' '}
+              <strong>
+                {clsResolved?.discard_count ?? regatta.discard_count}
+              </strong>
               {(clsResolved?.discard_count ?? regatta.discard_count) > 0 && (
-                <> (após <strong>{clsResolved?.discard_threshold ?? regatta.discard_threshold}</strong> regatas)</>
+                <>
+                  {' '}
+                  (após{' '}
+                  <strong>
+                    {clsResolved?.discard_threshold ??
+                      regatta.discard_threshold}
+                  </strong>{' '}
+                  regatas)
+                </>
               )}
             </span>
           )}
@@ -290,10 +342,14 @@ export default function AdminOverallResultsClient() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setShowCreate(v => !v)}
+            onClick={() => setShowCreate((v) => !v)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Criar nova corrida'}
+            title={
+              !selectedClass
+                ? 'Escolhe uma classe primeiro'
+                : 'Criar nova corrida'
+            }
           >
             ➕ Criar Corrida
           </button>
@@ -302,51 +358,67 @@ export default function AdminOverallResultsClient() {
             onClick={() => setShowSettings(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Definições por classe'}
+            title={
+              !selectedClass
+                ? 'Escolhe uma classe primeiro'
+                : 'Definições por classe'
+            }
           >
             ⚙️ Settings (classe)
           </button>
-          {/* 🧩 NOVO: botão Fleets */}
           <button
             type="button"
             onClick={() => setShowFleets(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Gerir Fleets (Qualifying/Finals)'}
+            title={
+              !selectedClass
+                ? 'Escolhe uma classe primeiro'
+                : 'Gerir Fleets (Qualifying/Finals)'
+            }
           >
             🧩 Fleets
           </button>
         </div>
 
-        {/* Card criador de corridas (mostra/oculta) */}
+        {/* Criador de corridas */}
         {showCreate && (
           <div className="border rounded-2xl bg-white shadow-sm">
             <RaceCreator
               regattaId={regattaId}
               defaultOpen
               onRaceCreated={(race) => {
-                // refetch corridas e resultados
                 (async () => {
                   try {
-                    const all: RaceLite[] = await apiGet(`/races/by_regatta/${regattaId}`);
+                    const all: RaceLite[] = await apiGet(
+                      `/races/by_regatta/${regattaId}`
+                    );
                     const grouped: Record<string, RaceLite[]> = {};
                     (all || []).forEach((r) => {
-                      if (!grouped[r.class_name]) grouped[r.class_name] = [];
+                      if (!grouped[r.class_name])
+                        grouped[r.class_name] = [];
                       grouped[r.class_name].push(r);
                     });
                     for (const k of Object.keys(grouped)) {
-                      grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
+                      grouped[k].sort(
+                        (a, b) =>
+                          (a.order_index ?? a.id) - (b.order_index ?? b.id)
+                      );
                     }
                     setRacesByClass(grouped);
-                    // se a classe da corrida criada for a ativa, atualiza tabela (refetch overall)
                     if (race.class_name === selectedClass) {
                       const data: OverallResult[] = await apiGet(
-                        `/results/overall/${regattaId}?class_name=${encodeURIComponent(race.class_name)}`
+                        `/results/overall/${regattaId}?class_name=${encodeURIComponent(
+                          race.class_name
+                        )}`
                       );
                       setRawResults(data || []);
                     }
                   } catch (e) {
-                    console.error('refresh após criar corrida falhou', e);
+                    console.error(
+                      'refresh após criar corrida falhou',
+                      e
+                    );
                   }
                 })();
               }}
@@ -359,7 +431,9 @@ export default function AdminOverallResultsClient() {
       {loadingClasses ? (
         <p className="text-gray-500">A carregar classes…</p>
       ) : classes.length === 0 ? (
-        <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
+        <p className="text-gray-500">
+          Sem classes configuradas para esta regata.
+        </p>
       ) : (
         <div className="flex gap-2 mb-4 flex-wrap">
           {classes.map((cls) => (
@@ -387,6 +461,7 @@ export default function AdminOverallResultsClient() {
           <thead className="bg-gray-100">
             <tr>
               <th className="border px-3 py-2">#</th>
+              <th className="border px-3 py-2">Fleet</th>
               <th className="border px-3 py-2">Nº Vela</th>
               <th className="border px-3 py-2">Embarcação</th>
               <th className="border px-3 py-2">Timoneiro</th>
@@ -421,21 +496,42 @@ export default function AdminOverallResultsClient() {
             </tr>
           </thead>
           <tbody>
-            {results.map((r, i) => (
-              <tr key={i}>
-                <td className="border px-3 py-2">{i + 1}º</td>
+            {results.map((r) => (
+              <tr key={`${r.class_name}-${r.sail_number}-${r.skipper_name}`}>
+                <td className="border px-3 py-2 text-center">
+                  {r.overall_rank}º
+                </td>
+                <td className="border px-3 py-2 text-center">
+                  {r.finals_fleet ?? '-'}
+                </td>
                 <td className="border px-3 py-2">{r.sail_number}</td>
                 <td className="border px-3 py-2">{r.boat_name}</td>
                 <td className="border px-3 py-2">{r.skipper_name}</td>
                 {orderedRaceNames.map((n) => {
                   const raw = r.per_race[n];
                   const discarded = r.discardedRaceNames.has(n);
+
+                  const fleetLabel = r.per_race_fleet?.[n] ?? null;
+                  const fleetColorClass = fleetLabel
+                    ? FLEET_COLOR_CLASSES[fleetLabel] ?? 'bg-gray-400'
+                    : '';
+
                   return (
                     <td
                       key={n}
-                      className={`border px-3 py-2 text-center ${discarded ? 'text-gray-400' : ''}`}
+                      className={`border px-3 py-2 text-center ${
+                        discarded ? 'text-gray-400' : ''
+                      }`}
                     >
-                      {discarded ? `(${raw})` : (raw ?? '-')}
+                      <div className="flex items-center justify-center gap-1">
+                        {fleetLabel && (
+                          <span
+                            className={`inline-block w-2 h-2 rounded-full ${fleetColorClass}`}
+                            title={fleetLabel}
+                          />
+                        )}
+                        <span>{discarded ? `(${raw})` : raw ?? '-'}</span>
+                      </div>
                     </td>
                   );
                 })}
@@ -464,26 +560,44 @@ export default function AdminOverallResultsClient() {
                   disabled={saving}
                   onClick={async () => {
                     if (!pendingOrder) return;
-                    if (!confirm('Confirmas guardar a nova ordem das corridas?')) return;
+                    if (
+                      !confirm(
+                        'Confirmas guardar a nova ordem das corridas?'
+                      )
+                    )
+                      return;
                     try {
                       setSaving(true);
-                      await apiSend(`/races/regattas/${regattaId}/reorder`, 'PUT', {
-                        ordered_ids: pendingOrder,
-                      });
-                      const refreshed: RaceLite[] = await apiGet(`/races/by_regatta/${regattaId}`);
+                      await apiSend(
+                        `/races/regattas/${regattaId}/reorder`,
+                        'PUT',
+                        {
+                          ordered_ids: pendingOrder,
+                        }
+                      );
+                      const refreshed: RaceLite[] = await apiGet(
+                        `/races/by_regatta/${regattaId}`
+                      );
                       const grouped: Record<string, RaceLite[]> = {};
                       refreshed.forEach((r) => {
-                        if (!grouped[r.class_name]) grouped[r.class_name] = [];
+                        if (!grouped[r.class_name])
+                          grouped[r.class_name] = [];
                         grouped[r.class_name].push(r);
                       });
                       for (const k of Object.keys(grouped)) {
-                        grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
+                        grouped[k].sort(
+                          (a, b) =>
+                            (a.order_index ?? a.id) -
+                            (b.order_index ?? b.id)
+                        );
                       }
                       setRacesByClass(grouped);
                       setPendingOrder(null);
                       router.refresh();
                     } catch (e: any) {
-                      alert(e?.message || 'Erro ao guardar a nova ordem.');
+                      alert(
+                        e?.message || 'Erro ao guardar a nova ordem.'
+                      );
                     } finally {
                       setSaving(false);
                     }
@@ -513,19 +627,19 @@ export default function AdminOverallResultsClient() {
         />
       )}
 
-      {/* 🧩 Drawer de Fleets */}
+      {/* Drawer de Fleets */}
       {showFleets && (
         <FleetsDrawer
           open={showFleets}
           onClose={() => setShowFleets(false)}
           title="Fleet Manager"
         >
-          {/* Passa contexto mínimo necessário */}
           {selectedClass ? (
-            <FleetManager />
-
+            <FleetManager overall={results} />
           ) : (
-            <div className="p-4 text-sm text-gray-600">Escolhe uma classe para gerir fleets.</div>
+            <div className="p-4 text-sm text-gray-600">
+              Escolhe uma classe para gerir fleets.
+            </div>
           )}
         </FleetsDrawer>
       )}

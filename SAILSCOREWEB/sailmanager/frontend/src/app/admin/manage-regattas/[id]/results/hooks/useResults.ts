@@ -9,6 +9,17 @@ type EntryWithStatus = Entry & {
   confirmed?: boolean | null;
 };
 
+// 👇 tipos auxiliares para Fleets
+type FleetLite = {
+  id: number;
+  name: string;
+};
+
+type AssignmentLite = {
+  entry_id: number;
+  fleet_id: number;
+};
+
 export function useResults(
   regattaId: number,
   token?: string,
@@ -32,8 +43,11 @@ export function useResults(
   );
   const selectedClass = selectedRace?.class_name ?? null;
 
-  // ---- Resultados existentes
-  const [existingResults, setExistingResults] = useState<ApiResult[]>([]);
+  // 👇 alias mais explícito para usar no RaceResultsManager
+  const currentRace = selectedRace;
+
+  // ---- Resultados existentes (estado "bruto")
+  const [existingResultsRaw, setExistingResultsRaw] = useState<ApiResult[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
 
   // ---- Rascunho (bulk)
@@ -101,16 +115,16 @@ export function useResults(
     });
     setSelectedRaceId(newlyCreatedRace.id);
     setDraft([]);
-    setExistingResults([]);
+    setExistingResultsRaw([]);
   }, [newlyCreatedRace]);
 
   const refreshExisting = useCallback(async (raceId: number) => {
     setLoadingExisting(true);
     try {
       const data = await apiGet<ApiResult[]>(`/results/races/${raceId}/results`);
-      setExistingResults(data);
+      setExistingResultsRaw(data);
     } catch {
-      setExistingResults([]);
+      setExistingResultsRaw([]);
     } finally {
       setLoadingExisting(false);
     }
@@ -182,15 +196,108 @@ export function useResults(
   const effectiveDiscardCount = classSettings?.discard_count ?? scoring.discard_count ?? 0;
   const effectiveDiscardThreshold = classSettings?.discard_threshold ?? scoring.discard_threshold ?? 0;
 
-  // Derivados — apenas entries da classe selecionada, elegíveis, não já no rascunho
-  // + deduplicação por nº de vela (fica a primeira!)
+  // ---------- NOVO: Fleets para a corrida selecionada ----------
+  const [fleetsForRace, setFleetsForRace] = useState<FleetLite[]>([]);
+  const [fleetAssignments, setFleetAssignments] = useState<AssignmentLite[]>([]);
+  const [selectedFleetId, setSelectedFleetId] = useState<number | 'all'>('all');
+
+  // Carregar fleets + assignments quando a corrida muda
+  useEffect(() => {
+    (async () => {
+      if (!currentRace || !selectedClass) {
+        setFleetsForRace([]);
+        setFleetAssignments([]);
+        setSelectedFleetId('all');
+        return;
+      }
+      if (!('fleet_set_id' in currentRace) || !currentRace.fleet_set_id) {
+        // corrida sem fleets → scoring clássico
+        setFleetsForRace([]);
+        setFleetAssignments([]);
+        setSelectedFleetId('all');
+        return;
+      }
+
+      try {
+        // 1) obter todos os FleetSets desta classe
+        const sets = await apiGet<any[]>(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets`
+        );
+        const fs = (sets || []).find(s => s.id === currentRace.fleet_set_id);
+        if (!fs) {
+          setFleetsForRace([]);
+          setFleetAssignments([]);
+          setSelectedFleetId('all');
+          return;
+        }
+
+        // 2) fleets deste set
+        const fleets: FleetLite[] = (fs.fleets ?? []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+        }));
+        setFleetsForRace(fleets);
+
+        // 3) assignments entry_id -> fleet_id
+        const assResp = await apiGet<{
+          fleet_set_id: number;
+          assignments: { entry_id: number; fleet_id: number }[];
+        }>(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${fs.id}/assignments`
+        );
+        setFleetAssignments(assResp.assignments ?? []);
+        setSelectedFleetId('all');
+      } catch (e) {
+        console.error('Falha ao carregar fleets da corrida:', e);
+        setFleetsForRace([]);
+        setFleetAssignments([]);
+        setSelectedFleetId('all');
+      }
+    })();
+  }, [regattaId, selectedClass, currentRace]);
+
+  // Conjunto de entry_ids permitidos pela fleet selecionada (ou null se não há fleets)
+  const fleetEntryIdSet = useMemo<Set<number> | null>(() => {
+    if (!currentRace || !('fleet_set_id' in currentRace) || !currentRace.fleet_set_id) {
+      return null; // sem fleets, sem filtro
+    }
+    if (!fleetAssignments.length) return null;
+
+    if (selectedFleetId === 'all') {
+      return new Set(fleetAssignments.map(a => a.entry_id));
+    }
+    return new Set(
+      fleetAssignments.filter(a => a.fleet_id === selectedFleetId).map(a => a.entry_id)
+    );
+  }, [currentRace, fleetAssignments, selectedFleetId]);
+
+  // Mapa sail_number -> entry_ids (para filtrar existingResults por fleet)
+  const sailToEntryIds = useMemo(() => {
+    const map = new Map<string, number[]>();
+    entryList.forEach(e => {
+      const sn = (e.sail_number ?? '').trim().toUpperCase();
+      if (!sn) return;
+      const arr = map.get(sn) ?? [];
+      arr.push(e.id);
+      map.set(sn, arr);
+    });
+    return map;
+  }, [entryList]);
+
+  // Derivados — entries elegíveis da classe selecionada, não no draft, filtrados por fleet (se houver)
   const availableEntries = useMemo(() => {
-    const filtered = entryList.filter(
+    let filtered = entryList.filter(
       e =>
         e.class_name === selectedClass &&
         isEligible(e) &&
         !draft.some(r => r.entryId === e.id)
     );
+
+    if (fleetEntryIdSet) {
+      filtered = filtered.filter(e => fleetEntryIdSet.has(e.id));
+    }
+
+    // deduplicação por nº de vela (fica a primeira!)
     const seen = new Set<string>();
     return filtered.filter(e => {
       const key = (e.sail_number || '').toLowerCase();
@@ -199,7 +306,20 @@ export function useResults(
       seen.add(key);
       return true;
     });
-  }, [entryList, selectedClass, draft]);
+  }, [entryList, selectedClass, draft, fleetEntryIdSet]);
+
+  // existingResults filtrados pela fleet selecionada (se aplicável)
+  const existingResults = useMemo(() => {
+    if (!fleetEntryIdSet) return existingResultsRaw;
+
+    return existingResultsRaw.filter(r => {
+      const sn = (r.sail_number ?? '').trim().toUpperCase();
+      if (!sn) return false;
+      const ids = sailToEntryIds.get(sn);
+      if (!ids || !ids.length) return false;
+      return ids.some(id => fleetEntryIdSet.has(id));
+    });
+  }, [existingResultsRaw, fleetEntryIdSet, sailToEntryIds]);
 
   // ---- Ações: scoring (globais da regata)
   const saveScoring = async () => {
@@ -248,12 +368,22 @@ export function useResults(
       alert('Essa embarcação já está no rascunho.');
       return;
     }
+    // se houver filtro de fleet, garante que esta entry faz parte da fleet selecionada
+    if (fleetEntryIdSet && !fleetEntryIdSet.has(best.id)) {
+      alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+      return;
+    }
 
     setDraft(d => [...d, { position: d.length + 1, entryId: best.id, code: null }]);
     setDraftInput('');
   };
 
   const addDraftEntry = (entryId: number) => {
+    // se houver fleets ativos, garante que este entryId está autorizado
+    if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId)) {
+      alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+      return;
+    }
     setDraft(d => [...d, { position: d.length + 1, entryId, code: null }]);
   };
 
@@ -299,7 +429,7 @@ export function useResults(
     if (!selectedRaceId || !token) return;
     const normalized = code ? code.toUpperCase() : null;
 
-    setExistingResults(prev =>
+    setExistingResultsRaw(prev =>
       prev.map(r =>
         r.id === rowId
           ? { ...r, code: normalized ?? null, points: computePoints(r.position, normalized) }
@@ -318,10 +448,28 @@ export function useResults(
   };
 
   const saveBulk = async () => {
-    if (!selectedRaceId || !token) return;
+  // 1) validações com feedback
+  if (!selectedRaceId) {
+    alert('Seleciona primeiro uma corrida.');
+    return;
+  }
+  if (!token) {
+    alert('Sessão de admin em falta ou expirada. Faz login novamente.');
+    return;
+  }
+  if (!draft.length) {
+    alert('Não há linhas no rascunho para guardar.');
+    return;
+  }
 
-    const payload = draft.map(r => {
-      const entry = entryList.find(e => e.id === r.entryId)!;
+  // 2) construir payload de forma segura
+  const payload = draft
+    .map(r => {
+      const entry = entryList.find(e => e.id === r.entryId);
+      if (!entry) {
+        console.warn('Entry em falta para draft', r.entryId);
+        return null;
+      }
       const pts = computePoints(r.position, r.code);
       return {
         regatta_id: regattaId,
@@ -333,17 +481,31 @@ export function useResults(
         points: pts,
         code: r.code ?? null,
       };
-    });
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
-    try {
-      await apiSend(`/results/races/${selectedRaceId}/results`, 'POST', payload, token);
-      setDraft([]);
-      await refreshExisting(selectedRaceId);
-      alert('Resultados guardados com sucesso.');
-    } catch {
-      alert('Erro ao guardar resultados.');
-    }
-  };
+  if (!payload.length) {
+    alert('Nenhuma entrada válida para guardar (ver consola).');
+    return;
+  }
+
+  // 3) enviar para a API
+  try {
+    await apiSend(
+      `/results/races/${selectedRaceId}/results`,
+      'POST',
+      payload,
+      token
+    );
+    setDraft([]);
+    await refreshExisting(selectedRaceId);
+    alert('Resultados guardados com sucesso.');
+  } catch (err) {
+    console.error('Erro ao guardar resultados em massa:', err);
+    alert('Erro ao guardar resultados.');
+  }
+};
+
 
   // ---- EXISTENTES: mover / guardar ordem / posição / apagar
   const moveRow = async (rowId: number, delta: -1 | 1) => {
@@ -419,6 +581,10 @@ export function useResults(
       alert('Esta inscrição não está elegível (necessita estar PAGA e CONFIRMADA).');
       return;
     }
+    if (fleetEntryIdSet && !fleetEntryIdSet.has(best.id)) {
+      alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+      return;
+    }
 
     const payload = {
       regatta_id: regattaId,
@@ -439,7 +605,7 @@ export function useResults(
     }
   }, [
     selectedRaceId, token, selectedClass,
-    singleSail, singlePos, entryList, regattaId, refreshExisting
+    singleSail, singlePos, entryList, regattaId, refreshExisting, fleetEntryIdSet
   ]);
 
   // ---- Corridas: renomear / apagar / reordenar
@@ -461,7 +627,7 @@ export function useResults(
       setRaces(prev => prev.filter(r => r.id !== raceId));
       if (selectedRaceId === raceId) {
         setSelectedRaceId(null);
-        setExistingResults([]);
+        setExistingResultsRaw([]);
         setDraft([]);
       }
     } catch (e) {
@@ -490,15 +656,20 @@ export function useResults(
     // state
     scoring, setScoring, savingScoring,
     races, selectedRaceId, setSelectedRaceId, selectedClass,
+    currentRace,                           // 👈 NOVO
     existingResults, loadingExisting,
     availableEntries, draft, draftInput, setDraftInput,
     singleSail, setSingleSail, singlePos, setSinglePos,
+
+    // Fleets
+    fleetsForRace,                        // 👈 NOVO
+    selectedFleetId, setSelectedFleetId,  // 👈 NOVO
 
     // códigos e descartes efetivos (classe > global)
     scoringCodes,                       // merged (classe override)
     effectiveDiscardCount,
     effectiveDiscardThreshold,
-    classSettings,                      // caso a UI queira mostrar a origem/override
+    classSettings,
 
     // actions
     saveScoring,
