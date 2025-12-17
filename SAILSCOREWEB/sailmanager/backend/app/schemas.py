@@ -142,7 +142,27 @@ class RaceCreate(BaseModel):
     regatta_id: int
     date: Optional[str] = None
     class_name: str
-    order_index: Optional[int] = None  # se None, backend coloca no fim
+    order_index: Optional[int] = None
+
+    # NOVOS CAMPOS
+    is_medal_race: bool = False
+    double_points: bool = False
+    discardable: bool = True
+class RaceRead(BaseModel):
+    id: int
+    name: str
+    regatta_id: int
+    date: Optional[str] = None
+    class_name: str
+    order_index: int
+    fleet_set_id: Optional[int] = None
+
+    # NOVOS CAMPOS
+    is_medal_race: bool
+    double_points: bool
+    discardable: bool
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class RaceUpdate(BaseModel):
@@ -155,15 +175,7 @@ class RacesReorder(BaseModel):
     ordered_ids: List[int]
 
 
-class RaceRead(BaseModel):
-    id: int
-    name: str
-    regatta_id: int
-    date: Optional[str] = None
-    class_name: str
-    order_index: int
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-    fleet_set_id: Optional[int] = None  # 👈 ADICIONA
+
 
 
 # =========================
@@ -765,3 +777,7 @@ class StartFinalsIn(BaseModel):
     label: Optional[str] = "Finals"
     grouping: Dict[str, int]  # ex: {"Gold":50,"Silver":50}
     race_ids: List[int] = []
+
+
+class MedalRaceAssignSchema(BaseModel):
+    entries: list[int]

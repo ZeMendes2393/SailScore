@@ -31,6 +31,7 @@ from app.routes import requests as requests_routes
 from app.routes import questions as questions_module
 from app.routes.questions import router as questions_router
 from app.routes import fleets as fleets_router
+from app.routes.public_fleets import router as public_fleets_router
 
 app = FastAPI(title="SailScore API")
 
@@ -98,6 +99,7 @@ app.include_router(entry_attachments.router)
 app.include_router(questions_router)  # sem prefix extra
 app.include_router(class_settings.router)  # 👈 adiciona após os outros routers
 app.include_router(fleets_router.router)
+app.include_router(public_fleets_router)   # 👈 ADICIONAR AQUI
 
 # ---------- Utilitários ----------
 @app.get("/health")

@@ -29,8 +29,14 @@ export type FleetSet = {
   phase: string;
   label: string | null;
   fleets: Fleet[];
-  race_names?: string[];     // apenas “resumo” do backend
+  race_names?: string[];
+
+  // NOVOS CAMPOS
+  is_published: boolean;
+  public_title: string | null;
+  published_at: string | null;
 };
+
 
 type RawAssignment = {
   entry_id: number;
@@ -451,6 +457,44 @@ export function useFleets() {
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
 
+
+  // --------- Actions: publish/unpublish FleetSet ---------
+const publishSet = useCallback(
+  async (setId: number) => {
+    await apiSend(
+      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/publish`,
+      'POST'
+    );
+    await refreshSetsAndRaces();
+  },
+  [regattaId, selectedClass, refreshSetsAndRaces]
+);
+
+const unpublishSet = useCallback(
+  async (setId: number) => {
+    await apiSend(
+      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/unpublish`,
+      'POST'
+    );
+    await refreshSetsAndRaces();
+  },
+  [regattaId, selectedClass, refreshSetsAndRaces]
+);
+
+// --------- Action: atualizar public_title ---------
+const updateSetTitle = useCallback(
+  async (setId: number, newTitle: string) => {
+    await apiSend(
+      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}`,
+      'PATCH',
+      { public_title: newTitle }
+    );
+    await refreshSetsAndRaces();
+  },
+  [regattaId, selectedClass, refreshSetsAndRaces]
+);
+
+
   return {
     classes,
     selectedClass,
@@ -468,6 +512,9 @@ export function useFleets() {
     startFinals,
     deleteFleetSet,
     updateFleetSetRaces,
+  publishSet,
+    unpublishSet,
+    updateSetTitle,
 
   };
 }

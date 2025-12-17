@@ -8,6 +8,7 @@ import ProtestTimeLimitPublic from './sections/ProtestTimeLimitPublic';
 import ScoringEnquiriesPublic from './sections/ScoringEnquiriesPublic';
 import RequestsPublic from './sections/RequestsPublic';
 import QuestionsPublic from './sections/QuestionsPublic';
+import FleetsPublic from './sections/FleetsPublic'; // 👈 NOVO
 
 type Section =
   | 'documents'
@@ -16,7 +17,8 @@ type Section =
   | 'ptl'
   | 'scoring'
   | 'requests'
-  | 'questions';
+  | 'questions'
+  | 'fleets'; // 👈 NOVO
 
 export default function NoticeBoard({ regattaId }: { regattaId: number }) {
   if (!Number.isFinite(regattaId)) {
@@ -46,7 +48,11 @@ export default function NoticeBoard({ regattaId }: { regattaId: number }) {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Notice Board</h2>
 
-      <div role="tablist" aria-label="Public sections" className="flex gap-2 border-b">
+      <div
+        role="tablist"
+        aria-label="Public sections"
+        className="flex gap-2 border-b flex-wrap"
+      >
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
         <Tab value="protests" label="Protest Decisions" />
@@ -54,16 +60,20 @@ export default function NoticeBoard({ regattaId }: { regattaId: number }) {
         <Tab value="requests" label="Requests" />
         <Tab value="questions" label="Questions" />
         <Tab value="ptl" label="Protest Time Limit" />
+        <Tab value="fleets" label="Fleets" /> {/* 👈 NOVO */}
       </div>
 
       <div className="pt-4">
         {section === 'documents' && <Documents regattaId={regattaId} />}
         {section === 'rule42' && <Rule42 regattaId={regattaId} />}
         {section === 'protests' && <Hearings regattaId={regattaId} />}
-        {section === 'scoring' && <ScoringEnquiriesPublic regattaId={regattaId} />}
+        {section === 'scoring' && (
+          <ScoringEnquiriesPublic regattaId={regattaId} />
+        )}
         {section === 'requests' && <RequestsPublic regattaId={regattaId} />}
         {section === 'questions' && <QuestionsPublic regattaId={regattaId} />}
         {section === 'ptl' && <ProtestTimeLimitPublic regattaId={regattaId} />}
+        {section === 'fleets' && <FleetsPublic regattaId={regattaId} />} {/* 👈 NOVO */}
       </div>
     </div>
   );

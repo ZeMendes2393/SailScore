@@ -230,6 +230,9 @@ class Race(Base):
     date = Column(String, nullable=True)
     class_name = Column(String, nullable=False, index=True)
     order_index = Column(Integer, nullable=False, default=0, index=True)  # ajuda no overall e ordenação
+    is_medal_race = Column(Boolean, default=False)
+    double_points = Column(Boolean, default=False)
+    discardable = Column(Boolean, default=True)
 
     regatta = relationship("Regatta", back_populates="races")
     results = relationship("Result", back_populates="race", cascade="all, delete-orphan")

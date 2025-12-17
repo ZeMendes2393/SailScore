@@ -223,3 +223,22 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
         .order_by(models.Race.order_index.asc(), models.Race.id.asc())
         .all()
     )
+
+@router.post("/regattas/{regatta_id}/medal_race", response_model=RaceRead)
+def create_medal_race(regatta_id: int, db: Session = Depends(get_db)):
+    name = "Medal Race"
+
+    race = Race(
+        regatta_id=regatta_id,
+        name=name,
+        class_name="Medal",      # opcional, dependendo do teu modelo
+        is_medal_race=True,
+        double_points=True,
+        discardable=False
+    )
+    db.add(race)
+    db.commit()
+    db.refresh(race)
+
+    return race
+
