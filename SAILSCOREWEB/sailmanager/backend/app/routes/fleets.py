@@ -18,6 +18,8 @@ from app.schemas import (
     ReshuffleIn,
     StartFinalsIn,
 )
+from app.schemas import MedalRaceAssignSchema
+
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/regattas", tags=["fleets"])

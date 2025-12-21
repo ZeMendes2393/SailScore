@@ -2,18 +2,30 @@ from fastapi import APIRouter, Depends, HTTPException, Body, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text, bindparam
 from typing import List
+
 from app.database import get_db
 from app import models, schemas
 from utils.auth_utils import get_current_user
 
+# NÃO USAMOS RaceRead DIRETAMENTE → removido
+# NÃO USAMOS RaceCreate DIRETAMENTE → usamos schemas.RaceCreate
+
 router = APIRouter()
 
+
+# ------------------------------------------------------------
+# FUNÇÃO AUXILIAR PARA FORMATAR NOMES
+# ------------------------------------------------------------
 def _stored_name(base_name: str, class_tag: str) -> str:
     base_name = (base_name or "").strip()
     class_tag = (class_tag or "").strip()
     return base_name if (class_tag and class_tag in base_name) else f"{base_name} ({class_tag})"
 
-@router.post("",  response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+
+# ------------------------------------------------------------
+# CREATE RACE
+# ------------------------------------------------------------
+@router.post("", response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=schemas.RaceRead, status_code=status.HTTP_201_CREATED)
 def create_race(
     race: schemas.RaceCreate,
@@ -39,14 +51,15 @@ def create_race(
         models.Race.name == stored_name,
         models.Race.class_name == race.class_name,
     ).first()
+
     if exists:
         raise HTTPException(status_code=400, detail="Já existe uma corrida com esse nome nessa classe.")
 
-    # order_index no fim da lista da regata (0-based para bater com a migration)
-    max_order = db.query(func.max(models.Race.order_index))\
-                  .filter(models.Race.regatta_id == race.regatta_id)\
-                  .scalar()
+    max_order = db.query(func.max(models.Race.order_index)) \
+        .filter(models.Race.regatta_id == race.regatta_id) \
+        .scalar()
     max_order = int(max_order) if max_order is not None else -1
+
     new_order = race.order_index if race.order_index is not None else (max_order + 1)
 
     new_race = models.Race(
@@ -56,11 +69,17 @@ def create_race(
         class_name=race.class_name,
         order_index=int(new_order),
     )
+
     db.add(new_race)
     db.commit()
     db.refresh(new_race)
+
     return new_race
 
+
+# ------------------------------------------------------------
+# GET RACES BY REGATTA
+# ------------------------------------------------------------
 @router.get("/by_regatta/{regatta_id}", response_model=List[schemas.RaceRead])
 def get_races_by_regatta(regatta_id: int, db: Session = Depends(get_db)):
     return (
@@ -70,6 +89,10 @@ def get_races_by_regatta(regatta_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
+
+# ------------------------------------------------------------
+# UPDATE RACE
+# ------------------------------------------------------------
 @router.patch("/{race_id}", response_model=schemas.RaceRead)
 def update_race(
     race_id: int,
@@ -86,14 +109,17 @@ def update_race(
 
     if body.name is not None:
         new_name = _stored_name(body.name, r.class_name)
+
         dup = db.query(models.Race).filter(
             models.Race.regatta_id == r.regatta_id,
             models.Race.class_name == r.class_name,
             models.Race.name == new_name,
             models.Race.id != r.id,
         ).first()
+
         if dup:
             raise HTTPException(status_code=400, detail="Já existe corrida com esse nome nessa classe.")
+
         r.name = new_name
 
     if body.date is not None:
@@ -106,6 +132,10 @@ def update_race(
     db.refresh(r)
     return r
 
+
+# ------------------------------------------------------------
+# DELETE RACE
+# ------------------------------------------------------------
 @router.delete("/{race_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_race(
     race_id: int,
@@ -119,15 +149,14 @@ def delete_race(
     if not r:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
-    db.delete(r)  # results caem por cascade
+    db.delete(r)
     db.commit()
     return None
 
-# ====== REORDER ======
-# Continua a aceitar o schema atual: { "ordered_ids": [ ... ] }
-# app/routes/races.py (apenas a função de reorder)
 
-
+# ------------------------------------------------------------
+# REORDER LOGIC
+# ------------------------------------------------------------
 @router.put("/regattas/{regatta_id}/reorder", response_model=List[schemas.RaceRead])
 def reorder_races_short(
     regatta_id: int,
@@ -136,6 +165,7 @@ def reorder_races_short(
     current_user: models.User = Depends(get_current_user),
 ):
     return _reorder_impl_atomic(regatta_id, body, db, current_user)
+
 
 @router.put("/regattas/{regatta_id}/races/reorder", response_model=List[schemas.RaceRead])
 def reorder_races_legacy(
@@ -151,12 +181,10 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    # Aceitamos { ordered_ids: [...] } opcional/parcelar
     ordered = list(getattr(body, "ordered_ids", []) or [])
     if not ordered:
         raise HTTPException(status_code=400, detail="Lista de ids vazia.")
 
-    # 1) Validar que os IDs enviados pertencem à mesma regata e obter a classe
     sel_sent = (
         text("""
             SELECT id, class_name
@@ -164,16 +192,18 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
             WHERE regatta_id = :rid AND id IN :ids
         """).bindparams(bindparam("ids", expanding=True))
     )
+
     sent_rows = db.execute(sel_sent, {"rid": regatta_id, "ids": ordered}).fetchall()
+
     if len(sent_rows) != len(ordered):
         raise HTTPException(status_code=400, detail="IDs inválidos para esta regata.")
 
     classes = {r.class_name for r in sent_rows}
     if len(classes) != 1:
         raise HTTPException(status_code=400, detail="O reorder deve ser feito apenas dentro de uma classe.")
+
     class_name = next(iter(classes))
 
-    # 2) Obter **todas** as corridas dessa classe na regata, na ordem atual
     all_rows = db.execute(
         text("""
             SELECT id, order_index
@@ -183,16 +213,14 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
         """),
         {"rid": regatta_id, "cname": class_name}
     ).fetchall()
+
     all_ids = [r.id for r in all_rows]
 
-    # 3) Construir a nova ordem:
-    #    - primeiro os IDs pedidos (mantendo a ordem dada),
-    #    - depois o resto, mantendo ordem relativa atual.
     ordered_set = set(ordered)
     rest_ids = [rid for rid in all_ids if rid not in ordered_set]
-    final_order = ordered + rest_ids  # 0..N-1 (completo para a classe)
 
-    # 4) Fase A: levantar todos os índices desta classe para evitar colisões UNIQUE
+    final_order = ordered + rest_ids
+
     BUMP = 100000
     db.execute(
         text("""
@@ -204,8 +232,8 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
     )
     db.flush()
 
-    # 5) Fase B: aplicar os novos índices com CASE numa única query
     when_sql = " ".join(f"WHEN {rid} THEN {idx}" for idx, rid in enumerate(final_order))
+
     upd = text(f"""
         UPDATE races
         SET order_index = CASE id
@@ -213,10 +241,10 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
         END
         WHERE regatta_id = :rid AND class_name = :cname
     """)
+
     db.execute(upd, {"rid": regatta_id, "cname": class_name})
     db.commit()
 
-    # 6) Devolver a lista completa da regata, já ordenada
     return (
         db.query(models.Race)
         .filter_by(regatta_id=regatta_id)
@@ -224,21 +252,26 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
         .all()
     )
 
-@router.post("/regattas/{regatta_id}/medal_race", response_model=RaceRead)
+
+# ------------------------------------------------------------
+# CREATE MEDAL RACE (CORRECT VERSION)
+# ------------------------------------------------------------
+@router.post("/regattas/{regatta_id}/medal_race", response_model=schemas.RaceRead)
 def create_medal_race(regatta_id: int, db: Session = Depends(get_db)):
     name = "Medal Race"
 
-    race = Race(
+    race = models.Race(
         regatta_id=regatta_id,
         name=name,
-        class_name="Medal",      # opcional, dependendo do teu modelo
+        class_name="Medal",   # se quiseres trocar para "General", posso mudar
         is_medal_race=True,
         double_points=True,
-        discardable=False
+        discardable=False,
+        order_index=9999   # garante que fica sempre no final
     )
+
     db.add(race)
     db.commit()
     db.refresh(race)
 
     return race
-
