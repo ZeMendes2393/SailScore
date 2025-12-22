@@ -441,31 +441,47 @@ def update_fleet_set(
     return fs
 
 
-@router.post("/regattas/{regatta_id}/medal_race/assign")
+@router.post("/{regatta_id}/medal_race/assign")
 def assign_medal_race_entries(
     regatta_id: int,
     data: MedalRaceAssignSchema,
     db: Session = Depends(get_db)
 ):
-    # criar "fleet medal"
-    fleet = Fleet(
+    # 1️⃣ Criar um FleetSet especial para a medal race
+    medal_set = FleetSet(
         regatta_id=regatta_id,
+        class_name=data.class_name,   # ← vais usar o class_name enviado do frontend
+        phase="medal",
+        label="Medal Race"
+    )
+    db.add(medal_set)
+    db.commit()
+    db.refresh(medal_set)
+
+    # 2️⃣ Criar uma fleet única dentro deste set
+    fleet = Fleet(
+        fleet_set_id=medal_set.id,
         name="Medal",
-        color="Medal",
-        phase="medal"
+        order_index=0
     )
     db.add(fleet)
     db.commit()
     db.refresh(fleet)
 
-    # assignments
+    # 3️⃣ Assignments — agora corretos
     for entry_id in data.entries:
-        a = Assignment(
-            regatta_id=regatta_id,
+        a = FleetAssignment(
+            fleet_set_id=medal_set.id,
             fleet_id=fleet.id,
             entry_id=entry_id
         )
         db.add(a)
 
     db.commit()
-    return {"status": "ok", "fleet_id": fleet.id}
+
+    return {
+        "status": "ok",
+        "fleet_set_id": medal_set.id,
+        "fleet_id": fleet.id,
+        "entries_assigned": len(data.entries)
+    }

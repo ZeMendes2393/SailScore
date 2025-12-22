@@ -784,4 +784,6 @@ class MedalRaceEntry(BaseModel):
     seed: int   # posição inicial / ranking no top 10
 
 class MedalRaceAssignSchema(BaseModel):
-    entries: List[MedalRaceEntry]
+    race_id: int
+    class_name: str
+    entries: List[int]

@@ -379,25 +379,50 @@ export function useFleets() {
     await refreshSetsAndRaces();
   }, [regattaId, selectedClass, refreshSetsAndRaces]);
 
-  const createMedalRace = useCallback(async (regattaId: number, raceId: number, entries: number[]) => {
-    setLoading(true);
-    setError(null);
-
+ const createMedalRace = useCallback(
+  async (raceId: number, className: string, entries: number[]) => {
     try {
       await apiSend(
         `/regattas/${regattaId}/medal_race/assign`,
         "POST",
-        { race_id: raceId, entries }
+        {
+          race_id: raceId,
+          class_name: className,
+          entries
+        }
+      );
+
+      // removed refresh()
+    } catch (err) {
+      console.error("createMedalRace erro:", err);
+      throw err;
+    }
+  },
+  [regattaId]
+);
+
+
+const deleteFleetSet = useCallback(
+  async (setId: number, force = false) => {
+    try {
+      await apiSend(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(
+          selectedClass!
+        )}/fleet-sets/${setId}?force=${force}`,
+        'DELETE'
       );
 
       await refreshSetsAndRaces();
+      setSelectedSetId(null);
+
     } catch (e: any) {
-      console.error("createMedalRace erro:", e);
-      setError(e?.message ?? "Erro ao criar Medal Race.");
-    } finally {
-      setLoading(false);
+      // 🔴 IMPORTANTE: propagar o erro para a UI
+      throw e;
     }
-  }, [refreshSetsAndRaces]);
+  },
+  [regattaId, selectedClass, refreshSetsAndRaces]
+);
+
 
   //
   // ----------------- RETURN -----------------
@@ -426,5 +451,6 @@ export function useFleets() {
     unpublishSet,
     updateSetTitle,
     createMedalRace,
+    deleteFleetSet,
   };
 }

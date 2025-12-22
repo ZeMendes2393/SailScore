@@ -6,6 +6,7 @@ type Props = {
   selectedSet: FleetSet;
   localTitle: string;
   setLocalTitle: (v: string) => void;
+
   publishSet: (id: number) => Promise<void>;
   unpublishSet: (id: number) => Promise<void>;
   updateSetTitle: (id: number, title: string) => Promise<void>;
@@ -13,6 +14,8 @@ type Props = {
   racesInSelectedSet: RaceLite[];
   racesAvailable: RaceLite[];
   updateFleetSetRaces: (id: number, raceIds: number[]) => Promise<void>;
+
+  deleteFleetSet: (setId: number, force?: boolean) => Promise<void>;
 
   assignments: Assignment[];
 };
@@ -27,6 +30,7 @@ export default function ExistingFleetSet({
   racesInSelectedSet,
   racesAvailable,
   updateFleetSetRaces,
+  deleteFleetSet,
   assignments,
 }: Props) {
   return (
@@ -35,7 +39,7 @@ export default function ExistingFleetSet({
         {selectedSet.label} ({selectedSet.phase})
       </h3>
 
-      {/* TITLE */}
+      {/* TITLE + ACTIONS */}
       <div className="space-y-2 border-t pt-3">
         <label className="text-xs font-medium">Título público:</label>
 
@@ -46,14 +50,14 @@ export default function ExistingFleetSet({
           onChange={(e) => setLocalTitle(e.target.value)}
         />
 
-        <button
-          className="px-3 py-1 text-xs bg-blue-600 text-white rounded"
-          onClick={() => updateSetTitle(selectedSet.id, localTitle)}
-        >
-          Guardar título
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            className="px-3 py-1 text-xs bg-blue-600 text-white rounded"
+            onClick={() => updateSetTitle(selectedSet.id, localTitle)}
+          >
+            Guardar título
+          </button>
 
-        <div className="flex items-center gap-3 mt-2">
           <button
             disabled={!localTitle.trim()}
             className={`px-3 py-1 text-xs rounded-full border transition ${
@@ -72,16 +76,51 @@ export default function ExistingFleetSet({
             {selectedSet.is_published ? 'Despublicar' : 'Publicar'}
           </button>
 
-          {!localTitle.trim() && (
-            <span className="text-[11px] text-red-600">
-              ⚠️ First set a title before publishing.
-            </span>
-          )}
+          {/* 🗑 DELETE */}
+          <button
+            className="px-3 py-1 text-xs rounded border border-red-600 text-red-600 hover:bg-red-50"
+            onClick={async () => {
+              const ok = window.confirm(
+                `Tens a certeza que queres apagar o Fleet Set "${selectedSet.label}"?`
+              );
+              if (!ok) return;
+
+              try {
+                await deleteFleetSet(selectedSet.id);
+              } catch (err: any) {
+                let detail: any = null;
+
+                // 🔑 tentar extrair detail do erro
+                if (typeof err?.message === 'string') {
+                  try {
+                    detail = JSON.parse(err.message);
+                  } catch {
+                    /* ignore */
+                  }
+                }
+
+                if (detail?.code === 'FLEETSET_HAS_RESULTS') {
+                  const force = window.confirm(
+                    `Este Fleet Set tem ${detail.result_count} resultados associados.\n\nQueres apagar à força?`
+                  );
+                  if (force) {
+                    await deleteFleetSet(selectedSet.id, true);
+                  }
+                } else {
+                  console.error('Erro ao apagar FleetSet:', err);
+                  alert('Erro ao apagar o Fleet Set.');
+                }
+              }
+            }}
+          >
+            🗑 Apagar
+          </button>
         </div>
 
         {selectedSet.published_at && (
           <p className="text-xs text-gray-500">
-            Publicado em: {new Date(selectedSet.published_at).toLocaleString()}
+            Publicado em:{' '}
+            {new Date(selectedSet.published_at).toLocaleString()}
           </p>
         )}
       </div>
@@ -128,7 +167,10 @@ export default function ExistingFleetSet({
                 className="px-2 py-1 rounded-full border hover:bg-gray-50"
                 onClick={async () => {
                   const currentIds = racesInSelectedSet.map((x) => x.id);
-                  await updateFleetSetRaces(selectedSet.id, [...currentIds, r.id]);
+                  await updateFleetSetRaces(selectedSet.id, [
+                    ...currentIds,
+                    r.id,
+                  ]);
                 }}
               >
                 {r.name}
@@ -158,7 +200,9 @@ export default function ExistingFleetSet({
               {assignments.map((a, i) => (
                 <tr key={`${a.entry_id}-${a.fleet_id}-${i}`}>
                   <td className="border px-2 py-1">
-                    {selectedSet.fleets.find((f) => f.id === a.fleet_id)?.name ?? '-'}
+                    {selectedSet.fleets.find(
+                      (f) => f.id === a.fleet_id
+                    )?.name ?? '-'}
                   </td>
                   <td className="border px-2 py-1">{i + 1}</td>
                   <td className="border px-2 py-1">{a.sail_number}</td>

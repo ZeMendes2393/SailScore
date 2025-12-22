@@ -7,14 +7,18 @@ import type { RaceLite } from '../../../hooks/useFleets';
 type Props = {
   classOverall: OverallRow[];
   racesAvailable: RaceLite[];
-  regattaId: number;
-  createMedalRace: (regattaId: number, raceId: number, entries: number[]) => Promise<void>;
+  selectedClass: string; 
+  createMedalRace: (
+    raceId: number,
+    className: string,
+    entries: number[]
+  ) => Promise<void>;
 };
 
 export default function CreateMedalRace({
   classOverall,
   racesAvailable,
-  regattaId,
+  selectedClass,
   createMedalRace,
 }: Props) {
 
@@ -29,10 +33,19 @@ export default function CreateMedalRace({
       .slice(from - 1, to);
   }, [classOverall, from, to]);
 
+console.log("TOP KEYS:", top.map(s => s.entry_id));
+console.log("RACES KEYS:", racesAvailable.map(r => r.id));
+console.log(
+  "ENTRIES RAW:",
+  top.map(s => s.entry_id),
+  top.map(s => typeof s.entry_id)
+);
+
   return (
     <div className="border rounded-xl p-4 bg-white shadow space-y-4">
       <h3 className="text-lg font-semibold">Medal Race</h3>
 
+      {/* interval selection */}
       <div className="flex gap-4 text-sm">
         <label className="flex flex-col">
           From
@@ -65,21 +78,25 @@ export default function CreateMedalRace({
 
       <ul className="text-xs mt-1 space-y-1">
         {top.map((s) => (
-          <li key={s.entry_id}>
+<li key={`${s.entry_id}-${s.overall_rank}`}>
             #{s.overall_rank} — {s.sail_number} {s.skipper_name} ({s.net_points})
           </li>
         ))}
       </ul>
 
+      {/* race selection */}
       <div>
         <div className="text-sm mb-2">Select Medal Race:</div>
         <div className="flex gap-2 flex-wrap">
           {racesAvailable.map((r) => (
+
             <button
               key={r.id}
               onClick={() => setSelectedRaceId(r.id)}
               className={`px-2 py-1 rounded border ${
-                selectedRaceId === r.id ? 'bg-emerald-600 text-white' : 'bg-white'
+                selectedRaceId === r.id
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-white'
               }`}
             >
               {r.name}
@@ -88,6 +105,7 @@ export default function CreateMedalRace({
         </div>
       </div>
 
+      {/* submit */}
       <button
         disabled={!selectedRaceId}
         className={`px-4 py-2 rounded-xl text-white ${
@@ -95,7 +113,13 @@ export default function CreateMedalRace({
         }`}
         onClick={async () => {
           if (!selectedRaceId) return;
-          await createMedalRace(regattaId, selectedRaceId, top.map((s) => s.entry_id));
+
+          await createMedalRace(
+            selectedRaceId,
+            selectedClass,
+            top.map((s) => s.entry_id)
+          );
+
           alert("Medal Race criada com sucesso!");
         }}
       >
