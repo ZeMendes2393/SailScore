@@ -779,11 +779,9 @@ class StartFinalsIn(BaseModel):
     race_ids: List[int] = []
 
 
-class MedalRaceEntry(BaseModel):
-    entry_id: int
-    seed: int   # posição inicial / ranking no top 10
 
 class MedalRaceAssignSchema(BaseModel):
     race_id: int
     class_name: str
-    entries: List[int]
+    from_rank: int
+    to_rank: int

@@ -261,14 +261,16 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
             />
           )}
 
-          {modeCreate === 'medal' && (
-            <CreateMedalRace
-              classOverall={classOverall}
-              racesAvailable={racesAvailable}
-              selectedClass={selectedClass ?? ''}
-              createMedalRace={createMedalRace}
-            />
-          )}
+       {modeCreate === 'medal' && (
+  <CreateMedalRace
+    classOverall={classOverall}
+    racesAvailable={racesAvailable}
+    selectedClass={selectedClass ?? ''}
+    createMedalRace={createMedalRace}
+  />
+)}
+
+
         </div>
       )}
     </div>

@@ -1,6 +1,4 @@
 export type OverallRow = {
-  entry_id: number;
-  
   sail_number: string | null;
   boat_name: string;
   class_name: string;

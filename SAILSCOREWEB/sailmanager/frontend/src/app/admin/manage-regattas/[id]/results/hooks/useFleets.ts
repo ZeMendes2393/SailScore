@@ -380,26 +380,28 @@ export function useFleets() {
   }, [regattaId, selectedClass, refreshSetsAndRaces]);
 
  const createMedalRace = useCallback(
-  async (raceId: number, className: string, entries: number[]) => {
-    try {
-      await apiSend(
-        `/regattas/${regattaId}/medal_race/assign`,
-        "POST",
-        {
-          race_id: raceId,
-          class_name: className,
-          entries
-        }
-      );
+  async (
+    raceId: number,
+    className: string,
+    fromRank: number,
+    toRank: number
+  ) => {
+    await apiSend(
+      `/regattas/${regattaId}/medal_race/assign`,
+      "POST",
+      {
+        race_id: raceId,
+        class_name: className,
+        from_rank: fromRank,
+        to_rank: toRank,
+      }
+    );
 
-      // removed refresh()
-    } catch (err) {
-      console.error("createMedalRace erro:", err);
-      throw err;
-    }
+    await refreshSetsAndRaces();
   },
-  [regattaId]
+  [regattaId, refreshSetsAndRaces]
 );
+
 
 
 const deleteFleetSet = useCallback(

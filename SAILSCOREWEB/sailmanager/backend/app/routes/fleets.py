@@ -11,7 +11,11 @@ from app.services.fleets import (
     create_initial_set_random,
     reshuffle_from_ranking,
     start_finals,
+    _ensure_unique_label,   # 👈 ADD ISTO
+
 )
+
+
 from app.schemas import (
     FleetSetRead,
     CreateQualifyingSetIn,
@@ -19,6 +23,7 @@ from app.schemas import (
     StartFinalsIn,
 )
 from app.schemas import MedalRaceAssignSchema
+from app.services.fleets import compute_overall_ranking
 
 from pydantic import BaseModel
 
@@ -440,48 +445,62 @@ def update_fleet_set(
     db.refresh(fs)
     return fs
 
-
 @router.post("/{regatta_id}/medal_race/assign")
 def assign_medal_race_entries(
     regatta_id: int,
     data: MedalRaceAssignSchema,
     db: Session = Depends(get_db)
 ):
-    # 1️⃣ Criar um FleetSet especial para a medal race
+    ranking = compute_overall_ranking(
+        db,
+        regatta_id,
+        data.class_name
+    )
+
+    selected = ranking[data.from_rank - 1 : data.to_rank]
+
+    if not selected:
+        raise HTTPException(status_code=400, detail="No entries for medal race")
+
+    # 👇 GARANTE LABEL ÚNICO
+    label = _ensure_unique_label(
+        db,
+        regatta_id,
+        data.class_name,
+        "medal",
+        "Medal Race"
+    )
+
     medal_set = FleetSet(
         regatta_id=regatta_id,
-        class_name=data.class_name,   # ← vais usar o class_name enviado do frontend
+        class_name=data.class_name,
         phase="medal",
-        label="Medal Race"
+        label=label
     )
     db.add(medal_set)
-    db.commit()
-    db.refresh(medal_set)
+    db.flush()
 
-    # 2️⃣ Criar uma fleet única dentro deste set
     fleet = Fleet(
         fleet_set_id=medal_set.id,
         name="Medal",
-        order_index=0
+        order_index=1
     )
     db.add(fleet)
-    db.commit()
-    db.refresh(fleet)
+    db.flush()
 
-    # 3️⃣ Assignments — agora corretos
-    for entry_id in data.entries:
-        a = FleetAssignment(
-            fleet_set_id=medal_set.id,
-            fleet_id=fleet.id,
-            entry_id=entry_id
+    for entry_id in selected:
+        db.add(
+            FleetAssignment(
+                fleet_set_id=medal_set.id,
+                fleet_id=fleet.id,
+                entry_id=entry_id
+            )
         )
-        db.add(a)
 
     db.commit()
 
     return {
-        "status": "ok",
-        "fleet_set_id": medal_set.id,
-        "fleet_id": fleet.id,
-        "entries_assigned": len(data.entries)
+        "ok": True,
+        "entries_assigned": len(selected),
+        "fleet_set_id": medal_set.id
     }
