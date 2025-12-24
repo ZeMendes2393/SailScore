@@ -390,10 +390,10 @@ export function useFleets() {
       `/regattas/${regattaId}/medal_race/assign`,
       "POST",
       {
-        race_id: raceId,
         class_name: className,
         from_rank: fromRank,
         to_rank: toRank,
+        race_ids: [raceId],
       }
     );
 

@@ -781,7 +781,7 @@ class StartFinalsIn(BaseModel):
 
 
 class MedalRaceAssignSchema(BaseModel):
-    race_id: int
     class_name: str
     from_rank: int
     to_rank: int
+    race_ids: List[int]

@@ -449,8 +449,9 @@ def update_fleet_set(
 def assign_medal_race_entries(
     regatta_id: int,
     data: MedalRaceAssignSchema,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    # 1️⃣ Ranking oficial
     ranking = compute_overall_ranking(
         db,
         regatta_id,
@@ -460,9 +461,12 @@ def assign_medal_race_entries(
     selected = ranking[data.from_rank - 1 : data.to_rank]
 
     if not selected:
-        raise HTTPException(status_code=400, detail="No entries for medal race")
+        raise HTTPException(
+            status_code=400,
+            detail="No entries for medal race"
+        )
 
-    # 👇 GARANTE LABEL ÚNICO
+    # 2️⃣ FleetSet (label único)
     label = _ensure_unique_label(
         db,
         regatta_id,
@@ -471,36 +475,53 @@ def assign_medal_race_entries(
         "Medal Race"
     )
 
-    medal_set = FleetSet(
+    fs = FleetSet(
         regatta_id=regatta_id,
         class_name=data.class_name,
         phase="medal",
-        label=label
+        label=label,
     )
-    db.add(medal_set)
+    db.add(fs)
     db.flush()
 
+    # 3️⃣ Fleet única
     fleet = Fleet(
-        fleet_set_id=medal_set.id,
+        fleet_set_id=fs.id,
         name="Medal",
-        order_index=1
+        order_index=1,
     )
     db.add(fleet)
     db.flush()
 
+    # 4️⃣ Assignments
     for entry_id in selected:
         db.add(
             FleetAssignment(
-                fleet_set_id=medal_set.id,
+                fleet_set_id=fs.id,
                 fleet_id=fleet.id,
-                entry_id=entry_id
+                entry_id=entry_id,
             )
         )
+
+    # 5️⃣ ✅ ASSOCIAR RACES AO FLEET SET
+    _validate_races_same_regatta_and_class(
+        db,
+        regatta_id,
+        data.class_name,
+        data.race_ids,
+    )
+
+    (
+        db.query(Race)
+        .filter(Race.id.in_(data.race_ids))
+        .update({"fleet_set_id": fs.id}, synchronize_session=False)
+    )
 
     db.commit()
 
     return {
         "ok": True,
+        "fleet_set_id": fs.id,
         "entries_assigned": len(selected),
-        "fleet_set_id": medal_set.id
+        "race_ids": data.race_ids,
     }
