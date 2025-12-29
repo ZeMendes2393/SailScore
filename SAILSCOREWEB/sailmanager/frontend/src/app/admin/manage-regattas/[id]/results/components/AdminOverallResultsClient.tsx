@@ -415,10 +415,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                       setRawResults(data || []);
                     }
                   } catch (e) {
-                    console.error(
-                      'refresh após criar corrida falhou',
-                      e
-                    );
+                    console.error('refresh após criar corrida falhou', e);
                   }
                 })();
               }}
@@ -426,6 +423,8 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           </div>
         )}
       </div>
+
+      {!!error && <p className="text-red-600 text-sm mb-3">{error}</p>}
 
       {/* Abas de classes */}
       {loadingClasses ? (
@@ -560,44 +559,35 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   disabled={saving}
                   onClick={async () => {
                     if (!pendingOrder) return;
-                    if (
-                      !confirm(
-                        'Confirmas guardar a nova ordem das corridas?'
-                      )
-                    )
+                    if (!confirm('Confirmas guardar a nova ordem das corridas?'))
                       return;
                     try {
                       setSaving(true);
                       await apiSend(
                         `/races/regattas/${regattaId}/reorder`,
                         'PUT',
-                        {
-                          ordered_ids: pendingOrder,
-                        }
+                        { ordered_ids: pendingOrder }
                       );
+
                       const refreshed: RaceLite[] = await apiGet(
                         `/races/by_regatta/${regattaId}`
                       );
                       const grouped: Record<string, RaceLite[]> = {};
                       refreshed.forEach((r) => {
-                        if (!grouped[r.class_name])
-                          grouped[r.class_name] = [];
+                        if (!grouped[r.class_name]) grouped[r.class_name] = [];
                         grouped[r.class_name].push(r);
                       });
                       for (const k of Object.keys(grouped)) {
                         grouped[k].sort(
                           (a, b) =>
-                            (a.order_index ?? a.id) -
-                            (b.order_index ?? b.id)
+                            (a.order_index ?? a.id) - (b.order_index ?? b.id)
                         );
                       }
                       setRacesByClass(grouped);
                       setPendingOrder(null);
                       router.refresh();
                     } catch (e: any) {
-                      alert(
-                        e?.message || 'Erro ao guardar a nova ordem.'
-                      );
+                      alert(e?.message || 'Erro ao guardar a nova ordem.');
                     } finally {
                       setSaving(false);
                     }
@@ -634,13 +624,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           onClose={() => setShowFleets(false)}
           title="Fleet Manager"
         >
-          {selectedClass ? (
-            <FleetManager overall={results} />
-          ) : (
-            <div className="p-4 text-sm text-gray-600">
-              Escolhe uma classe para gerir fleets.
-            </div>
-          )}
+         {selectedClass ? (
+  <FleetManager
+    overall={results}
+    regattaId={regattaId}
+  />
+) : (
+  <div className="p-4 text-sm text-gray-600">
+    Escolhe uma classe para gerir fleets.
+  </div>
+)}
+
         </FleetsDrawer>
       )}
     </div>

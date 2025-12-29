@@ -11,20 +11,16 @@ from app.services.fleets import (
     create_initial_set_random,
     reshuffle_from_ranking,
     start_finals,
-    _ensure_unique_label,   # 👈 ADD ISTO
-
+    _ensure_unique_label,
 )
-
-
 from app.schemas import (
     FleetSetRead,
     CreateQualifyingSetIn,
     ReshuffleIn,
     StartFinalsIn,
+    MedalRaceAssignSchema,
 )
-from app.schemas import MedalRaceAssignSchema
 from app.services.fleets import compute_overall_ranking
-
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/regattas", tags=["fleets"])
@@ -33,6 +29,32 @@ router = APIRouter(prefix="/regattas", tags=["fleets"])
 # -------------------------
 # Helpers
 # -------------------------
+def _ensure_single_phase_set(
+    db: Session,
+    regatta_id: int,
+    class_name: str,
+    phase: str,
+) -> None:
+    """
+    Impede criar 2 FleetSets do mesmo phase para a mesma regatta+class.
+    Ex: só 1 finals e só 1 medal.
+    """
+    existing = (
+        db.query(FleetSet)
+        .filter(
+            FleetSet.regatta_id == regatta_id,
+            FleetSet.class_name == class_name,
+            FleetSet.phase == phase,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Já existe um Fleet Set de phase='{phase}' para esta classe.",
+        )
+
+
 def _attach_races_to_set(db: Session, race_ids: List[int], set_id: int) -> None:
     if not race_ids:
         return
@@ -99,7 +121,9 @@ def create_quali_set(
     db.refresh(fs)
 
     if body.race_ids:
-        _validate_races_same_regatta_and_class(db, regatta_id, class_name, body.race_ids)
+        _validate_races_same_regatta_and_class(
+            db, regatta_id, class_name, body.race_ids
+        )
         _attach_races_to_set(db, body.race_ids, fs.id)
 
     db.refresh(fs)
@@ -139,7 +163,9 @@ def reshuffle(
     db.refresh(fs)
 
     if body.race_ids:
-        _validate_races_same_regatta_and_class(db, regatta_id, class_name, body.race_ids)
+        _validate_races_same_regatta_and_class(
+            db, regatta_id, class_name, body.race_ids
+        )
         _attach_races_to_set(db, body.race_ids, fs.id)
 
     db.refresh(fs)
@@ -156,7 +182,37 @@ def start_finals_set(
     body: StartFinalsIn,
     db: Session = Depends(get_db),
 ):
-    fs = start_finals(db, regatta_id, class_name, body.label or "Finals", body.grouping)
+    # impedir 2 finals
+    _ensure_single_phase_set(db, regatta_id, class_name, "finals")
+
+    grouping = None
+
+    if body.ranges and len(body.ranges) > 0:
+        grouping = {}
+        for r in body.ranges:
+            if r.to_rank < r.from_rank:
+                raise HTTPException(status_code=400, detail="Range inválido (to < from).")
+            size = r.to_rank - r.from_rank + 1
+            if size <= 0:
+                continue
+            grouping[r.name] = int(size)
+
+        if not grouping:
+            raise HTTPException(status_code=400, detail="Ranges inválidos.")
+
+    elif body.grouping and len(body.grouping) > 0:
+        grouping = body.grouping
+
+    else:
+        raise HTTPException(status_code=400, detail="É preciso enviar grouping ou ranges.")
+
+    fs = start_finals(
+        db,
+        regatta_id,
+        class_name,
+        body.label or "Finals",
+        grouping,
+    )
     db.commit()
     db.refresh(fs)
 
@@ -356,13 +412,19 @@ def update_fleet_set_races(
 
 
 # -------------------------
-# 🚀 Publish / Unpublish / Public list
+# Publish / Unpublish
 # -------------------------
 @router.post("/{regatta_id}/classes/{class_name}/fleet-sets/{set_id}/publish")
-def publish_set(regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)):
+def publish_set(
+    regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)
+):
     fs = (
         db.query(FleetSet)
-        .filter(FleetSet.id == set_id, FleetSet.regatta_id == regatta_id, FleetSet.class_name == class_name)
+        .filter(
+            FleetSet.id == set_id,
+            FleetSet.regatta_id == regatta_id,
+            FleetSet.class_name == class_name,
+        )
         .first()
     )
 
@@ -370,8 +432,10 @@ def publish_set(regatta_id: int, class_name: str, set_id: int, db: Session = Dep
         raise HTTPException(status_code=404, detail="Fleet set não encontrado")
 
     fs.is_published = True
-    if not fs.public_title:
-        fs.public_title = fs.label
+
+    if not (fs.public_title and fs.public_title.strip()):
+        fs.public_title = (fs.label or "Fleet Set").strip()
+
     fs.published_at = sa.func.now()
 
     db.commit()
@@ -380,10 +444,16 @@ def publish_set(regatta_id: int, class_name: str, set_id: int, db: Session = Dep
 
 
 @router.post("/{regatta_id}/classes/{class_name}/fleet-sets/{set_id}/unpublish")
-def unpublish_set(regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)):
+def unpublish_set(
+    regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)
+):
     fs = (
         db.query(FleetSet)
-        .filter(FleetSet.id == set_id, FleetSet.regatta_id == regatta_id, FleetSet.class_name == class_name)
+        .filter(
+            FleetSet.id == set_id,
+            FleetSet.regatta_id == regatta_id,
+            FleetSet.class_name == class_name,
+        )
         .first()
     )
 
@@ -398,14 +468,6 @@ def unpublish_set(regatta_id: int, class_name: str, set_id: int, db: Session = D
     return {"ok": True, "fleet_set_id": set_id}
 
 
-@router.get("/{regatta_id}/published-fleet-sets", response_model=List[FleetSetRead])
-def list_published(regatta_id: int, db: Session = Depends(get_db)):
-    return (
-        db.query(FleetSet)
-        .filter(FleetSet.regatta_id == regatta_id, FleetSet.is_published == True)
-        .order_by(FleetSet.created_at.asc())
-        .all()
-    )
 # -------------------------
 # Update FleetSet fields (ex: public_title)
 # -------------------------
@@ -437,7 +499,6 @@ def update_fleet_set(
     if not fs:
         raise HTTPException(status_code=404, detail="Fleet set não encontrado")
 
-    # Atualizar apenas public_title (podes facilmente expandir isto no futuro)
     if body.public_title is not None:
         fs.public_title = body.public_title
 
@@ -445,34 +506,26 @@ def update_fleet_set(
     db.refresh(fs)
     return fs
 
+
+# -------------------------
+# Medal Race (✅ agora pode ser criada SEM race_ids)
+# -------------------------
 @router.post("/{regatta_id}/medal_race/assign")
 def assign_medal_race_entries(
     regatta_id: int,
     data: MedalRaceAssignSchema,
     db: Session = Depends(get_db),
 ):
-    # 1️⃣ Ranking oficial
-    ranking = compute_overall_ranking(
-        db,
-        regatta_id,
-        data.class_name
-    )
+    _ensure_single_phase_set(db, regatta_id, data.class_name, "medal")
 
+    ranking = compute_overall_ranking(db, regatta_id, data.class_name)
     selected = ranking[data.from_rank - 1 : data.to_rank]
 
     if not selected:
-        raise HTTPException(
-            status_code=400,
-            detail="No entries for medal race"
-        )
+        raise HTTPException(status_code=400, detail="No entries for medal race")
 
-    # 2️⃣ FleetSet (label único)
     label = _ensure_unique_label(
-        db,
-        regatta_id,
-        data.class_name,
-        "medal",
-        "Medal Race"
+        db, regatta_id, data.class_name, "medal", "Medal Race"
     )
 
     fs = FleetSet(
@@ -484,7 +537,6 @@ def assign_medal_race_entries(
     db.add(fs)
     db.flush()
 
-    # 3️⃣ Fleet única
     fleet = Fleet(
         fleet_set_id=fs.id,
         name="Medal",
@@ -493,7 +545,6 @@ def assign_medal_race_entries(
     db.add(fleet)
     db.flush()
 
-    # 4️⃣ Assignments
     for entry_id in selected:
         db.add(
             FleetAssignment(
@@ -503,19 +554,17 @@ def assign_medal_race_entries(
             )
         )
 
-    # 5️⃣ ✅ ASSOCIAR RACES AO FLEET SET
-    _validate_races_same_regatta_and_class(
-        db,
-        regatta_id,
-        data.class_name,
-        data.race_ids,
-    )
+    # ✅ Só valida e associa se vierem races
+    if data.race_ids:
+        _validate_races_same_regatta_and_class(
+            db, regatta_id, data.class_name, data.race_ids
+        )
 
-    (
-        db.query(Race)
-        .filter(Race.id.in_(data.race_ids))
-        .update({"fleet_set_id": fs.id}, synchronize_session=False)
-    )
+        (
+            db.query(Race)
+            .filter(Race.id.in_(data.race_ids))
+            .update({"fleet_set_id": fs.id}, synchronize_session=False)
+        )
 
     db.commit()
 

@@ -732,7 +732,9 @@ class ClassSettingsUpdate(BaseModel):
 
 
 # app/schemas/fleets.py
-
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
+from datetime import datetime
 
 class FleetRead(BaseModel):
     id: int
@@ -752,7 +754,6 @@ class FleetSetRead(BaseModel):
     phase: str
     label: Optional[str] = None
 
-    # 🔥 NOVOS CAMPOS
     is_published: bool
     public_title: Optional[str] = None
     published_at: Optional[datetime] = None
@@ -762,26 +763,29 @@ class FleetSetRead(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CreateQualifyingSetIn(BaseModel):
     label: Optional[str] = None
     num_fleets: int = Field(ge=2, le=4)
-    race_ids: List[int] = []  # opcional: prende logo às corridas
+    race_ids: List[int] = Field(default_factory=list)
 
 class ReshuffleIn(BaseModel):
     label: Optional[str] = None
     num_fleets: int = Field(ge=2, le=4)
-    race_ids: List[int] = []
+    race_ids: List[int] = Field(default_factory=list)
+
+class FinalsRangeIn(BaseModel):
+    name: str
+    from_rank: int = Field(ge=1)
+    to_rank: int = Field(ge=1)
 
 class StartFinalsIn(BaseModel):
     label: Optional[str] = "Finals"
-    grouping: Dict[str, int]  # ex: {"Gold":50,"Silver":50}
-    race_ids: List[int] = []
-
-
+    grouping: Optional[Dict[str, int]] = None
+    ranges: Optional[List[FinalsRangeIn]] = None
+    race_ids: List[int] = Field(default_factory=list)
 
 class MedalRaceAssignSchema(BaseModel):
     class_name: str
     from_rank: int
     to_rank: int
-    race_ids: List[int]
+    race_ids: List[int] = Field(default_factory=list)  # ✅ agora é opcional

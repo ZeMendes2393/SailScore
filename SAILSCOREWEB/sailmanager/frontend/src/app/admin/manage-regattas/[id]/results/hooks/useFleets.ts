@@ -62,7 +62,6 @@ type FleetsResponse = {
   assignments: RawAssignment[];
 };
 
-
 //
 // -----------------------------------------------------
 // 🚀 HOOK PRINCIPAL — useFleets()
@@ -75,9 +74,9 @@ export function useFleets() {
 
   // detetar regattaId da URL
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       const parts = window.location.pathname.split('/');
-      const id = Number(parts.find(x => /^\d+$/.test(x)));
+      const id = Number(parts.find((x) => /^\d+$/.test(x)));
       if (!Number.isNaN(id)) setRegattaId(id);
     }
   }, []);
@@ -99,20 +98,11 @@ export function useFleets() {
   const [error, setError] = useState<unknown>(null);
 
   //
-  // utilitário: cria lista de classes baseada em entries+races+fleetsets
+  // ✅ utilitário: classes “reais” = só as classes que existem nas ENTRIES
   //
-  const collectClasses = (
-    entries: EntryLite[],
-    races: RaceLite[],
-    sets: FleetSet[]
-  ): string[] => {
-    const fromEntries = entries.map(e => e.class_name).filter(Boolean);
-    const fromRaces = races.map(r => r.class_name).filter(Boolean);
-    const fromSets = sets.map(s => s.class_name).filter(Boolean);
-
-    return Array.from(
-      new Set([...fromEntries, ...fromRaces, ...fromSets])
-    ).sort();
+  const collectClasses = (entries: EntryLite[]): string[] => {
+    const fromEntries = entries.map((e) => e.class_name).filter(Boolean);
+    return Array.from(new Set(fromEntries)).sort();
   };
 
   //
@@ -121,14 +111,14 @@ export function useFleets() {
   const attachRaceNames = useCallback((rawSets: FleetSet[], allRaces: RaceLite[]) => {
     const bySet: Record<number, string[]> = {};
 
-    allRaces.forEach(r => {
+    allRaces.forEach((r) => {
       if (r.fleet_set_id != null) {
         if (!bySet[r.fleet_set_id]) bySet[r.fleet_set_id] = [];
         bySet[r.fleet_set_id].push(r.name);
       }
     });
 
-    return rawSets.map(s => ({
+    return rawSets.map((s) => ({
       ...s,
       race_names: (bySet[s.id] ?? []).slice().sort(),
     }));
@@ -147,25 +137,29 @@ export function useFleets() {
       try {
         const [entries, rcs] = await Promise.all([
           apiGet<EntryLite[]>(`/entries/by_regatta/${regattaId}`),
-          apiGet<RaceLite[]>(`/races/by_regatta/${regattaId}`)
+          apiGet<RaceLite[]>(`/races/by_regatta/${regattaId}`),
         ]);
 
         setEntryList(entries);
         setRaces(rcs);
 
-        const cls = collectClasses(entries, rcs, []);
+        const cls = collectClasses(entries);
         setClasses(cls);
-        if (!selectedClass && cls.length > 0) {
+
+        // ✅ garantir selectedClass válida
+        if (!cls.includes(selectedClass ?? '') && cls.length > 0) {
+          setSelectedClass(cls[0]);
+        } else if (!selectedClass && cls.length > 0) {
           setSelectedClass(cls[0]);
         }
       } catch (e) {
-        console.error("useFleets: erro entries/races", e);
+        console.error('useFleets: erro entries/races', e);
         setError(e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [regattaId]);
+  }, [regattaId]); // (mantém simples)
 
   //
   // ----------------- LOAD FLEET SETS -----------------
@@ -189,16 +183,16 @@ export function useFleets() {
         const enriched = attachRaceNames(data, races);
         setSets(enriched);
 
-        // atualizar classes robustamente
-        setClasses(collectClasses(entryList, races, enriched));
+        // ✅ classes vêm só das entries (não de races/sets)
+        setClasses(collectClasses(entryList));
 
         if (enriched.length > 0) {
-          setSelectedSetId(prev => prev ?? enriched[0].id);
+          setSelectedSetId((prev) => prev ?? enriched[0].id);
         } else {
           setSelectedSetId(null);
         }
       } catch (e) {
-        console.error("useFleets: erro fleet-sets", e);
+        console.error('useFleets: erro fleet-sets', e);
         setError(e);
         setSets([]);
         setSelectedSetId(null);
@@ -206,7 +200,7 @@ export function useFleets() {
         setLoading(false);
       }
     })();
-  }, [regattaId, selectedClass, races, attachRaceNames]);
+  }, [regattaId, selectedClass, races, attachRaceNames, entryList]);
 
   //
   // ----------------- LOAD ASSIGNMENTS -----------------
@@ -220,23 +214,27 @@ export function useFleets() {
     (async () => {
       try {
         const data = await apiGet<FleetsResponse>(
-          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${selectedSetId}/assignments`
+          `/regattas/${regattaId}/classes/${encodeURIComponent(
+            selectedClass
+          )}/fleet-sets/${selectedSetId}/assignments`
         );
 
-        const enriched = data.assignments.map(a => {
-          const entry = entryList.find(e => e.id === a.entry_id);
+        const enriched = data.assignments.map((a) => {
+          const entry = entryList.find((e) => e.id === a.entry_id);
           return {
             entry_id: a.entry_id,
             fleet_id: a.fleet_id,
             sail_number: entry?.sail_number ?? null,
             boat_name: entry?.boat_name ?? null,
-            helm_name: entry ? `${entry.first_name ?? ''} ${entry.last_name ?? ''}`.trim() : null
+            helm_name: entry
+              ? `${entry.first_name ?? ''} ${entry.last_name ?? ''}`.trim()
+              : null,
           };
         });
 
         setAssignments(enriched);
       } catch (e) {
-        console.error("useFleets: erro assignments", e);
+        console.error('useFleets: erro assignments', e);
         setAssignments([]);
       }
     })();
@@ -247,7 +245,7 @@ export function useFleets() {
   //
   const racesInSelectedSet = useMemo(() => {
     if (!selectedSetId) return [];
-    return races.filter(r => r.fleet_set_id === selectedSetId);
+    return races.filter((r) => r.fleet_set_id === selectedSetId);
   }, [races, selectedSetId]);
 
   //
@@ -255,10 +253,10 @@ export function useFleets() {
   //
   const racesAvailable = useMemo(() => {
     if (!selectedClass) return [];
-    const used = new Set(races.filter(r => r.fleet_set_id != null).map(r => r.id));
+    const used = new Set(races.filter((r) => r.fleet_set_id != null).map((r) => r.id));
 
     return races
-      .filter(r => r.class_name === selectedClass && !used.has(r.id))
+      .filter((r) => r.class_name === selectedClass && !used.has(r.id))
       .sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
   }, [races, selectedClass]);
 
@@ -273,158 +271,184 @@ export function useFleets() {
         apiGet<RaceLite[]>(`/races/by_regatta/${regattaId}`),
         apiGet<FleetSet[]>(
           `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets`
-        )
+        ),
       ]);
 
       setRaces(rcs);
       const enriched = attachRaceNames(sts, rcs);
       setSets(enriched);
 
-      // atualizar classes
-      setClasses(collectClasses(entryList, rcs, enriched));
+      // ✅ classes só das entries
+      setClasses(collectClasses(entryList));
 
       if (enriched.length === 0) {
         setSelectedSetId(null);
         setAssignments([]);
       }
     } catch (e) {
-      console.error("refreshSetsAndRaces", e);
+      console.error('refreshSetsAndRaces', e);
     }
-  }, [regattaId, selectedClass, attachRaceNames]);
+  }, [regattaId, selectedClass, attachRaceNames, entryList]);
 
   //
   // ----------------- ACTIONS -----------------
   //
-  const createQualifying = useCallback(async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
-    if (!regattaId || !selectedClass) throw new Error("Classe não selecionada.");
+  const createQualifying = useCallback(
+    async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
+      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
 
-    const fs = await apiSend<FleetSet>(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/qualifying`,
-      "POST",
-      { label, num_fleets, race_ids }
-    );
-
-    await refreshSetsAndRaces();
-    setSelectedSetId(fs.id);
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
-
-  const reshuffle = useCallback(async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
-    if (!regattaId || !selectedClass) throw new Error("Classe não selecionada.");
-
-    const fs = await apiSend<FleetSet>(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/reshuffle`,
-      "POST",
-      { label, num_fleets, race_ids }
-    );
-
-    await refreshSetsAndRaces();
-    setSelectedSetId(fs.id);
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
-
-  const startFinals = useCallback(async (label: string, grouping: Record<string, number>, race_ids?: number[]) => {
-    if (!regattaId || !selectedClass) throw new Error("Classe não selecionada.");
-
-    const body = { label, grouping, race_ids: race_ids ?? [] };
-
-    const res = await apiSend<FleetSet>(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/finals`,
-      "POST",
-      body,
-      token ?? undefined
-    );
-
-    await refreshSetsAndRaces();
-    setSelectedSetId(res.id);
-  }, [regattaId, selectedClass, token, refreshSetsAndRaces]);
-
-  const updateFleetSetRaces = useCallback(async (setId: number, raceIds: number[]) => {
-    if (!regattaId || !selectedClass) return;
-
-    try {
-      await apiSend(
-        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${setId}/races`,
-        "PUT",
-        { race_ids: raceIds }
+      const fs = await apiSend<FleetSet>(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/qualifying`,
+        'POST',
+        { label, num_fleets, race_ids }
       );
 
       await refreshSetsAndRaces();
-    } catch (err) {
-      console.error("updateFleetSetRaces falhou:", err);
-      alert("Não foi possível atualizar as races deste FleetSet.");
-    }
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
+      setSelectedSetId(fs.id);
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
 
-  const publishSet = useCallback(async (setId: number) => {
-    await apiSend(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/publish`,
-      "POST"
-    );
-    await refreshSetsAndRaces();
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
+  const reshuffle = useCallback(
+    async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
+      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
 
-  const unpublishSet = useCallback(async (setId: number) => {
-    await apiSend(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/unpublish`,
-      "POST"
-    );
-    await refreshSetsAndRaces();
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
+      const fs = await apiSend<FleetSet>(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/reshuffle`,
+        'POST',
+        { label, num_fleets, race_ids }
+      );
 
-  const updateSetTitle = useCallback(async (setId: number, newTitle: string) => {
-    await apiSend(
-      `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}`,
-      "PATCH",
-      { public_title: newTitle }
-    );
-    await refreshSetsAndRaces();
-  }, [regattaId, selectedClass, refreshSetsAndRaces]);
+      await refreshSetsAndRaces();
+      setSelectedSetId(fs.id);
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
 
- const createMedalRace = useCallback(
+  const startFinals = useCallback(
+    async (label: string, grouping: Record<string, number>, race_ids?: number[]) => {
+      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
+
+      const body = { label, grouping, race_ids: race_ids ?? [] };
+
+      try {
+        const res = await apiSend<FleetSet>(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/finals`,
+          'POST',
+          body,
+          token ?? undefined
+        );
+
+        await refreshSetsAndRaces();
+        setSelectedSetId(res.id);
+        return res;
+      } catch (e: any) {
+        throw new Error(e?.message ?? 'Não foi possível criar Finals.');
+      }
+    },
+    [regattaId, selectedClass, token, refreshSetsAndRaces]
+  );
+
+  const updateFleetSetRaces = useCallback(
+    async (setId: number, raceIds: number[]) => {
+      if (!regattaId || !selectedClass) return;
+
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${setId}/races`,
+          'PUT',
+          { race_ids: raceIds }
+        );
+
+        await refreshSetsAndRaces();
+      } catch (err) {
+        console.error('updateFleetSetRaces falhou:', err);
+        alert('Não foi possível atualizar as races deste FleetSet.');
+      }
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
+
+  const publishSet = useCallback(
+    async (setId: number) => {
+      await apiSend(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/publish`,
+        'POST'
+      );
+      await refreshSetsAndRaces();
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
+
+  const unpublishSet = useCallback(
+    async (setId: number) => {
+      await apiSend(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/unpublish`,
+        'POST'
+      );
+      await refreshSetsAndRaces();
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
+
+  const updateSetTitle = useCallback(
+    async (setId: number, newTitle: string) => {
+      await apiSend(
+        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}`,
+        'PATCH',
+        { public_title: newTitle }
+      );
+      await refreshSetsAndRaces();
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
+
+  const createMedalRace = useCallback(
   async (
-    raceId: number,
     className: string,
     fromRank: number,
-    toRank: number
+    toRank: number,
+    raceIds: number[] = [] // ✅ pode ser vazio
   ) => {
-    await apiSend(
-      `/regattas/${regattaId}/medal_race/assign`,
-      "POST",
-      {
-        class_name: className,
-        from_rank: fromRank,
-        to_rank: toRank,
-        race_ids: [raceId],
-      }
-    );
+    if (!regattaId) throw new Error('Regatta inválida.');
 
-    await refreshSetsAndRaces();
-  },
-  [regattaId, refreshSetsAndRaces]
-);
-
-
-
-const deleteFleetSet = useCallback(
-  async (setId: number, force = false) => {
     try {
       await apiSend(
-        `/regattas/${regattaId}/classes/${encodeURIComponent(
-          selectedClass!
-        )}/fleet-sets/${setId}?force=${force}`,
-        'DELETE'
+        `/regattas/${regattaId}/medal_race/assign`,
+        'POST',
+        {
+          class_name: className,
+          from_rank: fromRank,
+          to_rank: toRank,
+          race_ids: raceIds, // ✅ agora não é obrigatório ter race
+        },
+        token ?? undefined
       );
 
       await refreshSetsAndRaces();
-      setSelectedSetId(null);
-
     } catch (e: any) {
-      // 🔴 IMPORTANTE: propagar o erro para a UI
-      throw e;
+      throw new Error(e?.message ?? 'Não foi possível criar Medal Race.');
     }
   },
-  [regattaId, selectedClass, refreshSetsAndRaces]
+  [regattaId, token, refreshSetsAndRaces]
 );
 
+  const deleteFleetSet = useCallback(
+    async (setId: number, force = false) => {
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}?force=${force}`,
+          'DELETE'
+        );
+
+        await refreshSetsAndRaces();
+        setSelectedSetId(null);
+      } catch (e: any) {
+        throw e;
+      }
+    },
+    [regattaId, selectedClass, refreshSetsAndRaces]
+  );
 
   //
   // ----------------- RETURN -----------------

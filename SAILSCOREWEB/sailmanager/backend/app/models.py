@@ -708,7 +708,12 @@ class FleetSet(Base):
     created_at = sa.Column(sa.DateTime, server_default=sa.func.now(), nullable=False)
 
     # 🔥 NOVOS CAMPOS
-    is_published = sa.Column(sa.Boolean, nullable=False, server_default="false")
+    is_published = sa.Column(
+        sa.Boolean,
+        nullable=False,
+        default=False,
+        server_default=sa.text("0"),  # ✅ para SQLite
+    )
     public_title = sa.Column(sa.String(255), nullable=True)
     published_at = sa.Column(sa.DateTime, nullable=True)
 

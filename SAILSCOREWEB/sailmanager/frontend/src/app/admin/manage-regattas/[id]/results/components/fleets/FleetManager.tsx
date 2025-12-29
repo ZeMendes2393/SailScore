@@ -13,13 +13,14 @@ import CreateMedalRace from './components/CreateMedalRace';
 
 import type { OverallRow } from './types';
 
-type FleetManagerProps = { 
-  overall: OverallRow[];
+type FleetManagerProps = {
+  overall: OverallRow[]; // ✅ já vem filtrado pela classe no parent
   regattaId: number;
 };
 
-export default function FleetManager({ overall, regattaId }: FleetManagerProps) {
+type RangeRow = { name: string; from: string; to: string };
 
+export default function FleetManager({ overall, regattaId }: FleetManagerProps) {
   // ---------------- HOOK ----------------
   const {
     classes,
@@ -61,23 +62,20 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
   const [rNum, setRNum] = useState<2 | 3 | 4>(2);
   const [rRaceIds, setRRaceIds] = useState<number[]>([]);
 
-  // ---------------- FINALS ----------------
-  const [mode, setMode] = useState<'auto' | 'manual' | 'manual_ranges'>('auto');
+  // ---------------- FINALS (ONLY RANGES) ----------------
   const [lockFinals, setLockFinals] = useState(true);
-  const [finalGroups, setFinalGroups] = useState(['Gold', 'Silver']);
-  const [manualSpec, setManualSpec] = useState([
-    { name: 'Gold', size: 0 },
-    { name: 'Silver', size: 0 }
+
+  // ✅ agora é string para permitir apagar e escrever
+  const [manualRanges, setManualRanges] = useState<RangeRow[]>([
+    { name: 'Gold', from: '1', to: '50' },
+    { name: 'Silver', from: '51', to: '100' },
   ]);
-  const [manualRanges, setManualRanges] = useState([
-    { name: 'Gold', from: 1, to: 50 },
-    { name: 'Silver', from: 51, to: 100 }
-  ]);
+
   const [finalRaceIds, setFinalRaceIds] = useState<number[]>([]);
 
   // ---------------- SELECTED SET ----------------
   const selectedSet = useMemo(
-    () => sets.find(s => s.id === selectedSetId) ?? null,
+    () => sets.find((s) => s.id === selectedSetId) ?? null,
     [sets, selectedSetId]
   );
 
@@ -85,35 +83,30 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
     setLocalTitle(selectedSet?.public_title ?? '');
   }, [selectedSet]);
 
-  // ---------------- OVERALL POR CLASSE ----------------
-  const classOverall = useMemo(
-    () => selectedClass
-      ? overall.filter(r => r.class_name === selectedClass)
-      : overall,
-    [overall, selectedClass]
-  );
+  // ✅ IMPORTANT: o overall já vem filtrado do parent
+  const classOverall = useMemo(() => overall, [overall]);
 
   // ---------------- ORDER ASSIGNMENTS ----------------
   const sortedAssignments = useMemo(() => {
     return assignments
       .slice()
-      .sort((a, b) =>
-        Number(a.sail_number?.match(/\d+/)?.[0] ?? 999999) -
-        Number(b.sail_number?.match(/\d+/)?.[0] ?? 999999)
+      .sort(
+        (a, b) =>
+          Number(a.sail_number?.match(/\d+/)?.[0] ?? 999999) -
+          Number(b.sail_number?.match(/\d+/)?.[0] ?? 999999)
       );
   }, [assignments]);
 
   // ---------------- RENDER ----------------
   return (
     <div className="space-y-6">
-
       {!!error && (
         <div className="text-sm text-red-600">
           {error instanceof Error ? error.message : String(error)}
         </div>
       )}
 
-      {/* CLASS SELECTION (mantém-se igual) */}
+      {/* CLASS SELECTION */}
       <SelectClassBar
         classes={classes}
         selectedClass={selectedClass}
@@ -124,10 +117,17 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
         }}
       />
 
+      {/* Aviso se não há ranking */}
+      {selectedClass && modeCreate !== '' && classOverall.length === 0 && (
+        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+          Ainda não há ranking/overall para <strong>{selectedClass}</strong>. Garante
+          que já existem corridas com resultados para esta classe.
+        </div>
+      )}
+
       {/* ================= BROWSE / EDIT ================= */}
       {modeCreate === '' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
           {/* LISTA DE FLEET SETS */}
           <div className="border rounded-xl p-4 bg-white shadow space-y-3">
             <div className="flex justify-between items-center">
@@ -144,9 +144,7 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
             </div>
 
             {sets.length === 0 && (
-              <div className="text-sm text-gray-500">
-                No fleet sets yet.
-              </div>
+              <div className="text-sm text-gray-500">No fleet sets yet.</div>
             )}
 
             <ul className="text-sm space-y-1">
@@ -194,7 +192,6 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
       {/* ================= CREATE ================= */}
       {modeCreate !== '' && (
         <div className="border rounded-xl p-6 bg-white shadow space-y-6">
-
           <button
             onClick={() => setModeCreate('')}
             className="text-sm text-emerald-600 hover:underline"
@@ -207,10 +204,30 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Create new fleet set</h3>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={() => setModeCreate('qualifying')} className="px-3 py-2 border rounded">Qualifying</button>
-                <button onClick={() => setModeCreate('reshuffle')} className="px-3 py-2 border rounded">Reshuffle</button>
-                <button onClick={() => setModeCreate('finals')} className="px-3 py-2 border rounded">Finals</button>
-                <button onClick={() => setModeCreate('medal')} className="px-3 py-2 border rounded">🏅 Medal Race</button>
+                <button
+                  onClick={() => setModeCreate('qualifying')}
+                  className="px-3 py-2 border rounded"
+                >
+                  Qualifying
+                </button>
+                <button
+                  onClick={() => setModeCreate('reshuffle')}
+                  className="px-3 py-2 border rounded"
+                >
+                  Reshuffle
+                </button>
+                <button
+                  onClick={() => setModeCreate('finals')}
+                  className="px-3 py-2 border rounded"
+                >
+                  Finals
+                </button>
+                <button
+                  onClick={() => setModeCreate('medal')}
+                  className="px-3 py-2 border rounded"
+                >
+                  🏅 Medal Race
+                </button>
               </div>
             </div>
           )}
@@ -244,33 +261,25 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
           {modeCreate === 'finals' && (
             <CreateFinals
               classOverall={classOverall}
-              mode={mode}
-              setMode={setMode}
-              lockFinals={lockFinals}
-              setLockFinals={setLockFinals}
-              finalGroups={finalGroups}
-              setFinalGroups={setFinalGroups}
-              manualSpec={manualSpec}
-              setManualSpec={setManualSpec}
               manualRanges={manualRanges}
               setManualRanges={setManualRanges}
               finalRaceIds={finalRaceIds}
               setFinalRaceIds={setFinalRaceIds}
               racesAvailable={racesAvailable}
               startFinals={startFinals}
+              lockFinals={lockFinals}
+              setLockFinals={setLockFinals}
             />
           )}
 
-       {modeCreate === 'medal' && (
-  <CreateMedalRace
-    classOverall={classOverall}
-    racesAvailable={racesAvailable}
-    selectedClass={selectedClass ?? ''}
-    createMedalRace={createMedalRace}
-  />
-)}
-
-
+          {modeCreate === 'medal' && (
+            <CreateMedalRace
+              classOverall={classOverall}
+              racesAvailable={racesAvailable}
+              selectedClass={selectedClass ?? ''}
+              createMedalRace={createMedalRace}
+            />
+          )}
         </div>
       )}
     </div>

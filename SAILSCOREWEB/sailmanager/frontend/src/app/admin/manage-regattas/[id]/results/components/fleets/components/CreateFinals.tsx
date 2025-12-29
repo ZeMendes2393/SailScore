@@ -1,54 +1,43 @@
 'use client';
 
-import type { RaceLite } from '../../../hooks/useFleets';
+import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 import type { OverallRow } from '../types';
+
+type RangeRow = { name: string; from: string; to: string };
 
 type Props = {
   classOverall: OverallRow[];
 
-  mode: 'auto' | 'manual' | 'manual_ranges';
-  setMode: (v: 'auto' | 'manual' | 'manual_ranges') => void;
+  // Manual ranges (ONLY)
+  manualRanges: RangeRow[];
+  setManualRanges: (v: RangeRow[]) => void;
 
-  lockFinals: boolean;
-  setLockFinals: (v: boolean) => void;
-
-  finalGroups: string[];
-  setFinalGroups: (v: string[]) => void;
-
-  manualSpec: { name: string; size: number }[];
-  setManualSpec: (v: { name: string; size: number }[]) => void;
-
-  manualRanges: { name: string; from: number; to: number }[];
-  setManualRanges: (v: { name: string; from: number; to: number }[]) => void;
-
+  // Races to attach
   finalRaceIds: number[];
   setFinalRaceIds: (v: number[]) => void;
-
   racesAvailable: RaceLite[];
 
   startFinals: (
     label: string,
     grouping: Record<string, number>,
     race_ids?: number[]
-  ) => Promise<void>;
+  ) => Promise<FleetSet>;
+
+  // Mantemos estes props (mesmo que não uses na UI agora)
+  lockFinals: boolean;
+  setLockFinals: (v: boolean) => void;
 };
 
 export default function CreateFinals({
   classOverall,
-  mode,
-  setMode,
-  lockFinals,
-  setLockFinals,
-  finalGroups,
-  setFinalGroups,
-  manualSpec,
-  setManualSpec,
   manualRanges,
   setManualRanges,
   finalRaceIds,
   setFinalRaceIds,
   racesAvailable,
   startFinals,
+  lockFinals,
+  setLockFinals,
 }: Props) {
   const toggleRace = (id: number) => {
     setFinalRaceIds(
@@ -58,10 +47,33 @@ export default function CreateFinals({
     );
   };
 
+  const updateRange = (idx: number, patch: Partial<RangeRow>) => {
+    setManualRanges(
+      manualRanges.map((r, i) => (i === idx ? { ...r, ...patch } : r))
+    );
+  };
+
+  const removeRange = (idx: number) => {
+    setManualRanges(manualRanges.filter((_, i) => i !== idx));
+  };
+
+  const addRange = () => {
+    setManualRanges([...manualRanges, { name: 'Group', from: '', to: '' }]);
+  };
+
+  const totalBoats = classOverall.length;
+
   return (
     <div className="border rounded-2xl p-4 space-y-3 bg-white shadow">
-      <div className="font-semibold">Generate fleets based on results (Finals)</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-semibold">Generate finals groups (ranges)</div>
+        <div className="text-xs text-gray-500">
+          Boats in ranking: <span className="font-semibold">{totalBoats}</span>
+        </div>
+      </div>
 
+      {/* UI escondida por agora */}
+      {/*
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -70,59 +82,75 @@ export default function CreateFinals({
         />
         Hold these groups for the rest of the event
       </label>
+      */}
 
-      {/* Mode selector */}
-      <div className="flex gap-4 items-center">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={mode === 'auto'} onChange={() => setMode('auto')} />
-          Auto
-        </label>
+      {/* MANUAL RANGES ONLY */}
+      <div className="space-y-2">
+        <div className="text-sm">Define os ranges (posições no ranking):</div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={mode === 'manual'} onChange={() => setMode('manual')} />
-          Manual (sizes)
-        </label>
+        {manualRanges.map((r, i) => (
+          <div key={i} className="flex gap-2 items-center flex-wrap">
+            <input
+              className="border rounded px-2 py-1 w-32"
+              value={r.name}
+              onChange={(e) => updateRange(i, { name: e.target.value })}
+              placeholder="Gold / Silver..."
+            />
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="radio" checked={mode === 'manual_ranges'} onChange={() => setMode('manual_ranges')} />
-          Manual (ranges)
-        </label>
+            <input
+              className="border rounded px-2 py-1 w-20"
+              type="number"
+              inputMode="numeric"
+              value={r.from}
+              onChange={(e) => updateRange(i, { from: e.target.value })}
+              placeholder="from"
+              min={1}
+            />
+
+            <span>–</span>
+
+            <input
+              className="border rounded px-2 py-1 w-20"
+              type="number"
+              inputMode="numeric"
+              value={r.to}
+              onChange={(e) => updateRange(i, { to: e.target.value })}
+              placeholder="to"
+              min={1}
+            />
+
+            <button
+              type="button"
+              className="px-2 py-1 border rounded"
+              onClick={() => removeRange(i)}
+              title="Remove range"
+            >
+              -
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          className="px-2 py-1 border rounded"
+          onClick={addRange}
+        >
+          + Add range
+        </button>
+
+        <div className="text-xs text-gray-500">
+          Dica: agora podes apagar o número (ficar vazio) e escrever outro sem ele
+          “voltar” sozinho.
+        </div>
       </div>
 
-      {/* AUTO MODE */}
-      {mode === 'auto' && (
-        <div className="space-y-2">
-          <div className="text-sm">Select fleets:</div>
-          <div className="flex gap-2 flex-wrap">
-            {['Gold', 'Silver', 'Bronze', 'Emerald'].map((g) => (
-              <button
-                key={g}
-                onClick={() =>
-                  setFinalGroups(
-                    finalGroups.includes(g)
-                      ? finalGroups.filter((x) => x !== g)
-                      : [...finalGroups, g]
-                  )
-                }
-                className={`px-2 py-1 rounded border ${
-                  finalGroups.includes(g)
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* RACEs */}
+      {/* RACES */}
       <div className="text-sm">Attach races to these Finals:</div>
       <div className="flex gap-2 flex-wrap">
         {racesAvailable.map((r) => (
           <button
             key={r.id}
+            type="button"
             onClick={() => toggleRace(r.id)}
             className={`px-2 py-1 rounded border ${
               finalRaceIds.includes(r.id)
@@ -138,28 +166,52 @@ export default function CreateFinals({
       <button
         className="bg-emerald-600 text-white px-4 py-2 rounded-xl"
         onClick={async () => {
-          if (classOverall.length === 0) {
+          if (totalBoats === 0) {
             alert('No ranking available for this class.');
             return;
           }
 
           const grouping: Record<string, number> = {};
 
-          if (mode === 'auto') {
-            const total = classOverall.length;
-            const slots = finalGroups.length;
+          for (const g of manualRanges) {
+            const name = (g.name || '').trim();
+            if (!name) continue;
 
-            const base = Math.floor(total / slots);
-            let extra = total % slots;
+            // Permite vazio enquanto edita; na submissão validamos
+            const fromRaw = (g.from || '').trim();
+            const toRaw = (g.to || '').trim();
 
-            finalGroups.forEach((g) => {
-              grouping[g] = base + (extra > 0 ? 1 : 0);
-              if (extra > 0) extra -= 1;
-            });
+            if (!fromRaw || !toRaw) {
+              alert(`Range "${name}" tem from/to vazio.`);
+              return;
+            }
+
+            const from = Math.max(1, parseInt(fromRaw, 10));
+            const to = Math.max(from, parseInt(toRaw, 10));
+            const size = to - from + 1;
+
+            if (!Number.isFinite(from) || !Number.isFinite(to) || size <= 0) {
+              alert(`Range inválido em "${name}".`);
+              return;
+            }
+
+            grouping[name] = size;
+          }
+
+          if (Object.keys(grouping).length === 0) {
+            alert('Ranges inválidos.');
+            return;
+          }
+
+          const sum = Object.values(grouping).reduce((a, b) => a + b, 0);
+          if (sum > totalBoats) {
+            alert(`Os ranges somam ${sum}, mas só há ${totalBoats} boats no ranking.`);
+            return;
           }
 
           await startFinals('Finals', grouping, finalRaceIds);
           setFinalRaceIds([]);
+          alert('Finals criado com sucesso!');
         }}
       >
         Start Finals

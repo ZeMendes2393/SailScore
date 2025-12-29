@@ -33,6 +33,8 @@ export default function ExistingFleetSet({
   deleteFleetSet,
   assignments,
 }: Props) {
+  const missingTitle = !localTitle.trim();
+
   return (
     <div className="mt-4 border rounded-xl p-4 space-y-4 bg-white shadow">
       <h3 className="text-lg font-semibold">
@@ -50,6 +52,13 @@ export default function ExistingFleetSet({
           onChange={(e) => setLocalTitle(e.target.value)}
         />
 
+        {/* aviso inline (opcional mas recomendado) */}
+        {!selectedSet.is_published && missingTitle && (
+          <p className="text-xs text-amber-700">
+            Define um título público para poderes publicar este Fleet Set.
+          </p>
+        )}
+
         <div className="flex items-center gap-3 flex-wrap">
           <button
             className="px-3 py-1 text-xs bg-blue-600 text-white rounded"
@@ -59,19 +68,34 @@ export default function ExistingFleetSet({
           </button>
 
           <button
-            disabled={!localTitle.trim()}
+            title={
+              !selectedSet.is_published && missingTitle
+                ? 'Falta definir um título público antes de publicar.'
+                : selectedSet.is_published
+                ? 'Despublicar este Fleet Set'
+                : 'Publicar este Fleet Set'
+            }
+            // só bloqueia quando é "Publicar" e falta o título
+            disabled={!selectedSet.is_published && missingTitle}
             className={`px-3 py-1 text-xs rounded-full border transition ${
-              !localTitle.trim()
-                ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-default'
+              !selectedSet.is_published && missingTitle
+                ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
                 : selectedSet.is_published
                 ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
                 : 'bg-white text-gray-700 border-gray-400 hover:bg-gray-50'
             }`}
-            onClick={() =>
-              selectedSet.is_published
-                ? unpublishSet(selectedSet.id)
-                : publishSet(selectedSet.id)
-            }
+            onClick={async () => {
+              if (!selectedSet.is_published && missingTitle) {
+                alert('Falta definir um título público antes de publicar.');
+                return;
+              }
+
+              if (selectedSet.is_published) {
+                await unpublishSet(selectedSet.id);
+              } else {
+                await publishSet(selectedSet.id);
+              }
+            }}
           >
             {selectedSet.is_published ? 'Despublicar' : 'Publicar'}
           </button>
@@ -200,9 +224,8 @@ export default function ExistingFleetSet({
               {assignments.map((a, i) => (
                 <tr key={`${a.entry_id}-${a.fleet_id}-${i}`}>
                   <td className="border px-2 py-1">
-                    {selectedSet.fleets.find(
-                      (f) => f.id === a.fleet_id
-                    )?.name ?? '-'}
+                    {selectedSet.fleets.find((f) => f.id === a.fleet_id)?.name ??
+                      '-'}
                   </td>
                   <td className="border px-2 py-1">{i + 1}</td>
                   <td className="border px-2 py-1">{a.sail_number}</td>
