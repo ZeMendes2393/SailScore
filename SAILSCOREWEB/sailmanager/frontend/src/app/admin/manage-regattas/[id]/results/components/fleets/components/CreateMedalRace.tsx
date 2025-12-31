@@ -25,15 +25,20 @@ export default function CreateMedalRace({
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(10);
 
-  // ✅ agora é opcional e pode ser múltiplo
   const [selectedRaceIds, setSelectedRaceIds] = useState<number[]>([]);
 
-  const top = useMemo(() => {
-    return classOverall
-      .slice()
-      .sort((a, b) => a.overall_rank - b.overall_rank)
-      .slice(from - 1, to);
-  }, [classOverall, from, to]);
+  // só para contar quantos vais apanhar (sem listar ranking)
+  const selectedCount = useMemo(() => {
+    const total = classOverall.length;
+    if (total === 0) return 0;
+
+    const f = Math.max(1, Math.min(from, total));
+    const t = Math.max(1, Math.min(to, total));
+    const lo = Math.min(f, t);
+    const hi = Math.max(f, t);
+
+    return Math.max(0, hi - lo + 1);
+  }, [classOverall.length, from, to]);
 
   const toggleRace = (id: number) => {
     setSelectedRaceIds((prev) =>
@@ -74,19 +79,9 @@ export default function CreateMedalRace({
       </div>
 
       <div className="text-sm font-medium">
-        Selected sailors: {top.length}
+        Selected sailors: {selectedCount}
       </div>
 
-      {/* Preview */}
-      <ul className="text-xs mt-1 space-y-1">
-        {top.map((s) => (
-          <li key={s.overall_rank}>
-            #{s.overall_rank} — {s.sail_number} {s.skipper_name} ({s.net_points})
-          </li>
-        ))}
-      </ul>
-
-      {/* ✅ opcional */}
       <div>
         <div className="text-sm mb-2">
           (Opcional) Associar races já à Medal Race:
@@ -117,9 +112,9 @@ export default function CreateMedalRace({
       </div>
 
       <button
-        disabled={top.length === 0 || !selectedClass}
+        disabled={selectedCount === 0 || !selectedClass}
         className={`px-4 py-2 rounded-xl text-white ${
-          top.length > 0 && selectedClass
+          selectedCount > 0 && selectedClass
             ? 'bg-emerald-600'
             : 'bg-gray-400 cursor-not-allowed'
         }`}

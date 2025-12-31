@@ -257,6 +257,7 @@ def delete_result(
 
 # =====================================================================
 # OVERALL (com lógica de finals locking + fleets por corrida)
+# + Medal Race = points * 2 (aplicado apenas no overall)
 # =====================================================================
 @router.get("/overall/{regatta_id}")
 def get_overall_results(
@@ -287,6 +288,64 @@ def get_overall_results(
 
     race_ids = [r.id for r in races]
     race_map = {r.id: r.name for r in races}
+
+    # --------------------------------------------------------
+    # ✅ Medal Race IDs (races ligadas ao FleetSet phase="medal")
+    #    - se class_name=None, faz por classe (último medal set por classe)
+    # --------------------------------------------------------
+    medal_race_ids_by_class: dict[str, set[int]] = {}
+
+    if class_name:
+        fs_medal = (
+            db.query(models.FleetSet)
+            .filter(
+                models.FleetSet.regatta_id == regatta_id,
+                models.FleetSet.class_name == class_name,
+                models.FleetSet.phase == "medal",
+            )
+            .order_by(models.FleetSet.created_at.desc(), models.FleetSet.id.desc())
+            .first()
+        )
+        if fs_medal:
+            ids = (
+                db.query(models.Race.id)
+                .filter(models.Race.fleet_set_id == fs_medal.id)
+                .all()
+            )
+            medal_race_ids_by_class[class_name] = {rid for (rid,) in ids}
+        else:
+            medal_race_ids_by_class[class_name] = set()
+    else:
+        # último medal set por class_name
+        medal_sets = (
+            db.query(models.FleetSet.id, models.FleetSet.class_name)
+            .filter(
+                models.FleetSet.regatta_id == regatta_id,
+                models.FleetSet.phase == "medal",
+            )
+            .order_by(
+                models.FleetSet.class_name.asc(),
+                models.FleetSet.created_at.desc(),
+                models.FleetSet.id.desc(),
+            )
+            .all()
+        )
+
+        latest_by_class: dict[str, int] = {}
+        for fs_id, cls in medal_sets:
+            if cls and cls not in latest_by_class:
+                latest_by_class[str(cls)] = int(fs_id)
+
+        for cls, fs_id in latest_by_class.items():
+            ids = (
+                db.query(models.Race.id)
+                .filter(models.Race.fleet_set_id == fs_id)
+                .all()
+            )
+            medal_race_ids_by_class[cls] = {rid for (rid,) in ids}
+
+    def _multiplier_for(race_id: int, cls: str) -> float:
+        return 2.0 if race_id in medal_race_ids_by_class.get(cls, set()) else 1.0
 
     # --------------------------------------------------------
     # Mapa (class_name, sail_number, race_id) -> fleet_name
@@ -321,36 +380,7 @@ def get_overall_results(
                 fleet_by_sn_race[(fr.class_name, sn, fr.race_id)] = fr.fleet_name
 
     # --------------------------------------------------------
-    # Agregados (Result)
-    # --------------------------------------------------------
-    agg_q = (
-        db.query(
-            models.Result.sail_number,
-            models.Result.boat_name,
-            models.Result.class_name,
-            models.Result.skipper_name,
-            func.sum(models.Result.points).label("total_points"),
-        )
-        .filter(models.Result.regatta_id == regatta_id)
-    )
-
-    if race_ids:
-        agg_q = agg_q.filter(models.Result.race_id.in_(race_ids))
-    if class_name:
-        agg_q = agg_q.filter(models.Result.class_name == class_name)
-
-    agg_rows = (
-        agg_q.group_by(
-            models.Result.sail_number,
-            models.Result.boat_name,
-            models.Result.class_name,
-            models.Result.skipper_name,
-        )
-        .all()
-    )
-
-    # --------------------------------------------------------
-    # Resultados por corrida
+    # Resultados por corrida (vamos usar isto como fonte principal)
     # --------------------------------------------------------
     pr_q = db.query(models.Result).filter(models.Result.regatta_id == regatta_id)
     if race_ids:
@@ -359,19 +389,39 @@ def get_overall_results(
         pr_q = pr_q.filter(models.Result.class_name == class_name)
 
     per_race_map: dict[tuple[str, str, str], dict[int, dict[str, object]]] = {}
-    for r in pr_q.all():
-        key = (r.class_name, (r.sail_number or "").strip(), (r.skipper_name or "").strip())
-        per_race_map.setdefault(key, {})[r.race_id] = {
-            "points": float(r.points),
+    info_map: dict[tuple[str, str, str], dict[str, object]] = {}
+
+    pr_rows = pr_q.all()
+    for r in pr_rows:
+        cls = str(r.class_name or "")
+        sn = (r.sail_number or "").strip()
+        skipper = (r.skipper_name or "").strip()
+        key = (cls, sn, skipper)
+
+        mult = _multiplier_for(int(r.race_id), cls)
+        eff_pts = float(r.points) * mult
+
+        per_race_map.setdefault(key, {})[int(r.race_id)] = {
+            "points": eff_pts,        # ✅ já vem com x2 se for medal race
+            "base_points": float(r.points),
+            "multiplier": mult,
             "code": r.code,
         }
+
+        if key not in info_map:
+            info_map[key] = {
+                "boat_name": r.boat_name,
+                "class_name": r.class_name,
+                "skipper_name": r.skipper_name,
+                "sail_number": r.sail_number,
+            }
 
     overall: list[dict] = []
 
     # ========================================================
     # ✅ FALLBACK: se ainda não há Results, construir pelas Entries
     # ========================================================
-    if not agg_rows:
+    if not pr_rows:
         entries_q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
         if class_name:
             entries_q = entries_q.filter(models.Entry.class_name == class_name)
@@ -407,46 +457,49 @@ def get_overall_results(
 
     else:
         # --------------------------------------------------------
-        # Normal: construir o overall pelos Results agregados
+        # Normal: construir o overall pelos Results (com x2 na medal)
         # --------------------------------------------------------
-        for row in agg_rows:
-            sn_norm = (row.sail_number or "").strip()
-            skipper_norm = (row.skipper_name or "").strip()
-            key = (row.class_name, sn_norm, skipper_norm)
+        for key, per_by_id in per_race_map.items():
+            cls, sn_norm, skipper_norm = key
+            info = info_map.get(key, {})
 
-            per_by_id = per_race_map.get(key, {})
-            points_list = [(rid, per_by_id[rid]["points"]) for rid in race_ids if rid in per_by_id]
+            # lista de pontos (já com multiplicador)
+            points_list = [(rid, float(per_by_id[rid]["points"])) for rid in race_ids if rid in per_by_id]
 
             discarded_ids: set[int] = set()
             if len(points_list) >= TH and D > 0:
                 worst = sorted(points_list, key=lambda x: x[1], reverse=True)[:D]
                 discarded_ids = {rid for rid, _ in worst}
 
+            total_points = 0.0
             net_total = 0.0
             per_race_named = {}
             per_race_fleet = {}
 
             for rid in race_ids:
                 name = race_map[rid]
+
                 if rid not in per_by_id:
                     per_race_named[name] = "-"
                     per_race_fleet[name] = None
                     continue
 
-                pts = float(per_by_id[rid]["points"])
+                pts = float(per_by_id[rid]["points"])  # ✅ já ponderado
+                total_points += pts
+
                 if rid not in discarded_ids:
                     net_total += pts
 
                 per_race_named[name] = pts
-                per_race_fleet[name] = fleet_by_sn_race.get((row.class_name, sn_norm, rid))
+                per_race_fleet[name] = fleet_by_sn_race.get((cls, sn_norm, rid))
 
             overall.append(
                 {
-                    "sail_number": row.sail_number,
-                    "boat_name": row.boat_name,
-                    "class_name": row.class_name,
-                    "skipper_name": row.skipper_name,
-                    "total_points": float(row.total_points or 0),
+                    "sail_number": info.get("sail_number"),
+                    "boat_name": info.get("boat_name"),
+                    "class_name": info.get("class_name"),
+                    "skipper_name": info.get("skipper_name"),
+                    "total_points": float(total_points),
                     "net_points": float(net_total),
                     "per_race": per_race_named,
                     "per_race_fleet": per_race_fleet,
@@ -487,7 +540,6 @@ def get_overall_results(
         row["is_medal"] = sn in medal_set
 
     return overall
-
 
 
 # =====================================================================

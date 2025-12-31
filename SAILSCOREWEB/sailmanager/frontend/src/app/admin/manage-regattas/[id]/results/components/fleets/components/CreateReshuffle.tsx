@@ -1,6 +1,6 @@
 'use client';
 
-import type { RaceLite } from '../../../hooks/useFleets';
+import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 
 type Props = {
   rLabel: string;
@@ -17,7 +17,7 @@ type Props = {
     label: string,
     num_fleets: 2 | 3 | 4,
     race_ids: number[]
-  ) => Promise<void>;
+  ) => Promise<FleetSet>;
 };
 
 export default function CreateReshuffle({
@@ -32,9 +32,7 @@ export default function CreateReshuffle({
 }: Props) {
   const toggle = (id: number) => {
     setRRaceIds(
-      rRaceIds.includes(id)
-        ? rRaceIds.filter((x) => x !== id)
-        : [...rRaceIds, id]
+      rRaceIds.includes(id) ? rRaceIds.filter((x) => x !== id) : [...rRaceIds, id]
     );
   };
 
@@ -76,11 +74,10 @@ export default function CreateReshuffle({
         {racesAvailable.map((r) => (
           <button
             key={r.id}
+            type="button"
             onClick={() => toggle(r.id)}
             className={`px-2 py-1 rounded border ${
-              rRaceIds.includes(r.id)
-                ? 'bg-amber-600 text-white'
-                : 'bg-white'
+              rRaceIds.includes(r.id) ? 'bg-amber-600 text-white' : 'bg-white'
             }`}
           >
             {r.name}
@@ -91,8 +88,13 @@ export default function CreateReshuffle({
       <button
         className="bg-amber-600 text-white px-4 py-2 rounded-xl"
         onClick={async () => {
-          await reshuffle(rLabel, rNum, rRaceIds);
-          setRRaceIds([]);
+          try {
+            const fs = await reshuffle(rLabel, rNum, rRaceIds);
+            setRRaceIds([]);
+            alert(`Reshuffle criado com sucesso! (FleetSet #${fs.id})`);
+          } catch (e: any) {
+            alert(e?.message ?? 'Erro ao criar Reshuffle.');
+          }
         }}
       >
         Generate Fleets

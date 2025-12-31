@@ -1,6 +1,6 @@
 'use client';
 
-import type { RaceLite } from '../../../hooks/useFleets';
+import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 
 type Props = {
   qLabel: string;
@@ -18,7 +18,7 @@ type Props = {
     label: string,
     num_fleets: 2 | 3 | 4,
     race_ids: number[]
-  ) => Promise<void>;
+  ) => Promise<FleetSet>;
 };
 
 export default function CreateQualifying({
@@ -32,9 +32,8 @@ export default function CreateQualifying({
   createQualifying,
 }: Props) {
   const toggle = (id: number) => {
-    setQRaceIds(qRaceIds.includes(id)
-      ? qRaceIds.filter((x) => x !== id)
-      : [...qRaceIds, id]
+    setQRaceIds(
+      qRaceIds.includes(id) ? qRaceIds.filter((x) => x !== id) : [...qRaceIds, id]
     );
   };
 
@@ -70,19 +69,16 @@ export default function CreateQualifying({
         </div>
       </div>
 
-      <div className="text-sm mt-1">
-        Select the races that will be scored:
-      </div>
+      <div className="text-sm mt-1">Select the races that will be scored:</div>
 
       <div className="flex gap-2 flex-wrap">
         {racesAvailable.map((r) => (
           <button
             key={r.id}
+            type="button"
             onClick={() => toggle(r.id)}
             className={`px-2 py-1 rounded border ${
-              qRaceIds.includes(r.id)
-                ? 'bg-blue-600 text-white'
-                : 'bg-white'
+              qRaceIds.includes(r.id) ? 'bg-blue-600 text-white' : 'bg-white'
             }`}
           >
             {r.name}
@@ -93,8 +89,13 @@ export default function CreateQualifying({
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded-xl"
         onClick={async () => {
-          await createQualifying(qLabel, qNum, qRaceIds);
-          setQRaceIds([]);
+          try {
+            const fs = await createQualifying(qLabel, qNum, qRaceIds);
+            setQRaceIds([]);
+            alert(`Qualifying criado com sucesso! (FleetSet #${fs.id})`);
+          } catch (e: any) {
+            alert(e?.message ?? 'Erro ao criar Qualifying.');
+          }
         }}
       >
         Generate Fleets

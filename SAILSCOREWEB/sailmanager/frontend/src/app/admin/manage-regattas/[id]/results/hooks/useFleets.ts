@@ -97,6 +97,10 @@ export function useFleets() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
+  // ✅ NOVO: confirmação global (para banners/toasts)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const clearSuccess = useCallback(() => setSuccessMessage(null), []);
+
   //
   // ✅ utilitário: classes “reais” = só as classes que existem nas ENTRIES
   //
@@ -305,6 +309,12 @@ export function useFleets() {
 
       await refreshSetsAndRaces();
       setSelectedSetId(fs.id);
+
+      setSuccessMessage(
+        `Qualifying criado com sucesso (${fs.public_title ?? fs.label ?? 'sem título'}).`
+      );
+
+      return fs;
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -321,6 +331,12 @@ export function useFleets() {
 
       await refreshSetsAndRaces();
       setSelectedSetId(fs.id);
+
+      setSuccessMessage(
+        `Reshuffle criado com sucesso (${fs.public_title ?? fs.label ?? 'sem título'}).`
+      );
+
+      return fs;
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -341,6 +357,11 @@ export function useFleets() {
 
         await refreshSetsAndRaces();
         setSelectedSetId(res.id);
+
+        setSuccessMessage(
+          `Finals criado com sucesso (${res.public_title ?? res.label ?? 'Finals'}).`
+        );
+
         return res;
       } catch (e: any) {
         throw new Error(e?.message ?? 'Não foi possível criar Finals.');
@@ -361,6 +382,7 @@ export function useFleets() {
         );
 
         await refreshSetsAndRaces();
+        setSuccessMessage('Races atualizadas com sucesso.');
       } catch (err) {
         console.error('updateFleetSetRaces falhou:', err);
         alert('Não foi possível atualizar as races deste FleetSet.');
@@ -376,6 +398,7 @@ export function useFleets() {
         'POST'
       );
       await refreshSetsAndRaces();
+      setSuccessMessage('Fleet Set publicado com sucesso.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -387,6 +410,7 @@ export function useFleets() {
         'POST'
       );
       await refreshSetsAndRaces();
+      setSuccessMessage('Fleet Set despublicado com sucesso.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -399,39 +423,42 @@ export function useFleets() {
         { public_title: newTitle }
       );
       await refreshSetsAndRaces();
+      setSuccessMessage('Título atualizado com sucesso.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
 
+  // ✅ Medal Race: agora pode ser criada sem race_ids
   const createMedalRace = useCallback(
-  async (
-    className: string,
-    fromRank: number,
-    toRank: number,
-    raceIds: number[] = [] // ✅ pode ser vazio
-  ) => {
-    if (!regattaId) throw new Error('Regatta inválida.');
+    async (
+      className: string,
+      fromRank: number,
+      toRank: number,
+      raceIds: number[] = [] // ✅ pode ser vazio
+    ) => {
+      if (!regattaId) throw new Error('Regatta inválida.');
 
-    try {
-      await apiSend(
-        `/regattas/${regattaId}/medal_race/assign`,
-        'POST',
-        {
-          class_name: className,
-          from_rank: fromRank,
-          to_rank: toRank,
-          race_ids: raceIds, // ✅ agora não é obrigatório ter race
-        },
-        token ?? undefined
-      );
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/medal_race/assign`,
+          'POST',
+          {
+            class_name: className,
+            from_rank: fromRank,
+            to_rank: toRank,
+            race_ids: raceIds, // ✅ não é obrigatório
+          },
+          token ?? undefined
+        );
 
-      await refreshSetsAndRaces();
-    } catch (e: any) {
-      throw new Error(e?.message ?? 'Não foi possível criar Medal Race.');
-    }
-  },
-  [regattaId, token, refreshSetsAndRaces]
-);
+        await refreshSetsAndRaces();
+        setSuccessMessage('Medal Race criada com sucesso.');
+      } catch (e: any) {
+        throw new Error(e?.message ?? 'Não foi possível criar Medal Race.');
+      }
+    },
+    [regattaId, token, refreshSetsAndRaces]
+  );
 
   const deleteFleetSet = useCallback(
     async (setId: number, force = false) => {
@@ -443,6 +470,8 @@ export function useFleets() {
 
         await refreshSetsAndRaces();
         setSelectedSetId(null);
+
+        setSuccessMessage('Fleet Set apagado com sucesso.');
       } catch (e: any) {
         throw e;
       }
@@ -468,6 +497,10 @@ export function useFleets() {
 
     loading,
     error,
+
+    // ✅ novo feedback global
+    successMessage,
+    clearSuccess,
 
     createQualifying,
     reshuffle,

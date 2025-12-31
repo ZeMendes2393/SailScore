@@ -182,7 +182,6 @@ def start_finals_set(
     body: StartFinalsIn,
     db: Session = Depends(get_db),
 ):
-    # impedir 2 finals
     _ensure_single_phase_set(db, regatta_id, class_name, "finals")
 
     grouping = None
