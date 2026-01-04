@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import AdminResultsClient from './results/AdminResultsClient';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
@@ -18,7 +17,7 @@ interface Regatta {
   online_entry_open?: boolean; // <-- NEW
 }
 
-type Tab = 'entry' | 'notice' | 'form' | 'results' | 'edit' | 'delete';
+type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'delete';
 
 export default function AdminRegattaPage() {
   const { id } = useParams();
@@ -53,10 +52,12 @@ export default function AdminRegattaPage() {
         setEndDate(r.end_date);
       }
     };
+
     const fetchClasses = async () => {
       const data = await apiGet<string[]>(`/regattas/${regattaId}/classes`).catch(() => []);
       setAvailableClasses(Array.isArray(data) ? data : []);
     };
+
     if (Number.isFinite(regattaId)) {
       fetchRegatta();
       fetchClasses();
@@ -70,8 +71,6 @@ export default function AdminRegattaPage() {
   }, [activeTab, availableClasses, selectedClass]);
 
   if (!regatta) return <p className="p-8">Loading regatta…</p>;
-
-  const isResults = activeTab === 'results';
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,9 +103,8 @@ export default function AdminRegattaPage() {
       router.push('/admin/login');
       return;
     }
-    if (!confirm('Are you sure you want to delete this regatta? This cannot be undone.')) {
-      return;
-    }
+    if (!confirm('Are you sure you want to delete this regatta? This cannot be undone.')) return;
+
     setDeleting(true);
     try {
       await apiSend(`/regattas/${regattaId}`, 'DELETE', {}, token);
@@ -150,21 +148,37 @@ export default function AdminRegattaPage() {
               {regatta.status || 'Scheduled'}
             </span>
           </div>
-          <div className="text-xs text-gray-500">
-            {user?.email ? <>Admin: <b>{user.email}</b></> : null}
-          </div>
+          <div className="text-xs text-gray-500">{user?.email ? <>Admin: <b>{user.email}</b></> : null}</div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="bg-white shadow rounded mb-4 px-6 py-4 flex gap-6 text-blue-600 font-semibold flex-wrap">
-        <button onClick={() => setActiveTab('entry')} className="hover:underline">Entry List</button>
-        <button onClick={() => setActiveTab('notice')} className="hover:underline">Notice Board</button>
-        <button onClick={() => setActiveTab('form')} className="hover:underline">Online Entry</button>
-        <button onClick={() => setActiveTab('results')} className="hover:underline">Results</button>
+        <button onClick={() => setActiveTab('entry')} className="hover:underline">
+          Entry List
+        </button>
+        <button onClick={() => setActiveTab('notice')} className="hover:underline">
+          Notice Board
+        </button>
+        <button onClick={() => setActiveTab('form')} className="hover:underline">
+          Online Entry
+        </button>
+
+        {/* Results agora é navegação para Overall */}
+        <button
+          onClick={() => router.push(`/admin/manage-regattas/${regattaId}/overall`)}
+          className="hover:underline"
+        >
+          Results
+        </button>
+
         <span className="mx-2 text-gray-300">|</span>
-        <button onClick={() => setActiveTab('edit')} className="hover:underline">Edit</button>
-        <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">Delete</button>
+        <button onClick={() => setActiveTab('edit')} className="hover:underline">
+          Edit
+        </button>
+        <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
+          Delete
+        </button>
       </div>
 
       {/* Class selector (Entry List only) */}
@@ -185,11 +199,9 @@ export default function AdminRegattaPage() {
       )}
 
       {/* Narrow cards (Entry / Notice / Online Entry) */}
-      {(!isResults && activeTab !== 'edit' && activeTab !== 'delete') && (
+      {activeTab !== 'edit' && activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
-          {activeTab === 'entry' && (
-            <AdminEntryList regattaId={regattaId} selectedClass={selectedClass} />
-          )}
+          {activeTab === 'entry' && <AdminEntryList regattaId={regattaId} selectedClass={selectedClass} />}
 
           {activeTab === 'notice' && <AdminNoticeBoard regattaId={regattaId} />}
 
@@ -198,9 +210,7 @@ export default function AdminRegattaPage() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">Online Entry</h2>
-                  <p className="text-sm text-gray-500">
-                    Control whether sailors can submit new online entries.
-                  </p>
+                  <p className="text-sm text-gray-500">Control whether sailors can submit new online entries.</p>
                 </div>
                 <label className="inline-flex items-center gap-3 cursor-pointer">
                   <span className="text-sm">Allow online entries</span>
@@ -225,7 +235,8 @@ export default function AdminRegattaPage() {
 
               <div className="rounded border p-3 text-sm">
                 <p className="text-gray-700">
-                  Current state: {regatta.online_entry_open ? (
+                  Current state:{' '}
+                  {regatta.online_entry_open ? (
                     <span className="text-emerald-700 font-medium">OPEN</span>
                   ) : (
                     <span className="text-red-700 font-medium">CLOSED</span>
@@ -238,21 +249,8 @@ export default function AdminRegattaPage() {
             </div>
           )}
 
-          {!activeTab && (
-            <p className="text-gray-600">Choose a section above to see this regatta’s details.</p>
-          )}
+          {!activeTab && <p className="text-gray-600">Choose a section above to see this regatta’s details.</p>}
         </div>
-      )}
-
-      {/* RESULTS: full-bleed */}
-      {isResults && (
-        <section className="mt-2">
-          <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen">
-            <div className="px-6">
-              <AdminResultsClient regattaId={regattaId} />
-            </div>
-          </div>
-        </section>
       )}
 
       {/* EDIT */}
@@ -308,11 +306,7 @@ export default function AdminRegattaPage() {
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab(null)}
-                className="px-4 py-2 rounded border"
-              >
+              <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
                 Cancel
               </button>
             </div>
@@ -325,8 +319,8 @@ export default function AdminRegattaPage() {
         <div className="p-6 bg-white rounded shadow max-w-2xl">
           <h2 className="text-xl font-semibold mb-2 text-red-700">Delete regatta</h2>
           <p className="text-sm text-gray-700">
-            This action is <b>irreversible</b>. It will delete <b>{regatta.name}</b> and all related data
-            (entries, races, results, protests, etc.).
+            This action is <b>irreversible</b>. It will delete <b>{regatta.name}</b> and all related data (entries,
+            races, results, protests, etc.).
           </p>
           <div className="mt-4 flex gap-2">
             <button
@@ -336,10 +330,7 @@ export default function AdminRegattaPage() {
             >
               {deleting ? 'Deleting…' : 'Delete permanently'}
             </button>
-            <button
-              onClick={() => setActiveTab(null)}
-              className="px-4 py-2 rounded border"
-            >
+            <button onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
               Cancel
             </button>
           </div>

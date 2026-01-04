@@ -63,7 +63,7 @@ export default function CreateRegattaPage() {
 
       // 2) Substituir classes (se houver)
       if (selectedClasses.length > 0) {
-        await apiSend<{ updated: number }>(
+        await apiSend(
           `/regattas/${regatta.id}/classes`,
           'PUT',
           { classes: selectedClasses },
@@ -71,8 +71,8 @@ export default function CreateRegattaPage() {
         );
       }
 
-      alert('Regata criada com sucesso!');
-      router.push(`/admin/edit-regatta/${regatta.id}`);
+      // Ir para a página central (admin)
+      router.push('/admin');
     } catch (err: any) {
       console.error('Create regatta error:', err);
       alert(err?.message || 'Erro ao criar regata.');

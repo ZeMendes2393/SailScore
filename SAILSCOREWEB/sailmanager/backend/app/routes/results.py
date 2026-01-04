@@ -106,6 +106,7 @@ def _finals_fleet_order_map(
         mapping[str(sn)] = int(idx or 0)
     return mapping
 
+
 def _medal_entry_set(
     db: Session,
     regatta_id: int,
@@ -139,7 +140,6 @@ def _medal_entry_set(
     )
 
     return {str(sn) for (sn,) in rows if sn}
-
 
 
 # =====================================================================
@@ -425,6 +425,10 @@ def get_overall_results(
         entries_q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
         if class_name:
             entries_q = entries_q.filter(models.Entry.class_name == class_name)
+
+        # ✅ NOVO: só mostrar entries elegíveis (paid + confirmed)
+        entries_q = entries_q.filter(models.Entry.paid.is_(True))
+        entries_q = entries_q.filter(models.Entry.confirmed.is_(True))
 
         entries = entries_q.order_by(models.Entry.sail_number.asc()).all()
 

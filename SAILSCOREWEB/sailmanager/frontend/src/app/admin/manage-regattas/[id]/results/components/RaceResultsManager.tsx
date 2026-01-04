@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/context/AuthContext';
 import { useResults } from '../hooks/useResults';
 
-import ScoringPanel from './ScoringPanel';
 import RaceSelector from './RaceSelector';
 import ExistingResultsTable from './ExistingResultsTable';
 import AddSingleForm from './AddSingleForm';
 import DraftResultsEditor from './DraftResultsEditor';
 
-type View = 'existing' | 'draft' | 'add' | 'scoring';
+type View = 'existing' | 'draft' | 'add';
 
 interface Props {
   regattaId: number;
@@ -35,6 +34,8 @@ const FLEET_ORDER: Record<string, number> = {
   Emerald: 140,
 };
 
+const ALLOWED_VIEWS: View[] = ['existing', 'draft', 'add'];
+
 export default function RaceResultsManager({
   regattaId,
   newlyCreatedRace,
@@ -44,10 +45,8 @@ export default function RaceResultsManager({
   const { token } = useAuth();
 
   const {
-    scoring,
-    setScoring,
-    savingScoring,
-    saveScoring,
+    // ✅ removido: scoring / saveScoring / savingScoring / setScoring
+
     races,
     selectedRaceId,
     setSelectedRaceId,
@@ -76,79 +75,163 @@ export default function RaceResultsManager({
     onSetDraftCode,
     onSetDraftPos,
     markCode,
-    renameRace,
     deleteRace,
-    reorderRaces,
-    refreshRaces,
 
     // dados de fleets vindos do hook
     currentRace,
     fleetsForRace,
     selectedFleetId,
-    setSelectedFleetId, // tipo: React.Dispatch<SetStateAction<number | "all">>
+    setSelectedFleetId,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
   const search = useSearchParams();
   const router = useRouter();
   const [view, setView] = useState<View>('existing');
 
-  // Atualiza view e pré-seleciona corrida se ?race= existir
-  useEffect(() => {
-    const v = (search.get('view') as View) || 'existing';
-    setView(v);
+  const initialAppliedRef = useRef(false);
+  const lastClassRef = useRef<string | null>(null);
 
-    const raceParam = search.get('race');
-    if (raceParam) {
-      const id = Number(raceParam);
-      if (!Number.isNaN(id)) setSelectedRaceId(id);
-    }
-  }, [search, setSelectedRaceId]);
-
-  // selecionar corrida inicial passada por prop
-  useEffect(() => {
-    if (!initialRaceId) return;
-    if (selectedRaceId !== initialRaceId) {
-      const exists = (races ?? []).some((r) => r.id === initialRaceId);
-      if (exists) setSelectedRaceId(initialRaceId);
-    }
-  }, [initialRaceId, races, selectedRaceId, setSelectedRaceId]);
-
-  const setViewAndUrl = (v: View) => {
-    setView(v);
-    const sp = new URLSearchParams(search?.toString());
-    sp.set('view', v);
-    router.replace(`?${sp.toString()}`);
-  };
-
-  const handleSelectRace = (raceId: number | null) => {
-    setSelectedRaceId(raceId);
-
-    const sp = new URLSearchParams(search?.toString());
-    if (raceId) sp.set('race', String(raceId));
-    else sp.delete('race');
-    router.replace(`?${sp.toString()}`);
-
-    // ao mudar de corrida, limpa fleet (vai ficar "all")
-    setSelectedFleetId('all');
-  };
-
-  const tabs = useMemo(
-    () => [
-      { key: 'existing' as View, label: 'Resultados', badge: (existingResults ?? []).length },
-      { key: 'draft' as View, label: 'Rascunho', badge: (draft ?? []).length },
-      { key: 'add' as View, label: 'Adicionar 1' },
-      { key: 'scoring' as View, label: 'Descartes' },
-    ],
-    [existingResults, draft]
-  );
-
+  // -----------------------------
+  // Races: ordenar e filtrar por classe
+  // -----------------------------
   const orderedRaces = useMemo(() => {
     return (races ?? [])
       .slice()
       .sort((a: any, b: any) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
   }, [races]);
 
-  // fleets ordenadas pelo nome “oficial” (Yellow, Blue, ..., Gold, Silver, Bronze, Emerald)
+  const racesForSelectedClass = useMemo(() => {
+    if (!selectedClass) return orderedRaces;
+    return orderedRaces.filter((r: any) => r.class_name === selectedClass);
+  }, [orderedRaces, selectedClass]);
+
+  // -----------------------------
+  // URL -> state (view e race)
+  // -----------------------------
+  useEffect(() => {
+    const raw = (search.get('view') || 'existing') as string;
+    const v: View = (ALLOWED_VIEWS as string[]).includes(raw) ? (raw as View) : 'existing';
+    setView(v);
+
+    const raceParam = search.get('race');
+    if (!raceParam) return;
+
+    const urlRaceId = Number(raceParam);
+    if (Number.isNaN(urlRaceId)) return;
+
+    const exists = (races ?? []).some((r: any) => r.id === urlRaceId);
+    if (!exists) return;
+
+    if (selectedRaceId !== urlRaceId) {
+      setSelectedRaceId(urlRaceId);
+      setSelectedFleetId('all');
+    }
+  }, [search, races, selectedRaceId, setSelectedRaceId, setSelectedFleetId]);
+
+  // -----------------------------
+  // initialRaceId -> aplica 1 vez (evita loop)
+  // -----------------------------
+  useEffect(() => {
+    if (!initialRaceId) return;
+    if (initialAppliedRef.current) return;
+
+    const exists = (races ?? []).some((r: any) => r.id === initialRaceId);
+    if (!exists) return;
+
+    initialAppliedRef.current = true;
+
+    if (selectedRaceId !== initialRaceId) {
+      setSelectedRaceId(initialRaceId);
+
+      const sp = new URLSearchParams(search?.toString() ?? '');
+      sp.set('race', String(initialRaceId));
+      const rawView = sp.get('view');
+      if (!rawView || !(ALLOWED_VIEWS as string[]).includes(rawView)) sp.set('view', 'existing');
+      router.replace(`?${sp.toString()}`);
+
+      setSelectedFleetId('all');
+    }
+  }, [
+    initialRaceId,
+    races,
+    selectedRaceId,
+    setSelectedRaceId,
+    search,
+    router,
+    setSelectedFleetId,
+  ]);
+
+  // -----------------------------
+  // Mudança de classe -> garantir race da classe
+  // -----------------------------
+  useEffect(() => {
+    if (!selectedClass) {
+      lastClassRef.current = null;
+      return;
+    }
+
+    if (lastClassRef.current === selectedClass) return;
+    lastClassRef.current = selectedClass;
+
+    const list = racesForSelectedClass;
+    const firstId = list[0]?.id ?? null;
+
+    const currentOk = !!selectedRaceId && list.some((r: any) => r.id === selectedRaceId);
+    if (currentOk) return;
+
+    setSelectedRaceId(firstId);
+
+    const sp = new URLSearchParams(search?.toString() ?? '');
+    if (firstId) sp.set('race', String(firstId));
+    else sp.delete('race');
+    router.replace(`?${sp.toString()}`);
+
+    setSelectedFleetId('all');
+  }, [
+    selectedClass,
+    racesForSelectedClass,
+    selectedRaceId,
+    setSelectedRaceId,
+    search,
+    router,
+    setSelectedFleetId,
+  ]);
+
+  const setViewAndUrl = (v: View) => {
+    setView(v);
+    const sp = new URLSearchParams(search?.toString() ?? '');
+    sp.set('view', v);
+    router.replace(`?${sp.toString()}`);
+  };
+
+  const handleSelectRace = (raceId: number | null) => {
+    if ((raceId ?? null) === (selectedRaceId ?? null)) return;
+
+    setSelectedRaceId(raceId);
+
+    const sp = new URLSearchParams(search?.toString() ?? '');
+    if (raceId) sp.set('race', String(raceId));
+    else sp.delete('race');
+    router.replace(`?${sp.toString()}`);
+
+    setSelectedFleetId('all');
+  };
+
+  const tabs = useMemo(
+    () => [
+      {
+        key: 'existing' as View,
+        label: 'Resultados',
+        badge: (existingResults ?? []).length,
+      },
+      { key: 'draft' as View, label: 'Rascunho', badge: (draft ?? []).length },
+      { key: 'add' as View, label: 'Adicionar 1' },
+      // ✅ removido: { key: 'scoring', label: 'Descartes' }
+    ],
+    [existingResults, draft]
+  );
+
+  // fleets ordenadas pelo nome “oficial”
   const orderedFleets = useMemo(() => {
     return (fleetsForRace ?? [])
       .slice()
@@ -160,37 +243,26 @@ export default function RaceResultsManager({
       });
   }, [fleetsForRace]);
 
-  const hasFleets =
-    !!currentRace?.fleet_set_id && (orderedFleets ?? []).length > 0;
+  const hasFleets = !!currentRace?.fleet_set_id && (orderedFleets ?? []).length > 0;
 
   // --------- PRÉ-SELECIONAR PRIMEIRA FLEET QUANDO EXISTEM ----------
   useEffect(() => {
     if (!selectedRaceId) {
-      // sem corrida selecionada, fica em "all"
-      if (selectedFleetId !== 'all') {
-        setSelectedFleetId('all');
-      }
+      if (selectedFleetId !== 'all') setSelectedFleetId('all');
       return;
     }
 
     const list = orderedFleets;
 
     if (list.length === 0) {
-      // corrida sem fleets → também "all"
-      if (selectedFleetId !== 'all') {
-        setSelectedFleetId('all');
-      }
+      if (selectedFleetId !== 'all') setSelectedFleetId('all');
       return;
     }
 
-    // se fleet atual não existe nesta race ou está em "all", escolhe a primeira
     const existsCurrent =
-      selectedFleetId !== 'all' &&
-      list.some((f: any) => f.id === selectedFleetId);
+      selectedFleetId !== 'all' && list.some((f: any) => f.id === selectedFleetId);
 
-    if (!existsCurrent) {
-      setSelectedFleetId(list[0].id);
-    }
+    if (!existsCurrent) setSelectedFleetId(list[0].id);
   }, [selectedRaceId, orderedFleets, selectedFleetId, setSelectedFleetId]);
 
   return (
@@ -200,18 +272,15 @@ export default function RaceResultsManager({
         <div className="w-full px-6">
           <div className="py-3 flex flex-col gap-3">
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
-              {/* Lado esquerdo: título + info + chips de fleets */}
+              {/* Lado esquerdo */}
               <div>
                 <h1 className="text-xl font-bold">Resultados</h1>
                 <p className="text-xs text-gray-600">
                   {selectedRaceId
-                    ? `Corrida selecionada ${
-                        selectedClass ? `— ${selectedClass}` : ''
-                      }`
+                    ? `Corrida selecionada ${selectedClass ? `— ${selectedClass}` : ''}`
                     : 'Escolhe uma corrida para começar.'}
                 </p>
 
-                {/* Info de FleetSet + botões de fleets */}
                 {hasFleets && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="text-[11px] uppercase tracking-wide text-gray-500">
@@ -236,11 +305,11 @@ export default function RaceResultsManager({
                 )}
               </div>
 
-              {/* Lado direito: RaceSelector + botão Delete race */}
+              {/* Lado direito */}
               <div className="flex items-center gap-2 lg:min-w-[420px] lg:justify-end">
                 <div className="min-w-[260px] lg:min-w-[320px]">
                   <RaceSelector
-                    races={orderedRaces}
+                    races={racesForSelectedClass}
                     selectedRaceId={selectedRaceId}
                     onSelect={handleSelectRace}
                   />
@@ -250,14 +319,12 @@ export default function RaceResultsManager({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!selectedRaceId) return;
                       if (
                         !confirm(
                           'Tens a certeza que queres eliminar esta corrida (e todos os seus resultados)?'
                         )
-                      ) {
+                      )
                         return;
-                      }
                       await deleteRace(selectedRaceId);
                     }}
                     className="px-3 py-2 rounded border border-red-500 text-red-600 hover:bg-red-50 text-xs lg:text-sm"
@@ -297,9 +364,7 @@ export default function RaceResultsManager({
                         <span
                           className={[
                             'ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]',
-                            active
-                              ? 'bg-white/20 text-white'
-                              : 'bg-gray-200 text-gray-700',
+                            active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700',
                           ].join(' ')}
                         >
                           {t.badge}
@@ -327,19 +392,15 @@ export default function RaceResultsManager({
                 <header className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
                     Resultados existentes{' '}
-                    {selectedClass ? (
-                      <span className="text-gray-500">— {selectedClass}</span>
-                    ) : null}
+                    {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
                   </h2>
                   <span className="text-xs text-gray-500">
-                    {loadingExisting
-                      ? 'A carregar…'
-                      : `${(existingResults ?? []).length} linhas`}
+                    {loadingExisting ? 'A carregar…' : `${(existingResults ?? []).length} linhas`}
                   </span>
                 </header>
                 <div className="max-h-[66vh] overflow-auto rounded border">
                   <ExistingResultsTable
-                    results={existingResults ?? []} // já filtrados por fleet no hook
+                    results={existingResults ?? []}
                     loading={!!loadingExisting}
                     onMove={moveRow}
                     onEditPos={savePosition}
@@ -355,20 +416,17 @@ export default function RaceResultsManager({
             {view === 'draft' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3">
-                  <h2 className="text-lg font-semibold">
-                    Rascunho &amp; Inscritos
-                  </h2>
+                  <h2 className="text-lg font-semibold">Rascunho &amp; Inscritos</h2>
                   <p className="text-xs text-gray-500">
                     Adiciona por nº de vela ou a partir da lista filtrável.
-                    {hasFleets &&
-                      ' (lista já filtrada pela fleet selecionada)'}
+                    {hasFleets && ' (lista já filtrada pela fleet selecionada)'}
                   </p>
                 </header>
                 <div className="max-h-[66vh] overflow-auto">
                   <DraftResultsEditor
                     draft={draft ?? []}
                     entries={(availableEntries ?? []).concat()}
-                    available={availableEntries ?? []} // filtrados por fleet
+                    available={availableEntries ?? []}
                     draftInput={draftInput}
                     setDraftInput={setDraftInput}
                     onAddBySail={addDraftBySail}
@@ -386,9 +444,7 @@ export default function RaceResultsManager({
 
             {view === 'add' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
-                <h2 className="text-lg font-semibold mb-3">
-                  Adicionar resultado em falta
-                </h2>
+                <h2 className="text-lg font-semibold mb-3">Adicionar resultado em falta</h2>
                 <AddSingleForm
                   singleSail={singleSail}
                   setSingleSail={setSingleSail}
@@ -396,24 +452,6 @@ export default function RaceResultsManager({
                   setSinglePos={setSinglePos}
                   onAdd={addSingle}
                 />
-              </section>
-            )}
-
-            {view === 'scoring' && (
-              <section className="p-4 border rounded-2xl bg-white shadow-sm max-w-2xl">
-                <h2 className="text-lg font-semibold mb-3">
-                  Configuração de Descartes
-                </h2>
-                <ScoringPanel
-                  scoring={scoring}
-                  onChange={setScoring}
-                  onSave={saveScoring}
-                  saving={savingScoring}
-                />
-                <p className="text-xs text-gray-500">
-                  O <strong>Net</strong> na classificação geral usa estes
-                  valores.
-                </p>
               </section>
             )}
           </>
@@ -426,8 +464,7 @@ export default function RaceResultsManager({
           <div className="w-full px-6">
             <div className="flex items-center gap-3 rounded-2xl border bg-white shadow-lg p-3">
               <span className="text-sm text-gray-700">
-                {(draft ?? []).length} no rascunho — confirma para guardar em
-                massa.
+                {(draft ?? []).length} no rascunho — confirma para guardar em massa.
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <button
@@ -437,9 +474,7 @@ export default function RaceResultsManager({
                   Guardar em massa
                 </button>
                 <button
-                  onClick={() =>
-                    (draft ?? []).forEach((d) => removeDraft(d.entryId))
-                  }
+                  onClick={() => (draft ?? []).forEach((d) => removeDraft(d.entryId))}
                   className="px-3 py-2 rounded-xl border hover:bg-gray-50"
                   title="Limpar rascunho"
                 >

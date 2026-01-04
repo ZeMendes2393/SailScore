@@ -138,10 +138,7 @@ export default function CreateFinals({
           + Add range
         </button>
 
-        <div className="text-xs text-gray-500">
-          Dica: agora podes apagar o número (ficar vazio) e escrever outro sem ele
-          “voltar” sozinho.
-        </div>
+        
       </div>
 
       {/* RACES */}

@@ -8,3 +8,5 @@ uvicorn main:app --reload
 frontend:
 cd C:\Users\Asus\SailingAPP\SailScore\SAILSCOREWEB\sailmanager\frontend
 npm run dev
+
+

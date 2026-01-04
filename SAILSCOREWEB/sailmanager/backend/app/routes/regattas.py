@@ -220,17 +220,33 @@ def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{regatta_id}/classes", response_model=List[str])
 def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    rows = (
-        db.query(
-            func.min(func.trim(models.Entry.class_name)).label("cls")
+    # 1) Preferir as classes configuradas (RegattaClass) — funciona para regatas novas
+    try:
+        rc_rows = (
+            db.query(func.min(func.trim(models.RegattaClass.class_name)).label("cls"))
+              .filter(models.RegattaClass.regatta_id == regatta_id)
+              .filter(models.RegattaClass.class_name.isnot(None))
+              .group_by(func.lower(func.trim(models.RegattaClass.class_name)))
+              .order_by(func.min(func.trim(models.RegattaClass.class_name)))
+              .all()
         )
-        .filter(models.Entry.regatta_id == regatta_id)
-        .filter(models.Entry.class_name.isnot(None))
-        .group_by(func.lower(func.trim(models.Entry.class_name)))
-        .order_by(func.min(func.trim(models.Entry.class_name)))
-        .all()
+        rc_classes = [r.cls for r in rc_rows if r and r.cls]
+        if rc_classes:
+            return rc_classes
+    except Exception:
+        # se por algum motivo a tabela/model não existir, cai para o fallback
+        pass
+
+    # 2) Fallback legacy: deduzir a partir das entries — mantém compatibilidade com regatas antigas
+    rows = (
+        db.query(func.min(func.trim(models.Entry.class_name)).label("cls"))
+          .filter(models.Entry.regatta_id == regatta_id)
+          .filter(models.Entry.class_name.isnot(None))
+          .group_by(func.lower(func.trim(models.Entry.class_name)))
+          .order_by(func.min(func.trim(models.Entry.class_name)))
+          .all()
     )
-    return [r.cls for r in rows]
+    return [r.cls for r in rows if r and r.cls]
 
 # --------- SUBSTITUIR classes (em lote) ---------
 @router.put("/{regatta_id}/classes", response_model=List[schemas.RegattaClassRead])
@@ -247,7 +263,6 @@ def replace_regatta_classes(
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
 
-    # Normalizar lista (trim, remove vazios, deduplicar case-insensitive)
     normalized = []
     seen = set()
     for raw in body.classes or []:
@@ -260,16 +275,13 @@ def replace_regatta_classes(
         seen.add(key)
         normalized.append(s)
 
-    # Ler classes atuais
     existing = db.query(models.RegattaClass).filter_by(regatta_id=regatta_id).all()
     existing_by_key = {rc.class_name.strip().lower(): rc for rc in existing}
 
-    # Calcular remoções e adições
     target_keys = {c.lower() for c in normalized}
     to_delete = [rc for k, rc in existing_by_key.items() if k not in target_keys]
     to_add = [c for c in normalized if c.lower() not in existing_by_key]
 
-    # Executar
     for rc in to_delete:
         db.delete(rc)
     for c in to_add:
@@ -277,7 +289,6 @@ def replace_regatta_classes(
 
     db.commit()
 
-    # devolver o estado final
     return (
         db.query(models.RegattaClass)
           .filter_by(regatta_id=regatta_id)
