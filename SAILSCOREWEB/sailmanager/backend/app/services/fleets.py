@@ -5,7 +5,7 @@ from typing import List, Dict
 from sqlalchemy.orm import Session
 
 from app.models import FleetSet, Fleet, FleetAssignment, Race, Result, Entry
-from app.routes.results import get_overall_results  # reutiliza o ranking oficial
+from app.routes.results_overall import get_overall_results
 
 FLEET_COLORS_QUALI = {
     2: ["Yellow", "Blue"],

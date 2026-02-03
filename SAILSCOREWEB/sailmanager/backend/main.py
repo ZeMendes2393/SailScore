@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
+
 from app.database import create_database
 from app.routes import (
     auth,
@@ -26,6 +27,7 @@ from app.routes import (
     scoring as scoring_routes,
     entry_attachments,
     class_settings,
+    discards,
 )
 from app.routes import requests as requests_routes
 from app.routes import questions as questions_module
@@ -100,6 +102,7 @@ app.include_router(questions_router)  # sem prefix extra
 app.include_router(class_settings.router)  # 👈 adiciona após os outros routers
 app.include_router(fleets_router.router)
 app.include_router(public_fleets_router)   # 👈 ADICIONAR AQUI
+app.include_router(discards.router)
 
 # ---------- Utilitários ----------
 @app.get("/health")

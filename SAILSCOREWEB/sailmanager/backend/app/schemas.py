@@ -7,6 +7,8 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 
 
 
+
+
 # =========================
 # AUTH
 # =========================
@@ -789,3 +791,33 @@ class MedalRaceAssignSchema(BaseModel):
     from_rank: int
     to_rank: int
     race_ids: List[int] = Field(default_factory=list)  # ✅ agora é opcional
+
+DiscardScope = Literal["all", "first", "last", "range", "manual"]
+
+
+class DiscardRule(BaseModel):
+    scope: DiscardScope
+
+    # quantos descartes esta regra dá
+    discard_count: int = Field(ge=0, default=0)
+
+    # aplica só se existirem >= threshold races dentro do scope (opcional)
+    threshold: Optional[int] = Field(default=None, ge=0)
+
+    # first/last
+    n: Optional[int] = Field(default=None, ge=0)
+
+    # range (1-based, em ordem das races)
+    from_index: Optional[int] = Field(default=None, ge=1)
+    to_index: Optional[int] = Field(default=None, ge=1)
+
+    # manual
+    race_ids: Optional[List[int]] = None
+
+class ClassSettingsPatch(BaseModel):
+    discard_count: Optional[int] = None
+    discard_threshold: Optional[int] = None
+    scoring_codes: Optional[dict[str, float]] = None
+
+    # ✅ NOVO
+    discard_rules: Optional[List[DiscardRule]] = None

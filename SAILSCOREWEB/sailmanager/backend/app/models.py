@@ -676,25 +676,48 @@ class EntryAttachment(Base):
     entry = relationship("Entry", backref="attachments")
 
 
+# app/models.py (excerto do RegattaClassSettings)
+
 class RegattaClassSettings(Base):
     __tablename__ = "regatta_class_settings"
 
     id = sa.Column(sa.Integer, primary_key=True)
-    regatta_id = sa.Column(sa.Integer, sa.ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False)
+
+    regatta_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("regattas.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     class_name = sa.Column(sa.String(255), nullable=False)
 
+    # overrides antigos
     discard_count = sa.Column(sa.Integer, nullable=True)
     discard_threshold = sa.Column(sa.Integer, nullable=True)
     scoring_codes = sa.Column(sa.JSON, nullable=True)
 
+    # ✅ antigos (ficam, mas vamos deixar de usar)
+    discard_rules = sa.Column(sa.JSON, nullable=True)
+    discard_rules_active = sa.Column(sa.Boolean, nullable=False, default=True)
+    discard_rules_label = sa.Column(sa.String(120), nullable=True)
+
+    # ✅ NOVO MODO STANDARD (schedule)
+    # ex: [0,0,0,1,1,1,2,2,2]
+    discard_schedule = sa.Column(sa.JSON, nullable=True)
+    discard_schedule_active = sa.Column(sa.Boolean, nullable=False, default=False)
+    discard_schedule_label = sa.Column(sa.String(120), nullable=True)
+
     __table_args__ = (
-        sa.UniqueConstraint("regatta_id", "class_name", name="uq_regatta_class_settings_regatta_class"),
+        sa.UniqueConstraint(
+            "regatta_id",
+            "class_name",
+            name="uq_regatta_class_settings_regatta_class",
+        ),
     )
 
-    regatta = orm.relationship("Regatta", backref=orm.backref("class_settings", cascade="all, delete-orphan"))
-
-
-
+    regatta = orm.relationship(
+        "Regatta",
+        backref=orm.backref("class_settings", cascade="all, delete-orphan"),
+    )
 
 
 class FleetSet(Base):

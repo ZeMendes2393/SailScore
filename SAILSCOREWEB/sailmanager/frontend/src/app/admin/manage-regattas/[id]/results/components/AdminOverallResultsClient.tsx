@@ -7,6 +7,9 @@ import { useAuth } from '@/context/AuthContext';
 import RaceCreator from './RaceCreator';
 import SettingsDrawer from './settings/SettingsDrawer';
 
+// ✅ Discards
+import DiscardsDrawer from './settings/DiscardsDrawer';
+
 // Fleets
 import FleetsDrawer from './fleets/FleetsDrawer';
 import FleetManager from './fleets/FleetManager';
@@ -92,6 +95,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showFleets, setShowFleets] = useState(false);
+  const [showDiscards, setShowDiscards] = useState(false);
 
   // API helpers
   const apiGet = useCallback(
@@ -328,8 +332,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   {' '}
                   (após{' '}
                   <strong>
-                    {clsResolved?.discard_threshold ??
-                      regatta.discard_threshold}
+                    {clsResolved?.discard_threshold ?? regatta.discard_threshold}
                   </strong>{' '}
                   regatas)
                 </>
@@ -353,6 +356,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           >
             ➕ Criar Corrida
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowDiscards(true)}
+            className="px-3 py-2 rounded border hover:bg-gray-50"
+            disabled={!selectedClass}
+            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Configurar descartes'}
+          >
+            🗑️ Discards
+          </button>
+
           <button
             type="button"
             onClick={() => setShowSettings(true)}
@@ -366,6 +380,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           >
             ⚙️ Settings (classe)
           </button>
+
           <button
             type="button"
             onClick={() => setShowFleets(true)}
@@ -395,8 +410,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     );
                     const grouped: Record<string, RaceLite[]> = {};
                     (all || []).forEach((r) => {
-                      if (!grouped[r.class_name])
-                        grouped[r.class_name] = [];
+                      if (!grouped[r.class_name]) grouped[r.class_name] = [];
                       grouped[r.class_name].push(r);
                     });
                     for (const k of Object.keys(grouped)) {
@@ -430,9 +444,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       {loadingClasses ? (
         <p className="text-gray-500">A carregar classes…</p>
       ) : classes.length === 0 ? (
-        <p className="text-gray-500">
-          Sem classes configuradas para esta regata.
-        </p>
+        <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
       ) : (
         <div className="flex gap-2 mb-4 flex-wrap">
           {classes.map((cls) => (
@@ -497,12 +509,8 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           <tbody>
             {results.map((r) => (
               <tr key={`${r.class_name}-${r.sail_number}-${r.skipper_name}`}>
-                <td className="border px-3 py-2 text-center">
-                  {r.overall_rank}º
-                </td>
-                <td className="border px-3 py-2 text-center">
-                  {r.finals_fleet ?? '-'}
-                </td>
+                <td className="border px-3 py-2 text-center">{r.overall_rank}º</td>
+                <td className="border px-3 py-2 text-center">{r.finals_fleet ?? '-'}</td>
                 <td className="border px-3 py-2">{r.sail_number}</td>
                 <td className="border px-3 py-2">{r.boat_name}</td>
                 <td className="border px-3 py-2">{r.skipper_name}</td>
@@ -518,9 +526,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   return (
                     <td
                       key={n}
-                      className={`border px-3 py-2 text-center ${
-                        discarded ? 'text-gray-400' : ''
-                      }`}
+                      className={`border px-3 py-2 text-center ${discarded ? 'text-gray-400' : ''}`}
                     >
                       <div className="flex items-center justify-center gap-1">
                         {fleetLabel && (
@@ -559,15 +565,12 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   disabled={saving}
                   onClick={async () => {
                     if (!pendingOrder) return;
-                    if (!confirm('Confirmas guardar a nova ordem das corridas?'))
-                      return;
+                    if (!confirm('Confirmas guardar a nova ordem das corridas?')) return;
                     try {
                       setSaving(true);
-                      await apiSend(
-                        `/races/regattas/${regattaId}/reorder`,
-                        'PUT',
-                        { ordered_ids: pendingOrder }
-                      );
+                      await apiSend(`/races/regattas/${regattaId}/reorder`, 'PUT', {
+                        ordered_ids: pendingOrder,
+                      });
 
                       const refreshed: RaceLite[] = await apiGet(
                         `/races/by_regatta/${regattaId}`
@@ -609,12 +612,19 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         </div>
       )}
 
+      {/* Drawer Discards */}
+{showDiscards && selectedClass && (
+  <DiscardsDrawer
+    regattaId={regattaId}
+    class_name={selectedClass}
+    onClose={() => setShowDiscards(false)}
+  />
+)}
+
+
       {/* Drawer Settings por classe */}
       {showSettings && (
-        <SettingsDrawer
-          regattaId={regattaId}
-          onClose={() => setShowSettings(false)}
-        />
+        <SettingsDrawer regattaId={regattaId} onClose={() => setShowSettings(false)} />
       )}
 
       {/* Drawer de Fleets */}
@@ -624,17 +634,13 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           onClose={() => setShowFleets(false)}
           title="Fleet Manager"
         >
-         {selectedClass ? (
-  <FleetManager
-    overall={results}
-    regattaId={regattaId}
-  />
-) : (
-  <div className="p-4 text-sm text-gray-600">
-    Escolhe uma classe para gerir fleets.
-  </div>
-)}
-
+          {selectedClass ? (
+            <FleetManager overall={results} regattaId={regattaId} />
+          ) : (
+            <div className="p-4 text-sm text-gray-600">
+              Escolhe uma classe para gerir fleets.
+            </div>
+          )}
         </FleetsDrawer>
       )}
     </div>
