@@ -3,13 +3,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
 
 from app.database import get_db
 from app import models, schemas
 from utils.auth_utils import get_current_user
 
-from app.routes.results_utils import PositionPatch, CodePatch, _points_for
+from app.routes.results_utils import (
+    PositionPatch,
+    CodePatch,
+    _norm,
+    get_scoring_map,
+    compute_points_for_code,
+    removes_from_ranking,
+    normalize_race_results,
+)
 
 router = APIRouter()
 
@@ -27,25 +34,15 @@ def delete_result(
     if not row:
         raise HTTPException(status_code=404, detail="Resultado não encontrado")
 
-    race_id = row.race_id
-    deleted_pos = int(row.position)
-
-    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
-    mapping = reg.scoring_codes or {}
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
     db.delete(row)
     db.flush()
 
-    trailing = (
-        db.query(models.Result)
-        .filter(models.Result.race_id == race_id, models.Result.position > deleted_pos)
-        .order_by(models.Result.position.asc())
-        .all()
-    )
-    for i, r in enumerate(trailing, start=1):
-        new_pos = deleted_pos + i - 1
-        r.position = new_pos
-        r.points = _points_for(mapping, r.code, new_pos)
+    # normaliza posições/pontos (compacta)
+    normalize_race_results(db, race)
 
     db.commit()
     return None
@@ -65,59 +62,18 @@ def change_result_position(
     if not row:
         raise HTTPException(status_code=404, detail="Resultado não encontrado")
 
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+
     if body.new_position < 1:
         raise HTTPException(status_code=400, detail="Posição inválida")
 
-    race_id = row.race_id
-    old_pos = int(row.position)
-    new_pos = int(body.new_position)
+    # simples: atualiza e depois normalize faz o resto (compact + unranked no fim)
+    row.position = int(body.new_position)
 
-    max_pos = (
-        db.query(func.max(models.Result.position))
-        .filter(models.Result.race_id == race_id)
-        .scalar()
-        or 0
-    )
-    if new_pos > max_pos:
-        new_pos = max_pos
-
-    if new_pos != old_pos:
-        if new_pos > old_pos:
-            db.query(models.Result).filter(
-                and_(
-                    models.Result.race_id == race_id,
-                    models.Result.position > old_pos,
-                    models.Result.position <= new_pos,
-                    models.Result.id != row.id,
-                )
-            ).update(
-                {models.Result.position: models.Result.position - 1},
-                synchronize_session=False,
-            )
-        else:
-            db.query(models.Result).filter(
-                and_(
-                    models.Result.race_id == race_id,
-                    models.Result.position >= new_pos,
-                    models.Result.position < old_pos,
-                    models.Result.id != row.id,
-                )
-            ).update(
-                {models.Result.position: models.Result.position + 1},
-                synchronize_session=False,
-            )
-
-        row.position = new_pos
-
-    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
-    code_map = reg.scoring_codes or {}
-
-    def points_for(mapping: dict, code: str | None, pos: int) -> float:
-        return float(mapping.get(code.upper(), pos)) if code else float(pos)
-
-    all_rows = db.query(models.Result).filter(models.Result.race_id == race_id).all()
-    for r in all_rows:
-        r.points = points_for(code_map, r.code, int(r.position))
+    db.flush()
+    normalize_race_results(db, race)
 
     db.commit()
     db.refresh(row)
@@ -131,6 +87,11 @@ def set_result_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """
+    ✅ codes auto (N+1 / fleet+1)
+    ✅ codes ajustáveis (RDG/SCP/ZPF/DPI) com points manual (decimal ok)
+    ✅ qualquer code != RDG remove da sequência numérica (compacta os outros)
+    """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -138,44 +99,49 @@ def set_result_code(
     if not row:
         raise HTTPException(status_code=404, detail="Resultado não encontrado")
 
-    reg = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
-    mapping: dict[str, float] = reg.scoring_codes or {}
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+
+    scoring_map = get_scoring_map(db, int(row.regatta_id), str(race.class_name or ""))
 
     raw = (body.code or "").strip()
     if raw == "":
+        # limpar code => volta a ser "normal"
         row.code = None
-        row.points = float(row.position)
+        # põe no fim do ranked (normalize vai compactar)
+        row.position = 10**9
+        row.points = float(row.position)  # placeholder
+        db.flush()
+        normalize_race_results(db, race)
         db.commit()
         db.refresh(row)
         return row
 
-    code = raw.upper()
-    if code not in mapping:
-        raise HTTPException(status_code=400, detail=f"Código {code} sem pontuação definida")
+    code = _norm(raw)
 
-    race_id = row.race_id
-    old_pos = int(row.position)
-
-    db.query(models.Result).filter(
-        models.Result.race_id == race_id,
-        models.Result.position > old_pos,
-        models.Result.id != row.id,
-    ).update(
-        {models.Result.position: models.Result.position - 1},
-        synchronize_session=False,
-    )
-
-    max_pos = (
-        db.query(func.max(models.Result.position))
-        .filter(models.Result.race_id == race_id)
-        .scalar()
-        or 0
-    )
-    row.position = int(max_pos) + 1
+    # calcular points segundo as regras novas
+    try:
+        pts = compute_points_for_code(
+            db=db,
+            race=race,
+            sail_number=row.sail_number,
+            code=code,
+            manual_points=body.points,
+            scoring_map=scoring_map,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     row.code = code
-    row.points = float(mapping[code])
+    row.points = float(pts)
 
+    # se remove do ranking -> manda para o fim (normalize compacta)
+    if removes_from_ranking(code):
+        row.position = 10**9
+
+    db.flush()
+    normalize_race_results(db, race)
     db.commit()
     db.refresh(row)
     return row

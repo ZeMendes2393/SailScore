@@ -28,6 +28,8 @@ type OverallResult = {
   skipper_name: string;
   total_points: number;
   net_points: number;
+
+  // backend: pode vir number, "DNF(10)" ou "(10)" etc
   per_race: Record<string, number | string>;
 
   // novos campos do backend
@@ -51,6 +53,12 @@ type RaceLite = {
 
 type Props = { regattaId: number };
 
+// para ir buscar codes por corrida
+type RaceResultLite = {
+  sail_number: string;
+  code?: string | null;
+};
+
 // mapa de cores para os dots de fleet
 const FLEET_COLOR_CLASSES: Record<string, string> = {
   Yellow: 'bg-yellow-300',
@@ -64,15 +72,60 @@ const FLEET_COLOR_CLASSES: Record<string, string> = {
   Emerald: 'bg-emerald-500',
 };
 
+function normalizeSail(sn: string | null | undefined) {
+  return (sn ?? '').trim().toUpperCase();
+}
+
+function formatPerRaceCell(
+  raw: number | string | undefined,
+  discarded: boolean,
+  code?: string | null
+) {
+  if (raw === undefined || raw === null) return '-';
+
+  const s = (typeof raw === 'number' ? String(raw) : String(raw))
+    .replace(/\u200B/g, '')
+    .trim();
+
+  // detectar se backend já vem como "(...)" para discard
+  const isWrapped = s.startsWith('(') && s.endsWith(')');
+
+  // pointsStr: tenta isolar os pontos
+  let pointsStr = s;
+
+  // se vier "(10)" -> pointsStr "10"
+  if (isWrapped) pointsStr = s.slice(1, -1).trim();
+
+  // se vier "DNF(10)" ou "(DNF 10)" etc -> tenta extrair pontos
+  const m1 = pointsStr.match(/^([A-Za-z]{2,6})\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*\)$/);
+  if (m1) pointsStr = m1[2];
+
+  const m2 = pointsStr.match(/^([A-Za-z]{2,6})\s+([-+]?\d+(?:\.\d+)?)$/);
+  if (m2) pointsStr = m2[2];
+
+  const c = code ? String(code).toUpperCase() : null;
+
+  if (!discarded) {
+    // normal
+    if (c) return `${c}(${pointsStr})`; // DNF(10)
+    // se backend já veio com DNF(10), mantém
+    return s || '-';
+  }
+
+  // discarded
+  if (c) return `(${c} ${pointsStr})`; // (DNF 10)
+  // se backend já veio "(...)" mantém com parenteses (sem duplicar)
+  if (isWrapped) return s;
+  return `(${s || '-'})`;
+}
+
 export default function AdminOverallResultsClient({ regattaId }: Props) {
   const router = useRouter();
   const { token } = useAuth();
 
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [racesByClass, setRacesByClass] = useState<Record<string, RaceLite[]>>(
-    {}
-  );
+  const [racesByClass, setRacesByClass] = useState<Record<string, RaceLite[]>>({});
   const [rawResults, setRawResults] = useState<OverallResult[]>([]);
   const [regatta, setRegatta] = useState<RegattaConfig | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
@@ -96,6 +149,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [showFleets, setShowFleets] = useState(false);
   const [showDiscards, setShowDiscards] = useState(false);
+
+  // NOVO: codes por corrida (raceName -> sail_number -> code)
+  const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
 
   // API helpers
   const apiGet = useCallback(
@@ -177,9 +233,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           grouped[r.class_name].push(r);
         });
         for (const k of Object.keys(grouped)) {
-          grouped[k].sort(
-            (a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id)
-          );
+          grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
         }
         setRacesByClass(grouped);
       } catch (e) {
@@ -195,9 +249,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       setLoadingResults(true);
       try {
         const data: OverallResult[] = await apiGet(
-          `/results/overall/${regattaId}?class_name=${encodeURIComponent(
-            selectedClass
-          )}`
+          `/results/overall/${regattaId}?class_name=${encodeURIComponent(selectedClass)}`
         );
         setRawResults(data || []);
       } catch {
@@ -217,9 +269,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       }
       try {
         const res = await apiGet(
-          `/regattas/${regattaId}/class-settings/${encodeURIComponent(
-            selectedClass
-          )}`
+          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`
         );
         const payload = (res?.resolved ?? res) || null;
         if (payload) {
@@ -240,9 +290,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   // Colunas (nomes das corridas)
   const raceNames = useMemo(() => {
     const s = new Set<string>();
-    rawResults.forEach((r) =>
-      Object.keys(r.per_race || {}).forEach((k) => s.add(k))
-    );
+    rawResults.forEach((r) => Object.keys(r.per_race || {}).forEach((k) => s.add(k)));
     return Array.from(s);
   }, [rawResults]);
 
@@ -287,6 +335,42 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
     if (id) router.push(`/admin/manage-regattas/${regattaId}/races/${id}`);
   };
 
+  // ✅ NOVO: buscar codes das corridas (para mostrar DNF(10) / (DNF 10))
+  useEffect(() => {
+    (async () => {
+      if (!selectedClass) {
+        setCodesByRace({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        orderedRaceNames.map(async (raceName) => {
+          const raceId = nameToId.get(raceName);
+          if (!raceId) return [raceName, {}] as const;
+
+          try {
+            const rows: RaceResultLite[] = await apiGet(`/results/races/${raceId}/results`);
+
+            const map: Record<string, string | null> = {};
+            (rows || []).forEach((rr) => {
+              const key = normalizeSail(rr.sail_number);
+              if (!key) return;
+              map[key] = rr.code ? String(rr.code).toUpperCase() : null;
+            });
+
+            return [raceName, map] as const;
+          } catch {
+            return [raceName, {}] as const;
+          }
+        })
+      );
+
+      const next: Record<string, Record<string, string | null>> = {};
+      for (const [raceName, m] of entries) next[raceName] = m;
+      setCodesByRace(next);
+    })();
+  }, [apiGet, selectedClass, orderedRaceNames, nameToId]);
+
   // Calcular descartes apenas para fins visuais (backend já tratou dos pontos)
   const results: ComputedRow[] = useMemo(() => {
     return rawResults
@@ -296,13 +380,19 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
         Object.entries(r.per_race || {}).forEach(([name, val]) => {
           if (typeof val === 'string') {
-            const trimmed = val.trim();
-            if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+            const cleaned = val.replace(/\u200B/g, '').trim();
+
+            // se backend marca discard com "(...)"
+            if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
               discarded.add(name);
-              cleanedPerRace[name] = trimmed.slice(1, -1);
+              cleanedPerRace[name] = cleaned.slice(1, -1).trim(); // guarda sem parêntesis
               return;
             }
+
+            cleanedPerRace[name] = cleaned || '-';
+            return;
           }
+
           cleanedPerRace[name] = val ?? '-';
         });
 
@@ -324,16 +414,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           {regatta && (
             <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
               Descartes:{' '}
-              <strong>
-                {clsResolved?.discard_count ?? regatta.discard_count}
-              </strong>
+              <strong>{clsResolved?.discard_count ?? regatta.discard_count}</strong>
               {(clsResolved?.discard_count ?? regatta.discard_count) > 0 && (
                 <>
                   {' '}
-                  (após{' '}
-                  <strong>
-                    {clsResolved?.discard_threshold ?? regatta.discard_threshold}
-                  </strong>{' '}
+                  (após <strong>{clsResolved?.discard_threshold ?? regatta.discard_threshold}</strong>{' '}
                   regatas)
                 </>
               )}
@@ -348,11 +433,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowCreate((v) => !v)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={
-              !selectedClass
-                ? 'Escolhe uma classe primeiro'
-                : 'Criar nova corrida'
-            }
+            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Criar nova corrida'}
           >
             ➕ Criar Corrida
           </button>
@@ -372,11 +453,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowSettings(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={
-              !selectedClass
-                ? 'Escolhe uma classe primeiro'
-                : 'Definições por classe'
-            }
+            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Definições por classe'}
           >
             ⚙️ Settings (classe)
           </button>
@@ -386,11 +463,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowFleets(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={
-              !selectedClass
-                ? 'Escolhe uma classe primeiro'
-                : 'Gerir Fleets (Qualifying/Finals)'
-            }
+            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Gerir Fleets (Qualifying/Finals)'}
           >
             🧩 Fleets
           </button>
@@ -405,26 +478,20 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               onRaceCreated={(race) => {
                 (async () => {
                   try {
-                    const all: RaceLite[] = await apiGet(
-                      `/races/by_regatta/${regattaId}`
-                    );
+                    const all: RaceLite[] = await apiGet(`/races/by_regatta/${regattaId}`);
                     const grouped: Record<string, RaceLite[]> = {};
                     (all || []).forEach((r) => {
                       if (!grouped[r.class_name]) grouped[r.class_name] = [];
                       grouped[r.class_name].push(r);
                     });
                     for (const k of Object.keys(grouped)) {
-                      grouped[k].sort(
-                        (a, b) =>
-                          (a.order_index ?? a.id) - (b.order_index ?? b.id)
-                      );
+                      grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
                     }
                     setRacesByClass(grouped);
+
                     if (race.class_name === selectedClass) {
                       const data: OverallResult[] = await apiGet(
-                        `/results/overall/${regattaId}?class_name=${encodeURIComponent(
-                          race.class_name
-                        )}`
+                        `/results/overall/${regattaId}?class_name=${encodeURIComponent(race.class_name)}`
                       );
                       setRawResults(data || []);
                     }
@@ -476,6 +543,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               <th className="border px-3 py-2">Nº Vela</th>
               <th className="border px-3 py-2">Embarcação</th>
               <th className="border px-3 py-2">Timoneiro</th>
+
               {orderedRaceNames.map((n) => (
                 <th key={n} className="border px-3 py-2">
                   <div className="flex items-center justify-center gap-2">
@@ -502,10 +570,12 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   </div>
                 </th>
               ))}
+
               <th className="border px-3 py-2">Total</th>
               <th className="border px-3 py-2">Net</th>
             </tr>
           </thead>
+
           <tbody>
             {results.map((r) => (
               <tr key={`${r.class_name}-${r.sail_number}-${r.skipper_name}`}>
@@ -514,8 +584,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                 <td className="border px-3 py-2">{r.sail_number}</td>
                 <td className="border px-3 py-2">{r.boat_name}</td>
                 <td className="border px-3 py-2">{r.skipper_name}</td>
+
                 {orderedRaceNames.map((n) => {
-                  const raw = r.per_race[n];
+                  const raw = r.per_race?.[n];
                   const discarded = r.discardedRaceNames.has(n);
 
                   const fleetLabel = r.per_race_fleet?.[n] ?? null;
@@ -523,11 +594,13 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     ? FLEET_COLOR_CLASSES[fleetLabel] ?? 'bg-gray-400'
                     : '';
 
+                  const sailKey = normalizeSail(r.sail_number);
+                  const code = codesByRace[n]?.[sailKey] ?? null;
+
+                  const display = formatPerRaceCell(raw as any, discarded, code);
+
                   return (
-                    <td
-                      key={n}
-                      className={`border px-3 py-2 text-center ${discarded ? 'text-gray-400' : ''}`}
-                    >
+                    <td key={n} className="border px-3 py-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         {fleetLabel && (
                           <span
@@ -535,16 +608,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                             title={fleetLabel}
                           />
                         )}
-                        <span>{discarded ? `(${raw})` : raw ?? '-'}</span>
+                        <span>{display}</span>
                       </div>
                     </td>
                   );
                 })}
+
                 <td className="border px-3 py-2 text-right font-semibold">
-                  {r.total_points.toFixed(2)}
+                  {Number(r.total_points).toFixed(2)}
                 </td>
                 <td className="border px-3 py-2 text-right font-bold">
-                  {r.net_points.toFixed(2)}
+                  {Number(r.net_points).toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -572,19 +646,14 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                         ordered_ids: pendingOrder,
                       });
 
-                      const refreshed: RaceLite[] = await apiGet(
-                        `/races/by_regatta/${regattaId}`
-                      );
+                      const refreshed: RaceLite[] = await apiGet(`/races/by_regatta/${regattaId}`);
                       const grouped: Record<string, RaceLite[]> = {};
                       refreshed.forEach((r) => {
                         if (!grouped[r.class_name]) grouped[r.class_name] = [];
                         grouped[r.class_name].push(r);
                       });
                       for (const k of Object.keys(grouped)) {
-                        grouped[k].sort(
-                          (a, b) =>
-                            (a.order_index ?? a.id) - (b.order_index ?? b.id)
-                        );
+                        grouped[k].sort((a, b) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
                       }
                       setRacesByClass(grouped);
                       setPendingOrder(null);
@@ -613,33 +682,24 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       )}
 
       {/* Drawer Discards */}
-{showDiscards && selectedClass && (
-  <DiscardsDrawer
-    regattaId={regattaId}
-    class_name={selectedClass}
-    onClose={() => setShowDiscards(false)}
-  />
-)}
-
+      {showDiscards && selectedClass && (
+        <DiscardsDrawer
+          regattaId={regattaId}
+          class_name={selectedClass}
+          onClose={() => setShowDiscards(false)}
+        />
+      )}
 
       {/* Drawer Settings por classe */}
-      {showSettings && (
-        <SettingsDrawer regattaId={regattaId} onClose={() => setShowSettings(false)} />
-      )}
+      {showSettings && <SettingsDrawer regattaId={regattaId} onClose={() => setShowSettings(false)} />}
 
       {/* Drawer de Fleets */}
       {showFleets && (
-        <FleetsDrawer
-          open={showFleets}
-          onClose={() => setShowFleets(false)}
-          title="Fleet Manager"
-        >
+        <FleetsDrawer open={showFleets} onClose={() => setShowFleets(false)} title="Fleet Manager">
           {selectedClass ? (
             <FleetManager overall={results} regattaId={regattaId} />
           ) : (
-            <div className="p-4 text-sm text-gray-600">
-              Escolhe uma classe para gerir fleets.
-            </div>
+            <div className="p-4 text-sm text-gray-600">Escolhe uma classe para gerir fleets.</div>
           )}
         </FleetsDrawer>
       )}
