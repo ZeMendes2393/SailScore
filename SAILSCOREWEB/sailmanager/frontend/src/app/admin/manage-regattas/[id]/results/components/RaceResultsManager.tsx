@@ -1,3 +1,4 @@
+// src/app/admin/manage-regattas/[id]/results/components/RaceResultsManager.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -46,7 +47,6 @@ export default function RaceResultsManager({
 
   const {
     // ✅ removido: scoring / saveScoring / savingScoring / setScoring
-
     races,
     selectedRaceId,
     setSelectedRaceId,
@@ -82,6 +82,9 @@ export default function RaceResultsManager({
     fleetsForRace,
     selectedFleetId,
     setSelectedFleetId,
+
+    // ✅ NOVO
+    setRaceDiscardable,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
   const search = useSearchParams();
@@ -90,6 +93,9 @@ export default function RaceResultsManager({
 
   const initialAppliedRef = useRef(false);
   const lastClassRef = useRef<string | null>(null);
+
+  // ✅ NOVO: bloquear toggle enquanto guarda
+  const [savingRaceFlags, setSavingRaceFlags] = useState(false);
 
   // -----------------------------
   // Races: ordenar e filtrar por classe
@@ -314,6 +320,28 @@ export default function RaceResultsManager({
                     onSelect={handleSelectRace}
                   />
                 </div>
+
+                {/* ✅ NOVO TOGGLE AQUI */}
+                {selectedRaceId && currentRace && (
+                  <label className="flex items-center gap-2 px-3 py-2 rounded border bg-white text-xs lg:text-sm">
+                    <span className="text-gray-700">Discardable</span>
+
+                    <input
+                      type="checkbox"
+                      checked={!!(currentRace as any).discardable}
+                      disabled={savingRaceFlags}
+                      onChange={async (e) => {
+                        const next = e.target.checked;
+                        setSavingRaceFlags(true);
+                        try {
+                          await setRaceDiscardable(selectedRaceId, next);
+                        } finally {
+                          setSavingRaceFlags(false);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
 
                 {selectedRaceId && (
                   <button

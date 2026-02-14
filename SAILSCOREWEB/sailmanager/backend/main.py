@@ -29,6 +29,8 @@ from app.routes import (
     class_settings,
     discards,
 )
+from app.routes.discards import router as discard_router
+
 from app.routes import requests as requests_routes
 from app.routes import questions as questions_module
 from app.routes.questions import router as questions_router

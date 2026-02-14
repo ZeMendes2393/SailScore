@@ -356,55 +356,58 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   // ✅ NOVO: RESCORE helper — apaga o que existia antes (no scope certo)
   // =====================================================
   const deleteExistingResultsInScope = useCallback(async () => {
-    if (!selectedRaceId || !token) return;
+  if (!selectedRaceId || !token) return;
 
-    const raceHasFleets = !!(
-      currentRace &&
-      'fleet_set_id' in currentRace &&
-      (currentRace as any).fleet_set_id
-    );
+  const raceHasFleets = !!(
+    currentRace &&
+    'fleet_set_id' in currentRace &&
+    (currentRace as any).fleet_set_id
+  );
 
-    const replaceWholeRace =
-      !raceHasFleets || selectedFleetId === 'all' || !fleetEntryIdSet;
+  // Verifica se a fleet está definida
+  const replaceWholeRace =
+    !raceHasFleets || selectedFleetId === 'all' || !fleetEntryIdSet;
 
-    const allRows = existingResultsRaw ?? [];
-    let toDeleteIds: number[] = [];
+  const allRows = existingResultsRaw ?? [];
+  let toDeleteIds: number[] = [];
 
-    if (replaceWholeRace) {
-      toDeleteIds = allRows.map((r) => r.id);
-    } else {
-      // apagar só os que pertencem à fleet atual
-      const fleetSails = new Set<string>();
-      entryList.forEach((e) => {
-        if (!fleetEntryIdSet.has(e.id)) return;
-        const sn = (e.sail_number ?? '').trim().toUpperCase();
-        if (sn) fleetSails.add(sn);
-      });
+  if (replaceWholeRace) {
+    // Apaga todos os resultados se não houver fleets ou se a fleet for "all"
+    toDeleteIds = allRows.map((r) => r.id);
+  } else {
+    // Apaga apenas os resultados pertencentes à fleet selecionada
+    const fleetSails = new Set<string>();
+    entryList.forEach((e) => {
+      if (!fleetEntryIdSet.has(e.id)) return;
+      const sn = (e.sail_number ?? '').trim().toUpperCase();
+      if (sn) fleetSails.add(sn);
+    });
 
-      toDeleteIds = allRows
-        .filter((r) => {
-          const sn = (r.sail_number ?? '').trim().toUpperCase();
-          return sn && fleetSails.has(sn);
-        })
-        .map((r) => r.id);
+    toDeleteIds = allRows
+      .filter((r) => {
+        const sn = (r.sail_number ?? '').trim().toUpperCase();
+        return sn && fleetSails.has(sn);
+      })
+      .map((r) => r.id);
+  }
+
+  for (const id of toDeleteIds) {
+    try {
+      await apiDelete(`/results/${id}`, token);
+    } catch (e) {
+      console.error('Falha a apagar resultado', id, e);
     }
+  }
+}, [
+  selectedRaceId,
+  token,
+  currentRace,
+  selectedFleetId,
+  fleetEntryIdSet,
+  existingResultsRaw,
+  entryList,
+]);
 
-    for (const id of toDeleteIds) {
-      try {
-        await apiDelete(`/results/${id}`, token);
-      } catch (e) {
-        console.error('Falha a apagar resultado', id, e);
-      }
-    }
-  }, [
-    selectedRaceId,
-    token,
-    currentRace,
-    selectedFleetId,
-    fleetEntryIdSet,
-    existingResultsRaw,
-    entryList,
-  ]);
 
   // ---- Ações: scoring (globais da regata)
   const saveScoring = async () => {
@@ -519,82 +522,106 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     }
   };
 
-  const saveBulk = async () => {
-    if (!selectedRaceId) return alert('Seleciona primeiro uma corrida.');
-    if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
-    if (!draft.length) return alert('Não há linhas no rascunho para guardar.');
+ const saveBulk = async () => {
+  if (!selectedRaceId) return alert('Seleciona primeiro uma corrida.');
+  if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
+  if (!draft.length) return alert('Não há linhas no rascunho para guardar.');
 
-    // valida: todos os adjustable têm manualPoints
-    for (const r of draft) {
-      const c = normCode(r.code);
-      if (isAdjustable(c) && (r.manualPoints == null || Number.isNaN(Number(r.manualPoints)))) {
-        alert(`Falta definir points para o código ${c} (RDG/SCP/ZPF/DPI).`);
-        return;
+  // valida: todos os adjustable têm manualPoints
+  for (const r of draft) {
+    const c = normCode(r.code);
+    if (isAdjustable(c) && (r.manualPoints == null || Number.isNaN(Number(r.manualPoints)))) {
+      alert(`Falta definir points para o código ${c} (RDG/SCP/ZPF/DPI).`);
+      return;
+    }
+  }
+
+  // ✅ RESCORE: se já existem resultados, apagamos antes de gravar os novos
+  if ((existingResultsRaw?.length ?? 0) > 0) {
+    const raceHasFleets = !!(
+      currentRace &&
+      'fleet_set_id' in currentRace &&
+      (currentRace as any).fleet_set_id
+    );
+
+    const msg =
+      raceHasFleets && selectedFleetId !== 'all'
+        ? 'Isto vai substituir os resultados desta FLEET nesta corrida. Continuar?'
+        : 'Isto vai substituir TODOS os resultados desta corrida. Continuar?';
+
+    if (!confirm(msg)) return;
+
+    await deleteExistingResultsInScope();
+    setExistingResultsRaw([]); // evita “mistura” visual enquanto faz POST
+  }
+
+  const payload = draft
+    .map((r) => {
+      const entry = entryList.find((e) => e.id === r.entryId);
+      if (!entry) {
+        console.warn('Entry em falta para draft', r.entryId);
+        return null;
       }
-    }
 
-    // ✅ RESCORE: se já existem resultados, apagamos antes de gravar os novos
-    if ((existingResultsRaw?.length ?? 0) > 0) {
-      const raceHasFleets = !!(
-        currentRace &&
-        'fleet_set_id' in currentRace &&
-        (currentRace as any).fleet_set_id
-      );
+      // Assegurar que position é um número
+      const pos = Number(r.position);
+      if (isNaN(pos)) {
+        console.warn('Position inválido', r.position);
+        return null;  // Ignorar se position não for válido
+      }
 
-      const msg =
-        raceHasFleets && selectedFleetId !== 'all'
-          ? 'Isto vai substituir os resultados desta FLEET nesta corrida. Continuar?'
-          : 'Isto vai substituir TODOS os resultados desta corrida. Continuar?';
+      // Assegurar que points é um número
+      const pts = isAdjustable(r.code) ? (isNaN(Number(r.manualPoints)) ? 0 : Number(r.manualPoints)) : pos;
 
-      if (!confirm(msg)) return;
+      if (isNaN(pts)) {
+        console.warn('Points inválido', r.manualPoints);
+        return null;  // Ignorar se points não for válido
+      }
 
-      await deleteExistingResultsInScope();
-      setExistingResultsRaw([]); // evita “mistura” visual enquanto faz POST
-    }
+      return {
+        regatta_id: regattaId,
+        race_id: selectedRaceId,
+        sail_number: entry.sail_number,
+        boat_name: entry.boat_name,
+        helm_name: `${entry.first_name} ${entry.last_name}`,
+        position: pos,  // Enviar como número
+        points: pts,    // Enviar como número
+        code: r.code || null, // Code pode ser null
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
-    const payload = draft
-      .map((r) => {
-        const entry = entryList.find((e) => e.id === r.entryId);
-        if (!entry) {
-          console.warn('Entry em falta para draft', r.entryId);
-          return null;
-        }
+  console.log('Payload enviado:', payload);
 
-        const c = normCode(r.code);
+  if (!payload.length) return alert('Nenhuma entrada válida para guardar (ver consola).');
 
-        // points enviados:
-        // - sem code => posição
-        // - adjustable => manualPoints
-        // - auto N+1 / mapping fixo => backend recalcula; enviamos posição como base
-        const pts = isAdjustable(c) ? Number(r.manualPoints) : Number(r.position);
+  // Adicionar o parâmetro fleet_id se uma fleet específica estiver selecionada
+  const fleetParam =
+    currentRace && 'fleet_set_id' in currentRace && currentRace.fleet_set_id && selectedFleetId !== 'all'
+      ? `?fleet_id=${selectedFleetId}`
+      : '';
 
-        return {
-          regatta_id: regattaId,
-          race_id: selectedRaceId,
-          sail_number: entry.sail_number,
-          boat_name: entry.boat_name,
-          helm_name: `${entry.first_name} ${entry.last_name}`,
-          position: r.position,
-          points: pts,
-          code: c,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+  try {
+    // Enviar os resultados ao backend com o parâmetro fleet_id, se necessário
+    await apiSend(
+      `/results/races/${selectedRaceId}/results${fleetParam}`,
+      'POST',
+      payload,
+      token
+    );
 
-    if (!payload.length) return alert('Nenhuma entrada válida para guardar (ver consola).');
+    // ✅ Backend deve: normalizar posições + preencher missing como DNC **apenas na fleet não escoreada**
+    setDraft([]); // Limpa o rascunho
+    await refreshExisting(selectedRaceId); // Atualiza os resultados
+    alert('Resultados guardados com sucesso.');
+  } catch (err) {
+    console.error('Erro ao guardar resultados em massa:', err);
+    alert('Erro ao guardar resultados.');
+  }
+};
 
-    try {
-      await apiSend(`/results/races/${selectedRaceId}/results`, 'POST', payload, token);
 
-      // ✅ backend deve: normalizar posições + preencher missing como DNC
-      setDraft([]);
-      await refreshExisting(selectedRaceId);
-      alert('Resultados guardados com sucesso.');
-    } catch (err) {
-      console.error('Erro ao guardar resultados em massa:', err);
-      alert('Erro ao guardar resultados.');
-    }
-  };
+
 
   // ---- EXISTENTES: mover / guardar ordem / posição / apagar
   const moveRow = async (rowId: number, delta: -1 | 1) => {
@@ -740,6 +767,30 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     }
   };
 
+
+    // ---- Corridas: flags (discardable / medal / double_points)
+  const setRaceDiscardable = async (raceId: number, discardable: boolean): Promise<void> => {
+    if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
+
+    try {
+      const updated = await apiSend<Race>(`/races/${raceId}`, 'PATCH', { discardable }, token);
+
+      // atualiza races localmente
+      setRaces((prev) => prev.map((r) => (r.id === raceId ? { ...r, ...updated } : r)));
+
+      // se esta race estiver selecionada, garante refresh da lista de results
+      // (porque overall e lógica podem depender do discardable e tu podes querer refletir já)
+      if (selectedRaceId === raceId) {
+        // opcional: se queres refletir algo no UI imediatamente
+        // await refreshExisting(raceId);
+      }
+    } catch (e) {
+      console.error('setRaceDiscardable falhou:', e);
+      alert('Não foi possível atualizar o discardable desta corrida.');
+    }
+  };
+
+
   return {
     // state
     scoring,
@@ -798,5 +849,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     deleteRace,
     reorderRaces,
     refreshRaces,
+
+
+    setRaceDiscardable,
+
   };
 }

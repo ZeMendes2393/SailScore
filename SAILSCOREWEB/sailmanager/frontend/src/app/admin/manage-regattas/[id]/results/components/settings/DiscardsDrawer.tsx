@@ -79,14 +79,16 @@ export default function DiscardsDrawer({
   useEffect(() => {
     (async () => {
       try {
+        console.log('Fetching classes for regatta:', regattaId);  // Log para depuração
         const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         const data: string[] = await res.json();
+        console.log('Classes received:', data);  // Log para verificar a resposta
         setClasses(data || []);
-      } catch {
-        // noop
+      } catch (error) {
+        console.error('Error fetching classes:', error);  // Log para erros de fetch
       }
     })();
   }, [regattaId, token]);
@@ -95,22 +97,26 @@ export default function DiscardsDrawer({
   useEffect(() => {
     if (!selectedClass) return;
     setLoading(true);
+  console.log(`${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`);
 
     (async () => {
       try {
+        console.log(`Fetching discard plan for ${selectedClass} in regatta ${regattaId}`);  // Log para depuração
         const res = await fetch(
-          `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-plan`,
+          `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
           {
             credentials: 'include',
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           }
         );
         const data: DiscardPlanOut = await res.json();
+        console.log('Discard plan received:', data);  // Log para verificar a resposta
 
         setIsActive(!!data.is_active);
         setLabel(data.label ?? '');
         setScheduleText((data.schedule ?? []).join(','));
-      } catch {
+      } catch (error) {
+        console.error('Error fetching discard plan:', error);  // Log para erros de fetch
         setIsActive(false);
         setLabel('');
         setScheduleText('');
@@ -144,8 +150,9 @@ export default function DiscardsDrawer({
 
     setSaving(true);
     try {
+      console.log('Sending discard plan to save...');  // Log para depuração
       const res = await fetch(
-        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-plan`,
+        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
         {
           method: 'PUT',
           credentials: 'include',
@@ -163,6 +170,7 @@ export default function DiscardsDrawer({
       if (!res.ok) throw new Error(await res.text().catch(() => ''));
       alert('Discard schedule guardado.');
     } catch (e: any) {
+      console.error('Error saving discard plan:', e);  // Log para erros de envio
       alert(e?.message || 'Falha ao guardar discard schedule.');
     } finally {
       setSaving(false);
@@ -175,8 +183,9 @@ export default function DiscardsDrawer({
 
     setSaving(true);
     try {
+      console.log('Removing discard plan...');  // Log para depuração
       const res = await fetch(
-        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-plan`,
+        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
         {
           method: 'DELETE',
           credentials: 'include',
@@ -189,6 +198,7 @@ export default function DiscardsDrawer({
       setScheduleText('');
       alert('Discard schedule removido.');
     } catch (e: any) {
+      console.error('Error removing discard plan:', e);  // Log para erros de remoção
       alert(e?.message || 'Falha ao remover discard schedule.');
     } finally {
       setSaving(false);

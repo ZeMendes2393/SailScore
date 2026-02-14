@@ -62,12 +62,16 @@ def create_race(
 
     new_order = race.order_index if race.order_index is not None else (max_order + 1)
 
+    # ✅ incluir novos campos (se o schema já os tiver)
     new_race = models.Race(
         regatta_id=race.regatta_id,
         name=stored_name,
         date=race.date,
         class_name=race.class_name,
         order_index=int(new_order),
+        is_medal_race=race.is_medal_race,
+        double_points=race.double_points,
+        discardable=race.discardable,
     )
 
     db.add(new_race)
@@ -127,6 +131,16 @@ def update_race(
 
     if body.order_index is not None:
         r.order_index = int(body.order_index)
+
+    # ✅ NOVO: aplicar campos booleanos no PATCH
+    if body.is_medal_race is not None:
+        r.is_medal_race = bool(body.is_medal_race)
+
+    if body.double_points is not None:
+        r.double_points = bool(body.double_points)
+
+    if body.discardable is not None:
+        r.discardable = bool(body.discardable)
 
     db.commit()
     db.refresh(r)

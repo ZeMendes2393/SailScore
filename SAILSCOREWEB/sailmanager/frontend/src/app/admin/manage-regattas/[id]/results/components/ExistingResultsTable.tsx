@@ -7,7 +7,7 @@ import type { ApiResult } from '../types';
 interface Props {
   results?: ApiResult[];
   loading: boolean;
-  onMove: (rowId: number, delta: -1 | 1) => void;
+  onMove: (rowId: number, delta: -1 | 1) => void; // ✅ mantém-se (para futuro)
   onEditPos: (rowId: number, newPos: number) => void;
   onSaveOrder: () => void;
   onDelete: (rowId: number) => void;
@@ -30,7 +30,7 @@ const removesFromRanking = (c: string | null | undefined) => !!c && c !== 'RDG';
 export default function ExistingResultsTable({
   results,
   loading,
-  onMove,
+  onMove, // ✅ mantém-se (mesmo não aparecendo botões)
   onEditPos,
   onSaveOrder,
   onDelete,
@@ -85,11 +85,31 @@ export default function ExistingResultsTable({
   const formatCodeWithValue = (row: ApiResult) => {
     const c = (row.code || '').toUpperCase();
     if (!c) return '';
-    // pedido: “código seguido do valor”
-    // ex: DNC 31 / RDG 4.5
     const pts = row.points;
     const ptsStr = Number.isFinite(Number(pts)) ? String(pts) : '';
     return ptsStr ? `${c} ${ptsStr}` : c;
+  };
+
+  // ✅ Change-to por linha (AÇÕES)
+  const [changeToOpen, setChangeToOpen] = useState<Record<number, boolean>>({});
+  const [changeToValue, setChangeToValue] = useState<Record<number, string>>({});
+
+  const openChangeTo = (rowId: number, currentPos: number) => {
+    setChangeToOpen((p) => ({ ...p, [rowId]: true }));
+    setChangeToValue((p) => ({ ...p, [rowId]: String(currentPos) }));
+  };
+
+  const closeChangeTo = (rowId: number) => {
+    setChangeToOpen((p) => {
+      const n = { ...p };
+      delete n[rowId];
+      return n;
+    });
+    setChangeToValue((p) => {
+      const n = { ...p };
+      delete n[rowId];
+      return n;
+    });
   };
 
   if (loading) return <p className="p-4 text-gray-500">A carregar…</p>;
@@ -114,7 +134,11 @@ export default function ExistingResultsTable({
             const codeUpper = row.code ? row.code.toUpperCase() : null;
 
             const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
-            const posDisabled = removesFromRanking(codeUpper); // ✅ só bloqueia se code != RDG
+            const posDisabled = true; // ✅ Opção A: com "Change to", posição fica read-only (evita duplicação/confusão)
+
+            const maxPos = sorted.length;
+            const isOpen = !!changeToOpen[row.id];
+            const rawVal = changeToValue[row.id] ?? '';
 
             return (
               <tr key={row.id} className={rowBg}>
@@ -139,12 +163,9 @@ export default function ExistingResultsTable({
                     type="number"
                     min={1}
                     className="w-24 border rounded px-2 py-1 text-center"
-                    defaultValue={row.position}
-                    disabled={loading || posDisabled}
-                    onBlur={(e) => {
-                      const v = Math.max(1, Number(e.target.value) || 1);
-                      onEditPos(row.id, v);
-                    }}
+                    value={row.position}
+                    disabled={loading || posDisabled || removesFromRanking(codeUpper)}
+                    readOnly
                   />
                 </td>
 
@@ -159,7 +180,6 @@ export default function ExistingResultsTable({
                           const raw = (ev.target.value || '').trim();
                           const next = raw ? raw.toUpperCase() : null;
 
-                          // limpar pending anterior
                           clearPending(row.id);
 
                           if (!next) {
@@ -168,14 +188,11 @@ export default function ExistingResultsTable({
                           }
 
                           if (isAdjustable(next)) {
-                            // abre mini input, não envia ainda
                             setPendingCode((p) => ({ ...p, [row.id]: next }));
-                            // valor inicial: points atual (se houver), senão vazio
                             setPendingPoints((p) => ({ ...p, [row.id]: row.points != null ? String(row.points) : '' }));
                             return;
                           }
 
-                          // auto N+1 ou custom fixo: só enviar code
                           onMarkCode(row.id, next, null);
                         }}
                         aria-label="Código de pontuação"
@@ -227,9 +244,7 @@ export default function ExistingResultsTable({
                     {/* Mini input para RDG/SCP/ZPF/DPI */}
                     {showAdjustBox && (
                       <div className="flex items-center gap-2 bg-gray-50 border rounded p-2">
-                        <span className="text-xs text-gray-600 w-20">
-                          {pendingCode[row.id]}
-                        </span>
+                        <span className="text-xs text-gray-600 w-20">{pendingCode[row.id]}</span>
 
                         <input
                           type="number"
@@ -274,7 +289,52 @@ export default function ExistingResultsTable({
                 </td>
 
                 <td className="border px-2 py-2 text-right">
-                  <div className="inline-flex gap-2">
+                  <div className="inline-flex gap-2 items-center">
+                    {/* ✅ Change to */}
+                    {!isOpen ? (
+                      <button
+                        disabled={loading || removesFromRanking(codeUpper)}
+                        onClick={() => openChangeTo(row.id, row.position)}
+                        className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
+                        title="Move this result to a specific position"
+                      >
+                        Change to
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={maxPos}
+                          className="w-16 border rounded px-2 py-1 text-center text-xs"
+                          value={rawVal}
+                          onChange={(e) => setChangeToValue((p) => ({ ...p, [row.id]: e.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          disabled={loading}
+                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
+                          onClick={() => {
+                            const v = Math.max(1, Math.min(maxPos, Number(rawVal) || 1));
+                            onEditPos(row.id, v);
+                            closeChangeTo(row.id);
+                          }}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loading}
+                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
+                          onClick={() => closeChangeTo(row.id)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ✅ mantém lógica onMove no código (para futuro), mas sem botões visíveis */}
+                    {/* 
                     <button
                       disabled={loading}
                       onClick={() => onMove(row.id, -1)}
@@ -291,6 +351,8 @@ export default function ExistingResultsTable({
                     >
                       ↓
                     </button>
+                    */}
+
                     <button
                       disabled={loading}
                       onClick={() => {

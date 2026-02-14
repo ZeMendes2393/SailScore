@@ -13,19 +13,17 @@ from app import models
 # CODE SETS (fixos do sistema)
 # =========================================================
 
-# valem N+1 (ou fleet_size+1)
 AUTO_N_PLUS_ONE_DISCARDABLE_CODES = {
     "DNC", "DNF", "DNS", "OCS", "UFD", "BFD", "DSQ", "RET", "NSC"
 }
 
-# também valem N+1, mas NÃO podem ser descartados no overall
 AUTO_N_PLUS_ONE_NON_DISCARDABLE_CODES = {
     "DNE", "DGM"
 }
 
 AUTO_N_PLUS_ONE_CODES = AUTO_N_PLUS_ONE_DISCARDABLE_CODES | AUTO_N_PLUS_ONE_NON_DISCARDABLE_CODES
 
-# precisam de points manual (pode ser decimal)
+# Ajustáveis (manual_points)
 ADJUSTABLE_CODES = {"RDG", "SCP", "ZPF", "DPI"}
 
 
@@ -40,18 +38,14 @@ def _norm(code: Optional[str]) -> Optional[str]:
 
 def _norm_sn(sn: Optional[str]) -> Optional[str]:
     raw = (sn or "").strip()
-    return raw if raw else None
+    return raw.upper() if raw else None
 
 
 def removes_from_ranking(code: Optional[str]) -> bool:
-    """
-    Regra pedida:
-      - Qualquer code diferente de RDG remove da sequência numérica
-      - RDG NÃO remove
-      - code=None => normal
-    """
     c = _norm(code)
-    return bool(c) and c != "RDG"
+    return bool(c) and (c in AUTO_N_PLUS_ONE_CODES)
+
+
 
 
 def is_adjustable(code: Optional[str]) -> bool:
@@ -139,10 +133,7 @@ def get_scoring_map(db: Session, regatta_id: int, class_name: Optional[str]) -> 
 # Competitors context (N e fleets)
 # =========================================================
 
-def _build_competitor_context_for_race(
-    db: Session,
-    race: models.Race,
-) -> Dict[str, Any]:
+def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[str, Any]:
     """
     devolve:
       total_count: int
@@ -244,6 +235,25 @@ def _auto_n_plus_one_points(ctx: Dict[str, Any], sail_number_norm: str) -> float
 
 
 # =========================================================
+# RDG: validação de "pontos" como posição inteira
+# =========================================================
+
+def _rdg_to_int_position(manual_points: Optional[float]) -> int:
+    if manual_points is None:
+        raise ValueError("RDG requer points (posição) manual")
+
+    # tem de ser inteiro (5.0 OK, 5.2 NÃO)
+    if float(manual_points).is_integer() is False:
+        raise ValueError("RDG requer um número inteiro (posição), ex: 5")
+
+    pos = int(manual_points)
+    if pos < 1:
+        raise ValueError("RDG requer posição >= 1")
+
+    return pos
+
+
+# =========================================================
 # Points for code
 # =========================================================
 
@@ -270,6 +280,9 @@ def compute_points_for_code(
         return _auto_n_plus_one_points(ctx, sn_norm)
 
     if c in ADJUSTABLE_CODES:
+        if c == "RDG":
+            # RDG: points = "posição desejada" (inteira)
+            return float(_rdg_to_int_position(manual_points))
         if manual_points is None:
             raise ValueError(f"{c} requer points manual")
         return float(manual_points)
@@ -280,10 +293,15 @@ def compute_points_for_code(
 
 
 # =========================================================
-# FILL: missing => DNC
+# FILL: missing => DNC (mantém como tens)
 # =========================================================
 
-def ensure_missing_results_as_dnc(db: Session, race: models.Race) -> int:
+def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetId: int | 'all') -> int:
+    """
+    Preenche os resultados ausentes como DNC, considerando a fleet selecionada.
+    Se selectedFleetId for 'all', marca DNC para todos os barcos não pontuados.
+    Se for uma fleet específica, marca DNC somente para barcos dessa fleet.
+    """
     ctx = _build_competitor_context_for_race(db, race)
 
     existing_rows = (
@@ -302,8 +320,21 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race) -> int:
     next_pos = int(max_pos[0]) + 1 if max_pos and max_pos[0] is not None else 1
 
     created = 0
+    fleetSails = set()
+
+    if selectedFleetId != 'all':
+        fleetSails = {
+            e.sail_number for e in db.query(models.Entry)
+            .join(models.FleetAssignment, models.Entry.id == models.FleetAssignment.entry_id)
+            .join(models.Fleet, models.FleetAssignment.fleet_id == models.Fleet.id)
+            .filter(models.Fleet.id == int(selectedFleetId))
+        }
+
     for (_entry_id, sn_norm, boat_name, skipper_name, _fid) in ctx["eligible_entries"]:
         if sn_norm in existing:
+            continue
+
+        if selectedFleetId != 'all' and sn_norm not in fleetSails:
             continue
 
         pts = _auto_n_plus_one_points(ctx, sn_norm)
@@ -327,8 +358,39 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race) -> int:
 
 
 # =========================================================
-# NORMALIZE: compact + points
+# NORMALIZE: compact + points + RDG steals position
 # =========================================================
+
+def _normalize_group(rows, scoring_map, ctx):
+    ranked = [r for r in rows if not removes_from_ranking(r.code)]
+    unranked = [r for r in rows if removes_from_ranking(r.code)]
+
+    ranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
+
+    pos = 1
+    for r in ranked:
+        r.position = pos
+        c = _norm(r.code)
+
+        if not c:
+            r.points = float(pos)
+        elif c in {"RDG", "SCP", "ZPF", "DPI"}:
+            # ajustáveis: mantém points manual
+            r.points = float(r.points)
+        else:
+            r.points = float(scoring_map.get(c, r.points))
+        pos += 1
+
+    unranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
+    for r in unranked:
+        r.position = pos
+        c = _norm(r.code)
+        if c in AUTO_N_PLUS_ONE_CODES:
+            sn_norm = _norm_sn(r.sail_number) or ""
+            r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
+        else:
+            r.points = float(scoring_map.get(c, r.points))
+        pos += 1
 
 def normalize_race_results(db: Session, race: models.Race) -> None:
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
@@ -343,47 +405,19 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
     if not rows:
         return
 
-    ranked = [r for r in rows if not removes_from_ranking(r.code)]
-    unranked = [r for r in rows if removes_from_ranking(r.code)]
+    # se tem fleets: normaliza separado por fleet (sem misturar posições)
+    if getattr(race, "fleet_set_id", None):
+        sn_to_fid = ctx["sn_to_fleet_id"]
+        by_fleet: Dict[Optional[int], List[models.Result]] = {}
 
-    ranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
-    unranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
+        for r in rows:
+            sn = _norm_sn(r.sail_number)
+            fid = sn_to_fid.get(sn) if sn else None
+            by_fleet.setdefault(fid, []).append(r)
 
-    pos = 1
-    for r in ranked:
-        r.position = pos
+        for _fid, group in by_fleet.items():
+            _normalize_group(group, scoring_map, ctx)
+        return
 
-        c = _norm(r.code)
-        if not c:
-            r.points = float(pos)
-        elif c in ADJUSTABLE_CODES:
-            r.points = float(r.points)
-        elif c in AUTO_N_PLUS_ONE_CODES:
-            sn_norm = _norm_sn(r.sail_number) or ""
-            r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
-        else:
-            r.points = float(scoring_map.get(c, r.points))
-
-        pos += 1
-
-    for r in unranked:
-        r.position = pos
-
-        c = _norm(r.code)
-        if not c:
-            r.points = float(pos)
-        elif c in ADJUSTABLE_CODES:
-            r.points = float(r.points)
-        elif c in AUTO_N_PLUS_ONE_CODES:
-            sn_norm = _norm_sn(r.sail_number) or ""
-            r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
-        else:
-            r.points = float(scoring_map.get(c, r.points))
-
-        pos += 1
-
-
-# helper simples (mantém compat com código antigo)
-def _points_for(mapping: Dict[str, float], code: Optional[str], pos: int) -> float:
-    c = _norm(code)
-    return float(mapping.get(c, pos)) if c else float(pos)
+    # sem fleets: normaliza global
+    _normalize_group(rows, scoring_map, ctx)

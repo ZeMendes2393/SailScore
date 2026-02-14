@@ -87,6 +87,8 @@ function formatPerRaceCell(
     .replace(/\u200B/g, '')
     .trim();
 
+  if (!s) return '-';
+
   // detectar se backend já vem como "(...)" para discard
   const isWrapped = s.startsWith('(') && s.endsWith(')');
 
@@ -105,18 +107,16 @@ function formatPerRaceCell(
 
   const c = code ? String(code).toUpperCase() : null;
 
+  // 🔹 NÃO descartado → sem parêntesis
   if (!discarded) {
-    // normal
-    if (c) return `${c}(${pointsStr})`; // DNF(10)
-    // se backend já veio com DNF(10), mantém
-    return s || '-';
+    if (c) return `${c} ${pointsStr}`;   // ex: DNF 10
+    return pointsStr || '-';
   }
 
-  // discarded
-  if (c) return `(${c} ${pointsStr})`; // (DNF 10)
-  // se backend já veio "(...)" mantém com parenteses (sem duplicar)
-  if (isWrapped) return s;
-  return `(${s || '-'})`;
+  // 🔹 DESCARTADO → com parêntesis
+  if (c) return `(${c} ${pointsStr})`;   // ex: (DNF 10)
+  if (isWrapped) return s;               // se backend já mandou "(...)", mantém
+  return `(${pointsStr || '-'})`;
 }
 
 export default function AdminOverallResultsClient({ regattaId }: Props) {

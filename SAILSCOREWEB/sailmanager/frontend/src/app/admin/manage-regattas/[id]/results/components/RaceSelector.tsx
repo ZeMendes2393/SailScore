@@ -15,8 +15,8 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
   const uniqueRaces = useMemo(() => {
     const m = new Map<number, Race>();
     for (const r of races || []) m.set(r.id, r);
-    return Array.from(m.values()).sort((a: any, b: any) =>
-      (a.order_index ?? a.id) - (b.order_index ?? b.id)
+    return Array.from(m.values()).sort(
+      (a: any, b: any) => (a.order_index ?? a.id) - (b.order_index ?? b.id)
     );
   }, [races]);
 
@@ -25,6 +25,7 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
       <label className="block mb-2 text-sm font-medium text-gray-700">
         Seleciona uma corrida:
       </label>
+
       <select
         className="border rounded p-2 w-full mb-4"
         value={selectedRaceId ?? ''}
@@ -36,9 +37,11 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
         }}
       >
         <option value="">-- Escolher corrida --</option>
+
         {uniqueRaces.map((race) => (
           <option key={`race-${race.id}`} value={race.id}>
             {race.name} ({race.class_name})
+            {race.discardable === false ? ' — (não descarta)' : ''}
           </option>
         ))}
       </select>

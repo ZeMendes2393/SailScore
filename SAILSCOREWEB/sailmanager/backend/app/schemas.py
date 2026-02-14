@@ -172,6 +172,12 @@ class RaceUpdate(BaseModel):
     date: Optional[str] = None
     order_index: Optional[int] = None
 
+    is_medal_race: Optional[bool] = None
+    double_points: Optional[bool] = None
+    discardable: Optional[bool] = None
+
+
+
 
 class RacesReorder(BaseModel):
     ordered_ids: List[int]

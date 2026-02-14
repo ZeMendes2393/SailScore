@@ -8,6 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
+from app.scoring.tiebreakers import (
+    sort_overall_rows,           # ✅ já tinhas
+    tie_signature_overall,       # ✅ NOVO (para ranks com empate 1,2,2,4)
+)
 
 router = APIRouter()
 
@@ -21,6 +25,10 @@ _NON_DISCARDABLE_CODES = {"DNE", "DGM"}
 # =====================================================================
 # Helpers para finals
 # =====================================================================
+
+def _sn_norm(v: Any) -> str:
+    return (str(v) if v is not None else "").strip().upper()
+
 
 def _finals_fleet_order_map(
     db: Session,
@@ -61,9 +69,10 @@ def _finals_fleet_order_map(
 
     mapping: dict[str, int] = {}
     for sn, idx in rows:
-        if sn is None:
+        snn = _sn_norm(sn)
+        if not snn:
             continue
-        mapping[str(sn)] = int(idx or 0)
+        mapping[snn] = int(idx or 0)
     return mapping
 
 
@@ -74,6 +83,7 @@ def _medal_entry_set(
 ) -> set[str]:
     """
     Conjunto de sail_numbers que pertencem à Medal Race (por fleet-set phase='medal').
+    (isto define "MR sailors", não define "MR races")
     """
     if not class_name:
         return set()
@@ -99,7 +109,7 @@ def _medal_entry_set(
         .all()
     )
 
-    return {str(sn) for (sn,) in rows if sn}
+    return {_sn_norm(sn) for (sn,) in rows if _sn_norm(sn)}
 
 
 # =====================================================================
@@ -173,24 +183,36 @@ def _compute_discards_fixed_count(
     ordered_race_ids: List[int],
     per_by_id: Dict[int, Dict[str, object]],
     discard_count: int,
+    non_discardable_race_ids: set[int],
 ) -> set[int]:
     """
     Escolhe os 'discard_count' piores (maior pontuação) dentro da classe,
-    ignorando resultados sem score e ignorando codes não-discardable.
+    ignorando:
+      - resultados sem score
+      - codes não-discardable
+      - races com discardable=False
     """
     if discard_count <= 0:
         return set()
 
     candidates: List[Tuple[int, float]] = []
+
     for rid in ordered_race_ids:
+        # nunca pode ser descartada
+        if rid in non_discardable_race_ids:
+            continue
+
         if rid not in per_by_id:
             continue
+
         if not _is_discardable_code(per_by_id[rid].get("code")):
             continue
+
         try:
             pts = float(per_by_id[rid]["points"])
         except Exception:
             continue
+
         candidates.append((rid, pts))
 
     if not candidates:
@@ -208,16 +230,12 @@ def _fallback_discards_count_threshold(n_races: int, D: int, TH: int) -> int:
     if D <= 0:
         return 0
     if int(TH or 0) <= 0:
-        # se TH=0 (ou None), interpretamos como "sempre"
         return int(D)
     return int(D) if n_races >= int(TH) else 0
 
 
 # =====================================================================
 # OVERALL
-# - medal race: points * 2 (aplicado no overall)
-# - discards: discard_schedule (Opção A) com fallback TH+D
-# - discarded aparece como "(5)" MAS com prefix invisível para não mudar cores no frontend
 # =====================================================================
 
 @router.get("/overall/{regatta_id}")
@@ -230,28 +248,26 @@ def get_overall_results(
     if not reg:
         raise HTTPException(404, "Regata não encontrada")
 
-    # defaults da regata (fallback)
     reg_default_D = int(getattr(reg, "discard_count", 0) or 0)
     reg_default_TH = int(getattr(reg, "discard_threshold", 0) or 0)
 
     # --------------------------------------------------------
-    # Corridas consideradas
+    # Corridas consideradas (TODAS contam para overall)
     # --------------------------------------------------------
     race_q = db.query(models.Race).filter(models.Race.regatta_id == regatta_id)
     if class_name:
         race_q = race_q.filter(models.Race.class_name == class_name)
 
-    races = (
-        race_q.order_by(
-            models.Race.order_index.asc(),
-            models.Race.id.asc(),
-        ).all()
-    )
+    races = race_q.order_by(models.Race.order_index.asc(), models.Race.id.asc()).all()
 
     race_ids = [int(r.id) for r in races]
     race_map = {int(r.id): r.name for r in races}
 
-    # races por classe
+    # estas nunca podem ser descartadas
+    non_discardable_race_ids = {
+        int(r.id) for r in races if getattr(r, "discardable", True) is False
+    }
+
     race_ids_by_class: dict[str, List[int]] = {}
     for r in races:
         cls = str(r.class_name or "")
@@ -284,11 +300,6 @@ def get_overall_results(
             }
 
     def _resolve_discard_count_for_class(cls: str, n_races_cls: int) -> int:
-        """
-        Prioridade (Opção A):
-          1) discard_schedule ativa e não-vazia
-          2) fallback TH + D (override por classe se existir, senão defaults da regata)
-        """
         cs = settings_by_class.get(cls)
 
         # 1) schedule
@@ -310,57 +321,41 @@ def get_overall_results(
         return _fallback_discards_count_threshold(n_races_cls, int(D_eff), int(TH_eff))
 
     # --------------------------------------------------------
-    # Medal race IDs por classe
+    # Medal race IDs por classe (robusto)
+    # - is_medal_race OR double_points
+    # - fallback FleetSet phase="medal"
     # --------------------------------------------------------
     medal_race_ids_by_class: dict[str, set[int]] = {}
 
-    if class_name:
-        fs_medal = (
-            db.query(models.FleetSet)
-            .filter(
-                models.FleetSet.regatta_id == regatta_id,
-                models.FleetSet.class_name == class_name,
-                models.FleetSet.phase == "medal",
-            )
-            .order_by(models.FleetSet.created_at.desc(), models.FleetSet.id.desc())
-            .first()
-        )
-        if fs_medal:
-            ids = (
-                db.query(models.Race.id)
-                .filter(models.Race.fleet_set_id == fs_medal.id)
-                .all()
-            )
-            medal_race_ids_by_class[class_name] = {int(rid) for (rid,) in ids}
-        else:
-            medal_race_ids_by_class[class_name] = set()
-    else:
-        medal_sets = (
-            db.query(models.FleetSet.id, models.FleetSet.class_name)
-            .filter(
-                models.FleetSet.regatta_id == regatta_id,
-                models.FleetSet.phase == "medal",
-            )
-            .order_by(
-                models.FleetSet.class_name.asc(),
-                models.FleetSet.created_at.desc(),
-                models.FleetSet.id.desc(),
-            )
-            .all()
-        )
+    # 1) flags na Race
+    for r in races:
+        cls = str(r.class_name or "")
+        if bool(getattr(r, "is_medal_race", False)) or bool(getattr(r, "double_points", False)):
+            medal_race_ids_by_class.setdefault(cls, set()).add(int(r.id))
 
-        latest_by_class: dict[str, int] = {}
-        for fs_id, cls in medal_sets:
-            if cls and cls not in latest_by_class:
-                latest_by_class[str(cls)] = int(fs_id)
+    # 2) fallback: FleetSet medal -> races desse fleet_set
+    medal_sets = (
+        db.query(models.FleetSet.id, models.FleetSet.class_name)
+        .filter(
+            models.FleetSet.regatta_id == regatta_id,
+            models.FleetSet.phase == "medal",
+        )
+        .order_by(
+            models.FleetSet.class_name.asc(),
+            models.FleetSet.created_at.desc(),
+            models.FleetSet.id.desc(),
+        )
+        .all()
+    )
 
-        for cls, fs_id in latest_by_class.items():
-            ids = (
-                db.query(models.Race.id)
-                .filter(models.Race.fleet_set_id == fs_id)
-                .all()
-            )
-            medal_race_ids_by_class[cls] = {int(rid) for (rid,) in ids}
+    latest_by_class: dict[str, int] = {}
+    for fs_id, cls in medal_sets:
+        if cls and str(cls) not in latest_by_class:
+            latest_by_class[str(cls)] = int(fs_id)
+
+    for cls, fs_id in latest_by_class.items():
+        ids = db.query(models.Race.id).filter(models.Race.fleet_set_id == fs_id).all()
+        medal_race_ids_by_class.setdefault(cls, set()).update({int(rid) for (rid,) in ids})
 
     def _multiplier_for(race_id: int, cls: str) -> float:
         return 2.0 if race_id in medal_race_ids_by_class.get(cls, set()) else 1.0
@@ -393,9 +388,9 @@ def get_overall_results(
             fleet_rows = fleet_rows.filter(models.Entry.class_name == class_name)
 
         for fr in fleet_rows.all():
-            sn = (fr.sail_number or "").strip()
-            if sn:
-                fleet_by_sn_race[(str(fr.class_name), sn, int(fr.race_id))] = str(fr.fleet_name)
+            snn = _sn_norm(fr.sail_number)
+            if snn:
+                fleet_by_sn_race[(str(fr.class_name), snn, int(fr.race_id))] = str(fr.fleet_name)
 
     # --------------------------------------------------------
     # Resultados por corrida (fonte principal)
@@ -412,15 +407,16 @@ def get_overall_results(
     pr_rows = pr_q.all()
     for r in pr_rows:
         cls = str(r.class_name or "")
-        sn = (r.sail_number or "").strip()
+        sn = _sn_norm(r.sail_number)
         skipper = (r.skipper_name or "").strip()
         key = (cls, sn, skipper)
 
         mult = _multiplier_for(int(r.race_id), cls)
-        eff_pts = float(r.points) * mult  # medal x2 só no overall
+        eff_pts = float(r.points) * mult  # x2 só no overall
 
         per_race_map.setdefault(key, {})[int(r.race_id)] = {
             "points": eff_pts,
+            "position": int(r.position),  # 🔥 necessário para MR-first
             "base_points": float(r.points),
             "multiplier": mult,
             "code": getattr(r, "code", None),
@@ -450,7 +446,7 @@ def get_overall_results(
         entries = entries_q.order_by(models.Entry.sail_number.asc()).all()
 
         for e in entries:
-            sn_norm = (e.sail_number or "").strip()
+            sn_norm = _sn_norm(e.sail_number)
             cls = str(e.class_name or "")
 
             per_race_named: dict[str, object] = {}
@@ -480,7 +476,6 @@ def get_overall_results(
             )
 
     else:
-        # pré-calcular discard_count por classe (depende só do nº de races existentes)
         discard_count_by_class: dict[str, int] = {}
         for cls, ids in race_ids_by_class.items():
             discard_count_by_class[cls] = _resolve_discard_count_for_class(cls, len(ids))
@@ -490,12 +485,14 @@ def get_overall_results(
             info = info_map.get(key, {})
 
             ordered_ids_cls = race_ids_by_class.get(cls, race_ids)
-
-            # nº de descartes pela schedule (ou fallback)
             D_cls = int(discard_count_by_class.get(cls, 0) or 0)
 
-            # escolher piores D (respeitando non-discardable)
-            discarded_ids = _compute_discards_fixed_count(ordered_ids_cls, per_by_id, D_cls)
+            discarded_ids = _compute_discards_fixed_count(
+                ordered_ids_cls,
+                per_by_id,
+                D_cls,
+                non_discardable_race_ids,
+            )
 
             total_points = 0.0
             net_total = 0.0
@@ -515,15 +512,18 @@ def get_overall_results(
                 pts = float(per_by_id[rid]["points"])
                 total_points += pts
 
-                code = per_by_id[rid].get("code")
+                code_raw = per_by_id[rid].get("code")
+                code = (str(code_raw).strip().upper() if code_raw else None)
                 per_race_code[name] = code
+
+                pts_s = f"{pts:g}"
+                display = f"{code} {pts_s}" if code else pts_s
 
                 if rid not in discarded_ids:
                     net_total += pts
-                    per_race_named[name] = pts
+                    per_race_named[name] = display if code else pts
                 else:
-                    # mostra "(x)" sem disparar CSS do frontend
-                    per_race_named[name] = f"{_DISCARD_INVISIBLE_PREFIX}({pts:g})"
+                    per_race_named[name] = f"{_DISCARD_INVISIBLE_PREFIX}({display})"
 
                 per_race_fleet[name] = fleet_by_sn_race.get((cls, sn_norm, rid))
 
@@ -542,31 +542,104 @@ def get_overall_results(
             )
 
     # ========================================================
-    # LOCKING: MEDAL + FINALS
+    # MR sailors set por classe (para MR-first)
     # ========================================================
-    medal_set = _medal_entry_set(db, regatta_id, class_name)
+    medal_sail_set_by_class: dict[str, set[str]] = {}
+    if class_name:
+        medal_sail_set_by_class[str(class_name)] = _medal_entry_set(db, regatta_id, class_name)
+    else:
+        for cls in race_ids_by_class.keys():
+            medal_sail_set_by_class[cls] = _medal_entry_set(db, regatta_id, cls)
+
+    # ========================================================
+    # LOCKING: MEDAL + FINALS (para agrupar)
+    # ========================================================
+    medal_set = medal_sail_set_by_class.get(str(class_name), set()) if class_name else set()
     finals_map = _finals_fleet_order_map(db, regatta_id, class_name)
 
-    def sort_key(r: dict) -> tuple[int, int, float, float]:
-        sn = (r.get("sail_number") or "").strip()
-        in_medal = 0 if sn in medal_set else 1
+    def _lock_group_key(row: dict) -> tuple[int, int]:
+        sn = _sn_norm(row.get("sail_number"))
+        in_medal = 0 if (class_name and sn in medal_set) else 1
         finals_rank = finals_map.get(sn, 9999) if finals_map else 9999
-        return (
-            in_medal,
-            finals_rank,
-            float(r["net_points"]),
-            float(r["total_points"]),
-        )
+        return (in_medal, finals_rank)
 
-    overall.sort(key=sort_key)
+    overall.sort(key=_lock_group_key)
 
+    def _row_key(row: dict) -> tuple[str, str, str]:
+        cls = str(row.get("class_name") or "")
+        sn = _sn_norm(row.get("sail_number"))
+        skipper = (row.get("skipper_name") or "").strip()
+        return (cls, sn, skipper)
+
+    sorted_overall: list[dict] = []
+    i = 0
+    while i < len(overall):
+        gk = _lock_group_key(overall[i])
+        j = i + 1
+        while j < len(overall) and _lock_group_key(overall[j]) == gk:
+            j += 1
+
+        group = overall[i:j]
+
+        # tiebreak por classe dentro do grupo
+        group_by_class: dict[str, list[dict]] = {}
+        for rr in group:
+            group_by_class.setdefault(str(rr.get("class_name") or ""), []).append(rr)
+
+        for cls, cls_rows in group_by_class.items():
+            ordered_ids_cls = race_ids_by_class.get(cls, race_ids)
+            medal_ids_cls = sorted(list(medal_race_ids_by_class.get(cls, set())))
+            mr_sails = medal_sail_set_by_class.get(cls, set())
+
+            resolved = sort_overall_rows(
+                cls_rows,
+                ordered_race_ids=ordered_ids_cls,
+                results_by_key=per_race_map,
+                key_of_row=_row_key,
+                medal_race_ids=medal_ids_cls if medal_ids_cls else None,
+                medal_sail_set=mr_sails if mr_sails else None,
+                sail_number_of_row=lambda r: _sn_norm(r.get("sail_number")),
+            )
+            sorted_overall.extend(resolved)
+
+        i = j
+
+    overall = sorted_overall
+
+    # ========================================================
+    # Ranking final (com empates “impossíveis”: 1,2,2,4)
+    # ========================================================
     label_for_idx = {1: "Gold", 2: "Silver", 3: "Bronze", 4: "Emerald"}
 
-    for idx, row in enumerate(overall, start=1):
-        sn = (row.get("sail_number") or "").strip()
-        row["overall_rank"] = idx
+    prev_sig = None
+    current_rank = 0
+
+    for i, row in enumerate(overall):
+        cls = str(row.get("class_name") or "")
+        ordered_ids_cls = race_ids_by_class.get(cls, race_ids)
+        medal_ids_cls = sorted(list(medal_race_ids_by_class.get(cls, set())))
+        mr_sails = medal_sail_set_by_class.get(cls, set())
+
+        sig = tie_signature_overall(
+            row,
+            ordered_race_ids=ordered_ids_cls,
+            results_by_key=per_race_map,
+            key_of_row=_row_key,
+            medal_race_ids=medal_ids_cls if medal_ids_cls else None,
+            medal_sail_set=mr_sails if mr_sails else None,
+            sail_number_of_row=lambda r: _sn_norm(r.get("sail_number")),
+        )
+
+        if prev_sig is None or sig != prev_sig:
+            current_rank = i + 1
+            prev_sig = sig
+
+        sn = _sn_norm(row.get("sail_number"))
+        row["overall_rank"] = current_rank
+
         if finals_map:
             row["finals_fleet"] = label_for_idx.get(finals_map.get(sn))
-        row["is_medal"] = sn in medal_set
+
+        row["is_medal"] = (sn in medal_set) if class_name else False
 
     return overall

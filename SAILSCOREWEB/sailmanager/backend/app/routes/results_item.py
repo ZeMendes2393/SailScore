@@ -40,10 +40,7 @@ def delete_result(
 
     db.delete(row)
     db.flush()
-
-    # normaliza posições/pontos (compacta)
     normalize_race_results(db, race)
-
     db.commit()
     return None
 
@@ -66,11 +63,59 @@ def change_result_position(
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
-    if body.new_position < 1:
-        raise HTTPException(status_code=400, detail="Posição inválida")
+    # (opcional mas recomendado) se este code remove do ranking, não faz sentido mover
+    if removes_from_ranking(getattr(row, "code", None)):
+        raise HTTPException(status_code=400, detail="Este resultado não pode ser movido (code fora do ranking).")
 
-    # simples: atualiza e depois normalize faz o resto (compact + unranked no fim)
-    row.position = int(body.new_position)
+    new_pos = int(body.new_position)
+    if new_pos < 1:
+        new_pos = 1
+
+    old_pos = int(row.position)
+
+    # se não mudou, não faz nada
+    if new_pos == old_pos:
+        db.refresh(row)
+        return row
+
+    # clamp new_pos ao máximo atual (para não criares buracos)
+    max_pos = (
+        db.query(models.Result.position)
+        .filter(models.Result.race_id == row.race_id)
+        .order_by(models.Result.position.desc())
+        .first()
+    )
+    max_pos_val = int(max_pos[0]) if max_pos and max_pos[0] is not None else 1
+    if new_pos > max_pos_val:
+        new_pos = max_pos_val
+
+    # -------------------------------------------------
+    # SHIFT: abrir espaço para garantir prioridade
+    # -------------------------------------------------
+    if new_pos < old_pos:
+        # a subir: empurra +1 quem está entre new_pos .. old_pos-1
+        db.query(models.Result).filter(
+            models.Result.race_id == row.race_id,
+            models.Result.id != row.id,
+            models.Result.position >= new_pos,
+            models.Result.position < old_pos,
+        ).update(
+            {models.Result.position: models.Result.position + 1},
+            synchronize_session=False,
+        )
+    else:
+        # a descer: puxa -1 quem está entre old_pos+1 .. new_pos
+        db.query(models.Result).filter(
+            models.Result.race_id == row.race_id,
+            models.Result.id != row.id,
+            models.Result.position > old_pos,
+            models.Result.position <= new_pos,
+        ).update(
+            {models.Result.position: models.Result.position - 1},
+            synchronize_session=False,
+        )
+
+    row.position = new_pos
 
     db.flush()
     normalize_race_results(db, race)
@@ -88,9 +133,10 @@ def set_result_code(
     current_user: models.User = Depends(get_current_user),
 ):
     """
-    ✅ codes auto (N+1 / fleet+1)
-    ✅ codes ajustáveis (RDG/SCP/ZPF/DPI) com points manual (decimal ok)
-    ✅ qualquer code != RDG remove da sequência numérica (compacta os outros)
+    ✅ AUTO N+1 (DNC/DNF/...) → vai para o fim (unranked)
+    ✅ RDG → points manual (decimal ok) e vai para o fim (unranked)
+    ✅ SCP/ZPF/DPI → points manual (decimal ok), mantém ranked
+    ✅ codes fixos do scoring_map → points fixos, mantém ranked
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
@@ -109,7 +155,7 @@ def set_result_code(
     if raw == "":
         # limpar code => volta a ser "normal"
         row.code = None
-        # põe no fim do ranked (normalize vai compactar)
+        # mandar para o fim temporariamente; normalize vai colocar no sítio certo
         row.position = 10**9
         row.points = float(row.position)  # placeholder
         db.flush()
@@ -120,7 +166,6 @@ def set_result_code(
 
     code = _norm(raw)
 
-    # calcular points segundo as regras novas
     try:
         pts = compute_points_for_code(
             db=db,
@@ -136,7 +181,7 @@ def set_result_code(
     row.code = code
     row.points = float(pts)
 
-    # se remove do ranking -> manda para o fim (normalize compacta)
+    # se remove do ranking (AUTO N+1 ou RDG) -> manda para o fim
     if removes_from_ranking(code):
         row.position = 10**9
 

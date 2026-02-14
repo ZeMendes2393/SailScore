@@ -6,6 +6,8 @@ export interface Race {
   regatta_id: number;
   class_name: string;
   fleet_set_id?: number | null;   // 👈 ADICIONAR ESTA LINHA
+  discardable: boolean;
+
 
 }
 

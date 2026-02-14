@@ -1,10 +1,9 @@
-# app/routes/results_race.py
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Body, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from typing import List
+from typing import List, Union, Optional  # garante que tens isto no topo
 
 from app.database import get_db
 from app import models, schemas
@@ -31,7 +30,7 @@ def get_results_for_race(race_id: int, db: Session = Depends(get_db)):
     return (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
-        .order_by(models.Result.position.asc())
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
 
@@ -74,7 +73,7 @@ def upsert_single_result(
     new_r = models.Result(
         regatta_id=payload.regatta_id,
         race_id=race_id,
-        sail_number=payload.sail_number,
+        sail_number=_norm_sn(payload.sail_number) or payload.sail_number,
         boat_name=payload.boat_name,
         skipper_name=payload.helm_name,
         position=int(payload.position),
@@ -117,7 +116,7 @@ def add_single_result(
             .filter(
                 and_(
                     models.Result.race_id == race_id,
-                    models.Result.sail_number == payload.sail_number,
+                    models.Result.sail_number == _norm_sn(payload.sail_number),
                 )
             )
             .first()
@@ -146,7 +145,7 @@ def add_single_result(
     else:
         pts = float(payload.points if payload.points is not None else desired_pos)
 
-    # se remover do ranking (code != RDG) -> põe no fim (não shift)
+    # regra: se remover do ranking (AUTO N+1) -> põe no fim (não shift)
     if removes_from_ranking(code):
         max_pos = (
             db.query(models.Result.position)
@@ -171,7 +170,7 @@ def add_single_result(
     new_res = models.Result(
         regatta_id=payload.regatta_id,
         race_id=race_id,
-        sail_number=payload.sail_number,
+        sail_number=_norm_sn(payload.sail_number) or payload.sail_number,
         boat_name=payload.boat_name,
         class_name=race.class_name,
         skipper_name=payload.helm_name,
@@ -205,7 +204,7 @@ def reorder_race_results(
     rows = (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
-        .order_by(models.Result.position.asc())
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
 
@@ -224,7 +223,7 @@ def reorder_race_results(
     return (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
-        .order_by(models.Result.position.asc())
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
 
@@ -235,12 +234,17 @@ def create_results_for_race(
     results: List[schemas.ResultCreate],
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    # ⚠️ nome TEM MESMO de ser fleet_id para bater com ?fleet_id= no frontend
+    fleet_id: Union[int, str] = "all",
 ):
     """
     BULK SAVE (rascunho -> results)
-    ✅ no fim cria automaticamente DNC para os “esquecidos” (eligible confirmed+paid)
-    ✅ suporta codes auto N+1 e codes ajustáveis
-    ✅ compacta posições (codes != RDG vão para o fim)
+
+    - Se NÃO houver fleets na corrida, ou fleet_id == "all"
+        → recalc global (apaga tudo e volta a criar + DNC global)
+    - Se houver fleets e vier fleet_id = número
+        → só substitui resultados dos barcos do payload (essa fleet),
+          e o helper ensure_missing_results_as_dnc trata dos DNCs só nessa fleet.
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
@@ -251,24 +255,64 @@ def create_results_for_race(
 
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
 
-    existing = db.query(models.Result).filter(models.Result.race_id == race_id).all()
-    by_sn: dict[str, models.Result] = {}
-    for row in existing:
-        snn = _norm_sn(row.sail_number)
-        if snn:
-            by_sn[snn] = row
+    # A corrida tem fleet_set associado?
+    has_fleets = bool(getattr(race, "fleet_set_id", None))
 
-    # upsert dos enviados
+    # Normalizar sails do payload (para deletes parciais em caso de fleet)
+    payload_sails: set[str] = set()
     for r in results:
-        code = _norm(r.code)
+        sn = _norm_sn(r.sail_number)
+        if sn:
+            payload_sails.add(sn)
 
-        # points com regras novas
+    # -------------------------------------------------
+    # 1) RESCORE: apagar o que já existe no scope certo
+    # -------------------------------------------------
+    # sem fleets, ou “recalc global” → apaga tudo
+    if (not has_fleets) or str(fleet_id) == "all":
+        db.query(models.Result).filter(
+            models.Result.race_id == race_id
+        ).delete(synchronize_session=False)
+    else:
+        # corrida com fleets E fleet_id específico:
+        # não temos coluna fleet_id na tabela results,
+        # por isso apagamos apenas pelos sails que vêm no payload
+        if payload_sails:
+            db.query(models.Result).filter(
+                models.Result.race_id == race_id,
+                models.Result.sail_number.in_(payload_sails),
+            ).delete(synchronize_session=False)
+
+    db.flush()
+
+    # ---------------------------------------------
+    # 2) Validar payload + calcular pontos de cada linha
+    # ---------------------------------------------
+    seen_sn: set[str] = set()
+
+    for r in results:
+        sn_norm = _norm_sn(r.sail_number)
+        if not sn_norm:
+            raise HTTPException(
+                status_code=400,
+                detail="sail_number em falta num dos resultados",
+            )
+
+        if sn_norm in seen_sn:
+            raise HTTPException(
+                status_code=400,
+                detail=f"sail_number repetido no payload: {sn_norm}",
+            )
+        seen_sn.add(sn_norm)
+
+        code = _norm(getattr(r, "code", None))
+
         try:
             if code:
                 pts = compute_points_for_code(
                     db=db,
                     race=race,
-                    sail_number=r.sail_number,
+                    sail_number=sn_norm,
                     code=code,
                     manual_points=float(r.points) if r.points is not None else None,
                     scoring_map=scoring_map,
@@ -278,43 +322,37 @@ def create_results_for_race(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        sn_norm = _norm_sn(r.sail_number)
+        row = models.Result(
+            regatta_id=r.regatta_id,
+            race_id=race_id,
+            sail_number=sn_norm,
+            boat_name=r.boat_name,
+            class_name=race.class_name,
+            skipper_name=r.helm_name,
+            position=int(r.position),
+            points=float(pts),
+            code=code,
+        )
 
-        if sn_norm and sn_norm in by_sn:
-            row = by_sn[sn_norm]
-            row.boat_name = r.boat_name
-            row.skipper_name = r.helm_name
-            row.position = int(r.position)
-            row.points = float(pts)
-            row.code = code
-            row.class_name = race.class_name
-        else:
-            row = models.Result(
-                regatta_id=r.regatta_id,
-                race_id=race_id,
-                sail_number=r.sail_number,
-                boat_name=r.boat_name,
-                class_name=race.class_name,
-                skipper_name=r.helm_name,
-                position=int(r.position),
-                points=float(pts),
-                code=code,
-            )
-            db.add(row)
+        db.add(row)
 
     db.flush()
 
-    # ✅ auto DNC para os esquecidos
-    ensure_missing_results_as_dnc(db, race)
+    # ---------------------------------------------
+    # 3) Auto DNC para quem ficou sem resultado
+    #    (helper já sabe distinguir global vs fleet, pelo fleet_id)
+    # ---------------------------------------------
+    ensure_missing_results_as_dnc(db, race, fleet_id)
 
-    # ✅ compact + recalc points
+    # ---------------------------------------------
+    # 4) Compactar posições / recalcular pontos finais
+    # ---------------------------------------------
     normalize_race_results(db, race)
-
     db.commit()
 
     return (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
-        .order_by(models.Result.position.asc())
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
