@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet } from '@/lib/api';
 import type { RequestRead } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 export default function RequestsPage() {
   const { user, token } = useAuth();
@@ -66,7 +67,7 @@ export default function RequestsPage() {
             {rows.map(r => (
               <tr key={r.id} className="border-t">
                 <td className="p-2">{r.request_no}</td>
-                <td className="p-2">{r.sail_number || '—'}</td>
+                <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="p-2">{r.class_name || '—'}</td>
                 <td className="p-2 max-w-[32rem]">
                   <div className="whitespace-pre-wrap break-words">{r.request_text}</div>

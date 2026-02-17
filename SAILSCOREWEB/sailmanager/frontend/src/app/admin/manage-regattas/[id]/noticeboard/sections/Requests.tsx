@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type RequestRead = {
   id: number;
@@ -124,7 +125,7 @@ function RequestRow({
           </button>
         </td>
         <td className="p-2">{r.request_no}</td>
-        <td className="p-2">{r.sail_number || '—'}</td>
+        <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
         <td className="p-2 max-w-[32rem]">
           <div className="whitespace-pre-wrap break-words">{r.request_text}</div>

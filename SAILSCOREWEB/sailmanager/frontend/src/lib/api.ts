@@ -13,6 +13,7 @@ const getStoredToken = (): string | undefined => {
   return (
     localStorage.getItem('access_token') ||
     localStorage.getItem('token') ||
+    sessionStorage.getItem('token') ||
     undefined
   );
 };
@@ -44,7 +45,13 @@ export const setStoredToken = (token: string | null) => {
   localStorage.setItem('token', token);
 };
 
-export const clearStoredAuth = () => setStoredToken(null);
+export const clearStoredAuth = () => {
+  setStoredToken(null);
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+  }
+};
 
 const authHeader = (token?: string): HeadersDict => {
   const raw = (token ?? getStoredToken()) || '';

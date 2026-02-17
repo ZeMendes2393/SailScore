@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Entry, DraftResult } from '../types';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 interface Props {
   draft: DraftResult[];
@@ -137,7 +138,7 @@ export default function DraftResultsEditor({
                 className="flex justify-between items-center p-2 border rounded bg-white hover:bg-gray-50"
               >
                 <span className="truncate">
-                  <span className="font-medium">{entry.sail_number}</span>
+                  <SailNumberDisplay countryCode={(entry as any).boat_country_code} sailNumber={entry.sail_number} />
                   {' — '}
                   {entry.first_name} {entry.last_name}
                   {entry.club ? <span className="text-gray-500"> ({entry.club})</span> : null}
@@ -167,7 +168,7 @@ export default function DraftResultsEditor({
                   <li key={r.entryId} className="flex items-center justify-between border p-2 rounded bg-white gap-2">
                     <div className="min-w-0 flex-1">
                       <span className="inline-block w-10 text-right mr-2 font-semibold">{r.position}º</span>
-                      <span className="font-medium">{e?.sail_number}</span>
+                      <SailNumberDisplay countryCode={(e as any)?.boat_country_code} sailNumber={e?.sail_number} />
                       <span className="text-gray-600">
                         {' '}
                         — {e?.first_name} {e?.last_name}

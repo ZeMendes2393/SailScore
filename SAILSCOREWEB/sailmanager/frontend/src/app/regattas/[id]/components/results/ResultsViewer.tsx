@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 
 interface OverallResult {
   sail_number: string
+  boat_country_code?: string | null
   boat_name: string
   class_name: string
   skipper_name: string
@@ -92,7 +94,7 @@ export default function ResultsViewer({ regattaId }: ResultsViewerProps) {
                   .map((r, i) => (
                     <tr key={r.sail_number}>
                       <td className="border px-2 py-1">{i + 1}º</td>
-                      <td className="border px-2 py-1">{r.sail_number}</td>
+                      <td className="border px-2 py-1"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                       <td className="border px-2 py-1">{r.boat_name}</td>
                       <td className="border px-2 py-1">{r.skipper_name}</td>
                       {raceNames.map((race) => (

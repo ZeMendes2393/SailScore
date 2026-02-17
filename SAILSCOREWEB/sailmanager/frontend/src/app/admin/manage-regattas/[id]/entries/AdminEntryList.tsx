@@ -3,45 +3,56 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiSend } from '@/lib/api';
+import {
+  ENTRY_LIST_COLUMNS,
+  getVisibleColumns,
+  type EntryListColumnId,
+} from '@/lib/entryListColumns';
+import type { EntryListEntry } from '@/lib/entryListTypes';
+import { EntryListCell } from '@/components/entry-list/EntryListCell';
 
-interface Entry {
+interface RegattaForEntryList {
   id: number;
-  class_name: string;
-  first_name: string;
-  last_name: string;
-  club: string;
-  email?: string;
-  contact_phone_1?: string;
-  sail_number?: string;
-  boat_name?: string;
-  category?: string;
-  paid?: boolean | null;
-  confirmed?: boolean | null;
+  entry_list_columns?: string[] | null;
 }
 
 interface AdminEntryListProps {
   regattaId: number;
   selectedClass: string | null;
+  regatta: RegattaForEntryList | null;
+  onRegattaUpdate: (r: RegattaForEntryList) => void;
 }
 
-export default function AdminEntryList({ regattaId, selectedClass }: AdminEntryListProps) {
+export default function AdminEntryList({
+  regattaId,
+  selectedClass,
+  regatta,
+  onRegattaUpdate,
+}: AdminEntryListProps) {
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<EntryListEntry[]>([]);
+  const [savingColumns, setSavingColumns] = useState(false);
+
+  const visibleColumnIds = useMemo(
+    () => getVisibleColumns(regatta?.entry_list_columns),
+    [regatta?.entry_list_columns]
+  );
 
   const filteredEntries = useMemo(() => {
     if (!selectedClass) return entries;
     const cls = selectedClass.trim().toLowerCase();
-    return entries.filter(e => (e.class_name || '').trim().toLowerCase() === cls);
+    return entries.filter((e) => (e.class_name || '').trim().toLowerCase() === cls);
   }, [entries, selectedClass]);
 
   useEffect(() => {
+    if (authLoading) return;
     let alive = true;
 
-    async function tryLoad(): Promise<Entry[]> {
+    async function tryLoad(): Promise<EntryListEntry[]> {
       const paths = [
         `/entries?regatta_id=${Number(regattaId)}`,
         `/entries?regattaId=${Number(regattaId)}`,
@@ -51,7 +62,7 @@ export default function AdminEntryList({ regattaId, selectedClass }: AdminEntryL
         try {
           const data: any = await apiGet<any>(p, token || undefined);
           const arr = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-          if (arr.length || Array.isArray(data)) return arr as Entry[];
+          if (arr.length || Array.isArray(data)) return arr as EntryListEntry[];
         } catch {}
       }
       return [];
@@ -67,11 +78,38 @@ export default function AdminEntryList({ regattaId, selectedClass }: AdminEntryL
       }
     })();
 
-    return () => { alive = false; };
-  }, [regattaId, token]);
+    return () => {
+      alive = false;
+    };
+  }, [regattaId, token, authLoading]);
 
-  // Suave: base 200; hover 300 aplicado à LINHA (group-hover)
-  const rowColors = (e: Entry) => {
+  const toggleColumn = async (columnId: EntryListColumnId) => {
+    const current = getVisibleColumns(regatta?.entry_list_columns);
+    const next = current.includes(columnId)
+      ? current.filter((id) => id !== columnId)
+      : [...current, columnId].sort(
+          (a, b) =>
+            ENTRY_LIST_COLUMNS.findIndex((c) => c.id === a) -
+            ENTRY_LIST_COLUMNS.findIndex((c) => c.id === b)
+        );
+    if (!token || !regatta) return;
+    setSavingColumns(true);
+    try {
+      const patched = await apiSend<RegattaForEntryList>(
+        `/regattas/${regattaId}`,
+        'PATCH',
+        { entry_list_columns: next },
+        token
+      );
+      if (patched) onRegattaUpdate(patched);
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao guardar colunas.');
+    } finally {
+      setSavingColumns(false);
+    }
+  };
+
+  const rowColors = (e: EntryListEntry) => {
     const paid = !!e.paid;
     const confirmed = !!e.confirmed;
     if (paid && confirmed) {
@@ -87,28 +125,74 @@ export default function AdminEntryList({ regattaId, selectedClass }: AdminEntryL
     router.push(`/admin/manage-regattas/${regattaId}/entries/${entryId}?regattaId=${regattaId}`);
   };
 
+  const handleStatusChange = async (entryId: number, confirmed: boolean) => {
+    if (!token) return;
+    try {
+      await apiSend(`/entries/${entryId}`, 'PATCH', { confirmed }, token);
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, confirmed } : e))
+      );
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao atualizar status.');
+    }
+  };
+
+  const handlePaidChange = async (entryId: number, paid: boolean) => {
+    if (!token) return;
+    try {
+      await apiSend(`/entries/${entryId}`, 'PATCH', { paid }, token);
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, paid } : e))
+      );
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao atualizar pagamento.');
+    }
+  };
+
   if (!isAdmin) return <p className="text-gray-500">Admin only.</p>;
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Seletor de colunas: definido aqui e usado na lista pública */}
+      <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
+        <span className="text-sm font-medium text-gray-700">Colunas visíveis (lista pública e aqui):</span>
+        {ENTRY_LIST_COLUMNS.map((col) => (
+          <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={visibleColumnIds.includes(col.id)}
+              onChange={() => toggleColumn(col.id)}
+              disabled={savingColumns}
+              className="rounded border-gray-300"
+            />
+            {col.label}
+          </label>
+        ))}
+        {savingColumns && <span className="text-xs text-gray-500">A guardar…</span>}
+      </div>
+
       {filteredEntries.length === 0 ? (
-        <p className="text-gray-500">No entries for this class in this regatta yet.</p>
+        <p className="text-gray-500">Ainda não há inscrições para esta classe nesta regata.</p>
       ) : (
-        <table className="w-full table-auto border border-black mt-2 text-sm">
+        <table className="w-full table-auto border border-black text-sm">
           <thead className="bg-gray-100 text-left">
             <tr>
-              <th className="p-2 border border-black">Class</th>
-              <th className="p-2 border border-black">Sail no.</th>
-              <th className="p-2 border border-black">Name</th>
-              <th className="p-2 border border-black">Club</th>
-              <th className="p-2 border border-black text-center">Paid</th>
-              <th className="p-2 border border-black text-center">Confirmed</th>
+              {visibleColumnIds.map((id) => {
+                const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+                return (
+                  <th
+                    key={id}
+                    className={`p-2 border border-black ${id === 'paid' || id === 'status' ? 'text-center' : ''}`}
+                  >
+                    {def?.label ?? id}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {filteredEntries.map(entry => {
+            {filteredEntries.map((entry) => {
               const c = rowColors(entry);
-              // aplicamos cor nas TD; o hover vem do TR com "group"
               const cell = `p-2 border border-black ${c.base} ${c.hover} transition-colors`;
               return (
                 <tr
@@ -116,30 +200,19 @@ export default function AdminEntryList({ regattaId, selectedClass }: AdminEntryL
                   onClick={() => goToEdit(entry.id)}
                   className="group cursor-pointer"
                 >
-                  <td className={cell}>{entry.class_name || '—'}</td>
-                  <td className={cell}>{entry.sail_number || '—'}</td>
-                  <td className={cell}>
-                    {(entry.first_name || '')} {(entry.last_name || '')}
-                  </td>
-                  <td className={cell}>{entry.club || '—'}</td>
-                  <td className={`${cell} text-center`}>
-                    <input
-                      type="checkbox"
-                      checked={!!entry.paid}
-                      readOnly
-                      disabled
-                      className="pointer-events-none"
-                    />
-                  </td>
-                  <td className={`${cell} text-center`}>
-                    <input
-                      type="checkbox"
-                      checked={!!entry.confirmed}
-                      readOnly
-                      disabled
-                      className="pointer-events-none"
-                    />
-                  </td>
+                  {visibleColumnIds.map((colId) => (
+                    <td
+                      key={colId}
+                      className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''}`}
+                    >
+                      <EntryListCell
+                        entry={entry}
+                        columnId={colId}
+                        onStatusChange={colId === 'status' ? handleStatusChange : undefined}
+                        onPaidChange={colId === 'paid' ? handlePaidChange : undefined}
+                      />
+                    </td>
+                  ))}
                 </tr>
               );
             })}

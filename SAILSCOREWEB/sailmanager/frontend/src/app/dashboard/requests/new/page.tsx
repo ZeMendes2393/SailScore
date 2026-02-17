@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
+import { formatSailNumber } from '@/utils/countries';
 
 // Podemos reutilizar a tua hook useMyEntry ou chamar /entries?mine=1
-type EntryOption = { id: number; class_name?: string | null; sail_number?: string | null; first_name?: string | null; last_name?: string | null; email?: string | null; regatta_id?: number };
+type EntryOption = { id: number; class_name?: string | null; sail_number?: string | null; boat_country_code?: string | null; first_name?: string | null; last_name?: string | null; email?: string | null; regatta_id?: number };
 
 export default function NewRequestPage() {
   const { user, token } = useAuth();
@@ -64,7 +65,7 @@ export default function NewRequestPage() {
             <option value="">— choose your entry —</option>
             {myEntries.map(en => (
               <option key={en.id} value={en.id}>
-                {`${en.class_name || '—'} • ${en.sail_number || '—'} • ${(en.first_name || '') + ' ' + (en.last_name || '')}`}
+                {`${en.class_name || '—'} • ${formatSailNumber(en.boat_country_code, en.sail_number)} • ${(en.first_name || '') + ' ' + (en.last_name || '')}`}
               </option>
             ))}
           </select>

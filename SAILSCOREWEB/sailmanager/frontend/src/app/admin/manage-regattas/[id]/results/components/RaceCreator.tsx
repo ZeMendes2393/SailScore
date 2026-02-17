@@ -7,7 +7,7 @@ import { apiGet, apiSend } from '@/lib/api';
 interface Props {
   regattaId: number;
   onRaceCreated: (newRace: Race) => void;
-  defaultOpen?: boolean; // podes abrir/fechar o card por defeito
+  defaultOpen?: boolean; // you can open/close the card by default
 }
 
 interface Race {
@@ -52,7 +52,7 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
       } catch (e) {
         if (!mounted) return;
         setClassOptions([]);
-        setError('Não foi possível obter as classes desta regata.');
+        setError('Could not fetch classes for this regatta.');
       } finally {
         if (mounted) setLoadingClasses(false);
       }
@@ -74,11 +74,11 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
       };
       const newRace = await apiSend<Race>('/races', 'POST', payload, token ?? undefined);
       onRaceCreated(newRace);
-      setOk('Corrida criada com sucesso!');
+      setOk('Race created successfully!');
       // mantém a classe selecionada para criar várias de seguida
       setName('');
     } catch (e: any) {
-      setError(typeof e?.message === 'string' ? e.message : 'Erro ao criar corrida.');
+      setError(typeof e?.message === 'string' ? e.message : 'Error creating race.');
     } finally {
       setLoading(false);
     }
@@ -87,51 +87,51 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
   return (
     <div className="p-4 border rounded-2xl bg-white shadow-sm">
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-sm">Criar Corrida</h4>
+        <h4 className="font-semibold text-sm">Create Race</h4>
         <button
           onClick={() => setOpen(v => !v)}
           className="text-xs px-3 py-1 rounded border hover:bg-gray-50"
           aria-expanded={open}
         >
-          {open ? 'Fechar' : 'Abrir'}
+          {open ? 'Close' : 'Open'}
         </button>
       </div>
 
       {!open ? (
         <p className="mt-2 text-xs text-gray-500">
-          Formulário compacto para adicionar novas corridas.
+          Compact form to add new races.
         </p>
       ) : (
         <div className="mt-3 space-y-2 text-sm">
-          {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+          {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
           {!!error && <p className="text-red-600">{error}</p>}
           {!!ok && <p className="text-green-700">{ok}</p>}
           {(!loadingClasses && classOptions.length === 0) && (
-            <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
+            <p className="text-gray-500">No classes configured for this regatta.</p>
           )}
 
           <label className="block">
-            <span className="text-xs text-gray-700">Nome</span>
+            <span className="text-xs text-gray-700">Name</span>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="mt-1 w-full border rounded px-3 py-2"
-              placeholder="Ex: Corrida 1"
+              placeholder="Ex: Race 1"
               onKeyDown={(e) => e.key === 'Enter' && handleCreateRace()}
             />
           </label>
 
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="text-xs text-gray-700">Classe</span>
+              <span className="text-xs text-gray-700">Class</span>
               <select
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
                 className="mt-1 w-full border rounded px-3 py-2"
                 disabled={loadingClasses || classOptions.length === 0}
               >
-                {classOptions.length === 0 && <option value="">-- Sem classes --</option>}
+                {classOptions.length === 0 && <option value="">-- No classes --</option>}
                 {classOptions.map((cls) => (
                   <option key={cls} value={cls}>{cls}</option>
                 ))}
@@ -139,7 +139,7 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
             </label>
 
             <label className="block">
-              <span className="text-xs text-gray-700">Data</span>
+              <span className="text-xs text-gray-700">Date</span>
               <input
                 type="date"
                 value={date}
@@ -154,7 +154,7 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
             disabled={!canSubmit}
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? 'A criar…' : '➕ Criar Corrida'}
+            {loading ? 'Creating…' : '➕ Create Race'}
           </button>
         </div>
       )}

@@ -9,8 +9,17 @@ export type Entry = {
   class_name: string;
   boat_name?: string | null;
   sail_number?: string | null;
+  bow_number?: string | null;
   boat_country?: string | null;
+  boat_country_code?: string | null;
+  boat_model?: string | null;
+  rating?: number | null;
   category?: string | null;
+  owner_first_name?: string | null;
+  owner_last_name?: string | null;
+  owner_email?: string | null;
+  helm_position?: string | null;
+  crew_members?: Array<{ position?: string; first_name?: string; last_name?: string; email?: string; federation_license?: string; [k: string]: any }> | null;
   first_name?: string | null;
   last_name?: string | null;
   date_of_birth?: string | null;
@@ -22,6 +31,7 @@ export type Entry = {
   helm_country?: string | null;
   helm_country_secondary?: string | null;
   territory?: string | null;
+  federation_license?: string | null;
   address?: string | null;
   zip_code?: string | null;
   town?: string | null;

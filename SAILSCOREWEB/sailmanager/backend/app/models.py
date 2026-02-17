@@ -74,6 +74,11 @@ class Regatta(Base):
     # Pontuações para códigos (ex.: {"DNF": 10, "DNC": 15})
     scoring_codes = Column(JSON, nullable=True, default=dict)
 
+    # Colunas da entry list (ids visíveis: sail_no, boat_name, class_category, owner, crew, club, paid)
+    entry_list_columns = Column(JSON, nullable=True)
+    # Colunas visíveis nos results overall (place, fleet, sail_no, boat, skipper, class, model, bow, total, net)
+    results_overall_columns = Column(JSON, nullable=True)
+
 
 # =========================
 #   ENUMS (Notice)
@@ -102,6 +107,10 @@ class RegattaClass(Base):
     id = Column(Integer, primary_key=True, index=True)
     regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
     class_name = Column(String, nullable=False, index=True)
+    # one_design | handicap
+    class_type = Column(String(20), nullable=False, default="one_design", server_default="one_design")
+    # One Design: número de velejadores por embarcação (1, 2, 3...)
+    sailors_per_boat = Column(Integer, nullable=False, default=1, server_default="1")
 
     regatta = relationship("Regatta", back_populates="classes")
 
@@ -127,11 +136,16 @@ class Entry(Base):
     # Boat data
     class_name = Column(String, index=True)
     boat_country = Column(String)
+    boat_country_code = Column(String(3), nullable=True)  # ISO alpha-3, e.g. POR, GBR
     sail_number = Column(String, index=True)
+    bow_number = Column(String, nullable=True)  # número de proa (admin)
     boat_name = Column(String)
+    boat_model = Column(String, nullable=True)  # ex: Beneteau First 36.7 (handicap)
+    rating = Column(Float, nullable=True)  # handicap rating (handicap)
     category = Column(String)
 
     # Helm data
+    helm_position = Column(String(20), nullable=True)  # Skipper | Crew (one design)
     date_of_birth = Column(String)
     gender = Column(String)
     first_name = Column(String)
@@ -146,6 +160,13 @@ class Entry(Base):
     zip_code = Column(String)
     town = Column(String)
     helm_country_secondary = Column(String)
+    federation_license = Column(String, nullable=True)  # Licença de federação (obrigatório para sailor)
+    # Proprietário do barco (handicap)
+    owner_first_name = Column(String, nullable=True)
+    owner_last_name = Column(String, nullable=True)
+    owner_email = Column(String, nullable=True)
+    # Tripulantes opcionais (lista de { first_name, last_name, email, ... }) — JSON
+    crew_members = Column(JSON, nullable=True)
 
     regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -255,13 +276,15 @@ class Result(Base):
     regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
     race_id = Column(Integer, ForeignKey("races.id", ondelete="CASCADE"), nullable=False, index=True)
     sail_number = Column(String, nullable=True, index=True)
+    boat_country_code = Column(String(3), nullable=True)
     boat_name = Column(String, nullable=True)
     class_name = Column(String, nullable=False, index=True)
     skipper_name = Column(String, nullable=True)
     position = Column(Integer, nullable=False)
     points = Column(Float, nullable=False)
     code = Column(String, nullable=True)  # "DNF" | "DNC" | etc.
-
+    points_override = Column(Float, nullable=True)
+    
     regatta = relationship("Regatta", back_populates="results")
     race = relationship("Race", back_populates="results")
 

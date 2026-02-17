@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type PublishedBoat = {
   sail_number: string | null;
+  boat_country_code?: string | null;
   boat_name: string | null;
   helm_name: string | null;
 };
@@ -147,7 +149,7 @@ export default function FleetsPublic({ regattaId }: Props) {
                     {fleet.boats.map((b, i) => (
                       <tr key={`${fleet.id}-${i}`}>
                         <td className="border px-2 py-1">
-                          {b.sail_number ?? ''}
+                          <SailNumberDisplay countryCode={(b as any).boat_country_code} sailNumber={b.sail_number} />
                         </td>
                         <td className="border px-2 py-1">
                           {b.boat_name ?? ''}

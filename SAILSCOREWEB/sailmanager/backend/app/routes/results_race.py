@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Body, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from typing import List, Union, Optional  # garante que tens isto no topo
 
 from app.database import get_db
@@ -70,10 +70,24 @@ def upsert_single_result(
         db.refresh(existing)
         return existing
 
+    # Look up boat_country_code from entry
+    sn_norm = _norm_sn(payload.sail_number) or payload.sail_number
+    entry = (
+        db.query(models.Entry)
+        .filter(
+            models.Entry.regatta_id == payload.regatta_id,
+            models.Entry.class_name == race.class_name,
+            func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
+        )
+        .first()
+    ) if sn_norm else None
+    boat_cc = getattr(entry, "boat_country_code", None) if entry else None
+
     new_r = models.Result(
         regatta_id=payload.regatta_id,
         race_id=race_id,
-        sail_number=_norm_sn(payload.sail_number) or payload.sail_number,
+        sail_number=sn_norm,
+        boat_country_code=boat_cc,
         boat_name=payload.boat_name,
         skipper_name=payload.helm_name,
         position=int(payload.position),
@@ -167,10 +181,23 @@ def add_single_result(
         )
         pos = desired_pos
 
+    sn_res = _norm_sn(payload.sail_number) or payload.sail_number
+    entry_res = (
+        db.query(models.Entry)
+        .filter(
+            models.Entry.regatta_id == payload.regatta_id,
+            models.Entry.class_name == race.class_name,
+            func.lower(models.Entry.sail_number) == (sn_res or "").lower(),
+        )
+        .first()
+    ) if sn_res else None
+    boat_cc_res = getattr(entry_res, "boat_country_code", None) if entry_res else None
+
     new_res = models.Result(
         regatta_id=payload.regatta_id,
         race_id=race_id,
-        sail_number=_norm_sn(payload.sail_number) or payload.sail_number,
+        sail_number=sn_res,
+        boat_country_code=boat_cc_res,
         boat_name=payload.boat_name,
         class_name=race.class_name,
         skipper_name=payload.helm_name,
@@ -322,10 +349,24 @@ def create_results_for_race(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+        boat_cc = getattr(r, "boat_country_code", None)
+        if not boat_cc:
+            entry_r = (
+                db.query(models.Entry)
+                .filter(
+                    models.Entry.regatta_id == r.regatta_id,
+                    models.Entry.class_name == race.class_name,
+                    func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
+                )
+                .first()
+            )
+            boat_cc = getattr(entry_r, "boat_country_code", None) if entry_r else None
+
         row = models.Result(
             regatta_id=r.regatta_id,
             race_id=race_id,
             sail_number=sn_norm,
+            boat_country_code=boat_cc,
             boat_name=r.boat_name,
             class_name=race.class_name,
             skipper_name=r.helm_name,

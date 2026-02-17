@@ -20,7 +20,8 @@ type Regatta = {
   start_date: string;
   end_date: string;
   status?: string;
-  online_entry_open?: boolean; // 👈 novo
+  online_entry_open?: boolean;
+  entry_list_columns?: string[] | null;
 };
 
 export default function RegattaDetails() {
@@ -152,7 +153,11 @@ export default function RegattaDetails() {
       {/* TAB CONTENT */}
       <div className="p-6 bg-white rounded shadow">
         {activeTab === 'entry' && (
-          <EntryList regattaId={regattaId} selectedClass={selectedClass} />
+          <EntryList
+            regattaId={regattaId}
+            selectedClass={selectedClass}
+            entryListColumns={regatta.entry_list_columns}
+          />
         )}
 
         {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}

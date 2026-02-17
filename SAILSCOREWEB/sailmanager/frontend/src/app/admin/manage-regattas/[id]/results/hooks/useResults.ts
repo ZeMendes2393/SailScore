@@ -582,6 +582,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
         regatta_id: regattaId,
         race_id: selectedRaceId,
         sail_number: entry.sail_number,
+        boat_country_code: (entry as any).boat_country_code ?? undefined,
         boat_name: entry.boat_name,
         helm_name: `${entry.first_name} ${entry.last_name}`,
         position: pos,  // Enviar como número
@@ -849,7 +850,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     deleteRace,
     reorderRaces,
     refreshRaces,
-
+    refreshExisting,
 
     setRaceDiscardable,
 

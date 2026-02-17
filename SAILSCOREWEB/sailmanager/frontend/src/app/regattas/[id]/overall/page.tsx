@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 
 interface RegattaConfig {
   id: number
@@ -12,6 +13,7 @@ interface RegattaConfig {
 
 interface OverallResult {
   sail_number: string
+  boat_country_code?: string | null
   boat_name: string
   class_name: string
   skipper_name: string
@@ -248,7 +250,7 @@ export default function OverallResultsPage() {
                 {results.map((r, i) => (
                   <tr key={`${r.class_name}-${r.sail_number}-${i}`}>
                     <td className="border px-3 py-2">{i + 1}º</td>
-                    <td className="border px-3 py-2">{r.sail_number}</td>
+                    <td className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                     <td className="border px-3 py-2">{r.boat_name}</td>
                     <td className="border px-3 py-2">{r.skipper_name}</td>
 

@@ -2,13 +2,22 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
+import { apiGet, apiSend } from '@/lib/api';
+import {
+  RESULTS_OVERALL_COLUMNS,
+  getVisibleResultsOverallColumns,
+  type ResultsOverallColumnId,
+} from '@/lib/resultsOverallColumns';
 import RaceCreator from './RaceCreator';
 import SettingsDrawer from './settings/SettingsDrawer';
 
 // ✅ Discards
 import DiscardsDrawer from './settings/DiscardsDrawer';
+import TiebreakerDrawer from './settings/TiebreakerDrawer';
 
 // Fleets
 import FleetsDrawer from './fleets/FleetsDrawer';
@@ -19,10 +28,12 @@ type RegattaConfig = {
   name: string;
   discard_count: number;
   discard_threshold: number;
+  results_overall_columns?: string[] | null;
 };
 
 type OverallResult = {
   sail_number: string;
+  boat_country_code?: string | null;
   boat_name: string;
   class_name: string;
   skipper_name: string;
@@ -38,6 +49,9 @@ type OverallResult = {
 
   // NOVO: fleet usada para cada race (ex.: { R1: "Yellow" })
   per_race_fleet?: Record<string, string | null>;
+
+  boat_model?: string | null;
+  bow_number?: string | null;
 };
 
 type ComputedRow = OverallResult & {
@@ -149,62 +163,64 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [showFleets, setShowFleets] = useState(false);
   const [showDiscards, setShowDiscards] = useState(false);
+  const [showTiebreaker, setShowTiebreaker] = useState(false);
+  const [showFields, setShowFields] = useState(false);
+  const [savingColumns, setSavingColumns] = useState(false);
 
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
 
-  // API helpers
-  const apiGet = useCallback(
-    async (path: string) => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          credentials: 'include',
-        }
-      );
-      if (!res.ok) throw new Error(`GET ${path} falhou (${res.status})`);
-      return res.json();
-    },
-    [token]
+  // Usar apiGet/apiSend de @/lib/api para que 401 redirecione para login admin
+  const visibleColumns = useMemo(
+    () => getVisibleResultsOverallColumns(regatta?.results_overall_columns),
+    [regatta?.results_overall_columns]
   );
 
-  const apiSend = useCallback(
-    async (path: string, method: string, body?: any) => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'}${path}`,
-        {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          credentials: 'include',
-          body: body ? JSON.stringify(body) : undefined,
-        }
-      );
-      if (!res.ok) throw new Error(`Erro ${res.status} ao enviar para ${path}`);
-      return res.json().catch(() => ({}));
+  const toggleResultsColumn = useCallback(
+    async (columnId: ResultsOverallColumnId) => {
+      const current = getVisibleResultsOverallColumns(regatta?.results_overall_columns);
+      const next = current.includes(columnId)
+        ? current.filter((id) => id !== columnId)
+        : [...current, columnId].sort(
+            (a, b) =>
+              RESULTS_OVERALL_COLUMNS.findIndex((c) => c.id === a) -
+              RESULTS_OVERALL_COLUMNS.findIndex((c) => c.id === b)
+          );
+      setSavingColumns(true);
+      try {
+        const data = await apiSend<{ results_overall_columns?: string[] | null }>(
+          `/regattas/${regattaId}`,
+          'PATCH',
+          { results_overall_columns: next },
+          token ?? undefined
+        );
+        setRegatta((prev) => (prev ? { ...prev, results_overall_columns: data?.results_overall_columns ?? next } : prev));
+      } catch (e: any) {
+        alert(e?.message || 'Erro ao guardar colunas.');
+      } finally {
+        setSavingColumns(false);
+      }
     },
-    [token]
+    [regatta, regattaId, token]
   );
 
   // Config regata
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiGet(`/regattas/${regattaId}`);
+        const data = await apiGet<RegattaConfig>(`/regattas/${regattaId}`, token ?? undefined);
         setRegatta({
           id: data.id,
           name: data.name,
           discard_count: data.discard_count ?? 0,
           discard_threshold: data.discard_threshold ?? 0,
+          results_overall_columns: data.results_overall_columns ?? null,
         });
       } catch (e) {
         console.error(e);
       }
     })();
-  }, [apiGet, regattaId]);
+  }, [regattaId, token]);
 
   // Classes
   useEffect(() => {
@@ -268,15 +284,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         return;
       }
       try {
-        const res = await apiGet(
-          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`
+        type ClassSettingsRes = { resolved?: { discard_count?: number; discard_threshold?: number; scoring_codes?: Record<string, unknown> }; discard_count?: number; discard_threshold?: number; scoring_codes?: Record<string, unknown> };
+        const res = await apiGet<ClassSettingsRes>(
+          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`,
+          token ?? undefined
         );
         const payload = (res?.resolved ?? res) || null;
         if (payload) {
           setClsResolved({
             discard_count: Number(payload.discard_count ?? 0),
             discard_threshold: Number(payload.discard_threshold ?? 0),
-            scoring_codes: payload.scoring_codes ?? {},
+            scoring_codes: (payload.scoring_codes ?? {}) as Record<string, number>,
           });
         } else {
           setClsResolved(null);
@@ -407,35 +425,45 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {/* Voltar ao menu da regata */}
+      <div className="mb-4">
+        <Link
+          href={`/admin/manage-regattas/${regattaId}`}
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+        >
+          ← Voltar ao menu da regata
+        </Link>
+      </div>
+
       {/* Header + Action Bar */}
       <div className="flex flex-col gap-3 mb-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Classificação Geral (Admin)</h2>
+          <h2 className="text-2xl font-bold">Overall Classification (Admin)</h2>
           {regatta && (
             <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Descartes:{' '}
+              Discards:{' '}
               <strong>{clsResolved?.discard_count ?? regatta.discard_count}</strong>
               {(clsResolved?.discard_count ?? regatta.discard_count) > 0 && (
                 <>
                   {' '}
-                  (após <strong>{clsResolved?.discard_threshold ?? regatta.discard_threshold}</strong>{' '}
-                  regatas)
+                  (after <strong>{clsResolved?.discard_threshold ?? regatta.discard_threshold}</strong>{' '}
+                  races)
                 </>
               )}
             </span>
           )}
         </div>
 
-        {/* Action bar por classe */}
+        {/* Action bar per class */}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setShowCreate((v) => !v)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Criar nova corrida'}
+            title={!selectedClass ? 'Choose a class first' : 'Create new race'}
           >
-            ➕ Criar Corrida
+            ➕ Create Race
           </button>
 
           <button
@@ -443,7 +471,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowDiscards(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Configurar descartes'}
+            title={!selectedClass ? 'Choose a class first' : 'Configure discards'}
           >
             🗑️ Discards
           </button>
@@ -453,9 +481,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowSettings(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Definições por classe'}
+            title={!selectedClass ? 'Choose a class first' : 'Class-specific settings'}
           >
-            ⚙️ Settings (classe)
+            ⚙️ Settings (class)
           </button>
 
           <button
@@ -463,13 +491,51 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             onClick={() => setShowFleets(true)}
             className="px-3 py-2 rounded border hover:bg-gray-50"
             disabled={!selectedClass}
-            title={!selectedClass ? 'Escolhe uma classe primeiro' : 'Gerir Fleets (Qualifying/Finals)'}
+            title={!selectedClass ? 'Choose a class first' : 'Manage Fleets (Qualifying/Finals)'}
           >
             🧩 Fleets
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowTiebreaker(true)}
+            className="px-3 py-2 rounded border hover:bg-gray-50"
+            title="Tie-breaking rules (Appendix 8, Medal Race)"
+          >
+            🔀 Tiebreaker
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFields((v) => !v)}
+            className="px-3 py-2 rounded border hover:bg-gray-50"
+            title="Colunas visíveis na tabela Overall"
+          >
+            📋 Fields
+          </button>
         </div>
 
-        {/* Criador de corridas */}
+        {/* Fields: colunas visíveis */}
+        {showFields && (
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
+            <span className="text-sm font-medium text-gray-700">Colunas visíveis:</span>
+            {RESULTS_OVERALL_COLUMNS.map((col) => (
+              <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
+                <input
+                  type="checkbox"
+                  checked={visibleColumns.includes(col.id)}
+                  onChange={() => toggleResultsColumn(col.id)}
+                  disabled={savingColumns}
+                  className="rounded border-gray-300"
+                />
+                {col.label}
+              </label>
+            ))}
+            {savingColumns && <span className="text-xs text-gray-500">A guardar…</span>}
+          </div>
+        )}
+
+        {/* Race creator */}
         {showCreate && (
           <div className="border rounded-2xl bg-white shadow-sm">
             <RaceCreator
@@ -507,11 +573,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
       {!!error && <p className="text-red-600 text-sm mb-3">{error}</p>}
 
-      {/* Abas de classes */}
+      {/* Class tabs */}
       {loadingClasses ? (
-        <p className="text-gray-500">A carregar classes…</p>
+        <p className="text-gray-500">Loading classes…</p>
       ) : classes.length === 0 ? (
-        <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
+        <p className="text-gray-500">No classes configured for this regatta.</p>
       ) : (
         <div className="flex gap-2 mb-4 flex-wrap">
           {classes.map((cls) => (
@@ -533,17 +599,16 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         </div>
       )}
 
-      {/* Tabela */}
+      {/* Table */}
       {selectedClass && !loadingResults && (
         <table className="table-auto w-full border border-collapse">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border px-3 py-2">#</th>
-              <th className="border px-3 py-2">Fleet</th>
-              <th className="border px-3 py-2">Nº Vela</th>
-              <th className="border px-3 py-2">Embarcação</th>
-              <th className="border px-3 py-2">Timoneiro</th>
-
+              {visibleColumns.filter((id) => id !== 'total' && id !== 'net').map((id) => (
+                <th key={id} className="border px-3 py-2">
+                  {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
+                </th>
+              ))}
               {orderedRaceNames.map((n) => (
                 <th key={n} className="border px-3 py-2">
                   <div className="flex items-center justify-center gap-2">
@@ -570,21 +635,29 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   </div>
                 </th>
               ))}
-
-              <th className="border px-3 py-2">Total</th>
-              <th className="border px-3 py-2">Net</th>
+              {visibleColumns.includes('total') && (
+                <th className="border px-3 py-2">Total</th>
+              )}
+              {visibleColumns.includes('net') && (
+                <th className="border px-3 py-2">Net</th>
+              )}
             </tr>
           </thead>
 
           <tbody>
             {results.map((r) => (
               <tr key={`${r.class_name}-${r.sail_number}-${r.skipper_name}`}>
-                <td className="border px-3 py-2 text-center">{r.overall_rank}º</td>
-                <td className="border px-3 py-2 text-center">{r.finals_fleet ?? '-'}</td>
-                <td className="border px-3 py-2">{r.sail_number}</td>
-                <td className="border px-3 py-2">{r.boat_name}</td>
-                <td className="border px-3 py-2">{r.skipper_name}</td>
-
+                {visibleColumns.filter((id) => id !== 'total' && id !== 'net').map((id) => {
+                  if (id === 'place') return <td key={id} className="border px-3 py-2 text-center">{r.overall_rank}º</td>;
+                  if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{r.finals_fleet ?? '-'}</td>;
+                  if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>;
+                  if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>;
+                  if (id === 'skipper') return <td key={id} className="border px-3 py-2">{r.skipper_name}</td>;
+                  if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>;
+                  if (id === 'model') return <td key={id} className="border px-3 py-2">{r.boat_model ?? '—'}</td>;
+                  if (id === 'bow') return <td key={id} className="border px-3 py-2">{r.bow_number ?? '—'}</td>;
+                  return <td key={id} className="border px-3 py-2">—</td>;
+                })}
                 {orderedRaceNames.map((n) => {
                   const raw = r.per_race?.[n];
                   const discarded = r.discardedRaceNames.has(n);
@@ -613,38 +686,41 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     </td>
                   );
                 })}
-
-                <td className="border px-3 py-2 text-right font-semibold">
-                  {Number(r.total_points).toFixed(2)}
-                </td>
-                <td className="border px-3 py-2 text-right font-bold">
-                  {Number(r.net_points).toFixed(2)}
-                </td>
+                {visibleColumns.includes('total') && (
+                  <td className="border px-3 py-2 text-right font-semibold">
+                    {Number(r.total_points).toFixed(2)}
+                  </td>
+                )}
+                {visibleColumns.includes('net') && (
+                  <td className="border px-3 py-2 text-right font-bold">
+                    {Number(r.net_points).toFixed(2)}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      {/* Barra fixa Guardar/Cancelar (reorder) */}
+      {/* Fixed Save/Cancel bar (reorder) */}
       {dirty && (
         <div className="fixed bottom-4 left-4 right-4 z-30">
           <div className="w-full px-6">
             <div className="flex items-center gap-3 border rounded-2xl bg-white shadow-lg p-3">
               <span className="text-sm text-gray-700">
-                Tens alterações à ordem das regatas por guardar.
+                You have changes to race order to save.
               </span>
               <div className="ml-auto flex gap-2">
                 <button
                   disabled={saving}
                   onClick={async () => {
                     if (!pendingOrder) return;
-                    if (!confirm('Confirmas guardar a nova ordem das corridas?')) return;
+                    if (!confirm('Do you want to save the new race order?')) return;
                     try {
                       setSaving(true);
                       await apiSend(`/races/regattas/${regattaId}/reorder`, 'PUT', {
                         ordered_ids: pendingOrder,
-                      });
+                      }, token ?? undefined);
 
                       const refreshed: RaceLite[] = await apiGet(`/races/by_regatta/${regattaId}`);
                       const grouped: Record<string, RaceLite[]> = {};
@@ -666,14 +742,14 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   }}
                   className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {saving ? 'A guardar…' : 'Guardar ordem'}
+                  {saving ? 'Saving…' : 'Save order'}
                 </button>
                 <button
                   disabled={saving}
                   onClick={() => setPendingOrder(null)}
                   className="px-3 py-2 border rounded-xl hover:bg-gray-50"
                 >
-                  Cancelar
+                  Cancel
                 </button>
               </div>
             </div>
@@ -681,7 +757,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         </div>
       )}
 
-      {/* Drawer Discards */}
+      {/* Discards Drawer */}
       {showDiscards && selectedClass && (
         <DiscardsDrawer
           regattaId={regattaId}
@@ -690,18 +766,23 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         />
       )}
 
-      {/* Drawer Settings por classe */}
+      {/* Class-specific Settings Drawer */}
       {showSettings && <SettingsDrawer regattaId={regattaId} onClose={() => setShowSettings(false)} />}
 
-      {/* Drawer de Fleets */}
+      {/* Fleets Drawer */}
       {showFleets && (
         <FleetsDrawer open={showFleets} onClose={() => setShowFleets(false)} title="Fleet Manager">
           {selectedClass ? (
             <FleetManager overall={results} regattaId={regattaId} />
           ) : (
-            <div className="p-4 text-sm text-gray-600">Escolhe uma classe para gerir fleets.</div>
+            <div className="p-4 text-sm text-gray-600">Choose a class to manage fleets.</div>
           )}
         </FleetsDrawer>
+      )}
+
+      {/* Tiebreaker Drawer */}
+      {showTiebreaker && (
+        <TiebreakerDrawer onClose={() => setShowTiebreaker(false)} />
       )}
     </div>
   );

@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 
 interface Result {
   id: number
   position: number
   sail_number: string
+  boat_country_code?: string | null
   skipper_name: string
 }
 
@@ -90,7 +92,7 @@ export default function RaceResultsPage() {
             {results.map((r) => (
               <tr key={r.id}>
                 <td className="border px-4 py-2">{r.position}º</td>
-                <td className="border px-4 py-2">{r.sail_number}</td>
+                <td className="border px-4 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="border px-4 py-2">{r.skipper_name}</td>
                 {user?.role === 'admin' && (
                   <td className="border px-4 py-2 text-center">

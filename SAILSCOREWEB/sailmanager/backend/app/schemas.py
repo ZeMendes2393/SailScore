@@ -61,6 +61,8 @@ class RegattaCreate(RegattaBase):
 class RegattaRead(RegattaBase):
     id: int
     scoring_codes: Optional[Dict[str, float]] = None
+    entry_list_columns: Optional[List[str]] = None
+    results_overall_columns: Optional[List[str]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -78,24 +80,57 @@ class RegattaUpdate(BaseModel):
 
     # PATCH opcional
     online_entry_open: Optional[bool] = None
+    entry_list_columns: Optional[List[str]] = None
+    results_overall_columns: Optional[List[str]] = None
+
+
+class RegattaClassItem(BaseModel):
+    """Uma classe com nome e tipo (one_design | handicap). One Design pode ter sailors_per_boat."""
+    class_name: str
+    class_type: ClassTypeLiteral = "one_design"
+    sailors_per_boat: int = 1  # One Design: nº de velejadores por embarcação (1, 2, 3...)
 
 
 class RegattaClassesReplace(BaseModel):
-    classes: List[str]
+    """Substitui classes da regata. Aceita lista de strings (todas one_design) ou de objetos com class_type."""
+    classes: List[RegattaClassItem]
+
+    @field_validator("classes", mode="before")
+    @classmethod
+    def coerce_classes(cls, v: Any) -> List[dict]:
+        if not v:
+            return []
+        out: List[dict] = []
+        for x in v:
+            if isinstance(x, str):
+                s = (x or "").strip()
+                if s:
+                    out.append({"class_name": s, "class_type": "one_design", "sailors_per_boat": 1})
+            elif isinstance(x, dict):
+                out.append(x)
+            else:
+                out.append(x.model_dump() if hasattr(x, "model_dump") else dict(x))
+        return out
 
 
 # =========================
 # REGATTA CLASSES
 # =========================
+ClassTypeLiteral = Literal["one_design", "handicap"]
+
+
 class RegattaClassCreate(BaseModel):
     regatta_id: int
     class_name: str
+    class_type: ClassTypeLiteral = "one_design"
 
 
 class RegattaClassRead(BaseModel):
     id: int
     regatta_id: int
     class_name: str
+    class_type: str = "one_design"
+    sailors_per_boat: int = 1
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -106,11 +141,16 @@ class EntryCreate(BaseModel):
     # boat
     class_name: str
     boat_country: Optional[str] = None
-    sail_number: Optional[str] = None
+    boat_country_code: str  # obrigatório (ex.: POR, GBR)
+    sail_number: str  # obrigatório
+    bow_number: Optional[str] = None
     boat_name: Optional[str] = None
+    boat_model: Optional[str] = None  # ex: Beneteau First 36.7 (handicap)
+    rating: Optional[float] = None  # handicap rating (handicap)
     category: Optional[str] = None
 
     # helm
+    helm_position: Optional[str] = None  # Skipper | Crew (one design)
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     first_name: Optional[str] = None
@@ -125,10 +165,39 @@ class EntryCreate(BaseModel):
     zip_code: Optional[str] = None
     town: Optional[str] = None
     helm_country_secondary: Optional[str] = None
+    federation_license: Optional[str] = None  # Licença de federação (obrigatório para sailor)
+
+    # Owner (handicap)
+    owner_first_name: Optional[str] = None
+    owner_last_name: Optional[str] = None
+    owner_email: Optional[str] = None
 
     regatta_id: int
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
+
+    # Tripulantes opcionais (lista de dicts com first_name, last_name, email, etc.)
+    crew_members: Optional[List[Dict[str, Any]]] = None
+
+    @field_validator("boat_country_code")
+    @classmethod
+    def boat_country_code_non_empty(cls, v: str) -> str:
+        if v is None:
+            raise ValueError("Country code da vela é obrigatório.")
+        s = (v or "").strip().upper()
+        if not s:
+            raise ValueError("Country code da vela é obrigatório.")
+        return s
+
+    @field_validator("sail_number")
+    @classmethod
+    def sail_number_non_empty(cls, v: str) -> str:
+        if v is None:
+            raise ValueError("Sail number é obrigatório.")
+        s = (v or "").strip()
+        if not s:
+            raise ValueError("Sail number é obrigatório.")
+        return s
 
 
 class EntryRead(EntryCreate):
@@ -193,6 +262,7 @@ class ResultCreate(BaseModel):
     regatta_id: int
     race_id: int
     sail_number: Optional[str] = None
+    boat_country_code: Optional[str] = None
     boat_name: Optional[str] = None
     boat_class: Optional[str] = None
     helm_name: Optional[str] = None
@@ -206,6 +276,7 @@ class ResultRead(BaseModel):
     regatta_id: int
     race_id: int
     sail_number: Optional[str] = None
+    boat_country_code: Optional[str] = None
     boat_name: Optional[str] = None
     class_name: Optional[str] = None
     skipper_name: Optional[str] = None
@@ -213,7 +284,16 @@ class ResultRead(BaseModel):
     points: float
     code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    points_override: Optional[float] = None
 
+
+
+class PointsOverridePatch(BaseModel):
+    points: float = Field(ge=0)
+
+
+    class PointsOverridePatch(BaseModel):
+        points: float | None = Field(default=None, ge=0)
 
 # =========================
 # INVITATIONS
@@ -534,11 +614,16 @@ class EntryPatch(BaseModel):
     # boat
     class_name: Optional[str] = None
     boat_country: Optional[str] = None
+    boat_country_code: Optional[str] = None
     sail_number: Optional[str] = None
+    bow_number: Optional[str] = None
     boat_name: Optional[str] = None
+    boat_model: Optional[str] = None
+    rating: Optional[float] = None
     category: Optional[str] = None
 
     # helm
+    helm_position: Optional[str] = None
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     first_name: Optional[str] = None
@@ -553,11 +638,19 @@ class EntryPatch(BaseModel):
     zip_code: Optional[str] = None
     town: Optional[str] = None
     helm_country_secondary: Optional[str] = None
+    federation_license: Optional[str] = None
+
+    # owner (handicap)
+    owner_first_name: Optional[str] = None
+    owner_last_name: Optional[str] = None
+    owner_email: Optional[str] = None
 
     # meta
     regatta_id: Optional[int] = None
     paid: Optional[bool] = None
     confirmed: Optional[bool] = None
+
+    crew_members: Optional[List[Dict[str, Any]]] = None
 
 
 # =========================

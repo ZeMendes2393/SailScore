@@ -39,6 +39,7 @@ def create_result(
         regatta_id=result.regatta_id,
         race_id=result.race_id,
         sail_number=result.sail_number,
+        boat_country_code=getattr(result, "boat_country_code", None),
         boat_name=result.boat_name,
         class_name=race.class_name,
         skipper_name=result.helm_name,

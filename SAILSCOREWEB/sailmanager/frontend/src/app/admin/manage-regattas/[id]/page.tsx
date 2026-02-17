@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import RequireAuth from '@/components/RequireAuth';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
 
@@ -14,7 +16,8 @@ interface Regatta {
   start_date: string;
   end_date: string;
   status?: string;
-  online_entry_open?: boolean; // <-- NEW
+  online_entry_open?: boolean;
+  entry_list_columns?: string[] | null;
 }
 
 type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'delete';
@@ -38,6 +41,12 @@ export default function AdminRegattaPage() {
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  type OneDesignItem = { class_name: string; sailors_per_boat: number };
+  const [editClassesOneDesign, setEditClassesOneDesign] = useState<OneDesignItem[]>([]);
+  const [editClassesHandicap, setEditClassesHandicap] = useState<string[]>([]);
+  const [newClassNameOD, setNewClassNameOD] = useState('');
+  const [newSailorsOD, setNewSailorsOD] = useState(1);
+  const [newClassNameH, setNewClassNameH] = useState('');
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -54,8 +63,16 @@ export default function AdminRegattaPage() {
     };
 
     const fetchClasses = async () => {
-      const data = await apiGet<string[]>(`/regattas/${regattaId}/classes`).catch(() => []);
-      setAvailableClasses(Array.isArray(data) ? data : []);
+      try {
+        const data = await apiGet<{ class_name: string; class_type?: string; sailors_per_boat?: number }[]>(
+          `/regattas/${regattaId}/classes/detailed`
+        );
+        const list = Array.isArray(data) ? data : [];
+        setAvailableClasses(list.map((c) => c.class_name));
+      } catch {
+        const simple = await apiGet<string[]>(`/regattas/${regattaId}/classes`).catch(() => []);
+        setAvailableClasses(Array.isArray(simple) ? simple : []);
+      }
     };
 
     if (Number.isFinite(regattaId)) {
@@ -69,8 +86,6 @@ export default function AdminRegattaPage() {
       setSelectedClass(availableClasses[0] ?? null);
     }
   }, [activeTab, availableClasses, selectedClass]);
-
-  if (!regatta) return <p className="p-8">Loading regatta…</p>;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,13 +103,87 @@ export default function AdminRegattaPage() {
         token
       );
       setRegatta(prev => ({ ...(patched || prev), online_entry_open: prev?.online_entry_open ?? true }));
-      alert('Regatta updated.');
+
+      const classesPayload = [
+        ...editClassesOneDesign.map((c) => ({
+          class_name: c.class_name,
+          class_type: 'one_design' as const,
+          sailors_per_boat: c.sailors_per_boat,
+        })),
+        ...editClassesHandicap.map((c) => ({ class_name: c, class_type: 'handicap' as const })),
+      ];
+      await apiSend<unknown>(
+        `/regattas/${regattaId}/classes`,
+        'PUT',
+        { classes: classesPayload },
+        token
+      );
+      setAvailableClasses([...editClassesOneDesign.map((c) => c.class_name), ...editClassesHandicap]);
+
+      alert('Regatta and classes updated.');
       setActiveTab(null);
     } catch (err: any) {
       alert(err?.message || 'Failed to update regatta.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const openEditTab = async () => {
+    try {
+      const data = await apiGet<{ class_name: string; class_type?: string; sailors_per_boat?: number }[]>(
+        `/regattas/${regattaId}/classes/detailed`
+      );
+      const list = Array.isArray(data) ? data : [];
+      setEditClassesOneDesign(
+        list
+          .filter((c) => (c.class_type || 'one_design') !== 'handicap')
+          .map((c) => ({ class_name: c.class_name, sailors_per_boat: c.sailors_per_boat ?? 1 }))
+      );
+      setEditClassesHandicap(list.filter((c) => (c.class_type || '') === 'handicap').map((c) => c.class_name));
+    } catch {
+      setEditClassesOneDesign([]);
+      setEditClassesHandicap([]);
+    }
+    setActiveTab('edit');
+  };
+
+  const addEditClassOD = () => {
+    const c = newClassNameOD.trim();
+    if (!c) return;
+    const key = c.toLowerCase();
+    if (editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) || editClassesHandicap.some((x) => x.toLowerCase() === key)) {
+      alert('Essa classe já está na lista.');
+      return;
+    }
+    setEditClassesOneDesign((prev) => [...prev, { class_name: c, sailors_per_boat: newSailorsOD }].sort((a, b) => a.class_name.localeCompare(b.class_name)));
+    setNewClassNameOD('');
+  };
+
+  const setSailorsForOD = (className: string, sailors: number) => {
+    setEditClassesOneDesign((prev) =>
+      prev.map((x) => (x.class_name === className ? { ...x, sailors_per_boat: sailors } : x))
+    );
+  };
+
+  const addEditClassH = () => {
+    const c = newClassNameH.trim();
+    if (!c) return;
+    const key = c.toLowerCase();
+    if (editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) || editClassesHandicap.some((x) => x.toLowerCase() === key)) {
+      alert('Essa classe já está na lista.');
+      return;
+    }
+    setEditClassesHandicap((prev) => [...prev, c].sort((a, b) => a.localeCompare(b)));
+    setNewClassNameH('');
+  };
+
+  const removeEditClassOD = (className: string) => {
+    setEditClassesOneDesign((prev) => prev.filter((c) => c.class_name !== className));
+  };
+
+  const removeEditClassH = (className: string) => {
+    setEditClassesHandicap((prev) => prev.filter((c) => c !== className));
   };
 
   const handleDelete = async () => {
@@ -135,7 +224,21 @@ export default function AdminRegattaPage() {
   }
 
   return (
+    <RequireAuth roles={['admin']}>
+      {!regatta ? (
+        <p className="p-8">Loading regatta…</p>
+      ) : (
     <main className="min-h-screen p-8 bg-gray-50">
+      {/* Voltar ao dashboard / lista de campeonatos */}
+      <div className="mb-4">
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+        >
+          ← Voltar à lista de campeonatos
+        </Link>
+      </div>
+
       {/* Header */}
       <div className="bg-white shadow rounded p-6 mb-6">
         <div className="flex items-center justify-between">
@@ -173,7 +276,7 @@ export default function AdminRegattaPage() {
         </button>
 
         <span className="mx-2 text-gray-300">|</span>
-        <button onClick={() => setActiveTab('edit')} className="hover:underline">
+        <button onClick={openEditTab} className="hover:underline">
           Edit
         </button>
         <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
@@ -201,7 +304,14 @@ export default function AdminRegattaPage() {
       {/* Narrow cards (Entry / Notice / Online Entry) */}
       {activeTab !== 'edit' && activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
-          {activeTab === 'entry' && <AdminEntryList regattaId={regattaId} selectedClass={selectedClass} />}
+          {activeTab === 'entry' && (
+            <AdminEntryList
+              regattaId={regattaId}
+              selectedClass={selectedClass}
+              regatta={regatta}
+              onRegattaUpdate={(r) => setRegatta((prev) => (prev ? { ...prev, ...r } : null))}
+            />
+          )}
 
           {activeTab === 'notice' && <AdminNoticeBoard regattaId={regattaId} />}
 
@@ -298,6 +408,92 @@ export default function AdminRegattaPage() {
                 />
               </div>
             </div>
+
+            {/* Classes da regata: One Design e Handicap */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Classes</label>
+              <p className="text-xs text-gray-500 mb-2">
+                Classes incluídas neste campeonato, separadas por tipo.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-4 mb-3">
+                <div className="border rounded p-3">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">One Design</h4>
+                  <p className="text-xs text-gray-500 mb-2">Nº de velejadores por embarcação (para inscrição).</p>
+                  <ul className="divide-y mb-2">
+                    {editClassesOneDesign.length === 0 ? (
+                      <li className="px-2 py-1 text-gray-500 text-sm">Nenhuma</li>
+                    ) : (
+                      editClassesOneDesign.map((item) => (
+                        <li key={item.class_name} className="px-2 py-1.5 flex justify-between items-center gap-2">
+                          <span className="font-medium">{item.class_name}</span>
+                          <span className="flex items-center gap-1">
+                            <label className="text-xs text-gray-600">Velejadores:</label>
+                            <select
+                              value={item.sailors_per_boat}
+                              onChange={(e) => setSailorsForOD(item.class_name, Number(e.target.value))}
+                              className="border rounded px-1.5 py-0.5 text-sm w-14"
+                            >
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                            <button type="button" onClick={() => removeEditClassOD(item.class_name)} className="text-red-600 hover:underline text-xs">Remover</button>
+                          </span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  <div className="flex gap-2 flex-wrap items-end">
+                    <input
+                      type="text"
+                      className="flex-1 min-w-[100px] border rounded px-2 py-1.5 text-sm"
+                      placeholder="ex: ILCA 7"
+                      value={newClassNameOD}
+                      onChange={(e) => setNewClassNameOD(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditClassOD())}
+                    />
+                    <span className="flex items-center gap-1">
+                      <label className="text-xs text-gray-600">Velejadores:</label>
+                      <select value={newSailorsOD} onChange={(e) => setNewSailorsOD(Number(e.target.value))} className="border rounded px-2 py-1.5 text-sm w-14">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </span>
+                    <button type="button" onClick={addEditClassOD} className="px-2 py-1.5 rounded border bg-gray-50 text-sm">+</button>
+                  </div>
+                </div>
+
+                <div className="border rounded p-3">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Handicap</h4>
+                  <ul className="divide-y mb-2">
+                    {editClassesHandicap.length === 0 ? (
+                      <li className="px-2 py-1 text-gray-500 text-sm">Nenhuma</li>
+                    ) : (
+                      editClassesHandicap.map((cls) => (
+                        <li key={cls} className="px-2 py-1 flex justify-between items-center">
+                          <span>{cls}</span>
+                          <button type="button" onClick={() => removeEditClassH(cls)} className="text-red-600 hover:underline text-xs">Remover</button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 border rounded px-2 py-1.5 text-sm"
+                      placeholder="ex: ANC A, ANC B"
+                      value={newClassNameH}
+                      onChange={(e) => setNewClassNameH(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditClassH())}
+                    />
+                    <button type="button" onClick={addEditClassH} className="px-2 py-1.5 rounded border bg-gray-50 text-sm">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -337,5 +533,7 @@ export default function AdminRegattaPage() {
         </div>
       )}
     </main>
+      )}
+    </RequireAuth>
   );
 }

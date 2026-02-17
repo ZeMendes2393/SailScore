@@ -76,6 +76,40 @@ def list_entries(
     raise HTTPException(status_code=400, detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.")
 
 # ---------------- helpers ----------------
+def _norm_country_code(v: Optional[str]) -> str:
+    return ((v or "").strip().upper() or "")
+
+def _entry_duplicate_sail(
+    db: Session,
+    regatta_id: int,
+    class_name: str,
+    boat_country_code: Optional[str],
+    sail_number: str,
+    exclude_entry_id: Optional[int] = None,
+) -> bool:
+    """True se já existir outra entry na mesma regata+classe com o mesmo country code + sail number."""
+    if not (class_name and (sail_number or "").strip()):
+        return False
+    code = _norm_country_code(boat_country_code)
+    q = (
+        db.query(models.Entry.id)
+        .filter(models.Entry.regatta_id == regatta_id)
+        .filter(func.lower(func.trim(models.Entry.class_name)) == func.lower(class_name.strip()))
+        .filter(func.lower(func.trim(models.Entry.sail_number)) == func.lower((sail_number or "").strip()))
+    )
+    if code:
+        q = q.filter(func.upper(func.trim(models.Entry.boat_country_code)) == code)
+    else:
+        q = q.filter(
+            or_(
+                models.Entry.boat_country_code.is_(None),
+                func.trim(models.Entry.boat_country_code) == "",
+            )
+        )
+    if exclude_entry_id is not None:
+        q = q.filter(models.Entry.id != exclude_entry_id)
+    return q.first() is not None
+
 def _gen_temp_password(n: int = 10) -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(n))
@@ -161,12 +195,31 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
 
         user = _ensure_sailor_user_and_profile(db, entry)
 
+        # Duplicado = mesmo número de vela + mesmo country code na mesma classe (POR 1 + POR 1 não pode; POR 1 + GBR 1 pode)
+        if _entry_duplicate_sail(
+            db,
+            entry.regatta_id,
+            entry.class_name,
+            getattr(entry, "boat_country_code", None),
+            entry.sail_number,
+            exclude_entry_id=None,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Já existe uma inscrição com o mesmo número de vela e país (country code) nesta classe. Números iguais só são permitidos com países diferentes (ex.: POR 1, GBR 1).",
+            )
+
         new_entry = models.Entry(
             class_name=entry.class_name,
             boat_country=entry.boat_country,
+            boat_country_code=getattr(entry, "boat_country_code", None),
             sail_number=entry.sail_number,
+            bow_number=getattr(entry, "bow_number", None),
             boat_name=entry.boat_name,
+            boat_model=entry.boat_model,
+            rating=entry.rating,
             category=entry.category,
+            helm_position=getattr(entry, "helm_position", None),
             date_of_birth=entry.date_of_birth,
             gender=entry.gender,
             first_name=entry.first_name,
@@ -181,9 +234,14 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             zip_code=entry.zip_code,
             town=entry.town,
             helm_country_secondary=entry.helm_country_secondary,
+            federation_license=getattr(entry, "federation_license", None),
+            owner_first_name=getattr(entry, "owner_first_name", None),
+            owner_last_name=getattr(entry, "owner_last_name", None),
+            owner_email=getattr(entry, "owner_email", None),
             regatta_id=entry.regatta_id,
             user_id=user.id,
             paid=bool(getattr(entry, "paid", False)),
+            crew_members=entry.crew_members if getattr(entry, "crew_members", None) else None,
         )
         db.add(new_entry); db.commit(); db.refresh(new_entry)
 
@@ -294,25 +352,37 @@ def patch_entry(
     # ---- validações ----
     new_class = data.get("class_name", entry.class_name)
     new_sail  = data.get("sail_number", entry.sail_number)
+    new_country = data.get("boat_country_code", entry.boat_country_code)
 
     if new_class:
         if not _class_exists_in_regatta(db, entry.regatta_id, new_class):
             raise HTTPException(status_code=400, detail=f"Class '{new_class}' not allowed for this regatta")
 
-    # duplicado (case-insensitive) dentro da mesma regata + classe
+    # Duplicado = mesmo sail number + mesmo country code na mesma classe (POR 1 + POR 1 não; POR 1 + GBR 1 sim)
     if new_sail:
-        dup = (
-            db.query(models.Entry.id)
-              .filter(
-                  models.Entry.regatta_id == entry.regatta_id,
-                  func.lower(models.Entry.class_name) == func.lower(new_class or entry.class_name),
-                  func.lower(models.Entry.sail_number) == func.lower(new_sail),
-                  models.Entry.id != entry.id,
-              )
-              .first()
-        )
-        if dup:
-            raise HTTPException(status_code=409, detail="Another entry with the same sail number already exists for this class/regatta")
+        if _entry_duplicate_sail(
+            db,
+            entry.regatta_id,
+            new_class or entry.class_name,
+            new_country if new_country is not None else entry.boat_country_code,
+            new_sail,
+            exclude_entry_id=entry.id,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Já existe uma inscrição com o mesmo número de vela e país (country code) nesta classe. Números iguais só são permitidos com países diferentes (ex.: POR 1, GBR 1).",
+            )
+
+    # Confirmar só é permitido se não houver duplicado (número + country code únicos na classe)
+    if data.get("confirmed") is True:
+        cls = new_class or entry.class_name
+        sail = new_sail or entry.sail_number
+        country = new_country if "boat_country_code" in data else entry.boat_country_code
+        if sail and _entry_duplicate_sail(db, entry.regatta_id, cls, country, sail, exclude_entry_id=entry.id):
+            raise HTTPException(
+                status_code=400,
+                detail="Não pode confirmar: existe outra inscrição com o mesmo número de vela e país nesta classe. Corrija os números de vela (ou países) antes de confirmar.",
+            )
 
     # ---- aplicar alterações na Entry ----
     for k, v in data.items():

@@ -5,12 +5,15 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
 import type { ScoringCreate } from '@/lib/api';
+import { formatSailNumber } from '@/utils/countries';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type EntryOption = {
   id: number;
   regatta_id?: number | string | null;
   class_name: string;
   sail_number?: string | null;
+  boat_country_code?: string | null;
   boat_name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
@@ -20,7 +23,7 @@ type EntryOption = {
 function entryLabel(e: EntryOption) {
   const full = `${e.first_name || ''} ${e.last_name || ''}`.trim();
   const name = full || e.email || e.boat_name || '—';
-  return `${e.class_name} — ${e.sail_number || '—'} — ${name}`;
+  return `${e.class_name} — ${formatSailNumber(e.boat_country_code, e.sail_number)} — ${name}`;
 }
 
 export default function NewScoringPage() {
@@ -162,7 +165,7 @@ export default function NewScoringPage() {
           <div>
             <label className="block text-sm mb-1">Sail number</label>
             <div className="w-full border rounded px-3 py-2 bg-gray-50">
-              {selectedEntry?.sail_number || '—'}
+              <SailNumberDisplay countryCode={selectedEntry?.boat_country_code} sailNumber={selectedEntry?.sail_number} />
             </div>
           </div>
         </div>

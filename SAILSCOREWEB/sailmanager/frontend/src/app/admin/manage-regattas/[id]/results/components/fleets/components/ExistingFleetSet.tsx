@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import type { FleetSet, Assignment, RaceLite } from '../../../hooks/useFleets';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type Props = {
   selectedSet: FleetSet;
@@ -228,7 +229,7 @@ export default function ExistingFleetSet({
                       '-'}
                   </td>
                   <td className="border px-2 py-1">{i + 1}</td>
-                  <td className="border px-2 py-1">{a.sail_number}</td>
+                  <td className="border px-2 py-1"><SailNumberDisplay countryCode={(a as any).boat_country_code} sailNumber={a.sail_number} /></td>
                   <td className="border px-2 py-1">{a.boat_name}</td>
                   <td className="border px-2 py-1">{a.helm_name}</td>
                 </tr>

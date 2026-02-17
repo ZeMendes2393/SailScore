@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type QuestionRead = {
   id: number;
@@ -122,7 +123,7 @@ function QuestionRow({
           </button>
         </td>
         <td className="p-2">Q#{r.seq_no}</td>
-        <td className="p-2">{r.sail_number || '—'}</td>
+        <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
         <td className="p-2 max-w-[32rem]">
           <div className="font-medium">{r.subject}</div>

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -19,6 +20,11 @@ from app.routes.results_utils import (
 )
 
 router = APIRouter()
+
+
+# ✅ Body para override de pontos (clean)
+class OverridePointsPatch(BaseModel):
+    points: float = Field(ge=0)
 
 
 @router.delete("/{result_id}", status_code=204)
@@ -63,9 +69,12 @@ def change_result_position(
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
-    # (opcional mas recomendado) se este code remove do ranking, não faz sentido mover
+    # se este code remove do ranking, não faz sentido mover
     if removes_from_ranking(getattr(row, "code", None)):
-        raise HTTPException(status_code=400, detail="Este resultado não pode ser movido (code fora do ranking).")
+        raise HTTPException(
+            status_code=400,
+            detail="Este resultado não pode ser movido (code fora do ranking).",
+        )
 
     new_pos = int(body.new_position)
     if new_pos < 1:
@@ -73,12 +82,10 @@ def change_result_position(
 
     old_pos = int(row.position)
 
-    # se não mudou, não faz nada
     if new_pos == old_pos:
         db.refresh(row)
         return row
 
-    # clamp new_pos ao máximo atual (para não criares buracos)
     max_pos = (
         db.query(models.Result.position)
         .filter(models.Result.race_id == row.race_id)
@@ -89,11 +96,7 @@ def change_result_position(
     if new_pos > max_pos_val:
         new_pos = max_pos_val
 
-    # -------------------------------------------------
-    # SHIFT: abrir espaço para garantir prioridade
-    # -------------------------------------------------
     if new_pos < old_pos:
-        # a subir: empurra +1 quem está entre new_pos .. old_pos-1
         db.query(models.Result).filter(
             models.Result.race_id == row.race_id,
             models.Result.id != row.id,
@@ -104,7 +107,6 @@ def change_result_position(
             synchronize_session=False,
         )
     else:
-        # a descer: puxa -1 quem está entre old_pos+1 .. new_pos
         db.query(models.Result).filter(
             models.Result.race_id == row.race_id,
             models.Result.id != row.id,
@@ -132,12 +134,6 @@ def set_result_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """
-    ✅ AUTO N+1 (DNC/DNF/...) → vai para o fim (unranked)
-    ✅ RDG → points manual (decimal ok) e vai para o fim (unranked)
-    ✅ SCP/ZPF/DPI → points manual (decimal ok), mantém ranked
-    ✅ codes fixos do scoring_map → points fixos, mantém ranked
-    """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
 
@@ -155,9 +151,12 @@ def set_result_code(
     if raw == "":
         # limpar code => volta a ser "normal"
         row.code = None
-        # mandar para o fim temporariamente; normalize vai colocar no sítio certo
         row.position = 10**9
         row.points = float(row.position)  # placeholder
+        # ✅ se existia override manual, apaga (faz sentido)
+        if hasattr(row, "points_override"):
+            row.points_override = None
+
         db.flush()
         normalize_race_results(db, race)
         db.commit()
@@ -181,9 +180,81 @@ def set_result_code(
     row.code = code
     row.points = float(pts)
 
-    # se remove do ranking (AUTO N+1 ou RDG) -> manda para o fim
+    # ✅ ao definir um code, normalmente queremos “voltar ao normal” (sem override manual)
+    if hasattr(row, "points_override"):
+        row.points_override = None
+
     if removes_from_ranking(code):
         row.position = 10**9
+
+    db.flush()
+    normalize_race_results(db, race)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# ✅ Override points (clean): NÃO mexe em code, só em points_override + points
+@router.patch("/{result_id}/override-points", response_model=schemas.ResultRead)
+def override_points(
+    result_id: int,
+    body: OverridePointsPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    row = db.query(models.Result).filter_by(id=result_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+
+    # não faz sentido override em resultados fora do ranking (DNF/DNC/etc)
+    if removes_from_ranking(getattr(row, "code", None)):
+        raise HTTPException(
+            status_code=400,
+            detail="Este resultado está fora do ranking (DNF/DNC/etc). Não faz override de pontos aqui.",
+        )
+
+    if not hasattr(row, "points_override"):
+        raise HTTPException(status_code=500, detail="Modelo Result não tem points_override")
+
+    row.points_override = float(body.points)
+    row.points = float(body.points)
+
+    db.flush()
+    normalize_race_results(db, race)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# ✅ UNDO: limpar override (volta a calcular points pelo code/posição)
+@router.delete("/{result_id}/override-points", response_model=schemas.ResultRead)
+def undo_override_points(
+    result_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    row = db.query(models.Result).filter_by(id=result_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+
+    if not hasattr(row, "points_override"):
+        raise HTTPException(status_code=500, detail="Modelo Result não tem points_override")
+
+    row.points_override = None
 
     db.flush()
     normalize_race_results(db, race)

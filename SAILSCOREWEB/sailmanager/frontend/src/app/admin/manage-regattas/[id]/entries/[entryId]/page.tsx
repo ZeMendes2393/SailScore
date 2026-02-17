@@ -5,7 +5,9 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { useEntry } from '@/lib/hooks/useEntry';
-import { apiGet, apiSend } from '@/lib/api'; // 👈 acrescentado apiSend
+import { apiGet, apiSend } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import { COUNTRIES_UNIQUE } from '@/utils/countries';
 
 // Tipos para a área de documentos
 type EntryAttachment = {
@@ -39,19 +41,36 @@ export default function Page() {
     token: token || undefined,
   });
 
-  // ====== CLASSES ======
+  // ====== CLASSES (lista simples + quais são handicap) ======
   const [classes, setClasses] = useState<string[]>([]);
+  const [handicapClassNames, setHandicapClassNames] = useState<Set<string>>(new Set());
   useEffect(() => {
     (async () => {
       if (!regattaId) return;
       try {
-        const arr = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token || undefined);
-        setClasses(Array.isArray(arr) ? arr : []);
+        const detailed = await apiGet<{ class_name: string; class_type?: string }[]>(
+          `/regattas/${regattaId}/classes/detailed`,
+          token || undefined
+        );
+        const list = Array.isArray(detailed) ? detailed : [];
+        setClasses(list.map((c) => c.class_name));
+        const handicap = new Set(
+          list.filter((c) => (c.class_type || '').toLowerCase() === 'handicap').map((c) => c.class_name)
+        );
+        setHandicapClassNames(handicap);
       } catch {
-        setClasses([]);
+        try {
+          const arr = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token || undefined);
+          setClasses(Array.isArray(arr) ? arr : []);
+        } catch {
+          setClasses([]);
+        }
       }
     })();
   }, [regattaId, token]);
+
+  const isHandicapClass = (className: string) =>
+    !!className && handicapClassNames.has(className.trim());
 
   // ====== FORM LOCAL ======
   const [form, setForm] = useState<any>({});
@@ -248,13 +267,38 @@ export default function Page() {
                   onChange={(e) => onChange('boat_name', e.target.value)}
                 />
 
+                <label className="text-gray-500">Country code</label>
+                <select
+                  className="border rounded px-2 py-1"
+                  value={form.boat_country_code ?? ''}
+                  onChange={(e) => onChange('boat_country_code', e.target.value)}
+                >
+                  <option value="">—</option>
+                  {COUNTRIES_UNIQUE.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                  ))}
+                </select>
                 <label className="text-gray-500">Sail number</label>
                 <input
                   className="border rounded px-2 py-1"
                   value={form.sail_number ?? ''}
                   onChange={(e) => onChange('sail_number', e.target.value)}
                 />
-
+                <label className="text-gray-500">Bow</label>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={form.bow_number ?? ''}
+                  onChange={(e) => onChange('bow_number', e.target.value)}
+                  placeholder="Número de proa (admin)"
+                />
+                {(form.boat_country_code || form.sail_number) && (
+                  <>
+                    <label className="text-gray-500">Preview</label>
+                    <div className="text-sm font-medium">
+                      <SailNumberDisplay countryCode={form.boat_country_code} sailNumber={form.sail_number} />
+                    </div>
+                  </>
+                )}
                 <label className="text-gray-500">Boat country</label>
                 <input
                   className="border rounded px-2 py-1"
@@ -268,6 +312,152 @@ export default function Page() {
                   value={form.category ?? ''}
                   onChange={(e) => onChange('category', e.target.value)}
                 />
+
+                {isHandicapClass(form.class_name ?? '') && (
+                  <>
+                    <label className="text-gray-500">Model (handicap)</label>
+                    <input
+                      className="border rounded px-2 py-1"
+                      value={form.boat_model ?? ''}
+                      onChange={(e) => onChange('boat_model', e.target.value)}
+                      placeholder="ex: Beneteau First 36.7"
+                    />
+                    <label className="text-gray-500">Rating (handicap)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="border rounded px-2 py-1"
+                      value={form.rating ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        onChange('rating', v === '' ? undefined : Number(v));
+                      }}
+                      placeholder="ex: 1.025"
+                    />
+                    <label className="text-gray-500 col-span-2">Owner (handicap)</label>
+                    <input
+                      className="border rounded px-2 py-1"
+                      value={form.owner_first_name ?? ''}
+                      onChange={(e) => onChange('owner_first_name', e.target.value)}
+                      placeholder="Owner first name"
+                    />
+                    <input
+                      className="border rounded px-2 py-1"
+                      value={form.owner_last_name ?? ''}
+                      onChange={(e) => onChange('owner_last_name', e.target.value)}
+                      placeholder="Owner last name"
+                    />
+                    <input
+                      type="email"
+                      className="border rounded px-2 py-1 col-span-2"
+                      value={form.owner_email ?? ''}
+                      onChange={(e) => onChange('owner_email', e.target.value)}
+                      placeholder="Owner email"
+                    />
+                  </>
+                )}
+              </div>
+            </section>
+
+            {/* Sailors (One Design: helm + crew with positions) */}
+            <section className="bg-white rounded border p-4 md:col-span-2">
+              <h2 className="font-semibold mb-3">Sailors</h2>
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 p-2 rounded bg-gray-50">
+                  <span className="font-medium">Helm:</span>
+                  <span>{(form.first_name ?? '') + ' ' + (form.last_name ?? '')}</span>
+                  <span className="text-gray-500">
+                    (Position:
+                    <select
+                      className="ml-1 border rounded px-2 py-0.5"
+                      value={form.helm_position ?? 'Skipper'}
+                      onChange={(e) => onChange('helm_position', e.target.value)}
+                    >
+                      <option value="Skipper">Skipper</option>
+                      <option value="Crew">Crew</option>
+                    </select>
+                    )
+                  </span>
+                </div>
+                {(form.crew_members && (form.crew_members as any[]).length > 0) && (
+                  <div className="space-y-2">
+                    <span className="font-medium block">Crew members:</span>
+                    {(form.crew_members as any[]).map((c: any, i: number) => (
+                      <div key={i} className="flex flex-wrap items-center gap-2 p-2 rounded border bg-white">
+                        <select
+                          className="border rounded px-2 py-1"
+                          value={c.position ?? 'Crew'}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], position: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        >
+                          <option value="Skipper">Skipper</option>
+                          <option value="Crew">Crew</option>
+                        </select>
+                        <input
+                          className="border rounded px-2 py-1 w-28"
+                          placeholder="First name"
+                          value={c.first_name ?? ''}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], first_name: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        />
+                        <input
+                          className="border rounded px-2 py-1 w-28"
+                          placeholder="Last name"
+                          value={c.last_name ?? ''}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], last_name: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        />
+                        <input
+                          type="email"
+                          className="border rounded px-2 py-1 flex-1 min-w-[140px]"
+                          placeholder="Email"
+                          value={c.email ?? ''}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], email: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        />
+                        <input
+                          className="border rounded px-2 py-1 w-28"
+                          placeholder="Federation license"
+                          value={c.federation_license ?? ''}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], federation_license: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="text-red-600 text-xs hover:underline"
+                          onClick={() => {
+                            const next = (form.crew_members as any[]).filter((_, j) => j !== i);
+                            onChange('crew_members', next);
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => onChange('crew_members', [...(form.crew_members || []), { position: 'Crew', first_name: '', last_name: '', email: '', federation_license: '' }])}
+                >
+                  + Add crew member
+                </button>
               </div>
             </section>
 
@@ -323,6 +513,14 @@ export default function Page() {
                   className="border rounded px-2 py-1"
                   value={form.helm_country_secondary ?? ''}
                   onChange={(e) => onChange('helm_country_secondary', e.target.value)}
+                />
+
+                <label className="text-gray-500">Federation license</label>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={form.federation_license ?? ''}
+                  onChange={(e) => onChange('federation_license', e.target.value)}
+                  placeholder="Federation license"
                 />
               </div>
             </section>

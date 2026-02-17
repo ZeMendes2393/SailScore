@@ -27,21 +27,52 @@ export default function CreateRegattaPage() {
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [newClass, setNewClass] = useState('');
+  type OneDesignItem = { class_name: string; sailors_per_boat: number };
+  const [selectedOneDesign, setSelectedOneDesign] = useState<OneDesignItem[]>([]);
+  const [selectedHandicap, setSelectedHandicap] = useState<string[]>([]);
+  const [newClassOD, setNewClassOD] = useState('');
+  const [newSailorsOD, setNewSailorsOD] = useState(1);
+  const [newClassH, setNewClassH] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleClass = (className: string) => {
-    setSelectedClasses((prev) =>
+  const toggleOneDesign = (className: string) => {
+    setSelectedOneDesign((prev) => {
+      const has = prev.some((c) => c.class_name === className);
+      if (has) return prev.filter((c) => c.class_name !== className);
+      return [...prev, { class_name: className, sailors_per_boat: 1 }].sort((a, b) => a.class_name.localeCompare(b.class_name));
+    });
+  };
+
+  const setSailorsOD = (className: string, sailors: number) => {
+    setSelectedOneDesign((prev) =>
+      prev.map((x) => (x.class_name === className ? { ...x, sailors_per_boat: sailors } : x))
+    );
+  };
+
+  const addCustomOneDesign = () => {
+    const c = newClassOD.trim();
+    if (!c) return;
+    const key = c.toLowerCase();
+    if (selectedOneDesign.some((x) => x.class_name.toLowerCase() === key) || selectedHandicap.some((x) => x.toLowerCase() === key))
+      return;
+    setSelectedOneDesign((prev) => [...prev, { class_name: c, sailors_per_boat: newSailorsOD }].sort((a, b) => a.class_name.localeCompare(b.class_name)));
+    setNewClassOD('');
+  };
+
+  const toggleHandicap = (className: string) => {
+    setSelectedHandicap((prev) =>
       prev.includes(className) ? prev.filter((c) => c !== className) : [...prev, className]
     );
   };
 
-  const addCustomClass = () => {
-    const c = newClass.trim();
+  const addCustomHandicap = () => {
+    const c = newClassH.trim();
     if (!c) return;
-    setSelectedClasses((prev) => (prev.includes(c) ? prev : [...prev, c]));
-    setNewClass('');
+    const key = c.toLowerCase();
+    if (selectedOneDesign.some((x) => x.class_name.toLowerCase() === key) || selectedHandicap.some((x) => x.toLowerCase() === key))
+      return;
+    setSelectedHandicap((prev) => [...prev, c].sort((a, b) => a.localeCompare(b)));
+    setNewClassH('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,11 +93,15 @@ export default function CreateRegattaPage() {
       );
 
       // 2) Substituir classes (se houver)
-      if (selectedClasses.length > 0) {
+      const classesPayload = [
+        ...selectedOneDesign.map((c) => ({ class_name: c.class_name, class_type: 'one_design' as const, sailors_per_boat: c.sailors_per_boat })),
+        ...selectedHandicap.map((c) => ({ class_name: c, class_type: 'handicap' as const })),
+      ];
+      if (classesPayload.length > 0) {
         await apiSend(
           `/regattas/${regatta.id}/classes`,
           'PUT',
-          { classes: selectedClasses },
+          { classes: classesPayload },
           token
         );
       }
@@ -125,36 +160,97 @@ export default function CreateRegattaPage() {
           </div>
 
           <div>
-            <p className="font-medium mb-2">Selecionar Classes:</p>
-            <div className="grid grid-cols-2 gap-2">
-              {AVAILABLE_CLASSES.map((c) => (
-                <label key={c} className="flex items-center gap-2">
+            <p className="font-medium mb-2">Classes</p>
+            <p className="text-xs text-gray-500 mb-3">One Design e Handicap separados.</p>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="border rounded p-3">
+                <h4 className="text-sm font-semibold mb-2">One Design</h4>
+                <p className="text-xs text-gray-500 mb-2">Nº de velejadores por embarcação.</p>
+                <div className="grid grid-cols-2 gap-1 mb-2">
+                  {AVAILABLE_CLASSES.map((c) => (
+                    <label key={c} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedOneDesign.some((x) => x.class_name === c)}
+                        onChange={() => toggleOneDesign(c)}
+                      />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+                {selectedOneDesign.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {selectedOneDesign.map((item) => (
+                      <div key={item.class_name} className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">{item.class_name}</span>
+                        <label className="text-xs text-gray-600">Velejadores:</label>
+                        <select value={item.sailors_per_boat} onChange={(e) => setSailorsOD(item.class_name, Number(e.target.value))} className="border rounded px-1.5 py-0.5 text-sm w-14">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-2 flex-wrap items-end">
                   <input
-                    type="checkbox"
-                    value={c}
-                    checked={selectedClasses.includes(c)}
-                    onChange={() => toggleClass(c)}
+                    className="border rounded px-2 py-1.5 flex-1 min-w-[100px] text-sm"
+                    placeholder="Outra classe (ex: RS Aero)"
+                    value={newClassOD}
+                    onChange={(e) => setNewClassOD(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomOneDesign())}
                   />
-                  {c}
-                </label>
-              ))}
+                  <select value={newSailorsOD} onChange={(e) => setNewSailorsOD(Number(e.target.value))} className="border rounded px-2 py-1.5 text-sm w-14">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} vel.</option>
+                    ))}
+                  </select>
+                  <button type="button" className="border rounded px-2" onClick={addCustomOneDesign}>
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="border rounded p-3">
+                <h4 className="text-sm font-semibold mb-2">Handicap</h4>
+                <p className="text-xs text-gray-500 mb-2">Ex: ANC A, ANC B, IRC, ORC…</p>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {selectedHandicap.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded text-sm"
+                    >
+                      {c}
+                      <button
+                        type="button"
+                        onClick={() => toggleHandicap(c)}
+                        className="text-red-600 hover:underline"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    className="border rounded px-2 py-1.5 flex-1 text-sm"
+                    placeholder="ex: ANC A"
+                    value={newClassH}
+                    onChange={(e) => setNewClassH(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomHandicap())}
+                  />
+                  <button type="button" className="border rounded px-2" onClick={addCustomHandicap}>
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-3 flex gap-2">
-              <input
-                className="border rounded px-3 py-2 flex-1"
-                placeholder="Adicionar classe personalizada"
-                value={newClass}
-                onChange={(e) => setNewClass(e.target.value)}
-              />
-              <button type="button" className="border rounded px-3" onClick={addCustomClass}>
-                Adicionar
-              </button>
-            </div>
-
-            {selectedClasses.length > 0 && (
+            {(selectedOneDesign.length > 0 || selectedHandicap.length > 0) && (
               <p className="text-xs text-gray-600 mt-2">
-                Selecionadas: {selectedClasses.join(', ')}
+                One Design: {selectedOneDesign.map((c) => `${c.class_name} (${c.sailors_per_boat} vel.)`).join(', ') || '—'} | Handicap: {selectedHandicap.join(', ') || '—'}
               </p>
             )}
           </div>

@@ -4,6 +4,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type RequestRead = {
   id: number;
@@ -72,7 +73,7 @@ export default function RequestsSailor() {
             {rows.map(r => (
               <tr key={r.id} className="border-b align-top">
                 <td className="p-2">{r.request_no}</td>
-                <td className="p-2">{r.sail_number || '—'}</td>
+                <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="p-2">{r.class_name || '—'}</td>
                 <td className="p-2 max-w-[28rem]">
                   <div className="whitespace-pre-wrap break-words">{r.request_text}</div>

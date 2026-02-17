@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type RequestRead = {
   id: number;
@@ -66,7 +67,7 @@ export default function RequestsPublic({ regattaId }: { regattaId: number }) {
             {rows.map((r) => (
               <tr key={r.id} className="border-t align-top">
                 <td className="p-2">{r.request_no}</td>
-                <td className="p-2">{r.sail_number || '—'}</td>
+                <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="p-2">{r.class_name || '—'}</td>
                 <td className="p-2 max-w-[28rem]">
                   <div className="whitespace-pre-wrap break-words">{r.request_text}</div>

@@ -18,6 +18,7 @@ export interface Entry {
   last_name: string;
   club: string;
   sail_number?: string;
+  boat_country_code?: string | null;
   boat_name?: string;
   regatta_id?: number;
 }
@@ -27,12 +28,15 @@ export interface ApiResult {
   regatta_id: number;
   race_id: number;
   sail_number: string | null;
+  boat_country_code: string | null;
   boat_name: string | null;
   class_name: string;
   skipper_name: string | null;
   position: number;
   points: number;
   code?: string | null; // <- NOVO (DNF/DNC/DSQ/etc.)
+  points_override: number | null;  // Adiciona esta linha
+
 }
 
 export interface DraftResult {

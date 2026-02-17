@@ -32,6 +32,7 @@ def public_fleet_sets(regatta_id: int, db: Session = Depends(get_db)):
             boats = [
                 {
                     "sail_number": e.sail_number,
+                    "boat_country_code": getattr(e, "boat_country_code", None),
                     "boat_name": e.boat_name,
                     "helm_name": f"{e.first_name or ''} {e.last_name or ''}".strip(),
                 }

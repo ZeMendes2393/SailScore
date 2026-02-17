@@ -1,7 +1,7 @@
 # app/routes/results_utils.py
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -23,7 +23,7 @@ AUTO_N_PLUS_ONE_NON_DISCARDABLE_CODES = {
 
 AUTO_N_PLUS_ONE_CODES = AUTO_N_PLUS_ONE_DISCARDABLE_CODES | AUTO_N_PLUS_ONE_NON_DISCARDABLE_CODES
 
-# Ajustáveis (manual_points)
+# Ajustáveis (manual points via body.points; NÃO inclui "MAN"!)
 ADJUSTABLE_CODES = {"RDG", "SCP", "ZPF", "DPI"}
 
 
@@ -44,8 +44,6 @@ def _norm_sn(sn: Optional[str]) -> Optional[str]:
 def removes_from_ranking(code: Optional[str]) -> bool:
     c = _norm(code)
     return bool(c) and (c in AUTO_N_PLUS_ONE_CODES)
-
-
 
 
 def is_adjustable(code: Optional[str]) -> bool:
@@ -146,7 +144,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
 
     sn_to_fleet_id: Dict[str, int] = {}
     fleet_counts: Dict[int, int] = {}
-    eligible_entries: List[Tuple[int, str, Optional[str], Optional[str], Optional[int]]] = []
+    eligible_entries: List[Tuple[int, str, Optional[str], Optional[str], Optional[int], Optional[str]]] = []
 
     if getattr(race, "fleet_set_id", None):
         fs_id = int(race.fleet_set_id)
@@ -159,6 +157,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 models.Entry.first_name,
                 models.Entry.last_name,
                 models.Fleet.id.label("fleet_id"),
+                models.Entry.boat_country_code,
             )
             .join(models.FleetAssignment, models.FleetAssignment.entry_id == models.Entry.id)
             .join(models.Fleet, models.Fleet.id == models.FleetAssignment.fleet_id)
@@ -172,7 +171,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             .all()
         )
 
-        for entry_id, sn, boat_name, fn, ln, fleet_id in rows:
+        for entry_id, sn, boat_name, fn, ln, fleet_id, boat_country_code in rows:
             sn_norm = _norm_sn(sn)
             if not sn_norm:
                 continue
@@ -183,7 +182,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 fleet_counts[fid] = fleet_counts.get(fid, 0) + 1
 
             skipper = f"{fn or ''} {ln or ''}".strip() or None
-            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, fid))
+            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, fid, boat_country_code))
 
         total_count = len({sn for (_, sn, *_rest) in eligible_entries})
 
@@ -195,6 +194,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 models.Entry.boat_name,
                 models.Entry.first_name,
                 models.Entry.last_name,
+                models.Entry.boat_country_code,
             )
             .filter(
                 models.Entry.regatta_id == regatta_id,
@@ -205,12 +205,12 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             .all()
         )
 
-        for entry_id, sn, boat_name, fn, ln in rows:
+        for entry_id, sn, boat_name, fn, ln, boat_country_code in rows:
             sn_norm = _norm_sn(sn)
             if not sn_norm:
                 continue
             skipper = f"{fn or ''} {ln or ''}".strip() or None
-            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, None))
+            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, None, boat_country_code))
 
         total_count = len({sn for (_, sn, *_rest) in eligible_entries})
 
@@ -242,7 +242,6 @@ def _rdg_to_int_position(manual_points: Optional[float]) -> int:
     if manual_points is None:
         raise ValueError("RDG requer points (posição) manual")
 
-    # tem de ser inteiro (5.0 OK, 5.2 NÃO)
     if float(manual_points).is_integer() is False:
         raise ValueError("RDG requer um número inteiro (posição), ex: 5")
 
@@ -281,7 +280,6 @@ def compute_points_for_code(
 
     if c in ADJUSTABLE_CODES:
         if c == "RDG":
-            # RDG: points = "posição desejada" (inteira)
             return float(_rdg_to_int_position(manual_points))
         if manual_points is None:
             raise ValueError(f"{c} requer points manual")
@@ -293,15 +291,14 @@ def compute_points_for_code(
 
 
 # =========================================================
-# FILL: missing => DNC (mantém como tens)
+# FILL: missing => DNC
 # =========================================================
 
-def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetId: int | 'all') -> int:
-    """
-    Preenche os resultados ausentes como DNC, considerando a fleet selecionada.
-    Se selectedFleetId for 'all', marca DNC para todos os barcos não pontuados.
-    Se for uma fleet específica, marca DNC somente para barcos dessa fleet.
-    """
+def ensure_missing_results_as_dnc(
+    db: Session,
+    race: models.Race,
+    selectedFleetId: Union[int, str],
+) -> int:
     ctx = _build_competitor_context_for_race(db, race)
 
     existing_rows = (
@@ -322,7 +319,7 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetI
     created = 0
     fleetSails = set()
 
-    if selectedFleetId != 'all':
+    if str(selectedFleetId) != "all":
         fleetSails = {
             e.sail_number for e in db.query(models.Entry)
             .join(models.FleetAssignment, models.Entry.id == models.FleetAssignment.entry_id)
@@ -330,11 +327,11 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetI
             .filter(models.Fleet.id == int(selectedFleetId))
         }
 
-    for (_entry_id, sn_norm, boat_name, skipper_name, _fid) in ctx["eligible_entries"]:
+    for (_entry_id, sn_norm, boat_name, skipper_name, _fid, boat_country_code) in ctx["eligible_entries"]:
         if sn_norm in existing:
             continue
 
-        if selectedFleetId != 'all' and sn_norm not in fleetSails:
+        if str(selectedFleetId) != "all" and sn_norm not in fleetSails:
             continue
 
         pts = _auto_n_plus_one_points(ctx, sn_norm)
@@ -343,12 +340,14 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetI
             regatta_id=int(race.regatta_id),
             race_id=int(race.id),
             sail_number=sn_norm,
+            boat_country_code=boat_country_code,
             boat_name=boat_name,
             class_name=str(race.class_name or ""),
             skipper_name=skipper_name,
             position=next_pos,
             points=float(pts),
             code="DNC",
+            points_override=None,
         )
         db.add(row)
         next_pos += 1
@@ -358,7 +357,7 @@ def ensure_missing_results_as_dnc(db: Session, race: models.Race, selectedFleetI
 
 
 # =========================================================
-# NORMALIZE: compact + points + RDG steals position
+# NORMALIZE: compact + points + overrides
 # =========================================================
 
 def _normalize_group(rows, scoring_map, ctx):
@@ -370,27 +369,37 @@ def _normalize_group(rows, scoring_map, ctx):
     pos = 1
     for r in ranked:
         r.position = pos
-        c = _norm(r.code)
+        c = _norm(getattr(r, "code", None))
 
-        if not c:
-            r.points = float(pos)
-        elif c in {"RDG", "SCP", "ZPF", "DPI"}:
-            # ajustáveis: mantém points manual
-            r.points = float(r.points)
+        # ✅ 1) Se tiver points_override, MANDA (não muda code)
+        po = getattr(r, "points_override", None)
+        if po is not None:
+            r.points = float(po)
+
+        # ✅ 2) Caso normal (sem override)
         else:
-            r.points = float(scoring_map.get(c, r.points))
+            if not c:
+                r.points = float(pos)
+            elif c in ADJUSTABLE_CODES:
+                # RDG/SCP/ZPF/DPI já guardam em r.points
+                r.points = float(r.points)
+            else:
+                r.points = float(scoring_map.get(c, r.points))
+
         pos += 1
 
     unranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
     for r in unranked:
         r.position = pos
-        c = _norm(r.code)
+        c = _norm(getattr(r, "code", None))
         if c in AUTO_N_PLUS_ONE_CODES:
             sn_norm = _norm_sn(r.sail_number) or ""
             r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
         else:
             r.points = float(scoring_map.get(c, r.points))
+        # unranked não deve ter override a “mandar” na prática, mas se tiver, ignora
         pos += 1
+
 
 def normalize_race_results(db: Session, race: models.Race) -> None:
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))

@@ -218,6 +218,33 @@ def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Regata não encontrada")
     return _compute_regatta_status(reg)
 
+@router.get("/{regatta_id}/classes/detailed", response_model=List[schemas.RegattaClassRead])
+def get_classes_detailed(regatta_id: int, db: Session = Depends(get_db)):
+    """Devolve classes com class_type (one_design | handicap)."""
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+    rows = (
+        db.query(models.RegattaClass)
+        .filter(models.RegattaClass.regatta_id == regatta_id)
+        .order_by(models.RegattaClass.class_type, models.RegattaClass.class_name)
+        .all()
+    )
+    if rows:
+        return rows
+    # Fallback legacy: deduzir a partir das entries (todos one_design)
+    entries = (
+        db.query(models.Entry.class_name)
+        .filter(models.Entry.regatta_id == regatta_id, models.Entry.class_name.isnot(None))
+        .distinct()
+        .all()
+    )
+    return [
+        schemas.RegattaClassRead(id=0, regatta_id=regatta_id, class_name=e[0], class_type="one_design", sailors_per_boat=1)
+        for e in entries if e[0] and (e[0] or "").strip()
+    ]
+
+
 @router.get("/{regatta_id}/classes", response_model=List[str])
 def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
     # 1) Preferir as classes configuradas (RegattaClass) — funciona para regatas novas
@@ -263,29 +290,88 @@ def replace_regatta_classes(
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
 
-    normalized = []
-    seen = set()
-    for raw in body.classes or []:
-        s = (raw or "").strip()
+    # Normalizar: (class_name, class_type, sailors_per_boat)
+    normalized: List[tuple[str, str, int]] = []
+    seen: set[str] = set()
+    for item in body.classes or []:
+        s = (item.class_name or "").strip()
         if not s:
             continue
         key = s.lower()
         if key in seen:
             continue
         seen.add(key)
-        normalized.append(s)
+        ctype = (item.class_type or "one_design").strip().lower()
+        if ctype not in ("one_design", "handicap"):
+            ctype = "one_design"
+        sailors = getattr(item, "sailors_per_boat", 1) or 1
+        if not isinstance(sailors, int) or sailors < 1:
+            sailors = 1
+        normalized.append((s, ctype, sailors))
 
     existing = db.query(models.RegattaClass).filter_by(regatta_id=regatta_id).all()
     existing_by_key = {rc.class_name.strip().lower(): rc for rc in existing}
 
-    target_keys = {c.lower() for c in normalized}
+    target_keys = {c[0].lower() for c in normalized}
+    norm_by_key = {c[0].lower(): (c[0], c[1], c[2]) for c in normalized}
     to_delete = [rc for k, rc in existing_by_key.items() if k not in target_keys]
-    to_add = [c for c in normalized if c.lower() not in existing_by_key]
+    to_add = [(cname, ctype, sailors) for cname, ctype, sailors in normalized if cname.lower() not in existing_by_key]
+    to_update = [
+        rc for k, rc in existing_by_key.items()
+        if k in norm_by_key and (
+            (rc.class_type or "one_design").lower() != norm_by_key[k][1]
+            or getattr(rc, "sailors_per_boat", 1) != norm_by_key[k][2]
+        )
+    ]
 
+    # Não permitir remover uma classe que ainda tenha inscrições ou corridas
     for rc in to_delete:
+        cname = (rc.class_name or "").strip()
+        if not cname:
+            continue
+        has_entries = (
+            db.query(models.Entry.id)
+            .filter_by(regatta_id=regatta_id, class_name=cname)
+            .limit(1)
+            .first()
+        )
+        if has_entries:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Não é possível remover a classe '{cname}': ainda existem inscrições. Elimine ou altere as inscrições primeiro.",
+            )
+        has_races = (
+            db.query(models.Race.id)
+            .filter_by(regatta_id=regatta_id, class_name=cname)
+            .limit(1)
+            .first()
+        )
+        if has_races:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Não é possível remover a classe '{cname}': ainda existem corridas. Elimine ou altere as corridas primeiro.",
+            )
+
+    # Ao remover uma classe, apagar também as configurações por classe (RegattaClassSettings)
+    for rc in to_delete:
+        db.query(models.RegattaClassSettings).filter(
+            models.RegattaClassSettings.regatta_id == regatta_id,
+            models.RegattaClassSettings.class_name == (rc.class_name or "").strip(),
+        ).delete()
         db.delete(rc)
-    for c in to_add:
-        db.add(models.RegattaClass(regatta_id=regatta_id, class_name=c))
+    for rc in to_update:
+        _, ctype, sailors = norm_by_key[(rc.class_name or "").strip().lower()]
+        rc.class_type = ctype
+        rc.sailors_per_boat = sailors
+    for cname, ctype, sailors in to_add:
+        db.add(
+            models.RegattaClass(
+                regatta_id=regatta_id,
+                class_name=cname,
+                class_type=ctype,
+                sailors_per_boat=sailors,
+            )
+        )
 
     db.commit()
 

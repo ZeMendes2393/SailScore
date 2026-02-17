@@ -1,12 +1,15 @@
 // RespondentsEditor.tsx
 'use client';
 
+import { formatSailNumber } from '@/utils/countries';
+
 type EntryOption = {
   id: number;
   first_name?: string | null;
   last_name?: string | null;
   class_name?: string | null;
   sail_number?: string | null;
+  boat_country_code?: string | null;
   boat_name?: string | null;
   email?: string | null;
 };
@@ -155,7 +158,7 @@ export default function RespondentsEditor({
                   {(r.class_name ? entriesByClass[(r.class_name || '').trim()] || [] : []).map(
                     (en) => (
                       <option key={en.id} value={en.id}>
-                        {en.sail_number || '—'} · {en.boat_name || '—'} · {en.class_name || '—'}
+                        {formatSailNumber(en.boat_country_code, en.sail_number)} · {en.boat_name || '—'} · {en.class_name || '—'}
                       </option>
                     )
                   )}

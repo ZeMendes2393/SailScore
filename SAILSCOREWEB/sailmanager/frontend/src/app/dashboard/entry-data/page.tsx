@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { useMyEntry } from '@/lib/hooks/useMyEntry';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 function V({ children }: { children?: React.ReactNode }) {
   return <span className="text-gray-900">{children ?? '—'}</span>;
@@ -75,7 +76,7 @@ export default function Page() {
               <h2 className="font-semibold mb-3">Boat</h2>
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <dt className="text-gray-500">Boat name</dt><dd><V>{entry.boat_name}</V></dd>
-                <dt className="text-gray-500">Sail number</dt><dd><V>{entry.sail_number}</V></dd>
+                <dt className="text-gray-500">Sail number</dt><dd><V><SailNumberDisplay countryCode={entry.boat_country_code} sailNumber={entry.sail_number} /></V></dd>
                 <dt className="text-gray-500">Boat country</dt><dd><V>{entry.boat_country}</V></dd>
                 <dt className="text-gray-500">Category</dt><dd><V>{entry.category}</V></dd>
               </dl>

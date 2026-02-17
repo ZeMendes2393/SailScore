@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ScoringRead } from '@/lib/api';
 
 type Row = ScoringRead & { _expanded?: boolean };
@@ -160,7 +161,7 @@ function FragmentRow({
       {/* main row */}
       <tr className="border-t align-top">
         <td className="p-2">{r.id}</td>
-        <td className="p-2">{r.sail_number || '—'}</td>
+        <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
         <td className="p-2">{r.race_number || '—'}</td>
         <td className="p-2">{r.requested_change || '—'}</td>

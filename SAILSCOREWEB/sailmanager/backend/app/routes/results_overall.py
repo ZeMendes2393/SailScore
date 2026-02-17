@@ -428,7 +428,21 @@ def get_overall_results(
                 "class_name": r.class_name,
                 "skipper_name": r.skipper_name,
                 "sail_number": r.sail_number,
+                "boat_country_code": getattr(r, "boat_country_code", None),
             }
+
+    # Lookup boat_model e bow_number a partir das entries (para a resposta overall)
+    entry_extra: dict[tuple[str, str], dict[str, object]] = {}
+    entries_q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
+    if class_name:
+        entries_q = entries_q.filter(models.Entry.class_name == class_name)
+    for e in entries_q.all():
+        snn = _sn_norm(e.sail_number)
+        cc = (getattr(e, "boat_country_code", None) or "").strip().upper()
+        entry_extra[(snn, cc)] = {
+            "boat_model": getattr(e, "boat_model", None),
+            "bow_number": getattr(e, "bow_number", None),
+        }
 
     overall: list[dict] = []
 
@@ -464,9 +478,12 @@ def get_overall_results(
             overall.append(
                 {
                     "sail_number": e.sail_number,
+                    "boat_country_code": getattr(e, "boat_country_code", None),
                     "boat_name": e.boat_name,
                     "class_name": e.class_name,
                     "skipper_name": skipper,
+                    "boat_model": getattr(e, "boat_model", None),
+                    "bow_number": getattr(e, "bow_number", None),
                     "total_points": 0.0,
                     "net_points": 0.0,
                     "per_race": per_race_named,
@@ -527,12 +544,18 @@ def get_overall_results(
 
                 per_race_fleet[name] = fleet_by_sn_race.get((cls, sn_norm, rid))
 
+            sn_norm = key[1]
+            cc = (info.get("boat_country_code") or "").strip().upper() if info.get("boat_country_code") else ""
+            extra = entry_extra.get((sn_norm, cc), {})
             overall.append(
                 {
                     "sail_number": info.get("sail_number"),
+                    "boat_country_code": info.get("boat_country_code"),
                     "boat_name": info.get("boat_name"),
                     "class_name": info.get("class_name"),
                     "skipper_name": info.get("skipper_name"),
+                    "boat_model": extra.get("boat_model"),
+                    "bow_number": extra.get("bow_number"),
                     "total_points": float(total_points),
                     "net_points": float(net_total),
                     "per_race": per_race_named,

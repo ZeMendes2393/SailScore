@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
+import { formatSailNumber } from '@/utils/countries';
 
 type EntryOption = {
   id: number;
   class_name?: string | null;
   sail_number?: string | null;
+  boat_country_code?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
@@ -96,7 +98,7 @@ export default function NewQuestionPage() {
             <option value="">— choose your entry —</option>
             {myEntries.map(en => (
               <option key={en.id} value={en.id}>
-                {`${en.class_name || '—'} • ${en.sail_number || '—'} • ${(en.first_name || '') + ' ' + (en.last_name || '')}`}
+                {`${en.class_name || '—'} • ${formatSailNumber(en.boat_country_code, en.sail_number)} • ${(en.first_name || '') + ' ' + (en.last_name || '')}`}
               </option>
             ))}
           </select>

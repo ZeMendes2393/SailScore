@@ -1,7 +1,6 @@
-// src/app/admin/manage-regattas/[id]/results/components/RaceResultsManager.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/context/AuthContext';
@@ -44,9 +43,10 @@ export default function RaceResultsManager({
   initialRaceId,
 }: Props) {
   const { token } = useAuth();
+  const router = useRouter();
+  const search = useSearchParams();
 
   const {
-    // ✅ removido: scoring / saveScoring / savingScoring / setScoring
     races,
     selectedRaceId,
     setSelectedRaceId,
@@ -71,31 +71,82 @@ export default function RaceResultsManager({
     saveOrder,
     addSingle,
     deleteResult,
+    refreshExisting,
     scoringCodes,
     onSetDraftCode,
     onSetDraftPos,
     markCode,
     deleteRace,
 
-    // dados de fleets vindos do hook
+    // fleets
     currentRace,
     fleetsForRace,
     selectedFleetId,
     setSelectedFleetId,
 
-    // ✅ NOVO
+    // toggle discardable
     setRaceDiscardable,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
-  const search = useSearchParams();
-  const router = useRouter();
   const [view, setView] = useState<View>('existing');
 
   const initialAppliedRef = useRef(false);
   const lastClassRef = useRef<string | null>(null);
 
-  // ✅ NOVO: bloquear toggle enquanto guarda
+  // bloquear toggle enquanto guarda
   const [savingRaceFlags, setSavingRaceFlags] = useState(false);
+
+  // bloquear override enquanto guarda
+  const [savingOverridePoints, setSavingOverridePoints] = useState(false);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
+
+  // ✅ handler “Override points” com suporte a UNDO (points = null)
+  const handleOverridePoints = useCallback(
+    async (rowId: number, points: number | null) => {
+      if (!token) {
+        alert('Sem token de autenticação.');
+        return;
+      }
+
+      // se não for undo, valida o número
+      if (points !== null) {
+        if (!Number.isFinite(points) || points < 0) {
+          alert('Pontos inválidos.');
+          return;
+        }
+      }
+
+      setSavingOverridePoints(true);
+      try {
+        const res = await fetch(`${apiBase}/results/${rowId}/override-points`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ points }), // ✅ pode ser number ou null
+        });
+
+        if (!res.ok) {
+          const msg = await res.text().catch(() => '');
+          throw new Error(msg || `Erro ${res.status}`);
+        }
+
+        // Força refresh para re-fetch do hook/route
+        if (selectedRaceId) {
+          await refreshExisting(selectedRaceId);
+        }
+        router.refresh();
+      } catch (e: any) {
+        alert(e?.message || 'Erro ao alterar pontos.');
+      } finally {
+        setSavingOverridePoints(false);
+      }
+    },
+    [apiBase, token, router, refreshExisting, selectedRaceId]
+  );
 
   // -----------------------------
   // Races: ordenar e filtrar por classe
@@ -135,7 +186,7 @@ export default function RaceResultsManager({
   }, [search, races, selectedRaceId, setSelectedRaceId, setSelectedFleetId]);
 
   // -----------------------------
-  // initialRaceId -> aplica 1 vez (evita loop)
+  // initialRaceId -> aplica 1 vez
   // -----------------------------
   useEffect(() => {
     if (!initialRaceId) return;
@@ -157,15 +208,7 @@ export default function RaceResultsManager({
 
       setSelectedFleetId('all');
     }
-  }, [
-    initialRaceId,
-    races,
-    selectedRaceId,
-    setSelectedRaceId,
-    search,
-    router,
-    setSelectedFleetId,
-  ]);
+  }, [initialRaceId, races, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId]);
 
   // -----------------------------
   // Mudança de classe -> garantir race da classe
@@ -193,15 +236,7 @@ export default function RaceResultsManager({
     router.replace(`?${sp.toString()}`);
 
     setSelectedFleetId('all');
-  }, [
-    selectedClass,
-    racesForSelectedClass,
-    selectedRaceId,
-    setSelectedRaceId,
-    search,
-    router,
-    setSelectedFleetId,
-  ]);
+  }, [selectedClass, racesForSelectedClass, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId]);
 
   const setViewAndUrl = (v: View) => {
     setView(v);
@@ -225,19 +260,14 @@ export default function RaceResultsManager({
 
   const tabs = useMemo(
     () => [
-      {
-        key: 'existing' as View,
-        label: 'Resultados',
-        badge: (existingResults ?? []).length,
-      },
+      { key: 'existing' as View, label: 'Resultados', badge: (existingResults ?? []).length },
       { key: 'draft' as View, label: 'Rascunho', badge: (draft ?? []).length },
       { key: 'add' as View, label: 'Adicionar 1' },
-      // ✅ removido: { key: 'scoring', label: 'Descartes' }
     ],
     [existingResults, draft]
   );
 
-  // fleets ordenadas pelo nome “oficial”
+  // fleets ordenadas
   const orderedFleets = useMemo(() => {
     return (fleetsForRace ?? [])
       .slice()
@@ -251,7 +281,7 @@ export default function RaceResultsManager({
 
   const hasFleets = !!currentRace?.fleet_set_id && (orderedFleets ?? []).length > 0;
 
-  // --------- PRÉ-SELECIONAR PRIMEIRA FLEET QUANDO EXISTEM ----------
+  // pré-selecionar fleet
   useEffect(() => {
     if (!selectedRaceId) {
       if (selectedFleetId !== 'all') setSelectedFleetId('all');
@@ -265,20 +295,18 @@ export default function RaceResultsManager({
       return;
     }
 
-    const existsCurrent =
-      selectedFleetId !== 'all' && list.some((f: any) => f.id === selectedFleetId);
-
+    const existsCurrent = selectedFleetId !== 'all' && list.some((f: any) => f.id === selectedFleetId);
     if (!existsCurrent) setSelectedFleetId(list[0].id);
   }, [selectedRaceId, orderedFleets, selectedFleetId, setSelectedFleetId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Toolbar sticky com seletor, fleets e tabs */}
+      {/* Toolbar sticky */}
       <div className="sticky top-0 z-20 border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="w-full px-6">
           <div className="py-3 flex flex-col gap-3">
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
-              {/* Lado esquerdo */}
+              {/* Left */}
               <div>
                 <h1 className="text-xl font-bold">Resultados</h1>
                 <p className="text-xs text-gray-600">
@@ -289,9 +317,7 @@ export default function RaceResultsManager({
 
                 {hasFleets && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-500">
-                      Fleets:
-                    </span>
+                    <span className="text-[11px] uppercase tracking-wide text-gray-500">Fleets:</span>
                     {orderedFleets.map((f: any) => (
                       <button
                         key={f.id}
@@ -311,33 +337,31 @@ export default function RaceResultsManager({
                 )}
               </div>
 
-              {/* Lado direito */}
+              {/* Right */}
               <div className="flex items-center gap-2 lg:min-w-[420px] lg:justify-end">
                 <div className="min-w-[260px] lg:min-w-[320px]">
-                  <RaceSelector
-                    races={racesForSelectedClass}
-                    selectedRaceId={selectedRaceId}
-                    onSelect={handleSelectRace}
-                  />
+                  <RaceSelector races={racesForSelectedClass} selectedRaceId={selectedRaceId} onSelect={handleSelectRace} />
                 </div>
 
-                {/* ✅ NOVO TOGGLE AQUI */}
+                {/* Toggle discardable */}
                 {selectedRaceId && currentRace && (
                   <label className="flex items-center gap-2 px-3 py-2 rounded border bg-white text-xs lg:text-sm">
                     <span className="text-gray-700">Discardable</span>
-
                     <input
                       type="checkbox"
                       checked={!!(currentRace as any).discardable}
                       disabled={savingRaceFlags}
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const next = e.target.checked;
-                        setSavingRaceFlags(true);
-                        try {
-                          await setRaceDiscardable(selectedRaceId, next);
-                        } finally {
-                          setSavingRaceFlags(false);
-                        }
+
+                        (async () => {
+                          setSavingRaceFlags(true);
+                          try {
+                            await setRaceDiscardable(selectedRaceId, next);
+                          } finally {
+                            setSavingRaceFlags(false);
+                          }
+                        })();
                       }}
                     />
                   </label>
@@ -347,12 +371,7 @@ export default function RaceResultsManager({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (
-                        !confirm(
-                          'Tens a certeza que queres eliminar esta corrida (e todos os seus resultados)?'
-                        )
-                      )
-                        return;
+                      if (!confirm('Tens a certeza que queres eliminar esta corrida (e todos os seus resultados)?')) return;
                       await deleteRace(selectedRaceId);
                     }}
                     className="px-3 py-2 rounded border border-red-500 text-red-600 hover:bg-red-50 text-xs lg:text-sm"
@@ -364,11 +383,7 @@ export default function RaceResultsManager({
             </div>
 
             {!hideInnerTabs && (
-              <nav
-                role="tablist"
-                aria-label="Secções de resultados"
-                className="flex gap-2 overflow-x-auto pb-1"
-              >
+              <nav role="tablist" aria-label="Secções de resultados" className="flex gap-2 overflow-x-auto pb-1">
                 {tabs.map((t) => {
                   const active = view === t.key;
                   const disabled = !selectedRaceId;
@@ -381,9 +396,7 @@ export default function RaceResultsManager({
                       disabled={disabled}
                       className={[
                         'px-3 py-1.5 rounded-full border text-sm transition',
-                        active
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 hover:bg-gray-50',
+                        active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50',
                         disabled ? 'opacity-50 cursor-not-allowed' : '',
                       ].join(' ')}
                     >
@@ -407,35 +420,34 @@ export default function RaceResultsManager({
         </div>
       </div>
 
-      {/* Painel principal */}
+      {/* Main */}
       <div className="w-full px-6 py-4">
         {!selectedRaceId ? (
-          <div className="p-6 border rounded-2xl bg-white text-gray-600">
-            Seleciona uma corrida no topo.
-          </div>
+          <div className="p-6 border rounded-2xl bg-white text-gray-600">Seleciona uma corrida no topo.</div>
         ) : (
           <>
             {view === 'existing' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
-                    Resultados existentes{' '}
-                    {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
+                    Resultados existentes {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
                   </h2>
                   <span className="text-xs text-gray-500">
                     {loadingExisting ? 'A carregar…' : `${(existingResults ?? []).length} linhas`}
                   </span>
                 </header>
+
                 <div className="max-h-[66vh] overflow-auto rounded border">
                   <ExistingResultsTable
                     results={existingResults ?? []}
-                    loading={!!loadingExisting}
+                    loading={!!loadingExisting || savingOverridePoints}
                     onMove={moveRow}
                     onEditPos={savePosition}
                     onSaveOrder={saveOrder}
                     onDelete={deleteResult}
                     scoringCodes={scoringCodes ?? {}}
                     onMarkCode={markCode}
+                    onOverridePoints={handleOverridePoints}
                   />
                 </div>
               </section>
@@ -473,13 +485,7 @@ export default function RaceResultsManager({
             {view === 'add' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <h2 className="text-lg font-semibold mb-3">Adicionar resultado em falta</h2>
-                <AddSingleForm
-                  singleSail={singleSail}
-                  setSingleSail={setSingleSail}
-                  singlePos={singlePos}
-                  setSinglePos={setSinglePos}
-                  onAdd={addSingle}
-                />
+                <AddSingleForm singleSail={singleSail} setSingleSail={setSingleSail} singlePos={singlePos} setSinglePos={setSinglePos} onAdd={addSingle} />
               </section>
             )}
           </>
@@ -495,10 +501,7 @@ export default function RaceResultsManager({
                 {(draft ?? []).length} no rascunho — confirma para guardar em massa.
               </span>
               <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={saveBulk}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl"
-                >
+                <button onClick={saveBulk} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">
                   Guardar em massa
                 </button>
                 <button
