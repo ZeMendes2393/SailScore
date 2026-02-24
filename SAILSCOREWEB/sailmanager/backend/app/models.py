@@ -763,6 +763,26 @@ class RegattaClassSettings(Base):
     )
 
 
+class RegattaClassPublication(Base):
+    """Per (regatta_id, class_name): publish first K races (by order_index) to public.
+    published_races_count = K means races at positions 1..K in the ordered list are public."""
+    __tablename__ = "regatta_class_publication"
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    regatta_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("regattas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    class_name = sa.Column(sa.String(255), nullable=False, index=True)
+    published_races_count = sa.Column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+
+    __table_args__ = (
+        sa.UniqueConstraint("regatta_id", "class_name", name="uq_regatta_class_publication"),
+    )
+
+
 class FleetSet(Base):
     __tablename__ = "fleet_sets"
 

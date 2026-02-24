@@ -476,7 +476,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   // ---- Ações: scoring (globais da regata)
   const saveScoring = async () => {
-    if (!token) return alert('Token em falta. Faz login novamente.');
+    if (!token) return alert('Token missing. Please log in again.');
     setSavingScoring(true);
     try {
       await apiSend(
@@ -490,9 +490,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
         token
       );
       window.dispatchEvent(new CustomEvent('regatta-scoring-updated', { detail: { regattaId } }));
-      alert('Regras de descarte / códigos (globais) guardadas com sucesso.');
+      alert('Discard rules / codes (global) saved successfully.');
     } catch {
-      alert('Falha ao guardar regras globais de descarte / códigos.');
+      alert('Failed to save global discard rules / codes.');
     } finally {
       setSavingScoring(false);
     }
@@ -509,12 +509,12 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
     if (candidates.length === 0) {
       const { best } = pickBestEntryBySail(entryList, trimmed, selectedClass);
-      if (!best) return alert('Embarcação não encontrada com esse número de vela.');
-      if (best.class_name !== selectedClass) return alert(`Esta embarcação não pertence à classe ${selectedClass}.`);
-      if (!isEligible(best)) return alert('Esta inscrição não está elegível (necessita estar PAGA e CONFIRMADA).');
-      if (draft.some((r) => r.entryId === best.id)) return alert('Essa embarcação já está no rascunho.');
+      if (!best) return alert('Boat not found with this sail number.');
+      if (best.class_name !== selectedClass) return alert(`This boat does not belong to class ${selectedClass}.`);
+      if (!isEligible(best)) return alert('This entry is not eligible (must be PAID and CONFIRMED).');
+      if (draft.some((r) => r.entryId === best.id)) return alert('This boat is already in the draft.');
       if (fleetEntryIdSet && !fleetEntryIdSet.has(best.id))
-        return alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+        return alert('This boat does not belong to the selected fleet for this race.');
       setDraft((d) => [...d, { position: d.length + 1, entryId: best.id, code: null, manualPoints: null }]);
       setDraftInput('');
       return;
@@ -534,8 +534,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     const entry = sailChoicePending.candidates.find((c) => c.id === entryId);
     if (!entry) return;
     if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId))
-      return alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
-    if (draft.some((r) => r.entryId === entryId)) return alert('Essa embarcação já está no rascunho.');
+      return alert('This boat does not belong to the selected fleet for this race.');
+    if (draft.some((r) => r.entryId === entryId)) return alert('This boat is already in the draft.');
     setDraft((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
     setDraftInput('');
     setSailChoicePending(null);
@@ -547,7 +547,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const addDraftEntry = (entryId: number) => {
     if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId))
-      return alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+      return alert('This boat does not belong to the selected fleet for this race.');
 
     setDraft((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
   };
@@ -596,17 +596,17 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const addHandicapEntry = (entryId: number) => {
     if (!isHandicapClass) {
-      alert('O modo "Time Scoring (Handicap)" só está disponível para classes do tipo handicap.');
+      alert('"Time Scoring (Handicap)" is only available for handicap classes.');
       return;
     }
 
     if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId)) {
-      alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+      alert('This boat does not belong to the selected fleet for this race.');
       return;
     }
 
     if (handicapDraft.some((r) => r.entryId === entryId)) {
-      alert('Essa embarcação já está na tabela de tempos.');
+      alert('This boat is already in the time table.');
       return;
     }
 
@@ -680,16 +680,16 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     } catch (err) {
       console.error('markCode falhou:', err);
       await refreshExisting(selectedRaceId);
-      alert('Não foi possível aplicar o código a este resultado.');
+      alert('Could not apply the code to this result.');
     }
   };
 
   // ---- Handicap / Time Scoring: guardar em massa
   const saveHandicap = async () => {
-    if (!selectedRaceId) return alert('Seleciona primeiro uma corrida.');
-    if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
-    if (!isHandicapClass) return alert('Time Scoring só está disponível para classes handicap.');
-    if (!handicapDraft.length) return alert('Não há linhas na tabela de tempos para guardar.');
+    if (!selectedRaceId) return alert('Select a race first.');
+    if (!token) return alert('Admin session missing or expired. Please log in again.');
+    if (!isHandicapClass) return alert('Time Scoring is only available for handicap classes.');
+    if (!handicapDraft.length) return alert('No rows in the time table to save.');
 
     if (currentRace?.handicap_method === 'anc') {
       const withoutRating = handicapDraft.filter((r) => {
@@ -698,7 +698,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       });
       if (withoutRating.length > 0) {
         return alert(
-          'Há barcos sem rating ANC. É necessário preencher o rating ANC nas inscrições antes de usar o modo ANC.'
+          'Some boats are missing ANC rating. Fill in the ANC rating in the entries before using ANC mode.'
         );
       }
     }
@@ -714,7 +714,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       });
       if (withoutOrc.length > 0) {
         return alert(
-          `Há barcos sem rating ORC (${orcMode}). É necessário preencher o ORC ${orcMode} nas inscrições antes de usar o modo ORC.`
+          `Some boats are missing ORC rating (${orcMode}). Fill in the ORC ${orcMode} in the entries before using ORC mode.`
         );
       }
     }
@@ -726,7 +726,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       const entry = entryList.find((e) => e.id === r.entryId);
       if (!entry) {
         console.warn('Entry em falta para handicapDraft', r.entryId);
-        return alert('Há linhas com inscrição desconhecida. Recarrega a página.');
+        return alert('There are rows with unknown entry. Reload the page.');
       }
 
       const codeNorm = normCode(r.code);
@@ -740,7 +740,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
           !isValidHHMMSS(r.correctedTime))
       ) {
         alert(
-          `Tempos inválidos para o barco ${entry.sail_number}. Usa sempre o formato HH:MM:SS em todos os campos.`
+          `Invalid times for boat ${entry.sail_number}. Always use HH:MM:SS format in all fields.`
         );
         return;
       }
@@ -756,8 +756,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
       const msg =
         raceHasFleets && selectedFleetId !== 'all'
-          ? 'Isto vai substituir os resultados desta FLEET (modo Handicap) nesta corrida. Continuar?'
-          : 'Isto vai substituir TODOS os resultados desta corrida (modo Handicap). Continuar?';
+          ? 'This will replace the results of this FLEET (Handicap mode) in this race. Continue?'
+          : 'This will replace ALL results of this race (Handicap mode). Continue?';
 
       if (!confirm(msg)) return;
 
@@ -799,7 +799,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
-    if (!payload.length) return alert('Nenhuma entrada válida para guardar (ver consola).');
+    if (!payload.length) return alert('No valid entries to save (check console).');
 
     const fleetParam =
       currentRace && 'fleet_set_id' in currentRace && currentRace.fleet_set_id && selectedFleetId !== 'all'
@@ -816,23 +816,23 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
       setHandicapDraft([]);
       await refreshExisting(selectedRaceId);
-      alert('Resultados de Handicap guardados com sucesso.');
+      alert('Handicap results saved successfully.');
     } catch (err) {
-      console.error('Erro ao guardar resultados Handicap:', err);
-      alert('Erro ao guardar resultados Handicap.');
+      console.error('Error saving Handicap results:', err);
+      alert('Error saving Handicap results.');
     }
   };
 
  const saveBulk = async () => {
-  if (!selectedRaceId) return alert('Seleciona primeiro uma corrida.');
-  if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
-  if (!draft.length) return alert('Não há linhas no rascunho para guardar.');
+  if (!selectedRaceId) return alert('Select a race first.');
+  if (!token) return alert('Admin session missing or expired. Please log in again.');
+  if (!draft.length) return alert('No rows in the draft to save.');
 
   // valida: todos os adjustable têm manualPoints
   for (const r of draft) {
     const c = normCode(r.code);
     if (isAdjustable(c) && (r.manualPoints == null || Number.isNaN(Number(r.manualPoints)))) {
-      alert(`Falta definir points para o código ${c} (RDG/SCP/ZPF/DPI).`);
+      alert(`Please define points for code ${c} (RDG/SCP/ZPF/DPI).`);
       return;
     }
   }
@@ -847,8 +847,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
     const msg =
       raceHasFleets && selectedFleetId !== 'all'
-        ? 'Isto vai substituir os resultados desta FLEET nesta corrida. Continuar?'
-        : 'Isto vai substituir TODOS os resultados desta corrida. Continuar?';
+        ? 'This will replace the results of this FLEET in this race. Continue?'
+        : 'This will replace ALL results of this race. Continue?';
 
     if (!confirm(msg)) return;
 
@@ -895,9 +895,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   console.log('Payload enviado:', payload);
 
-  if (!payload.length) return alert('Nenhuma entrada válida para guardar (ver consola).');
+  if (!payload.length) return alert('No valid entries to save (check console).');
 
-  // Adicionar o parâmetro fleet_id se uma fleet específica estiver selecionada
+  // Add fleet_id param if a specific fleet is selected
   const fleetParam =
     currentRace && 'fleet_set_id' in currentRace && currentRace.fleet_set_id && selectedFleetId !== 'all'
       ? `?fleet_id=${selectedFleetId}`
@@ -915,10 +915,10 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     // ✅ Backend deve: normalizar posições + preencher missing como DNC **apenas na fleet não escoreada**
     setDraft([]); // Limpa o rascunho
     await refreshExisting(selectedRaceId); // Atualiza os resultados
-    alert('Resultados guardados com sucesso.');
+    alert('Results saved successfully.');
   } catch (err) {
-    console.error('Erro ao guardar resultados em massa:', err);
-    alert('Erro ao guardar resultados.');
+    console.error('Error saving results in bulk:', err);
+    alert('Error saving results.');
   }
 };
 
@@ -938,7 +938,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       await apiSend(`/results/${rowId}/position`, 'PATCH', { new_position: newPos }, token);
       await refreshExisting(selectedRaceId);
     } catch {
-      alert('Não foi possível mover.');
+      alert('Could not move.');
     }
   };
 
@@ -948,7 +948,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       await apiSend(`/results/${rowId}/position`, 'PATCH', { new_position: newPos }, token);
       await refreshExisting(selectedRaceId);
     } catch {
-      alert('Não foi possível atualizar a posição.');
+      alert('Could not update the position.');
     }
   };
 
@@ -962,9 +962,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     try {
       await apiSend(`/results/races/${selectedRaceId}/reorder`, 'PUT', { ordered_ids: ordered }, token);
       await refreshExisting(selectedRaceId);
-      alert('Ordem guardada.');
+      alert('Order saved.');
     } catch {
-      alert('Falha ao guardar a ordem.');
+      alert('Failed to save order.');
     }
   };
 
@@ -975,7 +975,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       await refreshExisting(selectedRaceId);
     } catch (e) {
       console.error('DELETE resultado falhou:', e);
-      alert('Não foi possível eliminar o resultado.');
+      alert('Could not delete the result.');
     }
   };
 
@@ -1004,7 +1004,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
     const sail = (singleSail ?? '').trim().toLowerCase();
     const pos = Number(singlePos);
-    if (!sail || !pos) return alert('Preenche Nº de vela e posição.');
+    if (!sail || !pos) return alert('Fill in sail number and position.');
 
     const candidates = getCandidatesBySail(entryList, sail, selectedClass).filter(
       (e) => !fleetEntryIdSet || fleetEntryIdSet.has(e.id)
@@ -1012,12 +1012,12 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
     if (candidates.length === 0) {
       const { best } = pickBestEntryBySail(entryList, sail, selectedClass);
-      if (!best) return alert('Entrada não encontrada para esta classe.');
+      if (!best) return alert('Entry not found for this class.');
       if (best.class_name !== selectedClass)
-        return alert(`Existe uma inscrição com esse nº, mas não na classe ${selectedClass}.`);
-      if (!isEligible(best)) return alert('Esta inscrição não está elegível (necessita estar PAGA e CONFIRMADA).');
+        return alert(`There is an entry with that number, but not in class ${selectedClass}.`);
+      if (!isEligible(best)) return alert('This entry is not eligible (must be PAID and CONFIRMED).');
       if (fleetEntryIdSet && !fleetEntryIdSet.has(best.id))
-        return alert('Esta embarcação não pertence à fleet selecionada para esta corrida.');
+        return alert('This boat does not belong to the selected fleet for this race.');
       await postSingleResult(best, pos);
       return;
     }
@@ -1049,7 +1049,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       try {
         await postSingleResult(entry, sailChoicePending.singlePos);
       } catch {
-        alert('Não foi possível adicionar.');
+        alert('Could not add.');
       }
     },
     [sailChoicePending, postSingleResult]
@@ -1063,7 +1063,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       setRaces((prev) => prev.map((r) => (r.id === raceId ? { ...r, ...updated } : r)));
     } catch (e) {
       console.error('renameRace falhou:', e);
-      alert('Não foi possível renomear a corrida.');
+      alert('Could not rename the race.');
     }
   };
 
@@ -1080,7 +1080,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       }
     } catch (e) {
       console.error('deleteRace falhou:', e);
-      alert('Não foi possível eliminar a corrida.');
+      alert('Could not delete the race.');
     }
   };
 
@@ -1096,14 +1096,14 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       setRaces(rcs);
     } catch (e: any) {
       console.error('reorderRaces falhou:', e?.status, e?.message);
-      alert(e?.message || 'Não foi possível reordenar as corridas.');
+      alert(e?.message || 'Could not reorder the races.');
     }
   };
 
 
     // ---- Corridas: flags (discardable / medal / double_points)
   const setRaceDiscardable = async (raceId: number, discardable: boolean): Promise<void> => {
-    if (!token) return alert('Sessão de admin em falta ou expirada. Faz login novamente.');
+    if (!token) return alert('Admin session missing or expired. Please log in again.');
 
     try {
       const updated = await apiSend<Race>(`/races/${raceId}`, 'PATCH', { discardable }, token);
@@ -1119,7 +1119,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       }
     } catch (e) {
       console.error('setRaceDiscardable falhou:', e);
-      alert('Não foi possível atualizar o discardable desta corrida.');
+      alert('Could not update the discardable flag for this race.');
     }
   };
 
@@ -1140,7 +1140,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       setRaces((prev) => prev.map((r) => (r.id === raceId ? { ...r, ...updated } : r)));
     } catch (e) {
       console.error('patchRaceStart falhou:', e);
-      alert('Não foi possível guardar o start time da corrida.');
+      alert('Could not save the race start time.');
     }
   };
 
@@ -1177,7 +1177,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       );
     } catch (e) {
       console.error('patchRaceHandicapMethod falhou:', e);
-      alert('Não foi possível guardar o método de score.');
+      alert('Could not save the scoring method.');
     }
   };
 
@@ -1204,7 +1204,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       );
     } catch (e) {
       console.error('patchRaceOrcMode falhou:', e);
-      alert('Não foi possível guardar o modo ORC.');
+      alert('Could not save the ORC mode.');
     }
   };
 

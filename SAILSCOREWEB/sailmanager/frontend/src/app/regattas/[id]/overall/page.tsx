@@ -3,12 +3,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
+import { BASE_URL } from '@/lib/api'
+import {
+  getVisibleResultsOverallColumnsForClass,
+  RESULTS_OVERALL_COLUMNS,
+  type ResultsOverallColumnId,
+} from '@/lib/resultsOverallColumns'
 
 interface RegattaConfig {
   id: number
   name: string
   discard_count: number
   discard_threshold: number
+  results_overall_columns?: string[] | Record<string, string[]> | null
 }
 
 interface OverallResult {
@@ -51,7 +58,7 @@ export default function OverallResultsPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/regattas/${regattaId}`)
+        const res = await fetch(`${BASE_URL}/regattas/${regattaId}`)
         if (!res.ok) throw new Error('Falha ao obter regata')
         const data = await res.json()
         setRegatta({
@@ -59,6 +66,7 @@ export default function OverallResultsPage() {
           name: data.name,
           discard_count: data.discard_count ?? 0,
           discard_threshold: data.discard_threshold ?? 0,
+          results_overall_columns: data.results_overall_columns ?? null,
         })
       } catch (e: any) {
         console.error(e)
@@ -73,7 +81,7 @@ export default function OverallResultsPage() {
       setLoadingClasses(true)
       setError(null)
       try {
-        const res = await fetch(`http://localhost:8000/regattas/${regattaId}/classes`)
+        const res = await fetch(`${BASE_URL}/regattas/${regattaId}/classes`)
         if (!res.ok) throw new Error('Falha ao obter classes da regata')
         const data: string[] = await res.json()
         setClasses(data || [])
@@ -98,9 +106,9 @@ export default function OverallResultsPage() {
       setLoadingResults(true)
       setError(null)
       try {
-        const url = `http://localhost:8000/results/overall/${regattaId}?class_name=${encodeURIComponent(
+        const url = `${BASE_URL}/results/overall/${regattaId}?class_name=${encodeURIComponent(
           selectedClass
-        )}`
+        )}&public=1`
         const res = await fetch(url)
         if (!res.ok) throw new Error('Falha ao obter resultados')
         const data = await res.json()
@@ -146,14 +154,6 @@ export default function OverallResultsPage() {
         let discardedRaceNames = new Set<string>()
         let net = totalFromPairs
 
-        console.log({
-  discards,
-  threshold,
-  racesCount: pairs.length,
-  regatta
-})
-
-
         // aplicar regra: só há descartes se #provas >= threshold
         if (pairs.length >= threshold && discards > 0) {
           // escolher os piores (maiores pontos)
@@ -176,6 +176,13 @@ export default function OverallResultsPage() {
       // ordenar pelo net (menor é melhor), depois total como desempate
       .sort((a, b) => (a.net_points - b.net_points) || (a.total_points - b.total_points))
   }, [rawResults, regatta])
+
+  const visibleColumns: ResultsOverallColumnId[] = useMemo(
+    () => getVisibleResultsOverallColumnsForClass(regatta?.results_overall_columns, selectedClass),
+    [regatta?.results_overall_columns, selectedClass]
+  )
+
+  const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -226,52 +233,65 @@ export default function OverallResultsPage() {
           <h3 className="text-lg font-semibold mb-2">Classe: {selectedClass}</h3>
 
           {loadingResults ? (
-            <p className="text-gray-500">A carregar resultados…</p>
+            <p className="text-gray-500">Loading results…</p>
           ) : results.length === 0 ? (
-            <p className="text-gray-500">Sem resultados para a classe {selectedClass}.</p>
+            <p className="text-gray-500">No published results yet for this class.</p>
           ) : (
             <table className="table-auto w-full border border-collapse">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border px-3 py-2">#</th>
-                  <th className="border px-3 py-2">Nº Vela</th>
-                  <th className="border px-3 py-2">Embarcação</th>
-                  <th className="border px-3 py-2">Timoneiro</th>
-                  {raceNames.map(name => (
+                  {fixedColumnIds.map((id) => (
+                    <th key={id} className="border px-3 py-2">
+                      {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
+                    </th>
+                  ))}
+                  {raceNames.map((name) => (
                     <th key={name} className="border px-3 py-2">
                       {name}
                     </th>
                   ))}
-                  <th className="border px-3 py-2 font-bold text-right">Total</th>
-                  <th className="border px-3 py-2 font-bold text-right">Net</th>
+                  {visibleColumns.includes('total') && (
+                    <th className="border px-3 py-2 font-bold text-right">Total</th>
+                  )}
+                  {visibleColumns.includes('net') && (
+                    <th className="border px-3 py-2 font-bold text-right">Net</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {results.map((r, i) => (
                   <tr key={`${r.class_name}-${r.sail_number}-${i}`}>
-                    <td className="border px-3 py-2">{i + 1}º</td>
-                    <td className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
-                    <td className="border px-3 py-2">{r.boat_name}</td>
-                    <td className="border px-3 py-2">{r.skipper_name}</td>
-
-                    {raceNames.map(name => {
+                    {fixedColumnIds.map((id) => {
+                      if (id === 'place') return <td key={id} className="border px-3 py-2 text-center">{i + 1}</td>
+                      if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{(r as any).finals_fleet ?? '—'}</td>
+                      if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
+                      if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>
+                      if (id === 'skipper') return <td key={id} className="border px-3 py-2">{r.skipper_name}</td>
+                      if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>
+                      if (id === 'model') return <td key={id} className="border px-3 py-2">{(r as any).boat_model ?? '—'}</td>
+                      if (id === 'bow') return <td key={id} className="border px-3 py-2">{(r as any).bow_number ?? '—'}</td>
+                      return <td key={id} className="border px-3 py-2">—</td>
+                    })}
+                    {raceNames.map((name) => {
                       const raw = r.per_race?.[name]
-                      // mostramos o que veio (número ou string tipo DNC), mas só marcamos descarte se for numérico
-                      const num = typeof raw === 'number' ? raw : (typeof raw === 'string' ? (raw.match(/-?\d+(\.\d+)?/) ? Number(raw.match(/-?\d+(\.\d+)?/)![0]) : NaN) : NaN)
+                      const num = typeof raw === 'number' ? raw : (typeof raw === 'string' ? (raw.match(/-?\d+(\.\d+)?/) ? Number((raw.match(/-?\d+(\.\d+)?/) ?? [])[0]) : NaN) : NaN)
                       const discarded = r.discardedRaceNames.has(name) && Number.isFinite(num)
                       return (
                         <td
                           key={name}
                           className={`border px-3 py-2 text-center ${discarded ? 'text-gray-400' : ''}`}
-                          title={discarded ? 'Descartada' : undefined}
+                          title={discarded ? 'Discarded' : undefined}
                         >
                           {discarded ? `(${typeof raw === 'number' ? raw : (raw ?? '-')})` : (raw ?? '-')}
                         </td>
                       )
                     })}
-
-                    <td className="border px-3 py-2 font-semibold text-right">{r.total_points.toFixed?.(2) ?? r.total_points}</td>
-                    <td className="border px-3 py-2 font-extrabold text-right">{r.net_points.toFixed?.(2) ?? r.net_points}</td>
+                    {visibleColumns.includes('total') && (
+                      <td className="border px-3 py-2 font-semibold text-right">{Number(r.total_points).toFixed(2)}</td>
+                    )}
+                    {visibleColumns.includes('net') && (
+                      <td className="border px-3 py-2 font-extrabold text-right">{Number(r.net_points).toFixed(2)}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>

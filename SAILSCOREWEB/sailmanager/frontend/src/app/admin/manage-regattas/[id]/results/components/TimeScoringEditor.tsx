@@ -420,32 +420,32 @@ export default function TimeScoringEditor({
 
       {method === 'anc' && entriesWithoutRatingInDraft.length > 0 && (
         <div className="p-3 border border-amber-300 rounded bg-amber-50 text-amber-900 text-sm" role="alert">
-          Há barcos sem rating ANC. É necessário preencher o rating ANC nas inscrições.
+          Some boats are missing ANC rating. Fill in the ANC rating in the entries.
         </div>
       )}
       {method === 'orc' && entriesWithoutRatingInDraft.length > 0 && (
         <div className="p-3 border border-amber-300 rounded bg-amber-50 text-amber-900 text-sm" role="alert">
-          Há barcos sem rating ORC ({orcRatingMode}). É necessário preencher o ORC {orcRatingMode} nas inscrições.
+          Some boats are missing ORC rating ({orcRatingMode}). Fill in the ORC {orcRatingMode} in the entries.
         </div>
       )}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">
-            Inscritos elegíveis para esta corrida ({eligibleEntries.length})
+            Eligible entries for this race ({eligibleEntries.length})
           </h4>
           <input
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Procurar por vela / nome / clube"
+            placeholder="Search by sail / name / club"
             className="border rounded px-3 py-1.5 text-sm w-64"
-            aria-label="Pesquisar inscritos disponíveis"
+            aria-label="Search available entries"
           />
         </div>
 
         {filteredAvailable.length === 0 ? (
-          <p className="text-xs text-gray-500">Sem inscritos a corresponder ao filtro.</p>
+          <p className="text-xs text-gray-500">No entries match the filter.</p>
         ) : (
           <ul className="space-y-1 max-h-56 overflow-auto pr-1">
             {filteredAvailable.map((entry) => (
@@ -471,7 +471,7 @@ export default function TimeScoringEditor({
                   onClick={() => onAddEntry(entry.id)}
                   className="text-sm text-green-700 hover:underline"
                 >
-                  Adicionar
+                  Add
                 </button>
               </li>
             ))}
@@ -481,7 +481,7 @@ export default function TimeScoringEditor({
 
       {raceId != null && (
         <div className="flex flex-wrap items-center gap-4 p-3 border rounded bg-gray-50">
-          <span className="text-sm font-medium">Start da corrida (hora do dia, comum a todos):</span>
+          <span className="text-sm font-medium">Race start (time of day, common to all):</span>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-600">Start time</label>
             <TimeInput
@@ -490,7 +490,7 @@ export default function TimeScoringEditor({
               onBlur={handleBlurRaceStart}
               placeholder="HH:MM:SS"
               className="w-24 border rounded px-1 py-0.5 text-center text-sm"
-              aria-label="Start time da corrida"
+              aria-label="Race start time"
             />
           </div>
           <button
@@ -498,19 +498,19 @@ export default function TimeScoringEditor({
             onClick={handleBlurRaceStart}
             className="text-xs text-blue-600 hover:underline"
           >
-            Aplicar
+            Apply
           </button>
         </div>
       )}
 
       <div className="space-y-2">
         <h4 className="text-sm font-semibold">
-          Tabela de tempos ({draft.length}) — preview de ranking
+          Time table ({draft.length}) — ranking preview
         </h4>
 
         {rows.length === 0 ? (
           <p className="text-xs text-gray-500">
-            Ainda não adicionaste embarcações à tabela de tempos. Escolhe em cima para começar.
+            No boats added to the time table yet. Choose from above to start.
           </p>
         ) : (
           <div className="max-h-[60vh] overflow-auto border rounded">
@@ -550,7 +550,7 @@ export default function TimeScoringEditor({
                           />
                           <div className="min-w-0">
                             <div className="truncate text-gray-800">
-                              {entry?.boat_name || '(sem nome)'}
+                              {entry?.boat_name || '(no name)'}
                             </div>
                           </div>
                         </div>
@@ -562,7 +562,7 @@ export default function TimeScoringEditor({
                             {entry.club ? <span className="text-gray-500"> ({entry.club})</span> : null}
                           </span>
                         ) : (
-                          <span className="text-gray-400">entry em falta</span>
+                          <span className="text-gray-400">entry missing</span>
                         )}
                       </td>
                       <td className="border px-2 py-1 text-center">
@@ -670,7 +670,7 @@ export default function TimeScoringEditor({
                           value={codeValue}
                           onChange={(e) => onUpdateCode(row.entryId, e.target.value || null)}
                         >
-                          <option value="">(nenhum)</option>
+                          <option value="">(none)</option>
                           {codeOptions.map((c) => (
                             <option key={c} value={c}>
                               {c}
@@ -684,7 +684,7 @@ export default function TimeScoringEditor({
                           value={row.notes ?? ''}
                           onChange={(e) => onUpdateNotes(row.entryId, e.target.value)}
                           className="w-40 border rounded px-1 py-0.5"
-                          placeholder="Notas (opcional)"
+                          placeholder="Notes (optional)"
                         />
                       </td>
                       <td className="border px-1 py-1 text-center">
@@ -693,7 +693,7 @@ export default function TimeScoringEditor({
                           onClick={() => onRemoveEntry(row.entryId)}
                           className="px-2 py-1 rounded border text-red-600 hover:bg-red-50"
                         >
-                          Remover
+                          Remove
                         </button>
                       </td>
                     </tr>
@@ -711,7 +711,7 @@ export default function TimeScoringEditor({
               onClick={onSave}
               className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 text-sm"
             >
-              Guardar resultados Handicap
+              Save Handicap results
             </button>
           </div>
         )}

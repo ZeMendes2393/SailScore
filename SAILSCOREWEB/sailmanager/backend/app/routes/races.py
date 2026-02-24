@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, status
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text, bindparam
 from typing import List
@@ -81,17 +81,44 @@ def create_race(
     return new_race
 
 
+def _get_published_races_count(db: Session, regatta_id: int, class_name: str) -> int:
+    row = (
+        db.query(models.RegattaClassPublication)
+        .filter(
+            models.RegattaClassPublication.regatta_id == regatta_id,
+            models.RegattaClassPublication.class_name == class_name,
+        )
+        .first()
+    )
+    return int(row.published_races_count) if row else 0
+
+
 # ------------------------------------------------------------
 # GET RACES BY REGATTA
 # ------------------------------------------------------------
 @router.get("/by_regatta/{regatta_id}", response_model=List[schemas.RaceRead])
-def get_races_by_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    return (
+def get_races_by_regatta(
+    regatta_id: int,
+    public: bool = Query(False, description="If true, return only published races per class."),
+    db: Session = Depends(get_db),
+):
+    races = (
         db.query(models.Race)
         .filter_by(regatta_id=regatta_id)
         .order_by(models.Race.order_index.asc(), models.Race.id.asc())
         .all()
     )
+    if not public:
+        return races
+    by_class: dict[str, list] = {}
+    for r in races:
+        cls = str(r.class_name or "")
+        by_class.setdefault(cls, []).append(r)
+    kept = []
+    for cls, cls_races in by_class.items():
+        k = _get_published_races_count(db, regatta_id, cls)
+        kept.extend(cls_races[:k] if k > 0 else [])
+    return sorted(kept, key=lambda r: (r.order_index or 0, r.id))
 
 
 # ------------------------------------------------------------

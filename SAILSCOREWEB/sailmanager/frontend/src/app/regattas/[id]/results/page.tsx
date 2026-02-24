@@ -10,7 +10,6 @@ interface Regatta {
   location: string
   start_date: string
   end_date: string
-  status?: string
 }
 
 export default function ResultsPage() {
@@ -75,9 +74,6 @@ export default function ResultsPage() {
             <p className="text-gray-600">
               {regatta.location} | {regatta.start_date} – {regatta.end_date}
             </p>
-            <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs mt-2 inline-block">
-              {regatta.status || "Scheduled"}
-            </span>
           </>
         ) : (
           <p>A carregar regata...</p>
@@ -111,11 +107,9 @@ export default function ResultsPage() {
 
       <div className="bg-white shadow rounded p-6">
         {regatta && selectedClass ? (
-          // Se o teu ResultsViewer aceitar a classe, podes passar como prop:
-          // <ResultsViewer regattaId={id} classNameFilter={selectedClass} />
-          <ResultsViewer regattaId={id} />
+          <ResultsViewer regattaId={id} selectedClass={selectedClass} />
         ) : (
-          <p className="text-gray-500">Selecione uma classe para ver os resultados.</p>
+          <p className="text-gray-500">Select a class to see results.</p>
         )}
       </div>
     </main>

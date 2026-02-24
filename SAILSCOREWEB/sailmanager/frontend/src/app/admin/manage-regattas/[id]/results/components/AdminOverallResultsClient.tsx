@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Plus, Trash2, Layers, Shuffle, List, Globe } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
@@ -14,11 +15,11 @@ import {
   type ResultsOverallColumnId,
 } from '@/lib/resultsOverallColumns';
 import RaceCreator from './RaceCreator';
-import SettingsDrawer from './settings/SettingsDrawer';
 
-// ✅ Discards
+// Discards
 import DiscardsDrawer from './settings/DiscardsDrawer';
 import TiebreakerDrawer from './settings/TiebreakerDrawer';
+import PublishDrawer from './settings/PublishDrawer';
 
 // Fleets
 import FleetsDrawer from './fleets/FleetsDrawer';
@@ -160,10 +161,10 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   } | null>(null);
 
   // drawers
-  const [showSettings, setShowSettings] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showFleets, setShowFleets] = useState(false);
   const [showDiscards, setShowDiscards] = useState(false);
+  const [showPublish, setShowPublish] = useState(false);
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [showFields, setShowFields] = useState(false);
   const [savingColumns, setSavingColumns] = useState(false);
@@ -452,87 +453,80 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           href={`/admin/manage-regattas/${regattaId}`}
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
-          ← Voltar ao menu da regata
+          ← Back to regatta menu
         </Link>
       </div>
 
       {/* Header + Action Bar */}
       <div className="flex flex-col gap-3 mb-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Overall Classification (Admin)</h2>
-          {regatta && (
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              Discards:{' '}
-              <strong>{clsResolved?.discard_count ?? regatta.discard_count}</strong>
-              {(clsResolved?.discard_count ?? regatta.discard_count) > 0 && (
-                <>
-                  {' '}
-                  (after <strong>{clsResolved?.discard_threshold ?? regatta.discard_threshold}</strong>{' '}
-                  races)
-                </>
-              )}
-            </span>
-          )}
-        </div>
+        <h2 className="text-2xl font-bold">Overall Classification (Admin)</h2>
 
         {/* Action bar per class */}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setShowCreate((v) => !v)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
             disabled={!selectedClass}
             title={!selectedClass ? 'Choose a class first' : 'Create new race'}
           >
-            ➕ Create Race
+            <Plus size={16} strokeWidth={2} />
+            Create Race
           </button>
 
           <button
             type="button"
             onClick={() => setShowDiscards(true)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
             disabled={!selectedClass}
             title={!selectedClass ? 'Choose a class first' : 'Configure discards'}
           >
-            🗑️ Discards
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
-            disabled={!selectedClass}
-            title={!selectedClass ? 'Choose a class first' : 'Class-specific settings'}
-          >
-            ⚙️ Settings (class)
+            <Trash2 size={16} strokeWidth={2} />
+            Discards
           </button>
 
           <button
             type="button"
             onClick={() => setShowFleets(true)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
             disabled={!selectedClass}
             title={!selectedClass ? 'Choose a class first' : 'Manage Fleets (Qualifying/Finals)'}
           >
-            🧩 Fleets
+            <Layers size={16} strokeWidth={2} />
+            Fleets
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPublish(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
+            disabled={!selectedClass}
+            title={!selectedClass ? 'Choose a class first' : 'Publish results to public (up to race K)'}
+          >
+            <Globe size={16} strokeWidth={2} />
+            Publish (Public)
           </button>
 
           <button
             type="button"
             onClick={() => setShowTiebreaker(true)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
             title="Tie-breaking rules (Appendix 8, Medal Race)"
           >
-            🔀 Tiebreaker
+            <Shuffle size={16} strokeWidth={2} />
+            Tiebreaker
           </button>
 
           <button
             type="button"
             onClick={() => setShowFields((v) => !v)}
-            className="px-3 py-2 rounded border hover:bg-gray-50"
-            title="Colunas visíveis na tabela Overall"
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded border text-gray-700 ${
+              showFields ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+            }`}
+            title="Visible columns in Overall table"
           >
-            📋 Fields
+            <List size={16} strokeWidth={2} />
+            Fields
           </button>
         </div>
 
@@ -540,7 +534,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         {showFields && (
           <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
             <span className="text-sm font-medium text-gray-700">
-              Colunas visíveis{selectedClass ? ` (classe ${selectedClass})` : ''}:
+              Visible columns{selectedClass ? ` (class ${selectedClass})` : ''}:
             </span>
             {RESULTS_OVERALL_COLUMNS.map((col) => (
               <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
@@ -554,7 +548,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                 {col.label}
               </label>
             ))}
-            {savingColumns && <span className="text-xs text-gray-500">A guardar…</span>}
+            {savingColumns && <span className="text-xs text-gray-500">Saving…</span>}
           </div>
         )}
 
@@ -804,8 +798,15 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         />
       )}
 
-      {/* Class-specific Settings Drawer */}
-      {showSettings && <SettingsDrawer regattaId={regattaId} onClose={() => setShowSettings(false)} />}
+      {/* Publish (Public) Drawer */}
+      {showPublish && selectedClass && (
+        <PublishDrawer
+          regattaId={regattaId}
+          class_name={selectedClass}
+          onClose={() => setShowPublish(false)}
+          races={(racesByClass[selectedClass] ?? []).map((r) => ({ id: r.id, name: r.name, class_name: r.class_name, order_index: r.order_index ?? undefined }))}
+        />
+      )}
 
       {/* Fleets Drawer */}
       {showFleets && (

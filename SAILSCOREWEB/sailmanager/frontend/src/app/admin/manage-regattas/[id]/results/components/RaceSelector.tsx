@@ -23,7 +23,7 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
   return (
     <>
       <label className="block mb-2 text-sm font-medium text-gray-700">
-        Seleciona uma corrida:
+        Select a race:
       </label>
 
       <select
@@ -36,12 +36,12 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
           onResetLists?.();
         }}
       >
-        <option value="">-- Escolher corrida --</option>
+        <option value="">-- Select race --</option>
 
         {uniqueRaces.map((race) => (
           <option key={`race-${race.id}`} value={race.id}>
             {race.name} ({race.class_name})
-            {race.discardable === false ? ' — (não descarta)' : ''}
+            {race.discardable === false ? ' — (non-discardable)' : ''}
           </option>
         ))}
       </select>

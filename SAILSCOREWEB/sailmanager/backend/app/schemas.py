@@ -67,6 +67,17 @@ class RegattaRead(RegattaBase):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class RegattaListRead(BaseModel):
+    """Resposta do GET /regattas/ para lista/calendário: inclui nomes das classes e online_entry_open."""
+    id: int
+    name: str
+    location: str
+    start_date: str
+    end_date: str
+    online_entry_open: bool = True
+    class_names: List[str] = []
+
+
 class RegattaUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None

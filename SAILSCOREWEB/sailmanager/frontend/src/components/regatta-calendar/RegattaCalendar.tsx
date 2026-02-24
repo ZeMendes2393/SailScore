@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 export interface RegattaItem {
@@ -12,6 +13,10 @@ export interface RegattaItem {
   location: string;
   start_date: string;
   end_date: string;
+  /** Compatível com o toggle "Online Entry" no admin; default true = inscrições abertas */
+  online_entry_open?: boolean;
+  /** Nomes das classes (ex.: ["ILCA 7", "ILCA 6"]) */
+  class_names?: string[];
 }
 
 interface RegattaCalendarProps {
@@ -20,14 +25,28 @@ interface RegattaCalendarProps {
   regattaLinkPrefix: string;
   /** Optional: show Add Regatta button (admin only) */
   addRegattaHref?: string;
-  /** English labels */
+  /** English/Portuguese labels */
   labels?: {
     regattas?: string;
     noRegattas?: string;
     addRegatta?: string;
     moreInfo?: string;
     viewInfo?: string;
+    viewButton?: string;
+    statusOpen?: string;
+    statusClosed?: string;
   };
+}
+
+/** Formata intervalo de datas para exibição no card: "12–14 Abr" */
+function formatDateRangeShort(startDate: string, endDate: string): string {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  if (sameMonth) {
+    return `${start.getDate()}–${end.getDate()} ${MONTHS_PT[start.getMonth()]}`;
+  }
+  return `${start.getDate()} ${MONTHS_PT[start.getMonth()]} – ${end.getDate()} ${MONTHS_PT[end.getMonth()]}`;
 }
 
 /** Returns true if the date string (YYYY-MM-DD) falls within any regatta's date range */
@@ -87,6 +106,9 @@ export function RegattaCalendar({
     addRegatta: labels.addRegatta ?? 'Add Regatta',
     moreInfo: labels.moreInfo ?? 'More Info',
     viewInfo: labels.viewInfo ?? 'View Info',
+    viewButton: labels.viewButton ?? 'View',
+    statusOpen: labels.statusOpen ?? 'Registrations open',
+    statusClosed: labels.statusClosed ?? 'Registrations closed',
   };
 
   const years = useMemo(() => {
@@ -188,26 +210,38 @@ export function RegattaCalendar({
         {regattasInMonth.length === 0 ? (
           <p className="text-gray-500 text-sm">{t.noRegattas}</p>
         ) : (
-          <ul className="space-y-2">
-            {regattasInMonth.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-              >
-                <div>
-                  <span className="font-medium">{r.name}</span>
-                  <span className="text-gray-500 text-sm ml-2">
-                    {r.location} · {r.start_date} – {r.end_date}
-                  </span>
-                </div>
-                <Link
-                  href={`${regattaLinkPrefix}/${r.id}`}
-                  className="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700"
-                >
-                  {addRegattaHref ? t.viewInfo : t.moreInfo}
-                </Link>
-              </li>
-            ))}
+          <ul className="space-y-4">
+            {regattasInMonth.map((r) => {
+              const isOpen = r.online_entry_open !== false;
+              const classesText = (r.class_names && r.class_names.length > 0)
+                ? r.class_names.join(' • ')
+                : null;
+              return (
+                <li key={r.id} className="border border-gray-200 rounded-lg p-4 shadow-sm bg-white hover:shadow-md transition-shadow">
+                  <div className="flex flex-col gap-1.5">
+                    <h4 className="font-semibold text-gray-900">{r.name}</h4>
+                    <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date)}</p>
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <span aria-hidden>📍</span> {r.location}
+                    </p>
+                    {classesText && (
+                      <p className="text-sm text-gray-600">
+                        Classes: {classesText}
+                      </p>
+                    )}
+                    <p className="text-sm font-medium text-gray-700">
+                      Status: {isOpen ? t.statusOpen : t.statusClosed}
+                    </p>
+                    <Link
+                      href={`${regattaLinkPrefix}/${r.id}`}
+                      className="self-start mt-1 text-sm bg-gray-800 text-white px-3 py-1.5 rounded hover:bg-gray-700"
+                    >
+                      {t.viewButton}
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

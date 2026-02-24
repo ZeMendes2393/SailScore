@@ -1,6 +1,6 @@
 # app/routes/regattas.py
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Dict, Optional, Literal
 from pydantic import BaseModel, Field
@@ -15,9 +15,26 @@ router = APIRouter(prefix="/regattas", tags=["regattas"])
 
 # ---------------- Regattas CRUD ----------------
 
-@router.get("/", response_model=List[schemas.RegattaRead])
+@router.get("/", response_model=List[schemas.RegattaListRead])
 def list_regattas(db: Session = Depends(get_db)):
-    return db.query(models.Regatta).all()
+    regattas = (
+        db.query(models.Regatta)
+        .options(joinedload(models.Regatta.classes))
+        .order_by(models.Regatta.start_date)
+        .all()
+    )
+    return [
+        schemas.RegattaListRead(
+            id=r.id,
+            name=r.name,
+            location=r.location,
+            start_date=r.start_date,
+            end_date=r.end_date,
+            online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
+            class_names=[c.class_name for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))],
+        )
+        for r in regattas
+    ]
 
 @router.post("/", response_model=schemas.RegattaRead)
 def create_regatta(

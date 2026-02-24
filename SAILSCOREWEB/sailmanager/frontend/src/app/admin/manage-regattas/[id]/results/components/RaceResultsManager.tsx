@@ -126,14 +126,14 @@ export default function RaceResultsManager({
   const handleOverridePoints = useCallback(
     async (rowId: number, points: number | null) => {
       if (!token) {
-        alert('Sem token de autenticação.');
+        alert('No authentication token.');
         return;
       }
 
       // se não for undo, valida o número
       if (points !== null) {
         if (!Number.isFinite(points) || points < 0) {
-          alert('Pontos inválidos.');
+          alert('Invalid points.');
           return;
         }
       }
@@ -161,7 +161,7 @@ export default function RaceResultsManager({
         }
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Erro ao alterar pontos.');
+        alert(e?.message || 'Error updating points.');
       } finally {
         setSavingOverridePoints(false);
       }
@@ -283,7 +283,7 @@ export default function RaceResultsManager({
   const tabs = useMemo(
     () => {
       const base: { key: View; label: string; badge?: number }[] = [
-        { key: 'existing', label: 'Resultados', badge: (existingResults ?? []).length },
+        { key: 'existing', label: 'Results', badge: (existingResults ?? []).length },
       ];
 
       if (isHandicapClass) {
@@ -295,12 +295,12 @@ export default function RaceResultsManager({
       } else {
         base.push({
           key: 'draft',
-          label: 'Rascunho',
+          label: 'Draft',
           badge: (draft ?? []).length,
         });
       }
 
-      base.push({ key: 'add', label: 'Adicionar 1' });
+      base.push({ key: 'add', label: 'Add 1' });
       return base;
     },
     [existingResults, draft, isHandicapClass, handicapDraft]
@@ -347,11 +347,11 @@ export default function RaceResultsManager({
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
               {/* Left */}
               <div>
-                <h1 className="text-xl font-bold">Resultados</h1>
+                <h1 className="text-xl font-bold">Results</h1>
                 <p className="text-xs text-gray-600">
                   {selectedRaceId
-                    ? `Corrida selecionada ${selectedClass ? `— ${selectedClass}` : ''}`
-                    : 'Escolhe uma corrida para começar.'}
+                    ? `Race selected${selectedClass ? ` — ${selectedClass}` : ''}`
+                    : 'Select a race to get started.'}
                 </p>
 
                 {hasFleets && (
@@ -381,78 +381,78 @@ export default function RaceResultsManager({
                 <div className="min-w-[260px] lg:min-w-[320px]">
                   <RaceSelector races={racesForSelectedClass} selectedRaceId={selectedRaceId} onSelect={handleSelectRace} />
                 </div>
-
-                {/* Toggle discardable */}
-                {selectedRaceId && currentRace && (
-                  <label className="flex items-center gap-2 px-3 py-2 rounded border bg-white text-xs lg:text-sm">
-                    <span className="text-gray-700">Discardable</span>
-                    <input
-                      type="checkbox"
-                      checked={!!(currentRace as any).discardable}
-                      disabled={savingRaceFlags}
-                      onChange={(e) => {
-                        const next = e.target.checked;
-
-                        (async () => {
-                          setSavingRaceFlags(true);
-                          try {
-                            await setRaceDiscardable(selectedRaceId, next);
-                          } finally {
-                            setSavingRaceFlags(false);
-                          }
-                        })();
-                      }}
-                    />
-                  </label>
-                )}
-
-                {selectedRaceId && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!confirm('Tens a certeza que queres eliminar esta corrida (e todos os seus resultados)?')) return;
-                      await deleteRace(selectedRaceId);
-                    }}
-                    className="px-3 py-2 rounded border border-red-500 text-red-600 hover:bg-red-50 text-xs lg:text-sm"
-                  >
-                    Delete race
-                  </button>
-                )}
               </div>
             </div>
 
             {!hideInnerTabs && (
-              <nav role="tablist" aria-label="Secções de resultados" className="flex gap-2 overflow-x-auto pb-1">
-                {tabs.map((t) => {
-                  const active = view === t.key;
-                  const disabled = !selectedRaceId;
-                  return (
+              <nav role="tablist" aria-label="Results sections" className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-2">
+                  {tabs.map((t) => {
+                    const active = view === t.key;
+                    const disabled = !selectedRaceId;
+                    return (
+                      <button
+                        key={t.key}
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => setViewAndUrl(t.key)}
+                        disabled={disabled}
+                        className={[
+                          'px-3 py-1.5 rounded-full border text-sm transition',
+                          active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50',
+                          disabled ? 'opacity-50 cursor-not-allowed' : '',
+                        ].join(' ')}
+                      >
+                        <span>{t.label}</span>
+                        {typeof t.badge === 'number' && (
+                          <span
+                            className={[
+                              'ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]',
+                              active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700',
+                            ].join(' ')}
+                          >
+                            {t.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedRaceId && (
+                  <div className="ml-auto flex items-center gap-2 shrink-0">
+                    {currentRace && (
+                      <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-xs lg:text-sm">
+                        <span className="text-gray-700">Discardable</span>
+                        <input
+                          type="checkbox"
+                          checked={!!(currentRace as any).discardable}
+                          disabled={savingRaceFlags}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            (async () => {
+                              setSavingRaceFlags(true);
+                              try {
+                                await setRaceDiscardable(selectedRaceId, next);
+                              } finally {
+                                setSavingRaceFlags(false);
+                              }
+                            })();
+                          }}
+                        />
+                      </label>
+                    )}
                     <button
-                      key={t.key}
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setViewAndUrl(t.key)}
-                      disabled={disabled}
-                      className={[
-                        'px-3 py-1.5 rounded-full border text-sm transition',
-                        active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50',
-                        disabled ? 'opacity-50 cursor-not-allowed' : '',
-                      ].join(' ')}
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to delete this race (and all its results)?')) return;
+                        await deleteRace(selectedRaceId);
+                      }}
+                      className="px-3 py-1.5 rounded-full border border-red-500 text-red-600 hover:bg-red-50 text-xs lg:text-sm"
                     >
-                      <span>{t.label}</span>
-                      {typeof t.badge === 'number' && (
-                        <span
-                          className={[
-                            'ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]',
-                            active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700',
-                          ].join(' ')}
-                        >
-                          {t.badge}
-                        </span>
-                      )}
+                      Delete race
                     </button>
-                  );
-                })}
+                  </div>
+                )}
               </nav>
             )}
           </div>
@@ -462,17 +462,17 @@ export default function RaceResultsManager({
       {/* Main */}
       <div className="w-full px-6 py-4">
         {!selectedRaceId ? (
-          <div className="p-6 border rounded-2xl bg-white text-gray-600">Seleciona uma corrida no topo.</div>
+          <div className="p-6 border rounded-2xl bg-white text-gray-600">Select a race at the top.</div>
         ) : (
           <>
             {view === 'existing' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
-                    Resultados existentes {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
+                    Existing results {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
                   </h2>
                   <span className="text-xs text-gray-500">
-                    {loadingExisting ? 'A carregar…' : `${(existingResults ?? []).length} linhas`}
+                    {loadingExisting ? 'Loading…' : `${(existingResults ?? []).length} rows`}
                   </span>
                 </header>
 
@@ -496,10 +496,10 @@ export default function RaceResultsManager({
             {view === 'draft' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3">
-                  <h2 className="text-lg font-semibold">Rascunho &amp; Inscritos</h2>
+                  <h2 className="text-lg font-semibold">Draft &amp; Entries</h2>
                   <p className="text-xs text-gray-500">
-                    Adiciona por nº de vela ou a partir da lista filtrável.
-                    {hasFleets && ' (lista já filtrada pela fleet selecionada)'}
+                    Add by sail number or from the filterable list.
+                    {hasFleets && ' (list filtered by selected fleet)'}
                   </p>
                 </header>
                 <div className="max-h-[66vh] overflow-auto">
@@ -524,7 +524,7 @@ export default function RaceResultsManager({
 
             {view === 'add' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
-                <h2 className="text-lg font-semibold mb-3">Adicionar resultado em falta</h2>
+                <h2 className="text-lg font-semibold mb-3">Add missing result</h2>
                 <AddSingleForm singleSail={singleSail} setSingleSail={setSingleSail} singlePos={singlePos} setSinglePos={setSinglePos} onAdd={addSingle} />
               </section>
             )}
@@ -534,9 +534,8 @@ export default function RaceResultsManager({
                 <header className="mb-3">
                   <h2 className="text-lg font-semibold">Time Scoring (Handicap)</h2>
                   <p className="text-xs text-gray-500">
-                    Insere tempos em HH:MM:SS. A posição, delta e pontos são calculados automaticamente
-                    a partir do Corrected Time. Ao guardar, os resultados passam para &quot;Resultados
-                    existentes&quot;.
+                    Enter times in HH:MM:SS. Position, delta and points are calculated automatically
+                    from Corrected Time. On save, results move to &quot;Existing results&quot;.
                   </p>
                 </header>
                 <TimeScoringEditor
@@ -569,18 +568,18 @@ export default function RaceResultsManager({
           <div className="w-full px-6">
             <div className="flex items-center gap-3 rounded-2xl border bg-white shadow-lg p-3">
               <span className="text-sm text-gray-700">
-                {(draft ?? []).length} no rascunho — confirma para guardar em massa.
+                {(draft ?? []).length} in draft — confirm to save in bulk.
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <button onClick={saveBulk} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">
-                  Guardar em massa
+                  Save in bulk
                 </button>
                 <button
                   onClick={() => (draft ?? []).forEach((d) => removeDraft(d.entryId))}
                   className="px-3 py-2 rounded-xl border hover:bg-gray-50"
-                  title="Limpar rascunho"
+                  title="Clear draft"
                 >
-                  Limpar
+                  Clear
                 </button>
               </div>
             </div>
@@ -593,12 +592,12 @@ export default function RaceResultsManager({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="sail-choice-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5">
             <h3 id="sail-choice-title" className="text-lg font-semibold text-gray-900 mb-1">
-              Vários barcos com este número de vela
+              Multiple boats with this sail number
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               {sailChoicePending.context === 'draft'
-                ? 'Escolhe qual embarcação queres adicionar ao rascunho:'
-                : `Escolhe qual embarcação queres colocar na posição ${sailChoicePending.singlePos}º:`}
+                ? 'Choose which boat to add to the draft:'
+                : `Choose which boat to place in position ${sailChoicePending.singlePos}:`}
             </p>
             <ul className="space-y-2 mb-4">
               {sailChoicePending.candidates.map((entry) => (
@@ -625,7 +624,7 @@ export default function RaceResultsManager({
                     }
                     className="shrink-0 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
                   >
-                    Escolher
+                    Select
                   </button>
                 </li>
               ))}
@@ -636,7 +635,7 @@ export default function RaceResultsManager({
                 onClick={clearSailChoicePending}
                 className="px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700"
               >
-                Cancelar
+                Cancel
               </button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Entry, DraftResult } from '../types';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
@@ -42,24 +42,11 @@ export default function DraftResultsEditor({
   onSetDraftCode,
   onSetDraftPos,
 }: Props) {
-  const [filter, setFilter] = useState('');
-
   const entriesById = useMemo(() => {
     const m = new Map<number, Entry>();
     for (const e of entries) m.set(e.id, e);
     return m;
   }, [entries]);
-
-  const filteredAvailable = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    if (!f) return available;
-    return available.filter(
-      (e) =>
-        (e.sail_number || '').toLowerCase().includes(f) ||
-        (e.first_name + ' ' + e.last_name).toLowerCase().includes(f) ||
-        (e.club || '').toLowerCase().includes(f)
-    );
-  }, [available, filter]);
 
   const codeOptions = useMemo(() => {
     const custom = Object.keys(scoringCodes || {}).map((c) => c.toUpperCase()).sort();
@@ -98,7 +85,7 @@ export default function DraftResultsEditor({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block mb-2 text-sm">Adicionar por nº de vela (rascunho):</label>
+        <label className="block mb-2 text-sm">Add by sail number:</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -106,33 +93,23 @@ export default function DraftResultsEditor({
             onChange={(e) => setDraftInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onAddBySail()}
             className="border rounded px-3 py-2 w-full"
-            placeholder="Ex: POR123"
-            aria-label="Número de vela para adicionar ao rascunho"
+            placeholder="e.g. POR123"
+            aria-label="Sail number to add to draft"
           />
           <button onClick={onAddBySail} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-            ➕ Adicionar
+            ➕ Add
           </button>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold">Inscritos disponíveis ({filteredAvailable.length})</h4>
-          <input
-            type="text"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Procurar por vela / nome / clube"
-            className="border rounded px-3 py-1.5 text-sm w-64"
-            aria-label="Pesquisar inscritos disponíveis"
-          />
-        </div>
+        <h4 className="text-sm font-semibold">Available entries ({available.length})</h4>
 
-        {filteredAvailable.length === 0 ? (
-          <p className="text-xs text-gray-500">Sem inscritos a corresponder ao filtro.</p>
+        {available.length === 0 ? (
+          <p className="text-xs text-gray-500">No entries available.</p>
         ) : (
           <ul className="space-y-1 max-h-64 overflow-auto pr-1">
-            {filteredAvailable.map((entry) => (
+            {available.map((entry) => (
               <li
                 key={entry.id}
                 className="flex justify-between items-center p-2 border rounded bg-white hover:bg-gray-50"
@@ -144,7 +121,7 @@ export default function DraftResultsEditor({
                   {entry.club ? <span className="text-gray-500"> ({entry.club})</span> : null}
                 </span>
                 <button onClick={() => onAddEntry(entry.id)} className="text-sm text-green-700 hover:underline">
-                  Adicionar
+                  Add
                 </button>
               </li>
             ))}
@@ -153,10 +130,10 @@ export default function DraftResultsEditor({
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-semibold">Rascunho ({draft.length})</h4>
+        <h4 className="text-sm font-semibold">Draft ({draft.length})</h4>
 
         {draft.length === 0 ? (
-          <p className="text-xs text-gray-500">Ainda não adicionaste embarcações ao rascunho.</p>
+          <p className="text-xs text-gray-500">No boats added to the draft yet.</p>
         ) : (
           <>
             <ul className="space-y-2">
@@ -176,7 +153,7 @@ export default function DraftResultsEditor({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">Pos</label>
+                      <label className="text-xs text-gray-500">Pos.</label>
                       <input
                         type="number"
                         min={1}
@@ -190,13 +167,13 @@ export default function DraftResultsEditor({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">Código</label>
+                      <label className="text-xs text-gray-500">Code</label>
                       <select
                         className="border rounded px-2 py-1"
                         value={r.code ?? ''}
                         onChange={(ev) => onSetDraftCode(r.entryId, ev.target.value || null)}
                       >
-                        <option value="">(nenhum)</option>
+                        <option value="">(none)</option>
                         {codeOptions.map((code) => (
                           <option key={code} value={code}>
                             {code}
@@ -210,18 +187,18 @@ export default function DraftResultsEditor({
                     </div>
 
                     <div className="flex gap-2 shrink-0">
-                      <button onClick={() => onMove(i, -1)} className="px-2 py-1 rounded border hover:bg-gray-50" title="Subir">
+                      <button onClick={() => onMove(i, -1)} className="px-2 py-1 rounded border hover:bg-gray-50" title="Move up">
                         ↑
                       </button>
-                      <button onClick={() => onMove(i, +1)} className="px-2 py-1 rounded border hover:bg-gray-50" title="Descer">
+                      <button onClick={() => onMove(i, +1)} className="px-2 py-1 rounded border hover:bg-gray-50" title="Move down">
                         ↓
                       </button>
                       <button
                         onClick={() => onRemove(r.entryId)}
                         className="px-2 py-1 rounded border hover:bg-gray-50 text-red-600"
-                        title="Remover"
+                        title="Remove"
                       >
-                        Remover
+                        Remove
                       </button>
                     </div>
                   </li>
@@ -231,7 +208,7 @@ export default function DraftResultsEditor({
 
             <div className="pt-2 text-right">
               <button onClick={onSaveBulk} className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800">
-                💾 Guardar Resultados (em massa)
+                💾 Save Results (bulk)
               </button>
             </div>
           </>

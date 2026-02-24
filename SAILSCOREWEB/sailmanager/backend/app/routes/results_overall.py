@@ -238,10 +238,23 @@ def _fallback_discards_count_threshold(n_races: int, D: int, TH: int) -> int:
 # OVERALL
 # =====================================================================
 
+def _get_published_races_count(db: Session, regatta_id: int, class_name: str) -> int:
+    row = (
+        db.query(models.RegattaClassPublication)
+        .filter(
+            models.RegattaClassPublication.regatta_id == regatta_id,
+            models.RegattaClassPublication.class_name == class_name,
+        )
+        .first()
+    )
+    return int(row.published_races_count) if row else 0
+
+
 @router.get("/overall/{regatta_id}")
 def get_overall_results(
     regatta_id: int,
     class_name: str | None = Query(None),
+    public: bool = Query(False, description="If true, only published races (by class) are included."),
     db: Session = Depends(get_db),
 ):
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
@@ -252,13 +265,31 @@ def get_overall_results(
     reg_default_TH = int(getattr(reg, "discard_threshold", 0) or 0)
 
     # --------------------------------------------------------
-    # Corridas consideradas (TODAS contam para overall)
+    # Corridas consideradas (TODAS ou só publicadas se public=True)
     # --------------------------------------------------------
     race_q = db.query(models.Race).filter(models.Race.regatta_id == regatta_id)
     if class_name:
         race_q = race_q.filter(models.Race.class_name == class_name)
 
     races = race_q.order_by(models.Race.order_index.asc(), models.Race.id.asc()).all()
+
+    if public:
+        if class_name:
+            k = _get_published_races_count(db, regatta_id, class_name)
+            races = races[:k] if k > 0 else []
+            if k == 0:
+                return []  # Public sees "No published results yet" for this class
+        else:
+            # multi-class: for each class take first K races
+            by_class: dict[str, list] = {}
+            for r in races:
+                cls = str(r.class_name or "")
+                by_class.setdefault(cls, []).append(r)
+            kept = []
+            for cls, cls_races in by_class.items():
+                k = _get_published_races_count(db, regatta_id, cls)
+                kept.extend(cls_races[:k] if k > 0 else [])
+            races = sorted(kept, key=lambda r: (r.order_index or 0, r.id))
 
     race_ids = [int(r.id) for r in races]
     race_map = {int(r.id): r.name for r in races}

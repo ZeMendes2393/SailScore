@@ -30,6 +30,7 @@ from app.routes import (
     entry_attachments,
     class_settings,
     discards,
+    publication,
 )
 from app.routes.discards import router as discard_router
 
@@ -124,6 +125,7 @@ app.include_router(class_settings.router)  # 👈 adiciona após os outros route
 app.include_router(fleets_router.router)
 app.include_router(public_fleets_router)   # 👈 ADICIONAR AQUI
 app.include_router(discards.router)
+app.include_router(publication.router)
 
 # ---------- Utilitários ----------
 @app.get("/health")

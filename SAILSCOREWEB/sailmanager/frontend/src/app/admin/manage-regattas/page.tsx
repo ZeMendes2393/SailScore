@@ -11,6 +11,8 @@ interface Regatta {
   location: string;
   start_date: string;
   end_date: string;
+  online_entry_open?: boolean;
+  class_names?: string[];
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -65,8 +67,10 @@ export default function ManageRegattasPage() {
           addRegattaHref="/admin/create-regatta"
           labels={{
             noRegattas: 'No regattas in this month.',
-            viewInfo: 'View Info',
+            viewButton: 'View Info',
             addRegatta: 'Add Regatta',
+            statusOpen: 'Registrations open',
+            statusClosed: 'Registrations closed',
           }}
         />
       </main>

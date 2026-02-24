@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 
@@ -154,7 +155,12 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
             disabled={!canSubmit}
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? 'Creating…' : '➕ Create Race'}
+            {loading ? 'Creating…' : (
+              <>
+                <Plus size={16} strokeWidth={2} className="inline mr-1.5 -mt-0.5" />
+                Create Race
+              </>
+            )}
           </button>
         </div>
       )}
