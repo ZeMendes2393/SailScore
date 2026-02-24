@@ -1,7 +1,7 @@
 # app/schemas.py
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Literal, Any
+from typing import Optional, List, Dict, Literal, Any, Union
 from datetime import datetime, date, time
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 
@@ -61,8 +61,9 @@ class RegattaCreate(RegattaBase):
 class RegattaRead(RegattaBase):
     id: int
     scoring_codes: Optional[Dict[str, float]] = None
-    entry_list_columns: Optional[List[str]] = None
-    results_overall_columns: Optional[List[str]] = None
+    # Por classe: Dict[class_name, List[column_id]]. Legado: List[str] (uma config para todas).
+    entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -78,10 +79,10 @@ class RegattaUpdate(BaseModel):
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
 
-    # PATCH opcional
+    # PATCH opcional (por classe: Dict[class_name, List[column_id]])
     online_entry_open: Optional[bool] = None
-    entry_list_columns: Optional[List[str]] = None
-    results_overall_columns: Optional[List[str]] = None
+    entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
 
 
 class RegattaClassItem(BaseModel):
@@ -146,7 +147,11 @@ class EntryCreate(BaseModel):
     bow_number: Optional[str] = None
     boat_name: Optional[str] = None
     boat_model: Optional[str] = None  # ex: Beneteau First 36.7 (handicap)
-    rating: Optional[float] = None  # handicap rating (handicap)
+    rating: Optional[float] = None  # ANC rating (quando rating_type='anc')
+    rating_type: Optional[str] = None  # None | anc | orc
+    orc_low: Optional[float] = None
+    orc_medium: Optional[float] = None
+    orc_high: Optional[float] = None
     category: Optional[str] = None
 
     # helm
@@ -205,6 +210,49 @@ class EntryRead(EntryCreate):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class EntryListRead(BaseModel):
+    """Schema para listagem: aceita boat_country_code/sail_number nulos vindos do DB."""
+    id: int
+    class_name: Optional[str] = None
+    boat_country: Optional[str] = None
+    boat_country_code: Optional[str] = None
+    sail_number: Optional[str] = None
+    bow_number: Optional[str] = None
+    boat_name: Optional[str] = None
+    boat_model: Optional[str] = None
+    rating: Optional[float] = None
+    rating_type: Optional[str] = None
+    orc_low: Optional[float] = None
+    orc_medium: Optional[float] = None
+    orc_high: Optional[float] = None
+    category: Optional[str] = None
+    helm_position: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    helm_country: Optional[str] = None
+    territory: Optional[str] = None
+    club: Optional[str] = None
+    email: Optional[str] = None
+    contact_phone_1: Optional[str] = None
+    contact_phone_2: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    town: Optional[str] = None
+    helm_country_secondary: Optional[str] = None
+    federation_license: Optional[str] = None
+    owner_first_name: Optional[str] = None
+    owner_last_name: Optional[str] = None
+    owner_email: Optional[str] = None
+    regatta_id: int
+    paid: Optional[bool] = False
+    confirmed: Optional[bool] = False
+    crew_members: Optional[List[Dict[str, Any]]] = None
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
 # =========================
 # RACES
 # =========================
@@ -232,6 +280,11 @@ class RaceRead(BaseModel):
     is_medal_race: bool
     double_points: bool
     discardable: bool
+    # Handicap / Time Scoring
+    start_time: Optional[str] = None
+    start_day: Optional[int] = None
+    handicap_method: Optional[str] = None  # manual | anc | orc
+    orc_rating_mode: Optional[str] = None  # low | medium | high (quando handicap_method=orc)
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -244,6 +297,10 @@ class RaceUpdate(BaseModel):
     is_medal_race: Optional[bool] = None
     double_points: Optional[bool] = None
     discardable: Optional[bool] = None
+    start_time: Optional[str] = None
+    start_day: Optional[int] = None
+    handicap_method: Optional[str] = None
+    orc_rating_mode: Optional[str] = None
 
 
 
@@ -266,9 +323,15 @@ class ResultCreate(BaseModel):
     boat_name: Optional[str] = None
     boat_class: Optional[str] = None
     helm_name: Optional[str] = None
-    position: int
-    points: float
+    position: Optional[int] = None
+    points: Optional[float] = None
     code: Optional[str] = None
+    # Handicap / Time Scoring
+    finish_time: Optional[str] = None
+    finish_day: Optional[int] = None
+    elapsed_time: Optional[str] = None
+    corrected_time: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class ResultRead(BaseModel):
@@ -285,6 +348,13 @@ class ResultRead(BaseModel):
     code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     points_override: Optional[float] = None
+    rating: Optional[float] = None
+    finish_time: Optional[str] = None
+    finish_day: Optional[int] = None
+    elapsed_time: Optional[str] = None
+    corrected_time: Optional[str] = None
+    delta: Optional[str] = None
+    notes: Optional[str] = None
 
 
 
@@ -382,6 +452,7 @@ class Rule42Out(BaseModel):
     id: int
     regatta_id: int
     sail_num: str
+    boat_country_code: Optional[str] = None  # for display [Flag] [Code] [Number]
     penalty_number: str
     race: str
     group: Optional[str] = None
@@ -620,6 +691,10 @@ class EntryPatch(BaseModel):
     boat_name: Optional[str] = None
     boat_model: Optional[str] = None
     rating: Optional[float] = None
+    rating_type: Optional[str] = None
+    orc_low: Optional[float] = None
+    orc_medium: Optional[float] = None
+    orc_high: Optional[float] = None
     category: Optional[str] = None
 
     # helm

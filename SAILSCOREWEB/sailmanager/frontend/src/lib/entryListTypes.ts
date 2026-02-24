@@ -25,6 +25,14 @@ export interface EntryListEntry {
   owner_last_name?: string | null;
   owner_email?: string | null;
   crew_members?: EntryCrewMember[] | null;
+  /** Handicap rating ANC (ex.: 1.01, 0.977) */
+  rating?: number | null;
+  /** anc | orc | null */
+  rating_type?: string | null;
+  /** ORC ratings */
+  orc_low?: number | null;
+  orc_medium?: number | null;
+  orc_high?: number | null;
 }
 
 export function formatOwner(entry: EntryListEntry): string {

@@ -15,6 +15,9 @@ from app.routes.results_utils import (
     ReorderBody,
     _norm,
     _norm_sn,
+    _parse_time_to_seconds,
+    _format_delta,
+    compute_handicap_ranking,
     removes_from_ranking,
     get_scoring_map,
     compute_points_for_code,
@@ -280,6 +283,17 @@ def create_results_for_race(
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
 
+    # Verificar se a classe é handicap (usa tempos e corrected_time)
+    regatta_class = (
+        db.query(models.RegattaClass)
+        .filter(
+            models.RegattaClass.regatta_id == race.regatta_id,
+            func.lower(models.RegattaClass.class_name) == func.lower(str(race.class_name or "")),
+        )
+        .first()
+    )
+    is_handicap = regatta_class and (regatta_class.class_type or "").lower() == "handicap"
+
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
 
     # A corrida tem fleet_set associado?
@@ -315,7 +329,8 @@ def create_results_for_race(
     # ---------------------------------------------
     # 2) Validar payload + calcular pontos de cada linha
     # ---------------------------------------------
-    seen_sn: set[str] = set()
+    # Chave composta (sail_number, boat_country_code) para permitir POR 2 e ESP 2 no mesmo payload
+    seen_keys: set[tuple[str, str]] = set()
 
     for r in results:
         sn_norm = _norm_sn(r.sail_number)
@@ -325,29 +340,18 @@ def create_results_for_race(
                 detail="sail_number em falta num dos resultados",
             )
 
-        if sn_norm in seen_sn:
+        boat_cc_raw = getattr(r, "boat_country_code", None)
+        boat_cc_norm = (boat_cc_raw or "").strip().upper() or ""
+        dup_key = (sn_norm, boat_cc_norm)
+
+        if dup_key in seen_keys:
             raise HTTPException(
                 status_code=400,
-                detail=f"sail_number repetido no payload: {sn_norm}",
+                detail=f"sail_number repetido no payload: {sn_norm}" + (f" ({boat_cc_norm})" if boat_cc_norm else ""),
             )
-        seen_sn.add(sn_norm)
+        seen_keys.add(dup_key)
 
         code = _norm(getattr(r, "code", None))
-
-        try:
-            if code:
-                pts = compute_points_for_code(
-                    db=db,
-                    race=race,
-                    sail_number=sn_norm,
-                    code=code,
-                    manual_points=float(r.points) if r.points is not None else None,
-                    scoring_map=scoring_map,
-                )
-            else:
-                pts = float(r.points)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
 
         boat_cc = getattr(r, "boat_country_code", None)
         if not boat_cc:
@@ -362,20 +366,88 @@ def create_results_for_race(
             )
             boat_cc = getattr(entry_r, "boat_country_code", None) if entry_r else None
 
-        row = models.Result(
-            regatta_id=r.regatta_id,
-            race_id=race_id,
-            sail_number=sn_norm,
-            boat_country_code=boat_cc,
-            boat_name=r.boat_name,
-            class_name=race.class_name,
-            skipper_name=r.helm_name,
-            position=int(r.position),
-            points=float(pts),
-            code=code,
-        )
+        if not is_handicap:
+            # One Design: usar position e points do payload
+            try:
+                if code:
+                    pts = compute_points_for_code(
+                        db=db,
+                        race=race,
+                        sail_number=sn_norm,
+                        code=code,
+                        manual_points=float(r.points) if r.points is not None else None,
+                        scoring_map=scoring_map,
+                    )
+                else:
+                    pts = float(r.position if r.points is None else r.points)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
-        db.add(row)
+            row = models.Result(
+                regatta_id=r.regatta_id,
+                race_id=race_id,
+                sail_number=sn_norm,
+                boat_country_code=boat_cc,
+                boat_name=r.boat_name,
+                class_name=race.class_name,
+                skipper_name=r.helm_name,
+                position=int(r.position) if r.position is not None else 1,
+                points=float(pts),
+                code=code,
+            )
+            db.add(row)
+
+    # Handicap: calcular ranking a partir de corrected_time e inserir (One Design já inserido acima)
+    if is_handicap:
+        items = [
+            (_parse_time_to_seconds(getattr(r, "corrected_time", None)), _norm(getattr(r, "code", None)))
+            for r in results
+        ]
+        rankings = compute_handicap_ranking(items)
+        for r, (pos, delta_str, pts) in zip(results, rankings):
+            sn_norm = _norm_sn(r.sail_number)
+            # snapshot de dados da Entry (country code + rating)
+            entry_r = (
+                db.query(models.Entry)
+                .filter(
+                    models.Entry.regatta_id == r.regatta_id,
+                    models.Entry.class_name == race.class_name,
+                    func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
+                )
+                .first()
+            ) if sn_norm else None
+
+            boat_cc = getattr(r, "boat_country_code", None)
+            if not boat_cc and entry_r is not None:
+                boat_cc = getattr(entry_r, "boat_country_code", None)
+
+            rating_val = getattr(entry_r, "rating", None) if entry_r is not None else None
+            finish_day_val = getattr(r, "finish_day", None)
+            if finish_day_val is not None and not isinstance(finish_day_val, int):
+                try:
+                    finish_day_val = int(finish_day_val)
+                except (TypeError, ValueError):
+                    finish_day_val = None
+            row = models.Result(
+                regatta_id=r.regatta_id,
+                race_id=race_id,
+                sail_number=sn_norm,
+                boat_country_code=boat_cc,
+                boat_name=r.boat_name,
+                class_name=race.class_name,
+                skipper_name=r.helm_name,
+                rating=rating_val,
+                position=pos,
+                points=float(pts),
+                code=_norm(getattr(r, "code", None)),
+                finish_time=(getattr(r, "finish_time", None) or "").strip() or None,
+                finish_day=finish_day_val,
+                elapsed_time=(getattr(r, "elapsed_time", None) or "").strip() or None,
+                corrected_time=(getattr(r, "corrected_time", None) or "").strip() or None,
+                delta=delta_str,
+                notes=(getattr(r, "notes", None) or "").strip() or None,
+            )
+            db.add(row)
 
     db.flush()
 

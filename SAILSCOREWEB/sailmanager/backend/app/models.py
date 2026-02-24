@@ -141,7 +141,11 @@ class Entry(Base):
     bow_number = Column(String, nullable=True)  # número de proa (admin)
     boat_name = Column(String)
     boat_model = Column(String, nullable=True)  # ex: Beneteau First 36.7 (handicap)
-    rating = Column(Float, nullable=True)  # handicap rating (handicap)
+    rating = Column(Float, nullable=True)  # ANC rating (quando rating_type='anc')
+    rating_type = Column(String(16), nullable=True)  # None | anc | orc
+    orc_low = Column(Float, nullable=True)
+    orc_medium = Column(Float, nullable=True)
+    orc_high = Column(Float, nullable=True)
     category = Column(String)
 
     # Helm data
@@ -254,6 +258,13 @@ class Race(Base):
     is_medal_race = Column(Boolean, default=False)
     double_points = Column(Boolean, default=False)
     discardable = Column(Boolean, default=True)
+    # Handicap / Time Scoring: início da corrida (preenchido acima dos resultados)
+    start_time = Column(String(32), nullable=True)   # HH:MM:SS
+    start_day = Column(Integer, nullable=True, default=1, server_default="1")
+    # Método de handicap: manual | anc | orc
+    handicap_method = Column(String(16), nullable=True, server_default="manual")
+    # ORC: qual rating usar (low | medium | high)
+    orc_rating_mode = Column(String(16), nullable=True)
 
     regatta = relationship("Regatta", back_populates="races")
     results = relationship("Result", back_populates="race", cascade="all, delete-orphan")
@@ -284,7 +295,16 @@ class Result(Base):
     points = Column(Float, nullable=False)
     code = Column(String, nullable=True)  # "DNF" | "DNC" | etc.
     points_override = Column(Float, nullable=True)
-    
+
+    # Handicap / Time Scoring (nullable; one design usa só position/points)
+    rating = Column(Float, nullable=True)  # snapshot do rating usado (handicap)
+    finish_time = Column(String(32), nullable=True)
+    finish_day = Column(Integer, nullable=True)   # dia de chegada (provas multi-dia)
+    elapsed_time = Column(String(32), nullable=True)
+    corrected_time = Column(String(32), nullable=True)
+    delta = Column(String(32), nullable=True)
+    notes = Column(Text, nullable=True)
+
     regatta = relationship("Regatta", back_populates="results")
     race = relationship("Race", back_populates="results")
 

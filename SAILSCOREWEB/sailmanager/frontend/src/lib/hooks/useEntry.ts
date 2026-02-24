@@ -14,6 +14,10 @@ export type Entry = {
   boat_country_code?: string | null;
   boat_model?: string | null;
   rating?: number | null;
+  rating_type?: string | null;
+  orc_low?: number | null;
+  orc_medium?: number | null;
+  orc_high?: number | null;
   category?: string | null;
   owner_first_name?: string | null;
   owner_last_name?: string | null;

@@ -3,8 +3,9 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { isTokenExpired } from '@/lib/api';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 type BaseUser = {
   email: string;
@@ -46,6 +47,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     sessionStorage.setItem('user', JSON.stringify(me));
     return me;
   };
+
+  // Verificação periódica: se o token expirou, redireciona logo para login
+  // (evita estar a score e só no save descobrir que perdeu a auth)
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const interval = setInterval(() => {
+      const t = sessionStorage.getItem('token');
+      if (t && isTokenExpired(t)) {
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        const after = path + (typeof window !== 'undefined' ? window.location.search : '');
+        sessionStorage.setItem('postLoginRedirect', after);
+        const url = path.startsWith('/admin') ? '/admin/login?reason=expired' : '/login?reason=expired';
+        router.replace(url);
+      }
+    }, 60_000); // cada 60 segundos
+
+    return () => clearInterval(interval);
+  }, [user, token, router]);
 
   useEffect(() => {
     const storedToken = sessionStorage.getItem('token');

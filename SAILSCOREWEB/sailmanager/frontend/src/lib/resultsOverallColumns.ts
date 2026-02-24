@@ -1,6 +1,7 @@
 /**
  * Colunas da tabela Results Overall (admin).
- * A seleção é guardada em regatta.results_overall_columns.
+ * Por classe: results_overall_columns é um objeto { [className]: columnIds[] }.
+ * Legado: array de columnIds (uma config para todas as classes).
  */
 
 export const RESULTS_OVERALL_COLUMN_IDS = [
@@ -30,7 +31,7 @@ export const RESULTS_OVERALL_COLUMNS: ResultsOverallColumnDef[] = [
   { id: 'boat', label: 'Boat' },
   { id: 'skipper', label: 'Skipper' },
   { id: 'class', label: 'Class' },
-  { id: 'model', label: 'Model (handicap)' },
+  { id: 'model', label: 'Model' },
   { id: 'bow', label: 'Bow' },
   { id: 'total', label: 'Total' },
   { id: 'net', label: 'Net' },
@@ -59,4 +60,30 @@ export function getVisibleResultsOverallColumns(
     );
   }
   return [...DEFAULT_RESULTS_OVERALL_COLUMNS];
+}
+
+/** saved: array (legado) ou objeto { [className]: columnIds[] }. Retorna colunas visíveis para a classe. */
+export function getVisibleResultsOverallColumnsForClass(
+  saved: string[] | Record<string, string[]> | null | undefined,
+  className: string | null
+): ResultsOverallColumnId[] {
+  if (saved == null) return [...DEFAULT_RESULTS_OVERALL_COLUMNS];
+  if (Array.isArray(saved)) return getVisibleResultsOverallColumns(saved);
+  const byClass = saved as Record<string, string[]>;
+  if (className && byClass[className]?.length) return getVisibleResultsOverallColumns(byClass[className]);
+  if (byClass['__default__']?.length) return getVisibleResultsOverallColumns(byClass['__default__']);
+  return [...DEFAULT_RESULTS_OVERALL_COLUMNS];
+}
+
+/** Devolve o objeto completo para PATCH após toggle de coluna na classe dada. */
+export function resultsOverallColumnsByClassAfterToggle(
+  current: string[] | Record<string, string[]> | null | undefined,
+  className: string,
+  nextColumnIds: ResultsOverallColumnId[]
+): Record<string, string[]> {
+  const byClass: Record<string, string[]> = Array.isArray(current)
+    ? { __default__: current }
+    : (current && typeof current === 'object' ? { ...current } : {});
+  byClass[className] = nextColumnIds;
+  return byClass;
 }

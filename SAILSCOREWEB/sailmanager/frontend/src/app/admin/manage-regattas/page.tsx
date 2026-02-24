@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 
@@ -16,10 +15,9 @@ interface Regatta {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
-export default function AdminPage() {
+export default function ManageRegattasPage() {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const { logout } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -34,11 +32,6 @@ export default function AdminPage() {
     })();
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
-
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -46,33 +39,36 @@ export default function AdminPage() {
         <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
         <nav className="flex flex-col space-y-2">
           <Link href="/admin" className="hover:underline">Dashboard</Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
+          <Link href="/admin/manage-regattas" className="hover:underline font-semibold text-blue-600">Regattas</Link>
           <Link href="/admin/manage-users" className="hover:underline">Users</Link>
           <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
           <Link href="/admin/settings" className="hover:underline">Settings</Link>
         </nav>
 
-        <button onClick={handleLogout} className="mt-6 text-sm text-red-600 hover:underline">
+        <button onClick={() => { logout(); window.location.href = '/'; }} className="mt-6 text-sm text-red-600 hover:underline">
           Terminar sessão
         </button>
       </aside>
 
-      {/* Conteúdo principal */}
+      {/* Main content */}
       <main className="flex-1 p-10 bg-gray-50">
-        <h1 className="text-3xl font-bold mb-6">Overview</h1>
-
-        <div className="mb-6">
-          <RegattaCalendar
-            regattas={regattas}
-            regattaLinkPrefix="/admin/manage-regattas"
-            addRegattaHref="/admin/create-regatta"
-            labels={{
-              noRegattas: 'No regattas in this month.',
-              viewInfo: 'View Info',
-              addRegatta: 'Add Regatta',
-            }}
-          />
+        <div className="mb-4">
+          <Link href="/admin" className="text-sm text-blue-600 hover:underline">
+            ← Back to Dashboard
+          </Link>
         </div>
+        <h1 className="text-3xl font-bold mb-6">Regattas</h1>
+
+        <RegattaCalendar
+          regattas={regattas}
+          regattaLinkPrefix="/admin/manage-regattas"
+          addRegattaHref="/admin/create-regatta"
+          labels={{
+            noRegattas: 'No regattas in this month.',
+            viewInfo: 'View Info',
+            addRegatta: 'Add Regatta',
+          }}
+        />
       </main>
     </div>
   );

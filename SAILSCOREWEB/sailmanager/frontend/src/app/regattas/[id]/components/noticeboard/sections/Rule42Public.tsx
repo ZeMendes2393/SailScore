@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type Row = {
   id: number;
   sail_num: string;
+  boat_country_code?: string | null;
   penalty_number: string;
   race: string;
   group: string | null;
@@ -77,7 +79,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
             )}
             {rows.map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="p-2">{r.sail_num}</td>
+                <td className="p-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_num} /></td>
                 <td className="p-2">{r.penalty_number}</td>
                 <td className="p-2">{r.race}</td>
                 <td className="p-2">{r.group || '—'}</td>

@@ -32,8 +32,8 @@ def get_db():
         db.close()
 
 # ---------------- LIST /entries ----------------
-@router.get("", response_model=List[schemas.EntryRead])   # <— sem barra
-@router.get("/", response_model=List[schemas.EntryRead])  # <— com barra
+@router.get("", response_model=List[schemas.EntryListRead])   # <— sem barra
+@router.get("/", response_model=List[schemas.EntryListRead])  # <— com barra
 def list_entries(
     regatta_id: Optional[int] = Query(None, description="Filtrar por regata."),
     mine: bool = Query(False, description="Se true, devolve apenas as tuas entries."),
@@ -266,7 +266,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         print("\n[ERROR] create_entry falhou:", e); print_exc()
         raise HTTPException(status_code=500, detail="Erro interno ao criar a inscrição. Ver logs do servidor.")
 
-@router.get("/by_regatta/{regatta_id}")
+@router.get("/by_regatta/{regatta_id}", response_model=List[schemas.EntryListRead])
 def get_entries_by_regatta(
     regatta_id: int,
     class_name: Optional[str] = Query(None, alias="class"),
@@ -275,7 +275,7 @@ def get_entries_by_regatta(
     q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
     if class_name:
         q = q.filter(models.Entry.class_name == class_name)
-    return q.all()
+    return q.order_by(models.Entry.class_name, models.Entry.sail_number).all()
 
 @router.get("/{entry_id}", response_model=schemas.EntryRead)
 def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):

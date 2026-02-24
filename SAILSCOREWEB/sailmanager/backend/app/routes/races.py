@@ -142,6 +142,16 @@ def update_race(
     if body.discardable is not None:
         r.discardable = bool(body.discardable)
 
+    if body.start_time is not None:
+        r.start_time = (body.start_time or "").strip() or None
+    if body.start_day is not None:
+        r.start_day = body.start_day
+    if body.handicap_method is not None:
+        r.handicap_method = (body.handicap_method or "").strip() or None
+    if body.orc_rating_mode is not None:
+        val = (body.orc_rating_mode or "").strip().lower()
+        r.orc_rating_mode = val if val in ("low", "medium", "high") else None
+
     db.commit()
     db.refresh(r)
     return r

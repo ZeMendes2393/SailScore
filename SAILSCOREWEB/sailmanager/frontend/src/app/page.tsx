@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 
 interface Regatta {
   id: number;
@@ -9,7 +9,6 @@ interface Regatta {
   location: string;
   start_date: string;
   end_date: string;
-  status?: string;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -43,57 +42,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Upcoming Regattas */}
+      {/* Regattas Calendar */}
       <section className="bg-gray-50 py-16">
         <div className="container-page">
-          <div className="bg-white shadow rounded-lg p-8">
-            <h2 className="text-2xl font-semibold mb-6">Upcoming Regattas</h2>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-100 text-gray-600">
-                    <th className="py-3 px-2">Name</th>
-                    <th className="px-2">Dates</th>
-                    <th className="px-2">Location</th>
-                    <th className="px-2">Status</th>
-                    <th className="px-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {regattas.map((regatta) => (
-                    <tr key={regatta.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-2 font-medium">{regatta.name}</td>
-                      <td className="px-2">
-                        {regatta.start_date} – {regatta.end_date}
-                      </td>
-                      <td className="px-2">{regatta.location}</td>
-                      <td className="px-2">
-                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-                          {regatta.status || 'Scheduled'}
-                        </span>
-                      </td>
-                      <td className="px-2">
-                        <Link href={`/regattas/${regatta.id}`}>
-                          <button className="text-xs bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700 transition">
-                            More Info
-                          </button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {regattas.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="py-10 text-center text-gray-500">
-                        No regattas yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <RegattaCalendar
+            regattas={regattas}
+            regattaLinkPrefix="/regattas"
+            labels={{ noRegattas: 'No regattas in this month.', moreInfo: 'More Info' }}
+          />
         </div>
       </section>
     </>

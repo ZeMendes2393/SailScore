@@ -6,7 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import {
   ENTRY_LIST_COLUMNS,
-  getVisibleColumns,
+  getVisibleColumnsForClass,
+  columnsByClassAfterToggle,
   type EntryListColumnId,
 } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
@@ -14,7 +15,7 @@ import { EntryListCell } from '@/components/entry-list/EntryListCell';
 
 interface RegattaForEntryList {
   id: number;
-  entry_list_columns?: string[] | null;
+  entry_list_columns?: string[] | Record<string, string[]> | null;
 }
 
 interface AdminEntryListProps {
@@ -38,8 +39,8 @@ export default function AdminEntryList({
   const [savingColumns, setSavingColumns] = useState(false);
 
   const visibleColumnIds = useMemo(
-    () => getVisibleColumns(regatta?.entry_list_columns),
-    [regatta?.entry_list_columns]
+    () => getVisibleColumnsForClass(regatta?.entry_list_columns, selectedClass),
+    [regatta?.entry_list_columns, selectedClass]
   );
 
   const filteredEntries = useMemo(() => {
@@ -48,31 +49,27 @@ export default function AdminEntryList({
     return entries.filter((e) => (e.class_name || '').trim().toLowerCase() === cls);
   }, [entries, selectedClass]);
 
+  const loadEntries = React.useCallback(async () => {
+    try {
+      const data = await apiGet<EntryListEntry[]>(
+        `/entries/by_regatta/${Number(regattaId)}`,
+        token ?? undefined
+      );
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }, [regattaId, token]);
+
   useEffect(() => {
     if (authLoading) return;
     let alive = true;
 
-    async function tryLoad(): Promise<EntryListEntry[]> {
-      const paths = [
-        `/entries?regatta_id=${Number(regattaId)}`,
-        `/entries?regattaId=${Number(regattaId)}`,
-        `/entries?regatta=${Number(regattaId)}`,
-      ];
-      for (const p of paths) {
-        try {
-          const data: any = await apiGet<any>(p, token || undefined);
-          const arr = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-          if (arr.length || Array.isArray(data)) return arr as EntryListEntry[];
-        } catch {}
-      }
-      return [];
-    }
-
     (async () => {
       try {
-        const list = await tryLoad();
+        const list = await loadEntries();
         if (!alive) return;
-        setEntries(Array.isArray(list) ? list : []);
+        setEntries(list);
       } catch {
         if (alive) setEntries([]);
       }
@@ -81,10 +78,33 @@ export default function AdminEntryList({
     return () => {
       alive = false;
     };
-  }, [regattaId, token, authLoading]);
+  }, [authLoading, loadEntries]);
+
+  // Refrescar lista quando uma entry é guardada (vindo da página de edição)
+  useEffect(() => {
+    const onEntrySaved = (ev: Event) => {
+      const d = (ev as CustomEvent).detail as { regattaId?: number };
+      if (d?.regattaId === regattaId && !authLoading && token) {
+        loadEntries().then((list) => setEntries(list));
+      }
+    };
+    window.addEventListener('entry-saved', onEntrySaved);
+    return () => window.removeEventListener('entry-saved', onEntrySaved);
+  }, [regattaId, authLoading, token, loadEntries]);
+
+  // Refrescar quando a página volta a ficar visível (ex.: trocar de tab)
+  useEffect(() => {
+    const onVisible = () => {
+      if (authLoading || !token) return;
+      loadEntries().then((list) => setEntries(list));
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [authLoading, token, loadEntries]);
 
   const toggleColumn = async (columnId: EntryListColumnId) => {
-    const current = getVisibleColumns(regatta?.entry_list_columns);
+    if (!selectedClass || !token || !regatta) return;
+    const current = getVisibleColumnsForClass(regatta?.entry_list_columns, selectedClass);
     const next = current.includes(columnId)
       ? current.filter((id) => id !== columnId)
       : [...current, columnId].sort(
@@ -92,13 +112,13 @@ export default function AdminEntryList({
             ENTRY_LIST_COLUMNS.findIndex((c) => c.id === a) -
             ENTRY_LIST_COLUMNS.findIndex((c) => c.id === b)
         );
-    if (!token || !regatta) return;
+    const payload = columnsByClassAfterToggle(regatta?.entry_list_columns, selectedClass, next);
     setSavingColumns(true);
     try {
       const patched = await apiSend<RegattaForEntryList>(
         `/regattas/${regattaId}`,
         'PATCH',
-        { entry_list_columns: next },
+        { entry_list_columns: payload },
         token
       );
       if (patched) onRegattaUpdate(patched);
@@ -155,14 +175,19 @@ export default function AdminEntryList({
     <div className="space-y-4">
       {/* Seletor de colunas: definido aqui e usado na lista pública */}
       <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
-        <span className="text-sm font-medium text-gray-700">Colunas visíveis (lista pública e aqui):</span>
+        <span className="text-sm font-medium text-gray-700">
+          Colunas visíveis por classe{selectedClass ? ` (${selectedClass})` : ''}:
+        </span>
+        {!selectedClass && (
+          <span className="text-xs text-amber-700">Seleciona uma classe acima para alterar as colunas.</span>
+        )}
         {ENTRY_LIST_COLUMNS.map((col) => (
           <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
             <input
               type="checkbox"
               checked={visibleColumnIds.includes(col.id)}
               onChange={() => toggleColumn(col.id)}
-              disabled={savingColumns}
+              disabled={savingColumns || !selectedClass}
               className="rounded border-gray-300"
             />
             {col.label}

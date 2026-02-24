@@ -76,7 +76,9 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     const payload = {
       regatta_id: formData.regatta_id,
       class_name: formData.class_name,
-      boat_country: boat.boat_country || '',
+      // Guardar sempre um código (ISO alpha-3) em boat_country,
+      // usando o campo dedicado boat_country_code como fallback.
+      boat_country: (boat.boat_country || boat.boat_country_code || '').trim(),
       boat_country_code: (boat.boat_country_code || '').trim(),
       sail_number: (boat.sail_number || '').trim(),
       boat_name: boat.boat_name || '',

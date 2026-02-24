@@ -98,6 +98,7 @@ export default function Page() {
     try {
       const updated = await patch(changed, { propagate_keys: propagate });
       if (updated) setEntry(updated);
+      window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
       alert('Saved.');
     } catch (e: any) {
       alert(e?.message ?? 'Failed to save.');
@@ -322,18 +323,6 @@ export default function Page() {
                       onChange={(e) => onChange('boat_model', e.target.value)}
                       placeholder="ex: Beneteau First 36.7"
                     />
-                    <label className="text-gray-500">Rating (handicap)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      className="border rounded px-2 py-1"
-                      value={form.rating ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        onChange('rating', v === '' ? undefined : Number(v));
-                      }}
-                      placeholder="ex: 1.025"
-                    />
                     <label className="text-gray-500 col-span-2">Owner (handicap)</label>
                     <input
                       className="border rounded px-2 py-1"
@@ -358,6 +347,103 @@ export default function Page() {
                 )}
               </div>
             </section>
+
+            {/* Rating card (handicap) */}
+            {isHandicapClass(form.class_name ?? '') && (
+              <section className="bg-white rounded border p-4">
+                <h2 className="font-semibold mb-3">Rating</h2>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <label className="block text-gray-500 mb-1">Rating type</label>
+                    <select
+                      className="border rounded px-2 py-1.5 w-full max-w-xs"
+                      value={form.rating_type ?? (form.rating != null ? 'anc' : 'none')}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const next = v === 'none' ? null : v;
+                        onChange('rating_type', next);
+                        if (next !== 'anc') onChange('rating', undefined);
+                        if (next !== 'orc') {
+                          onChange('orc_low', undefined);
+                          onChange('orc_medium', undefined);
+                          onChange('orc_high', undefined);
+                        }
+                      }}
+                    >
+                      <option value="none">None</option>
+                      <option value="anc">ANC</option>
+                      <option value="orc">ORC</option>
+                    </select>
+                  </div>
+                  {((form.rating_type ?? (form.rating != null ? 'anc' : null)) === 'anc' || form.rating_type === 'orc') && (
+                    <div className="space-y-2">
+                      {(form.rating_type ?? (form.rating != null ? 'anc' : null)) === 'anc' && (
+                        <div>
+                          <label className="block text-gray-500 mb-1">ANC rating</label>
+                          <input
+                            type="number"
+                            step="0.0001"
+                            className="border rounded px-2 py-1.5 w-full max-w-xs"
+                            value={form.rating ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              onChange('rating', v === '' ? undefined : Number(v));
+                            }}
+                            placeholder="ex: 1.025"
+                          />
+                        </div>
+                      )}
+                      {form.rating_type === 'orc' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-gray-500 mb-1">ORC Low</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              className="border rounded px-2 py-1.5 w-full"
+                              value={form.orc_low ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                onChange('orc_low', v === '' ? undefined : Number(v));
+                              }}
+                              placeholder="ex: 0.95"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-1">ORC Medium</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              className="border rounded px-2 py-1.5 w-full"
+                              value={form.orc_medium ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                onChange('orc_medium', v === '' ? undefined : Number(v));
+                              }}
+                              placeholder="ex: 1.00"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-500 mb-1">ORC High</label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              className="border rounded px-2 py-1.5 w-full"
+                              value={form.orc_high ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                onChange('orc_high', v === '' ? undefined : Number(v));
+                              }}
+                              placeholder="ex: 1.05"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* Sailors (One Design: helm + crew with positions) */}
             <section className="bg-white rounded border p-4 md:col-span-2">

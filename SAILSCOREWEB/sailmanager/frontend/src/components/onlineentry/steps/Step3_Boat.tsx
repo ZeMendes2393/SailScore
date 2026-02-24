@@ -79,17 +79,6 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
 
         {isHandicap && (
           <>
-            <Field label="Rating (handicap)" hint="Handicap coefficient (e.g. ORC, IRC)">
-              <input
-                type="number"
-                step="0.001"
-                name="rating"
-                placeholder="e.g. 1.012"
-                value={localData.rating ?? ''}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </Field>
             <Field label="Boat model" hint="Make and model of the boat">
               <input
                 type="text"

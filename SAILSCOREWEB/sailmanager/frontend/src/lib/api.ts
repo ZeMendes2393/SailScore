@@ -27,11 +27,15 @@ function decodeJwtPayload(token: string) {
     return null;
   }
 }
-function isExpired(token: string) {
+export function isTokenExpired(token: string): boolean {
   const p = decodeJwtPayload(token);
   if (!p?.exp) return false;
   const now = Math.floor(Date.now() / 1000);
   return now >= p.exp;
+}
+
+function isExpired(token: string) {
+  return isTokenExpired(token);
 }
 
 export const setStoredToken = (token: string | null) => {

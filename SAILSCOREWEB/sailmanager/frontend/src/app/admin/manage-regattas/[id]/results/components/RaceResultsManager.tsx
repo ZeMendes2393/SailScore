@@ -10,8 +10,10 @@ import RaceSelector from './RaceSelector';
 import ExistingResultsTable from './ExistingResultsTable';
 import AddSingleForm from './AddSingleForm';
 import DraftResultsEditor from './DraftResultsEditor';
+import TimeScoringEditor from './TimeScoringEditor';
+import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
-type View = 'existing' | 'draft' | 'add';
+type View = 'existing' | 'draft' | 'add' | 'time';
 
 interface Props {
   regattaId: number;
@@ -34,7 +36,7 @@ const FLEET_ORDER: Record<string, number> = {
   Emerald: 140,
 };
 
-const ALLOWED_VIEWS: View[] = ['existing', 'draft', 'add'];
+const ALLOWED_VIEWS: View[] = ['existing', 'draft', 'add', 'time'];
 
 export default function RaceResultsManager({
   regattaId,
@@ -51,6 +53,7 @@ export default function RaceResultsManager({
     selectedRaceId,
     setSelectedRaceId,
     selectedClass,
+    isHandicapClass,
     existingResults,
     loadingExisting,
     availableEntries,
@@ -78,6 +81,11 @@ export default function RaceResultsManager({
     markCode,
     deleteRace,
 
+    sailChoicePending,
+    addDraftByChosenEntry,
+    addSingleWithChosenEntry,
+    clearSailChoicePending,
+
     // fleets
     currentRace,
     fleetsForRace,
@@ -86,6 +94,19 @@ export default function RaceResultsManager({
 
     // toggle discardable
     setRaceDiscardable,
+    patchRaceStart,
+    patchRaceHandicapMethod,
+    patchRaceOrcMode,
+
+    // Handicap / Time Scoring
+    handicapEligibleEntries,
+    handicapDraft,
+    addHandicapEntry,
+    removeHandicapEntry,
+    updateHandicapField,
+    updateHandicapCode,
+    updateHandicapNotes,
+    saveHandicap,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
   const [view, setView] = useState<View>('existing');
@@ -186,22 +207,23 @@ export default function RaceResultsManager({
   }, [search, races, selectedRaceId, setSelectedRaceId, setSelectedFleetId]);
 
   // -----------------------------
-  // initialRaceId -> aplica 1 vez
+  // initialRaceId (do path /races/[raceId]) -> aplica assim que races carregar
   // -----------------------------
   useEffect(() => {
-    if (!initialRaceId) return;
+    const id = initialRaceId != null && Number.isFinite(initialRaceId) ? initialRaceId : null;
+    if (!id) return;
     if (initialAppliedRef.current) return;
 
-    const exists = (races ?? []).some((r: any) => r.id === initialRaceId);
+    const exists = (races ?? []).some((r: any) => r.id === id);
     if (!exists) return;
 
     initialAppliedRef.current = true;
 
-    if (selectedRaceId !== initialRaceId) {
-      setSelectedRaceId(initialRaceId);
+    if (selectedRaceId !== id) {
+      setSelectedRaceId(id);
 
       const sp = new URLSearchParams(search?.toString() ?? '');
-      sp.set('race', String(initialRaceId));
+      sp.set('race', String(id));
       const rawView = sp.get('view');
       if (!rawView || !(ALLOWED_VIEWS as string[]).includes(rawView)) sp.set('view', 'existing');
       router.replace(`?${sp.toString()}`);
@@ -259,12 +281,29 @@ export default function RaceResultsManager({
   };
 
   const tabs = useMemo(
-    () => [
-      { key: 'existing' as View, label: 'Resultados', badge: (existingResults ?? []).length },
-      { key: 'draft' as View, label: 'Rascunho', badge: (draft ?? []).length },
-      { key: 'add' as View, label: 'Adicionar 1' },
-    ],
-    [existingResults, draft]
+    () => {
+      const base: { key: View; label: string; badge?: number }[] = [
+        { key: 'existing', label: 'Resultados', badge: (existingResults ?? []).length },
+      ];
+
+      if (isHandicapClass) {
+        base.push({
+          key: 'time',
+          label: 'Time Scoring (Handicap)',
+          badge: (handicapDraft ?? []).length,
+        });
+      } else {
+        base.push({
+          key: 'draft',
+          label: 'Rascunho',
+          badge: (draft ?? []).length,
+        });
+      }
+
+      base.push({ key: 'add', label: 'Adicionar 1' });
+      return base;
+    },
+    [existingResults, draft, isHandicapClass, handicapDraft]
   );
 
   // fleets ordenadas
@@ -448,6 +487,7 @@ export default function RaceResultsManager({
                     scoringCodes={scoringCodes ?? {}}
                     onMarkCode={markCode}
                     onOverridePoints={handleOverridePoints}
+                    isHandicapClass={isHandicapClass}
                   />
                 </div>
               </section>
@@ -488,12 +528,43 @@ export default function RaceResultsManager({
                 <AddSingleForm singleSail={singleSail} setSingleSail={setSingleSail} singlePos={singlePos} setSinglePos={setSinglePos} onAdd={addSingle} />
               </section>
             )}
+
+            {view === 'time' && isHandicapClass && (
+              <section className="p-4 border rounded-2xl bg-white shadow-sm">
+                <header className="mb-3">
+                  <h2 className="text-lg font-semibold">Time Scoring (Handicap)</h2>
+                  <p className="text-xs text-gray-500">
+                    Insere tempos em HH:MM:SS. A posição, delta e pontos são calculados automaticamente
+                    a partir do Corrected Time. Ao guardar, os resultados passam para &quot;Resultados
+                    existentes&quot;.
+                  </p>
+                </header>
+                <TimeScoringEditor
+                  draft={handicapDraft ?? []}
+                  eligibleEntries={handicapEligibleEntries ?? []}
+                  scoringCodes={scoringCodes ?? {}}
+                  raceId={currentRace?.id ?? null}
+                  raceStartTime={currentRace?.start_time ?? ''}
+                  handicapMethod={currentRace?.handicap_method || 'manual'}
+                  orcRatingMode={(currentRace as any)?.orc_rating_mode || 'medium'}
+                  onPatchRaceStart={patchRaceStart}
+                  onPatchHandicapMethod={patchRaceHandicapMethod}
+                  onPatchOrcRatingMode={patchRaceOrcMode}
+                  onAddEntry={addHandicapEntry}
+                  onRemoveEntry={removeHandicapEntry}
+                  onUpdateField={updateHandicapField}
+                  onUpdateCode={updateHandicapCode}
+                  onUpdateNotes={updateHandicapNotes}
+                  onSave={saveHandicap}
+                />
+              </section>
+            )}
           </>
         )}
       </div>
 
-      {/* Action bar flutuante */}
-      {selectedRaceId && view !== 'existing' && (draft ?? []).length > 0 && (
+      {/* Action bar flutuante (apenas para o rascunho clássico de posições) */}
+      {selectedRaceId && view === 'draft' && (draft ?? []).length > 0 && (
         <div className="fixed bottom-4 left-4 right-4 z-30">
           <div className="w-full px-6">
             <div className="flex items-center gap-3 rounded-2xl border bg-white shadow-lg p-3">
@@ -512,6 +583,61 @@ export default function RaceResultsManager({
                   Limpar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: escolher qual entry quando há vários barcos com o mesmo nº de vela */}
+      {sailChoicePending && sailChoicePending.candidates.length > 1 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="sail-choice-title">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5">
+            <h3 id="sail-choice-title" className="text-lg font-semibold text-gray-900 mb-1">
+              Vários barcos com este número de vela
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {sailChoicePending.context === 'draft'
+                ? 'Escolhe qual embarcação queres adicionar ao rascunho:'
+                : `Escolhe qual embarcação queres colocar na posição ${sailChoicePending.singlePos}º:`}
+            </p>
+            <ul className="space-y-2 mb-4">
+              {sailChoicePending.candidates.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-center justify-between gap-3 p-3 border rounded-xl bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <SailNumberDisplay
+                      countryCode={(entry as any).boat_country_code}
+                      sailNumber={entry.sail_number}
+                    />
+                    <span className="text-gray-700 truncate">
+                      {entry.first_name} {entry.last_name}
+                      {entry.club ? ` (${entry.club})` : ''}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      sailChoicePending.context === 'draft'
+                        ? addDraftByChosenEntry(entry.id)
+                        : addSingleWithChosenEntry(entry.id)
+                    }
+                    className="shrink-0 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+                  >
+                    Escolher
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={clearSailChoicePending}
+                className="px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

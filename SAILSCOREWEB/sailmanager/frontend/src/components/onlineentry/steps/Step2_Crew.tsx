@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { COUNTRIES_UNIQUE } from '@/utils/countries';
 
 function Field({
   label,
@@ -182,6 +183,29 @@ export default function Step2Crew({ data, helm, sailorsPerBoat, onChange, onNext
                   placeholder="e.g. 12345"
                   className={inputClass}
                 />
+              </Field>
+              <Field label="Gender" hint="Masculino or Feminino">
+                <select
+                  value={member.gender || ''}
+                  onChange={(e) => updateCrewAt(index, { gender: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">—</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Feminino">Feminino</option>
+                </select>
+              </Field>
+              <Field label="Country">
+                <select
+                  value={member.helm_country || ''}
+                  onChange={(e) => updateCrewAt(index, { helm_country: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">—</option>
+                  {COUNTRIES_UNIQUE.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                  ))}
+                </select>
               </Field>
             </div>
           </div>

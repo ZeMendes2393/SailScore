@@ -3,10 +3,12 @@
 
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { SailNumberDisplay } from "@/components/ui/SailNumberDisplay";
 
 type Row = {
   id: number;
   sail_num: string;
+  boat_country_code?: string | null;
   penalty_number: string;
   race: string;
   group: string | null;
@@ -274,7 +276,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                         onChange={(e) => setEdit({ ...edit, sail_num: e.target.value })}
                       />
                     ) : (
-                      r.sail_num
+                      <SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_num} />
                     )}
                   </td>
                   <td className="p-2">

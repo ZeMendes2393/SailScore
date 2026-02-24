@@ -20,12 +20,12 @@ export function SailNumberDisplay({ countryCode, sailNumber, className = '' }: S
   if (!code && !num) return <span className={className}>—</span>;
   if (!num) {
     return (
-      <span className={`inline-flex items-center gap-1 ${className}`}>
+      <span className={`inline-flex items-center gap-1 whitespace-nowrap ${className}`}>
         {alpha2 && (
           <img
             src={`https://flagcdn.com/w40/${alpha2}.png`}
             alt=""
-            className="inline-block w-5 h-[0.75rem] object-cover align-middle"
+            className="inline-block w-5 h-[0.75rem] object-cover align-middle shrink-0"
             loading="lazy"
           />
         )}
@@ -34,16 +34,16 @@ export function SailNumberDisplay({ countryCode, sailNumber, className = '' }: S
     );
   }
   return (
-    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${className}`}>
       {alpha2 && (
         <img
           src={`https://flagcdn.com/w40/${alpha2}.png`}
           alt=""
-          className="inline-block w-5 h-[0.75rem] object-cover align-middle"
+          className="inline-block w-5 h-[0.75rem] object-cover align-middle shrink-0"
           loading="lazy"
         />
       )}
-      <span>{code ? `${code} ${num}` : num}</span>
+      <span className="whitespace-nowrap">{code ? `${code} ${num}` : num}</span>
     </span>
   );
 }

@@ -41,6 +41,97 @@ def _norm_sn(sn: Optional[str]) -> Optional[str]:
     return raw.upper() if raw else None
 
 
+# =========================================================
+# Handicap / Time Scoring helpers
+# =========================================================
+
+def _parse_time_to_seconds(s: Optional[str]) -> Optional[float]:
+    """Parse HH:MM:SS or H:MM:SS to total seconds. Returns None if invalid."""
+    if not s or not isinstance(s, str):
+        return None
+    parts = (s or "").strip().split(":")
+    if len(parts) == 3:
+        try:
+            h, m, sec = int(parts[0]), int(parts[1]), float(parts[2])
+            if m < 0 or m >= 60 or sec < 0 or sec >= 60:
+                return None
+            return h * 3600 + m * 60 + sec
+        except (ValueError, IndexError):
+            return None
+    if len(parts) == 2:
+        try:
+            m, sec = int(parts[0]), float(parts[1])
+            if m < 0 or sec < 0 or sec >= 60:
+                return None
+            return m * 60 + sec
+        except (ValueError, IndexError):
+            return None
+    return None
+
+
+def _format_delta(seconds: float) -> str:
+    """Format seconds to HH:MM:SS (delta display). 1º = 00:00:00, sem décimos."""
+    if seconds < 0:
+        return "—"
+    total = int(round(seconds))
+    h = total // 3600
+    m = (total % 3600) // 60
+    s = total % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def compute_handicap_ranking(
+    items: List[Tuple[Optional[float], Optional[str]]]
+) -> List[Tuple[int, str, float]]:
+    """
+    Given list of (corrected_time_seconds, code), return (position, delta_str, points).
+    Codes that remove from ranking go last. Low-point: ties share points.
+    """
+    rankable: List[Tuple[int, Optional[float], Optional[str]]] = []
+    non_rankable: List[Tuple[int, Optional[str]]] = []
+    for i, (ct, code) in enumerate(items):
+        if code and removes_from_ranking(code):
+            non_rankable.append((i, code))
+        else:
+            rankable.append((i, ct, code))
+
+    # Sort rankable by corrected time (None = DNF etc. go last)
+    rankable.sort(key=lambda x: (x[1] is None, x[1] if x[1] is not None else float("inf")))
+
+    best_corrected = None
+    for _, ct, _ in rankable:
+        if ct is not None:
+            best_corrected = ct
+            break
+
+    n_rankable = len(rankable)
+    result: List[Optional[Tuple[int, str, float]]] = [None] * len(items)
+
+    # Assign positions and points to rankable (low-point, ties share)
+    pos = 1
+    idx = 0
+    while idx < n_rankable:
+        ct = rankable[idx][1]
+        tie_count = 1
+        while idx + tie_count < n_rankable and rankable[idx + tie_count][1] == ct:
+            tie_count += 1
+        pts_sum = sum(pos + k for k in range(tie_count))
+        pts_avg = pts_sum / tie_count
+        delta_str = "00:00:00" if best_corrected is None else _format_delta((ct or 0) - best_corrected)
+        for k in range(tie_count):
+            orig_i = rankable[idx + k][0]
+            result[orig_i] = (pos, delta_str if ct is not None else "—", pts_avg)
+        pos += tie_count
+        idx += tie_count
+
+    # Non-rankable: position = n_rankable + 1, etc.; points = N+1
+    n_plus_one = n_rankable + 1
+    for orig_i, _ in non_rankable:
+        result[orig_i] = (n_plus_one, "—", float(n_plus_one))
+
+    return [result[i] for i in range(len(items))]  # type: ignore
+
+
 def removes_from_ranking(code: Optional[str]) -> bool:
     c = _norm(code)
     return bool(c) and (c in AUTO_N_PLUS_ONE_CODES)
@@ -144,7 +235,10 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
 
     sn_to_fleet_id: Dict[str, int] = {}
     fleet_counts: Dict[int, int] = {}
-    eligible_entries: List[Tuple[int, str, Optional[str], Optional[str], Optional[int], Optional[str]]] = []
+    # (entry_id, sail_number_norm, boat_name, skipper_name, fleet_id|None, boat_country_code|None, rating|None)
+    eligible_entries: List[
+        Tuple[int, str, Optional[str], Optional[str], Optional[int], Optional[str], Optional[float]]
+    ] = []
 
     if getattr(race, "fleet_set_id", None):
         fs_id = int(race.fleet_set_id)
@@ -158,6 +252,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 models.Entry.last_name,
                 models.Fleet.id.label("fleet_id"),
                 models.Entry.boat_country_code,
+                models.Entry.rating,
             )
             .join(models.FleetAssignment, models.FleetAssignment.entry_id == models.Entry.id)
             .join(models.Fleet, models.Fleet.id == models.FleetAssignment.fleet_id)
@@ -171,7 +266,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             .all()
         )
 
-        for entry_id, sn, boat_name, fn, ln, fleet_id, boat_country_code in rows:
+        for entry_id, sn, boat_name, fn, ln, fleet_id, boat_country_code, rating in rows:
             sn_norm = _norm_sn(sn)
             if not sn_norm:
                 continue
@@ -182,7 +277,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 fleet_counts[fid] = fleet_counts.get(fid, 0) + 1
 
             skipper = f"{fn or ''} {ln or ''}".strip() or None
-            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, fid, boat_country_code))
+            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, fid, boat_country_code, rating))
 
         total_count = len({sn for (_, sn, *_rest) in eligible_entries})
 
@@ -195,6 +290,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
                 models.Entry.first_name,
                 models.Entry.last_name,
                 models.Entry.boat_country_code,
+                models.Entry.rating,
             )
             .filter(
                 models.Entry.regatta_id == regatta_id,
@@ -205,12 +301,12 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             .all()
         )
 
-        for entry_id, sn, boat_name, fn, ln, boat_country_code in rows:
+        for entry_id, sn, boat_name, fn, ln, boat_country_code, rating in rows:
             sn_norm = _norm_sn(sn)
             if not sn_norm:
                 continue
             skipper = f"{fn or ''} {ln or ''}".strip() or None
-            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, None, boat_country_code))
+            eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, None, boat_country_code, rating))
 
         total_count = len({sn for (_, sn, *_rest) in eligible_entries})
 
@@ -327,7 +423,15 @@ def ensure_missing_results_as_dnc(
             .filter(models.Fleet.id == int(selectedFleetId))
         }
 
-    for (_entry_id, sn_norm, boat_name, skipper_name, _fid, boat_country_code) in ctx["eligible_entries"]:
+    for (
+        _entry_id,
+        sn_norm,
+        boat_name,
+        skipper_name,
+        _fid,
+        boat_country_code,
+        rating,
+    ) in ctx["eligible_entries"]:
         if sn_norm in existing:
             continue
 
@@ -344,6 +448,7 @@ def ensure_missing_results_as_dnc(
             boat_name=boat_name,
             class_name=str(race.class_name or ""),
             skipper_name=skipper_name,
+            rating=rating,
             position=next_pos,
             points=float(pts),
             code="DNC",

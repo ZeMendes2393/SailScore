@@ -7,6 +7,7 @@ import Link from 'next/link';
 import OnlineEntryPublic from '@/components/onlineentry/OnlineEntryPublic';
 import EntryList from './components/entrylist/EntryList';
 import NoticeBoard from './components/noticeboard/NoticeBoard';
+import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
 
 // keep in sync with your api.ts
 const API_BASE =
@@ -19,9 +20,8 @@ type Regatta = {
   location: string;
   start_date: string;
   end_date: string;
-  status?: string;
   online_entry_open?: boolean;
-  entry_list_columns?: string[] | null;
+  entry_list_columns?: string[] | Record<string, string[]> | null;
 };
 
 export default function RegattaDetails() {
@@ -96,9 +96,6 @@ export default function RegattaDetails() {
         <p className="text-gray-600">
           {regatta.location} | {regatta.start_date} – {regatta.end_date}
         </p>
-        <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs mt-2 inline-block">
-          {regatta.status || 'Scheduled'}
-        </span>
       </div>
 
       {/* CLASS SELECTOR */}
@@ -156,7 +153,7 @@ export default function RegattaDetails() {
           <EntryList
             regattaId={regattaId}
             selectedClass={selectedClass}
-            entryListColumns={regatta.entry_list_columns}
+            entryListColumns={getVisibleColumnsForClass(regatta.entry_list_columns, selectedClass)}
           />
         )}
 

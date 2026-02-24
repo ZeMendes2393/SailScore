@@ -105,6 +105,29 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
         </span>
       );
     }
+    case 'rating': {
+      const e = entry;
+      const fmt = (v: number | null | undefined) =>
+        typeof v === 'number' && !Number.isNaN(v) ? String(v) : null;
+      if (e.rating_type === 'orc') {
+        const low = fmt(e.orc_low);
+        const med = fmt(e.orc_medium);
+        const high = fmt(e.orc_high);
+        if (low || med || high) {
+          return (
+            <span className={className} title="ORC Low / Medium / High">
+              {low && <span className="block text-xs">L: {low}</span>}
+              {med && <span className="block text-xs">M: {med}</span>}
+              {high && <span className="block text-xs">H: {high}</span>}
+            </span>
+          );
+        }
+      }
+      if (typeof entry.rating === 'number' && !Number.isNaN(entry.rating)) {
+        return <span className={className}>{String(entry.rating)}</span>;
+      }
+      return <span className={className}>—</span>;
+    }
     default:
       return <span className={className}>—</span>;
   }

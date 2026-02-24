@@ -9,7 +9,8 @@ import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { apiGet, apiSend } from '@/lib/api';
 import {
   RESULTS_OVERALL_COLUMNS,
-  getVisibleResultsOverallColumns,
+  getVisibleResultsOverallColumnsForClass,
+  resultsOverallColumnsByClassAfterToggle,
   type ResultsOverallColumnId,
 } from '@/lib/resultsOverallColumns';
 import RaceCreator from './RaceCreator';
@@ -28,7 +29,7 @@ type RegattaConfig = {
   name: string;
   discard_count: number;
   discard_threshold: number;
-  results_overall_columns?: string[] | null;
+  results_overall_columns?: string[] | Record<string, string[]> | null;
 };
 
 type OverallResult = {
@@ -170,15 +171,16 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
 
-  // Usar apiGet/apiSend de @/lib/api para que 401 redirecione para login admin
+  // Colunas visíveis por classe
   const visibleColumns = useMemo(
-    () => getVisibleResultsOverallColumns(regatta?.results_overall_columns),
-    [regatta?.results_overall_columns]
+    () => getVisibleResultsOverallColumnsForClass(regatta?.results_overall_columns, selectedClass),
+    [regatta?.results_overall_columns, selectedClass]
   );
 
   const toggleResultsColumn = useCallback(
     async (columnId: ResultsOverallColumnId) => {
-      const current = getVisibleResultsOverallColumns(regatta?.results_overall_columns);
+      if (!selectedClass) return;
+      const current = getVisibleResultsOverallColumnsForClass(regatta?.results_overall_columns, selectedClass);
       const next = current.includes(columnId)
         ? current.filter((id) => id !== columnId)
         : [...current, columnId].sort(
@@ -186,22 +188,23 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               RESULTS_OVERALL_COLUMNS.findIndex((c) => c.id === a) -
               RESULTS_OVERALL_COLUMNS.findIndex((c) => c.id === b)
           );
+      const payload = resultsOverallColumnsByClassAfterToggle(regatta?.results_overall_columns, selectedClass, next);
       setSavingColumns(true);
       try {
-        const data = await apiSend<{ results_overall_columns?: string[] | null }>(
+        const data = await apiSend<{ results_overall_columns?: Record<string, string[]> | null }>(
           `/regattas/${regattaId}`,
           'PATCH',
-          { results_overall_columns: next },
+          { results_overall_columns: payload },
           token ?? undefined
         );
-        setRegatta((prev) => (prev ? { ...prev, results_overall_columns: data?.results_overall_columns ?? next } : prev));
+        setRegatta((prev) => (prev ? { ...prev, results_overall_columns: data?.results_overall_columns ?? payload } : prev));
       } catch (e: any) {
         alert(e?.message || 'Erro ao guardar colunas.');
       } finally {
         setSavingColumns(false);
       }
     },
-    [regatta, regattaId, token]
+    [regatta, regattaId, selectedClass, token]
   );
 
   // Config regata
@@ -347,10 +350,28 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
     );
   }, [pendingOrder, racesByClass, raceNames, selectedClass, nameToId]);
 
-  // Abrir corrida individual
+  // Mapa raceName -> href para Link (robusto: fallback por match de nome)
+  const raceNameToHref = useMemo(() => {
+    const map = new Map<string, string>();
+    const list = selectedClass ? racesByClass[selectedClass] || [] : [];
+    const norm = (s: string) => (s ?? '').trim().toLowerCase();
+    for (const r of list) {
+      map.set(r.name, `/admin/manage-regattas/${regattaId}/races/${r.id}`);
+    }
+    // Fallback: nomes que aparecem em raceNames mas não batem exatamente
+    for (const rn of raceNames) {
+      if (map.has(rn)) continue;
+      const needle = norm(rn);
+      const match = list.find((r) => norm(r.name) === needle || norm(r.name).includes(needle) || needle.includes(norm(r.name)));
+      if (match) map.set(rn, `/admin/manage-regattas/${regattaId}/races/${match.id}`);
+    }
+    return map;
+  }, [regattaId, selectedClass, racesByClass, raceNames]);
+
+  // Abrir corrida individual (robusto: fallback se nameToId falhar)
   const openRace = (raceName: string) => {
-    const id = nameToId.get(raceName);
-    if (id) router.push(`/admin/manage-regattas/${regattaId}/races/${id}`);
+    const href = raceNameToHref.get(raceName);
+    if (href) router.push(href);
   };
 
   // ✅ NOVO: buscar codes das corridas (para mostrar DNF(10) / (DNF 10))
@@ -518,7 +539,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         {/* Fields: colunas visíveis */}
         {showFields && (
           <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
-            <span className="text-sm font-medium text-gray-700">Colunas visíveis:</span>
+            <span className="text-sm font-medium text-gray-700">
+              Colunas visíveis{selectedClass ? ` (classe ${selectedClass})` : ''}:
+            </span>
             {RESULTS_OVERALL_COLUMNS.map((col) => (
               <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
                 <input
@@ -609,23 +632,37 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
                 </th>
               ))}
-              {orderedRaceNames.map((n) => (
+              {orderedRaceNames.map((n) => {
+                const href = raceNameToHref.get(n);
+                return (
                 <th key={n} className="border px-3 py-2">
                   <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => openRace(n)}
-                      className="underline underline-offset-2 hover:text-blue-700 font-semibold"
-                    >
-                      {n}
-                    </button>
+                    {href ? (
+                      <Link
+                        href={href}
+                        className="underline underline-offset-2 hover:text-blue-700 font-semibold"
+                      >
+                        {n}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openRace(n)}
+                        className="underline underline-offset-2 hover:text-blue-700 font-semibold"
+                      >
+                        {n}
+                      </button>
+                    )}
                     <div className="inline-flex gap-1">
                       <button
+                        type="button"
                         onClick={() => moveColumn(n, 'left')}
                         className="px-1.5 py-0.5 border rounded hover:bg-gray-50"
                       >
                         ←
                       </button>
                       <button
+                        type="button"
                         onClick={() => moveColumn(n, 'right')}
                         className="px-1.5 py-0.5 border rounded hover:bg-gray-50"
                       >
@@ -634,7 +671,8 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     </div>
                   </div>
                 </th>
-              ))}
+              );
+              })}
               {visibleColumns.includes('total') && (
                 <th className="border px-3 py-2">Total</th>
               )}

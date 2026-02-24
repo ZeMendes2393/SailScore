@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import and_, or_, desc
+from sqlalchemy import and_, or_, desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -25,7 +25,18 @@ def list_rule42(
     group: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Rule42Record).filter(models.Rule42Record.regatta_id == regatta_id)
+    q = (
+        db.query(models.Rule42Record, models.Entry.boat_country_code)
+        .outerjoin(
+            models.Entry,
+            and_(
+                models.Entry.regatta_id == models.Rule42Record.regatta_id,
+                models.Entry.class_name == models.Rule42Record.class_name,
+                func.lower(func.trim(models.Entry.sail_number)) == func.lower(func.trim(models.Rule42Record.sail_num)),
+            ),
+        )
+        .filter(models.Rule42Record.regatta_id == regatta_id)
+    )
     if class_name:
         q = q.filter(models.Rule42Record.class_name == class_name)
     if sail_num:
@@ -34,7 +45,24 @@ def list_rule42(
         q = q.filter(models.Rule42Record.race == race)
     if group:
         q = q.filter(models.Rule42Record.group == group)
-    return q.order_by(models.Rule42Record.date.desc(), models.Rule42Record.id.desc()).all()
+    rows = q.order_by(models.Rule42Record.date.desc(), models.Rule42Record.id.desc()).all()
+    return [
+        schemas.Rule42Out(
+            id=rec.id,
+            regatta_id=rec.regatta_id,
+            sail_num=rec.sail_num,
+            boat_country_code=boat_cc,
+            penalty_number=rec.penalty_number,
+            race=rec.race,
+            group=rec.group,
+            rule=rec.rule,
+            comp_action=rec.comp_action,
+            description=rec.description,
+            class_name=rec.class_name,
+            date=rec.date,
+        )
+        for rec, boat_cc in rows
+    ]
 
 
 # ============================================

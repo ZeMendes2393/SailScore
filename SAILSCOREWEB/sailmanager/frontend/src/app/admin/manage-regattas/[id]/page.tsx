@@ -15,9 +15,8 @@ interface Regatta {
   location: string;
   start_date: string;
   end_date: string;
-  status?: string;
   online_entry_open?: boolean;
-  entry_list_columns?: string[] | null;
+  entry_list_columns?: string[] | Record<string, string[]> | null;
 }
 
 type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'delete';
@@ -247,9 +246,6 @@ export default function AdminRegattaPage() {
             <p className="text-gray-600">
               {regatta.location} | {regatta.start_date} – {regatta.end_date}
             </p>
-            <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs mt-2 inline-block">
-              {regatta.status || 'Scheduled'}
-            </span>
           </div>
           <div className="text-xs text-gray-500">{user?.email ? <>Admin: <b>{user.email}</b></> : null}</div>
         </div>
