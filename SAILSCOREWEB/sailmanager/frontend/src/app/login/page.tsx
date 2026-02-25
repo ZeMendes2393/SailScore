@@ -123,7 +123,13 @@ export default function LoginPage() {
         {user && (
           <div className="mb-4 flex items-center justify-between gap-3 text-sm">
             <span className="text-gray-600">
-              Sessão atual: <b>{user.email}</b> ({user.role})
+              Sessão atual:{' '}
+              <b>
+                {user.role === 'regatista' && (user as any).username
+                  ? (user as any).username
+                  : user.email}
+              </b>{' '}
+              ({user.role})
             </span>
             <button
               onClick={() => logout({ redirectTo: relogUrl })}
@@ -138,9 +144,13 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
-            type="email"
+            type={mode === 'admin' ? 'email' : 'text'}
             className="w-full border rounded px-3 py-2"
-            placeholder={mode === 'admin' ? 'Email do admin' : 'Email do atleta'}
+            placeholder={
+              mode === 'admin'
+                ? 'Email do admin'
+                : 'Sailor username (ex.: JoseMendes115)'
+            }
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

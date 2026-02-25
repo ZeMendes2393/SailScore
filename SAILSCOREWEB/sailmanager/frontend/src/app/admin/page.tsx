@@ -49,6 +49,7 @@ export default function AdminPage() {
         <nav className="flex flex-col space-y-2">
           <Link href="/admin" className="hover:underline">Dashboard</Link>
           <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
+          <Link href="/admin/news" className="hover:underline">News</Link>
           <Link href="/admin/manage-users" className="hover:underline">Users</Link>
           <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
           <Link href="/admin/settings" className="hover:underline">Settings</Link>

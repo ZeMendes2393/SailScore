@@ -28,8 +28,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Espera schemas.UserLogin: { email: str, password: str, regatta_id?: int }
 @router.post("/login", response_model=schemas.Token)
 def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
-    email = body.email.lower().strip()
-    user = db.query(models.User).filter(models.User.email == email).first()
+    """
+    Login JSON:
+    - Admin: body.email = email real
+    - Sailor Account: body.email = username (ex.: JoseMendes115)
+    """
+    raw = (body.email or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Identificador em falta.")
+
+    # Se parecer email, autentica por email; caso contrário, por username.
+    if "@" in raw:
+        ident_is_email = True
+        lookup = db.query(models.User).filter(models.User.email == raw.lower()).first()
+    else:
+        ident_is_email = False
+        lookup = db.query(models.User).filter(models.User.username == raw).first()
+
+    user = lookup
     if not user or not verify_password(body.password, user.hashed_password or ""):
         raise HTTPException(status_code=400, detail="Credenciais inválidas")
     if not user.is_active:
@@ -70,8 +86,17 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
 # Útil se ainda tiveres um cliente a enviar application/x-www-form-urlencoded
 @router.post("/login-form", response_model=schemas.Token)
 def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    email = form.username.lower().strip()
-    user = db.query(models.User).filter(models.User.email == email).first()
+    """
+    Versão form-url-encoded:
+    - Se username tiver '@' → trata como email (admin)
+    - Caso contrário → trata como username (sailor)
+    """
+    raw = (form.username or "").strip()
+    if "@" in raw:
+        user = db.query(models.User).filter(models.User.email == raw.lower()).first()
+    else:
+        user = db.query(models.User).filter(models.User.username == raw).first()
+
     if not user or not verify_password(form.password, user.hashed_password or ""):
         raise HTTPException(status_code=400, detail="Credenciais inválidas")
     if not user.is_active:

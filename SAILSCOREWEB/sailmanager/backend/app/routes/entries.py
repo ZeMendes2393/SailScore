@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, and_
 from datetime import datetime
 import secrets, os
+import unicodedata
+import re
 from traceback import print_exc
 from typing import Optional, List
 
@@ -114,26 +116,71 @@ def _gen_temp_password(n: int = 10) -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(n))
 
+def _normalize_name_for_username(first: Optional[str], last: Optional[str]) -> str:
+    name = f"{(first or '').strip()} {(last or '').strip()}".strip() or "sailor"
+    # Remove acentos e caracteres não alfanuméricos
+    name = unicodedata.normalize("NFKD", name)
+    name = "".join(c for c in name if not unicodedata.combining(c))
+    name = re.sub(r"[^A-Za-z0-9]", "", name)
+    return name or "sailor"
+
+
+def _build_sailor_username_base(entry: schemas.EntryCreate) -> str:
+    name_part = _normalize_name_for_username(entry.first_name, entry.last_name)
+    sail = (entry.sail_number or "").strip().replace(" ", "")
+    base = f"{name_part}{sail}" if sail else name_part
+    return base or "sailor"
+
+
 def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> models.User:
-    email = (entry.email or "").strip().lower()
-    if not email:
+    # Continua a ser obrigatório ter um email de contacto na entry,
+    # mas já não é usado como identificador único da conta.
+    contact_email = (entry.email or "").strip().lower()
+    if not contact_email:
         raise HTTPException(status_code=400, detail="Email do timoneiro é obrigatório.")
-    user = db.query(models.User).filter(models.User.email == email).first()
+
+    base_username = _build_sailor_username_base(entry)
+
+    # Se já existir um utilizador com este username, reutiliza a mesma Sailor Account
+    user = db.query(models.User).filter(models.User.username == base_username).first()
     if not user:
         full_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or None
+
+        # Gera username único (em caso de colisão rara com outro atleta)
+        username = base_username
+        suffix = 1
+        while db.query(models.User.id).filter(models.User.username == username).first():
+            suffix += 1
+            username = f"{base_username}{suffix}"
+
+        # Gera um email interno técnico, mantendo o email real apenas na entry
+        local = username.lower()
+        internal_email = f"{local}@sailor.local"
+        email_suffix = 1
+        while db.query(models.User.id).filter(models.User.email == internal_email).first():
+            email_suffix += 1
+            internal_email = f"{local}{email_suffix}@sailor.local"
+
         user = models.User(
-            name=full_name, email=email, role="regatista",
-            is_active=True, email_verified_at=None,
+            name=full_name,
+            email=internal_email,
+            username=username,
+            role="regatista",
+            is_active=True,
+            email_verified_at=None,
         )
         if PROVISION_MODE == "temp_password":
-            pwd = _gen_temp_password()
+            # Password curta e simples para Sailor Account (6 caracteres)
+            pwd = _gen_temp_password(6)
             user.hashed_password = hash_password(pwd)
             user.email_verified_at = datetime.utcnow()
             user._plaintext_password = pwd
-        db.add(user); db.flush()
+        db.add(user)
+        db.flush()
     else:
+        # Se a conta existir mas ainda não tiver password (modo temp_password), gera agora
         if PROVISION_MODE == "temp_password" and not user.hashed_password:
-            pwd = _gen_temp_password()
+            pwd = _gen_temp_password(6)
             user.hashed_password = hash_password(pwd)
             user.email_verified_at = datetime.utcnow()
             user._plaintext_password = pwd
@@ -159,26 +206,60 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
     return user
 
 def _send_combined_entry_email(
-    background: BackgroundTasks, *,
-    to_email: str, athlete_name: str, regatta_name: str,
-    user_email: str, user_phone: str | None, temp_password: str | None,
+    background: BackgroundTasks,
+    *,
+    to_email: str,
+    athlete_name: str,
+    regatta_name: str,
+    username: Optional[str],
+    temp_password: Optional[str],
+    contact_phone: Optional[str],
 ):
-    user_phone = user_phone or "—"
+    """
+    Email de confirmação de inscrição + credenciais de Sailor Account (em inglês).
+    """
+    contact_phone = contact_phone or "—"
     login_url = f"{FRONTEND_BASE}/login"
-    if temp_password:
-        subject = f"Inscrição confirmada + acesso à tua conta — {regatta_name}"
-        text = f"""Olá {athlete_name}, ...
 
-Acesso:
-• Email: {user_email}
-• Palavra-passe temporária: {temp_password}
+    if temp_password and username:
+        subject = f"Entry confirmed + Sailor Account access — {regatta_name}"
+        text = f"""Hi {athlete_name},
+
+Your entry for the regatta "{regatta_name}" has been received.
+
+Sailor Account access:
+• Username: {username}
+• Temporary password: {temp_password}
+
+Login here:
+{login_url}
+
+If you are a coach, please share these credentials with the athlete.
+
+Contact phone: {contact_phone}
+
+Best regards,
+{CLUB_NAME}
 """
-        html = f"""<div>...</div>"""
     else:
-        subject = f"Inscrição confirmada — {regatta_name}"
-        text = f"""Olá {athlete_name}, ..."""
-        html = f"""<div>...</div>"""
-    background.add_task(send_email, to_email, subject, html, text, from_name=CLUB_NAME, reply_to=REPLY_TO)
+        subject = f"Entry confirmed — {regatta_name}"
+        text = f"""Hi {athlete_name},
+
+Your entry for the regatta "{regatta_name}" has been received.
+
+Best regards,
+{CLUB_NAME}
+"""
+
+    background.add_task(
+        send_email,
+        to_email,
+        subject,
+        None,
+        text,
+        from_name=CLUB_NAME,
+        reply_to=REPLY_TO,
+    )
 
 # ---------------- endpoints ----------------
 
@@ -248,15 +329,17 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         athlete_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or entry.email
         regatta_name = regatta.name if regatta else "Regata"
         temp_pwd = getattr(user, "_plaintext_password", None)
+        # Enviar sempre para o email de contacto indicado na entry (pode ser do treinador)
+        to_email = (entry.email or "").strip() or user.email
 
         _send_combined_entry_email(
             background,
-            to_email=user.email,
+            to_email=to_email,
             athlete_name=athlete_name,
             regatta_name=regatta_name,
-            user_email=user.email,
-            user_phone=entry.contact_phone_1 or "",
+            username=getattr(user, "username", None),
             temp_password=temp_pwd,
+            contact_phone=entry.contact_phone_1 or "",
         )
         return {"message": "Inscrição criada com sucesso", "id": new_entry.id, "user_id": user.id}
     except HTTPException:

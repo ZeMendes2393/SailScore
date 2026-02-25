@@ -28,7 +28,10 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
+    # Login/contact identifier (unique per account, not necessarily the public email used on entries)
     email = Column(String, unique=True, index=True)
+    # Username used for Sailor Account logins (e.g. JoseMendes115)
+    username = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=True)
     role = Column(String)  # "admin" | "regatista" (no MVP)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -242,6 +245,28 @@ class Notice(Base):
     __table_args__ = (
         Index("ix_notices_regatta_published", "regatta_id", "published_at"),
     )
+
+
+# =========================
+#   NEWS (homepage / public)
+# =========================
+class NewsItem(Base):
+    __tablename__ = "news_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(500), nullable=False)
+    # Data de publicação (para ordenação e exibição no card)
+    published_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    # Excerto para o card na listagem
+    excerpt = Column(String(1000), nullable=True)
+    # Corpo da notícia (HTML permitido para texto + imagens)
+    body = Column(Text, nullable=True)
+    # Imagem principal do card (URL ou path relativo, ex.: /uploads/news/xxx.jpg)
+    image_url = Column(String(500), nullable=True)
+    # Categoria opcional (ex.: "Noticias Regatas RCNB", "Cruceros | Vela Ligera")
+    category = Column(String(200), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
 
 # =========================

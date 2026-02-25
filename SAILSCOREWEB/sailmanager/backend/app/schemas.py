@@ -19,7 +19,10 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    # Identificador de login:
+    # - Admin: email (continua a ser o recomendado)
+    # - Sailor Account: username (ex.: JoseMendes115)
+    email: str
     password: str
     regatta_id: Optional[int] = None  # usado por regatistas, opcional
 
@@ -440,6 +443,40 @@ class NoticeRead(BaseModel):
     is_important: bool
     applies_to_all: bool
     classes: List[str]  # nomes das classes (ex.: ["49er","ILCA 7"])
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# NEWS (homepage)
+# =========================
+class NewsItemCreate(BaseModel):
+    title: str
+    published_at: Optional[datetime] = None  # se omitido, usa now
+    excerpt: Optional[str] = None
+    body: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+
+
+class NewsItemUpdate(BaseModel):
+    title: Optional[str] = None
+    published_at: Optional[datetime] = None
+    excerpt: Optional[str] = None
+    body: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+
+
+class NewsItemRead(BaseModel):
+    id: int
+    title: str
+    published_at: datetime
+    excerpt: Optional[str] = None
+    body: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 

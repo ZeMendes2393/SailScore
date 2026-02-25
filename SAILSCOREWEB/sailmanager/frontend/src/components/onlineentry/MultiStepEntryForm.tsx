@@ -115,7 +115,9 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert('Entry submitted successfully! You’ll receive an email to activate your Sailor Account.');
+        alert(
+          'Entry submitted successfully! You will receive an email with the Sailor Account username and a temporary password.'
+        );
         setStep(1);
         setFormData({
           regatta_id: regattaId,
