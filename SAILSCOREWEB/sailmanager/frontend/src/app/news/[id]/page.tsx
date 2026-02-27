@@ -1,26 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import Linkify from 'linkify-react';
 
 interface NewsItem {
   id: number;
   title: string;
   published_at: string;
   excerpt: string | null;
-  body: string | null;
+  body: string | null; // texto normal
   image_url: string | null;
   category: string | null;
   created_at: string;
   updated_at: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 export default function NewsDetailPage() {
   const params = useParams();
   const id = params?.id as string;
+
   const [item, setItem] = useState<NewsItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export default function NewsDetailPage() {
         if (!res.ok) throw new Error('Not found');
         const data = (await res.json()) as NewsItem;
         setItem(data);
-      } catch (err) {
+      } catch {
         setError('Notícia não encontrada.');
       } finally {
         setLoading(false);
@@ -46,7 +49,11 @@ export default function NewsDetailPage() {
 
   const formatDate = (s: string) => {
     try {
-      return new Date(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+      return new Date(s).toLocaleDateString('pt-PT', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
     } catch {
       return s;
     }
@@ -56,6 +63,15 @@ export default function NewsDetailPage() {
     if (!url) return null;
     return url.startsWith('http') ? url : `${API_BASE}${url}`;
   };
+
+  const paragraphs = useMemo(() => {
+    const text = item?.body?.trim();
+    if (!text) return [];
+    return text
+      .split(/\n\s*\n/g)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }, [item?.body]);
 
   if (loading) {
     return (
@@ -69,7 +85,9 @@ export default function NewsDetailPage() {
     return (
       <div className="container-page py-8">
         <p className="text-red-600">{error ?? 'Not found.'}</p>
-        <Link href="/news" className="mt-4 inline-block text-blue-600 hover:underline">← Back to News</Link>
+        <Link href="/news" className="mt-4 inline-block text-blue-600 hover:underline">
+          ← Back to News
+        </Link>
       </div>
     );
   }
@@ -81,34 +99,48 @@ export default function NewsDetailPage() {
       </Link>
 
       <header className="mb-6">
-        <p className="flex items-center gap-1.5 text-sm text-red-600 font-medium mb-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          {formatDate(item.published_at)}
-        </p>
-        {item.category && (
-          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-            {item.category}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-sm text-gray-500">{formatDate(item.published_at)}</span>
+          {item.category && (
+            <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
+              {item.category}
+            </span>
+          )}
+        </div>
+
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{item.title}</h1>
       </header>
 
+      {/* ✅ Solução 2: imagem sem forçar aspect ratio */}
       {item.image_url && (
-        <div className="aspect-video rounded-xl overflow-hidden bg-gray-200 mb-8">
+        <div className="rounded-2xl overflow-hidden bg-gray-100 border mb-8">
           <img
             src={imageSrc(item.image_url) ?? ''}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-auto object-contain"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
           />
         </div>
       )}
 
-      {item.body ? (
-        <div
-          className="prose prose-lg max-w-none text-gray-700"
-          dangerouslySetInnerHTML={{ __html: item.body }}
-        />
+      {paragraphs.length > 0 ? (
+        <div className="prose prose-lg max-w-none text-gray-700">
+          {paragraphs.map((p, idx) => (
+            <p key={idx}>
+              <Linkify
+                options={{
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  attributes: {
+                    class: 'text-blue-600 underline hover:text-blue-700',
+                  },
+                }}
+              >
+                {p}
+              </Linkify>
+            </p>
+          ))}
+        </div>
       ) : item.excerpt ? (
         <p className="text-lg text-gray-700">{item.excerpt}</p>
       ) : null}

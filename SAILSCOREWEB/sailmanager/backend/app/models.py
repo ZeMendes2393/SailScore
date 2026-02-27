@@ -73,6 +73,7 @@ class Regatta(Base):
     results = relationship("Result", back_populates="regatta", cascade="all, delete-orphan")
     races = relationship("Race", back_populates="regatta", cascade="all, delete-orphan")
     classes = relationship("RegattaClass", back_populates="regatta", cascade="all, delete-orphan")
+    sponsors = relationship("RegattaSponsor", back_populates="regatta", cascade="all, delete-orphan", order_by="RegattaSponsor.sort_order")
 
     # Pontuações para códigos (ex.: {"DNF": 10, "DNC": 15})
     scoring_codes = Column(JSON, nullable=True, default=dict)
@@ -245,6 +246,22 @@ class Notice(Base):
     __table_args__ = (
         Index("ix_notices_regatta_published", "regatta_id", "published_at"),
     )
+
+
+# =========================
+#   REGATTA SPONSORS / APOIOS
+# =========================
+class RegattaSponsor(Base):
+    __tablename__ = "regatta_sponsors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String(200), nullable=False)  # ex: "Patrocinadores Oficiais", "Parceiros Oficiais", "Membro de"
+    image_url = Column(String(500), nullable=False)
+    link_url = Column(String(500), nullable=True)  # URL para onde o clique leva
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    regatta = relationship("Regatta", back_populates="sponsors")
 
 
 # =========================

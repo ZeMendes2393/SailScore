@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import Link from "next/link"
+import RegattaHeader from "../components/RegattaHeader"
 import ResultsViewer from "../components/results/ResultsViewer"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000'
 
 interface Regatta {
   id: number
@@ -10,6 +14,7 @@ interface Regatta {
   location: string
   start_date: string
   end_date: string
+  poster_url?: string | null
 }
 
 export default function ResultsPage() {
@@ -26,7 +31,7 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const fetchRegatta = async () => {
-      const res = await fetch(`http://localhost:8000/regattas/${id}`)
+      const res = await fetch(`${API_BASE}/regattas/${id}`)
       if (!res.ok) {
         console.error("❌ Falha ao obter regata:", res.status, await res.text())
         return
@@ -39,7 +44,7 @@ export default function ResultsPage() {
       setLoadingClasses(true)
       setClassesError(null)
       try {
-        const res = await fetch(`http://localhost:8000/regattas/${id}/classes`)
+        const res = await fetch(`${API_BASE}/regattas/${id}/classes`)
         if (!res.ok) {
           const txt = await res.text()
           console.error("❌ Erro ao carregar classes:", res.status, txt)
@@ -65,20 +70,54 @@ export default function ResultsPage() {
     fetchClasses()
   }, [id])
 
+  const heroImageUrl = regatta?.poster_url?.trim()
+  const heroBgStyle = heroImageUrl
+    ? {
+        backgroundImage: `url(${heroImageUrl.startsWith('http') ? heroImageUrl : `${API_BASE}${heroImageUrl}`})`,
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+      }
+    : undefined
+
+  const formatDateRange = (start: string, end: string) => {
+    try {
+      const s = new Date(start)
+      const e = new Date(end)
+      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts)
+      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`
+    } catch {
+      return `${start} – ${end}`
+    }
+  }
+
   return (
-    <main className="min-h-screen p-8 bg-gray-50">
-      <div className="bg-white shadow rounded p-6 mb-6">
-        {regatta ? (
-          <>
-            <h1 className="text-3xl font-bold mb-2">{regatta.name}</h1>
-            <p className="text-gray-600">
-              {regatta.location} | {regatta.start_date} – {regatta.end_date}
-            </p>
-          </>
-        ) : (
-          <p>A carregar regata...</p>
-        )}
-      </div>
+    <main className="min-h-screen bg-gray-50">
+      <RegattaHeader regattaId={id} />
+
+      {/* Hero */}
+      {regatta && (
+        <section
+          className="relative w-screen text-center py-20 md:py-28"
+          style={{
+            marginLeft: 'calc(50% - 50vw)',
+            marginRight: 'calc(50% - 50vw)',
+            ...(heroBgStyle ?? { background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)' }),
+          }}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
+            <Link href={`/regattas/${id}`} className="text-sm opacity-90 hover:opacity-100 mb-4 inline-block">← Back to regatta</Link>
+            <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
+            <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
+            <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">{formatDateRange(regatta.start_date, regatta.end_date)}</p>
+          </div>
+        </section>
+      )}
+
+      <div className="container-page py-8">
+      {!regatta && <p className="py-8">A carregar regata...</p>}
 
       {/* Seletor de classes */}
       <div className="mb-6">
@@ -111,6 +150,7 @@ export default function ResultsPage() {
         ) : (
           <p className="text-gray-500">Select a class to see results.</p>
         )}
+      </div>
       </div>
     </main>
   )

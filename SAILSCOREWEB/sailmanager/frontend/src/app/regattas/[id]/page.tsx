@@ -1,18 +1,14 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { FileText, List, PenLine, Trophy } from 'lucide-react';
 
-import OnlineEntryPublic from '@/components/onlineentry/OnlineEntryPublic';
-import EntryList from './components/entrylist/EntryList';
-import NoticeBoard from './components/noticeboard/NoticeBoard';
-import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
+import RegattaHeader from './components/RegattaHeader';
 
-// keep in sync with your api.ts
 const API_BASE =
-  (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
-    'http://127.0.0.1:8000');
+  (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000');
 
 type Regatta = {
   id: number;
@@ -20,14 +16,27 @@ type Regatta = {
   location: string;
   start_date: string;
   end_date: string;
-  online_entry_open?: boolean;
-  entry_list_columns?: string[] | Record<string, string[]> | null;
+  poster_url?: string | null;
 };
 
-export default function RegattaDetails() {
-  const params = useParams();
-  const router = useRouter();
+type NewsItem = {
+  id: number;
+  title: string;
+  published_at: string;
+  excerpt: string | null;
+  image_url: string | null;
+  category: string | null;
+};
 
+type Sponsor = {
+  id: number;
+  category: string;
+  image_url: string;
+  link_url: string | null;
+};
+
+export default function RegattaHomePage() {
+  const params = useParams();
   const id = params?.id as string | undefined;
   const regattaId = useMemo(() => {
     const n = Number(id);
@@ -36,12 +45,8 @@ export default function RegattaDetails() {
   }, [id]);
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
-  const [activeTab, setActiveTab] = useState<'entry' | 'notice' | 'form' | null>(null);
-
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
-  const [loadingClasses, setLoadingClasses] = useState(true);
-  const [classesError, setClassesError] = useState<string | null>(null);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
 
   useEffect(() => {
     if (!regattaId) return;
@@ -59,121 +64,192 @@ export default function RegattaDetails() {
     })();
 
     (async () => {
-      setLoadingClasses(true);
-      setClassesError(null);
-      try {
-        const url = `${API_BASE}/regattas/${regattaId}/classes`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) {
-          setAvailableClasses([]);
-          setClassesError('Could not load classes for this regatta.');
-          return;
-        }
-        const arr = await res.json();
-        setAvailableClasses(Array.isArray(arr) ? (arr as string[]) : []);
-      } catch (err) {
-        setAvailableClasses([]);
-        setClassesError('Network error while loading classes.');
-      } finally {
-        setLoadingClasses(false);
+      const res = await fetch(`${API_BASE}/news/?limit=6&offset=0`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = (await res.json()) as NewsItem[];
+        setNews(Array.isArray(data) ? data : []);
+      }
+    })();
+
+    (async () => {
+      const res = await fetch(`${API_BASE}/regattas/${regattaId}/sponsors`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = (await res.json()) as Sponsor[];
+        setSponsors(Array.isArray(data) ? data : []);
       }
     })();
   }, [regattaId]);
 
-  useEffect(() => {
-    if (activeTab === 'entry' && !selectedClass && availableClasses.length > 0) {
-      setSelectedClass(availableClasses[0]);
-    }
-  }, [activeTab, availableClasses, selectedClass]);
-
   if (!regattaId) return <p className="p-8">Loading…</p>;
   if (!regatta) return <p className="p-8">Loading regatta…</p>;
 
+  const heroImageUrl = regatta.poster_url?.trim();
+  const heroBgStyle = heroImageUrl
+    ? {
+        backgroundImage: `url(${heroImageUrl.startsWith('http') ? heroImageUrl : `${API_BASE}${heroImageUrl}`})`,
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+      }
+    : undefined;
+
+  const formatDateRange = (start: string, end: string) => {
+    try {
+      const s = new Date(start);
+      const e = new Date(end);
+      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+      if (s.getTime() === e.getTime()) {
+        return s.toLocaleDateString('pt-PT', opts);
+      }
+      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
+    } catch {
+      return `${start} – ${end}`;
+    }
+  };
+
+  const imageSrc = (url: string | null) =>
+    !url ? null : url.startsWith('http') ? url : `${API_BASE}${url}`;
+
+  const formatNewsDate = (s: string) => {
+    try {
+      return new Date(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return s;
+    }
+  };
+
+  const sponsorsByCategory = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
+    const cat = s.category || 'Outros';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(s);
+    return acc;
+  }, {});
+
   return (
-    <main className="min-h-screen p-8 bg-gray-50">
-      <div className="bg-white shadow rounded p-6 mb-6">
-        <h1 className="text-3xl font-bold mb-2">{regatta.name}</h1>
-        <p className="text-gray-600">
-          {regatta.location} | {regatta.start_date} – {regatta.end_date}
-        </p>
-      </div>
+    <main className="min-h-screen bg-gray-50">
+      <RegattaHeader regattaId={regattaId} />
 
-      {/* CLASS SELECTOR */}
-      <div className="mb-6">
-        {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
-        {!loadingClasses && classesError && <p className="text-red-700">{classesError}</p>}
-        {!loadingClasses && !classesError && availableClasses.length > 0 && (
-          <div className="flex gap-2 mb-2 flex-wrap">
-            {availableClasses.map((cls) => (
-              <button
-                key={cls}
-                onClick={() => setSelectedClass(cls)}
-                className={`px-3 py-1 rounded font-semibold border ${
-                  selectedClass === cls
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-blue-600 border-blue-600'
-                }`}
-              >
-                {cls}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* NAV + Sailor Account */}
-      <div className="bg-white shadow rounded mb-4 px-6 py-4 flex items-center justify-between">
-        <div className="flex gap-6 text-blue-600 font-semibold">
-          <button onClick={() => setActiveTab('entry')} className="hover:underline">
-            Entry List
-          </button>
-          <button onClick={() => setActiveTab('notice')} className="hover:underline">
-            Notice Board
-          </button>
-          <button onClick={() => setActiveTab('form')} className="hover:underline">
-            Online Entry
-          </button>
-          <button onClick={() => router.push(`/regattas/${id}/results`)} className="hover:underline">
-            Results
-          </button>
+      {/* Hero: full-bleed */}
+      <section
+        className="relative w-screen text-center py-20 md:py-28"
+        style={{
+          marginLeft: 'calc(50% - 50vw)',
+          marginRight: 'calc(50% - 50vw)',
+          ...(heroBgStyle ?? { background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)' }),
+        }}
+      >
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
+          <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
+          <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">
+            {formatDateRange(regatta.start_date, regatta.end_date)}
+          </p>
         </div>
+      </section>
 
-        <div>
-          <Link href={`/login?regattaId=${regattaId}`}>
-            <button className="text-sm bg-gray-900 text-white px-3 py-1 rounded hover:bg-gray-800">
-              Sailor account
-            </button>
+      <div className="container-page py-8">
+      {/* Navegação rápida: botões abaixo da imagem, antes das notícias */}
+      <section className="mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link
+            href={`/regattas/${regattaId}/notice`}
+            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+          >
+            <FileText className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Notice Board</span>
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/entry`}
+            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+          >
+            <List className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Entry List</span>
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/form`}
+            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+          >
+            <PenLine className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Online Entry</span>
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/results`}
+            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+          >
+            <Trophy className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Results</span>
           </Link>
         </div>
-      </div>
+      </section>
 
-      {/* TAB CONTENT */}
-      <div className="p-6 bg-white rounded shadow">
-        {activeTab === 'entry' && (
-          <EntryList
-            regattaId={regattaId}
-            selectedClass={selectedClass}
-            entryListColumns={getVisibleColumnsForClass(regatta.entry_list_columns, selectedClass)}
-          />
-        )}
+      {news.length > 0 && (
+        <section className="mt-0">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Notícias</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {news.map((n) => (
+              <Link
+                key={n.id}
+                href={`/news/${n.id}`}
+                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition group"
+              >
+                {n.image_url && (
+                  <div className="aspect-video bg-gray-200 overflow-hidden">
+                    <img
+                      src={imageSrc(n.image_url) ?? ''}
+                      alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                )}
+                <div className="p-4">
+                  <p className="text-xs text-gray-500 mb-1">{formatNewsDate(n.published_at)}</p>
+                  <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">{n.title}</h3>
+                  {n.excerpt && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{n.excerpt}</p>}
+                </div>
+              </Link>
+            ))}
+          </div>
+          <Link href="/news" className="inline-block mt-4 text-blue-600 font-medium hover:underline">
+            Ver todas as notícias →
+          </Link>
+        </section>
+      )}
 
-        {activeTab === 'notice' && <NoticeBoard regattaId={regattaId} />}
-
-        {activeTab === 'form' && (
-          regatta.online_entry_open !== false  // undefined => trata como aberto
-            ? <OnlineEntryPublic regattaId={regattaId} />
-            : (
-              <div className="p-4 rounded border bg-amber-50 text-amber-800">
-                Online entries are currently closed.
+      {/* Sponsors & Apoios */}
+      {Object.keys(sponsorsByCategory).length > 0 && (
+        <section className="mt-12 pt-8 border-t">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Patrocinadores e Apoios</h2>
+          <div className="space-y-8">
+            {Object.entries(sponsorsByCategory).map(([category, items]) => (
+              <div key={category}>
+                <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wider mb-4">{category}</h3>
+                <div className="flex flex-wrap gap-6 items-center">
+                  {items.map((s) => {
+                    const Wrapper = s.link_url ? 'a' : 'span';
+                    const props = s.link_url
+                      ? { href: s.link_url, target: '_blank', rel: 'noopener noreferrer' }
+                      : {};
+                    return (
+                      <Wrapper
+                        key={s.id}
+                        {...props}
+                        className={s.link_url ? 'hover:opacity-80 transition' : ''}
+                      >
+                        <img
+                          src={imageSrc(s.image_url) ?? ''}
+                          alt={category}
+                          className="max-h-16 max-w-[140px] object-contain"
+                        />
+                      </Wrapper>
+                    );
+                  })}
+                </div>
               </div>
-            )
-        )}
-
-        {!activeTab && (
-          <p className="text-gray-600">
-            Choose a section above to see the details of this regatta.
-          </p>
-        )}
+            ))}
+          </div>
+        </section>
+      )}
       </div>
     </main>
   );

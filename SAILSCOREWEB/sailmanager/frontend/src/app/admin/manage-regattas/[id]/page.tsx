@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiSend } from '@/lib/api';
+import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
 import RequireAuth from '@/components/RequireAuth';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
+import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 
 interface Regatta {
   id: number;
@@ -17,9 +18,10 @@ interface Regatta {
   end_date: string;
   online_entry_open?: boolean;
   entry_list_columns?: string[] | Record<string, string[]> | null;
+  poster_url?: string | null;
 }
 
-type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'delete';
+type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'design' | 'sponsors' | 'delete';
 
 export default function AdminRegattaPage() {
   const { id } = useParams();
@@ -46,6 +48,8 @@ export default function AdminRegattaPage() {
   const [newClassNameOD, setNewClassNameOD] = useState('');
   const [newSailorsOD, setNewSailorsOD] = useState(1);
   const [newClassNameH, setNewClassNameH] = useState('');
+  const [posterUrl, setPosterUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -54,6 +58,7 @@ export default function AdminRegattaPage() {
         // default true when backend doesn't yet send the field
         if (typeof r.online_entry_open === 'undefined') r.online_entry_open = true;
         setRegatta(r);
+        setPosterUrl((r as { poster_url?: string | null }).poster_url ?? '');
         setName(r.name);
         setLocation(r.location);
         setStartDate(r.start_date);
@@ -123,6 +128,67 @@ export default function AdminRegattaPage() {
       setActiveTab(null);
     } catch (err: any) {
       alert(err?.message || 'Failed to update regatta.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Formato inválido. Use JPG, PNG ou WebP.');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const data = await apiUpload<{ url: string }>('/uploads/regattas', form, token);
+      setPosterUrl(data.url);
+      e.target.value = '';
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro ao enviar imagem.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const patched = await apiSend<Regatta>(`/regattas/${regattaId}`, 'PATCH', { poster_url: null }, token);
+      setRegatta(prev => (prev ? { ...prev, poster_url: null } : prev));
+      setPosterUrl('');
+      alert('Imagem removida.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erro ao remover imagem.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDesign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      alert('Session missing. Please log in as admin.');
+      router.push('/admin/login');
+      return;
+    }
+    setSaving(true);
+    try {
+      const patched = await apiSend<Regatta>(
+        `/regattas/${regattaId}`,
+        'PATCH',
+        { poster_url: posterUrl.trim() || null },
+        token
+      );
+      setRegatta(prev => prev ? { ...prev, poster_url: patched?.poster_url ?? (posterUrl || null) } : prev);
+      alert('Design guardado.');
+      setActiveTab(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Falha ao guardar design.');
     } finally {
       setSaving(false);
     }
@@ -275,6 +341,12 @@ export default function AdminRegattaPage() {
         <button onClick={openEditTab} className="hover:underline">
           Edit
         </button>
+        <button onClick={() => setActiveTab('design')} className="hover:underline">
+          Design
+        </button>
+        <button onClick={() => setActiveTab('sponsors')} className="hover:underline">
+          Sponsors
+        </button>
         <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
           Delete
         </button>
@@ -298,7 +370,7 @@ export default function AdminRegattaPage() {
       )}
 
       {/* Narrow cards (Entry / Notice / Online Entry) */}
-      {activeTab !== 'edit' && activeTab !== 'delete' && (
+      {activeTab !== 'edit' && activeTab !== 'design' && activeTab !== 'sponsors' && activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
           {activeTab === 'entry' && (
             <AdminEntryList
@@ -500,6 +572,73 @@ export default function AdminRegattaPage() {
               </button>
               <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
                 Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* SPONSORS */}
+      {activeTab === 'sponsors' && (
+        <AdminSponsorsManager regattaId={regattaId} />
+      )}
+
+      {/* DESIGN / LAYOUT */}
+      {activeTab === 'design' && (
+        <div className="p-6 bg-white rounded shadow max-w-2xl">
+          <h2 className="text-xl font-semibold mb-4">Design & Layout</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Configure as imagens do campeonato. As secções abaixo indicam onde cada imagem aparece na página pública.
+          </p>
+
+          <form onSubmit={handleSaveDesign} className="space-y-8">
+            {/* Secção 1: Imagem do cabeçalho / Hero */}
+            <section className="border rounded-lg p-5 bg-gray-50">
+              <h3 className="text-base font-semibold text-gray-800 mb-1">
+                Imagem do cabeçalho / Hero do campeonato
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Imagem de fundo do topo da página pública (nome e datas centrados por cima).
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleUploadImage}
+                disabled={uploadingImage}
+                className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100 disabled:opacity-60"
+              />
+              {posterUrl && (
+                <div className="mt-3 space-y-2">
+                  <div className="rounded overflow-hidden border max-h-48 bg-white">
+                    <img
+                      src={posterUrl.startsWith('http') ? posterUrl : `${BASE_URL}${posterUrl}`}
+                      alt="Preview do hero"
+                      className="w-full h-36 object-cover"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    disabled={saving}
+                    className="text-sm text-red-600 hover:underline disabled:opacity-60"
+                  >
+                    Remover imagem
+                  </button>
+                </div>
+              )}
+            </section>
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
+              >
+                {saving ? 'A guardar…' : 'Guardar design'}
+              </button>
+              <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
+                Cancelar
               </button>
             </div>
           </form>

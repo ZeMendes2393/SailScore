@@ -23,6 +23,7 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
   const isActive = (p: string) => pathname === p;
+  const showMainHeader = !pathname.match(/^\/regattas\/\d+(?:\/|$)/);
 
   return (
     <html lang="pt">
@@ -30,7 +31,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}
       >
         <AuthProvider>
-          {/* Navbar global */}
+          {/* Navbar global — oculto nas páginas de regata (usa header próprio) */}
+          {showMainHeader && (
           <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 to-sky-600 text-white shadow-md">
             <div className="mx-auto max-w-7xl px-6 h-16 flex items-center justify-between">
               <Link href="/" className="text-xl font-bold tracking-wide">
@@ -68,6 +70,7 @@ export default function RootLayout({
 
             </div>
           </header>
+          )}
 
           {/* Conteúdo principal */}
           <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full">

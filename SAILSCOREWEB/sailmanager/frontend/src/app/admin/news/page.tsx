@@ -17,7 +17,8 @@ export type NewsItem = {
   updated_at: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 export default function AdminNewsPage() {
   const [items, setItems] = useState<NewsItem[]>([]);
@@ -37,8 +38,10 @@ export default function AdminNewsPage() {
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchNews();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Eliminar esta notícia?')) return;
@@ -54,10 +57,19 @@ export default function AdminNewsPage() {
   const formatDate = (s: string) => {
     try {
       const d = new Date(s);
-      return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
+      return d.toLocaleDateString('pt-PT', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
     } catch {
       return s;
     }
+  };
+
+  const imageSrc = (url: string | null) => {
+    if (!url) return null;
+    return url.startsWith('http') ? url : `${API_BASE}${url}`;
   };
 
   return (
@@ -65,12 +77,24 @@ export default function AdminNewsPage() {
       <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
         <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
         <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">Dashboard</Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
-          <Link href="/admin/news" className="hover:underline font-semibold text-blue-600">News</Link>
-          <Link href="/admin/manage-users" className="hover:underline">Users</Link>
-          <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
-          <Link href="/admin/settings" className="hover:underline">Settings</Link>
+          <Link href="/admin" className="hover:underline">
+            Dashboard
+          </Link>
+          <Link href="/admin/manage-regattas" className="hover:underline">
+            Regattas
+          </Link>
+          <Link href="/admin/news" className="hover:underline font-semibold text-blue-600">
+            News
+          </Link>
+          <Link href="/admin/manage-users" className="hover:underline">
+            Users
+          </Link>
+          <Link href="/admin/manage-protests" className="hover:underline">
+            Protests
+          </Link>
+          <Link href="/admin/settings" className="hover:underline">
+            Settings
+          </Link>
         </nav>
         <button
           onClick={() => {
@@ -89,6 +113,7 @@ export default function AdminNewsPage() {
             ← Back to Dashboard
           </Link>
         </div>
+
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">News</h1>
           <Link
@@ -115,20 +140,24 @@ export default function AdminNewsPage() {
                 <div className="flex-1 min-w-0">
                   {n.image_url && (
                     <img
-                      src={n.image_url.startsWith('http') ? n.image_url : `${API_BASE}${n.image_url}`}
+                      src={imageSrc(n.image_url) ?? ''}
                       alt=""
                       className="w-24 h-24 object-cover rounded mb-2"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
                     />
                   )}
-                  <p className="text-xs text-gray-500 mb-1">
-                    {formatDate(n.published_at)}
-                    {n.category && ` · ${n.category}`}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-xs text-gray-500">{formatDate(n.published_at)}</span>
+                    {n.category && (
+                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
+                        {n.category}
+                      </span>
+                    )}
+                  </div>
                   <h2 className="font-semibold text-gray-900 truncate">{n.title}</h2>
-                  {n.excerpt && (
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{n.excerpt}</p>
-                  )}
+                  {n.excerpt && <p className="text-sm text-gray-600 mt-1 line-clamp-2">{n.excerpt}</p>}
                 </div>
+
                 <div className="flex items-center gap-2 shrink-0">
                   <Link
                     href={`/admin/news/${n.id}/edit`}

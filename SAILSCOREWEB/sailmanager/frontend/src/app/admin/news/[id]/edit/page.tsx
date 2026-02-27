@@ -6,10 +6,14 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPatch } from '@/lib/api';
 
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+
 export default function EditNewsPage() {
   const router = useRouter();
   const params = useParams();
   const id = Number(params.id);
+
   const { token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -22,11 +26,19 @@ export default function EditNewsPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [body, setBody] = useState('');
 
+  const resolvedImage = imageUrl
+    ? imageUrl.startsWith('http')
+      ? imageUrl
+      : `${API_BASE}${imageUrl}`
+    : '';
+
   useEffect(() => {
     if (!id || isNaN(id)) {
       setLoading(false);
       return;
     }
+    if (!token) return;
+
     (async () => {
       try {
         const item = await apiGet<{
@@ -37,6 +49,7 @@ export default function EditNewsPage() {
           image_url: string | null;
           body: string | null;
         }>(`/news/${id}`, token ?? undefined);
+
         setTitle(item.title ?? '');
         setPublishedAt(item.published_at ? item.published_at.slice(0, 10) : '');
         setCategory(item.category ?? '');
@@ -55,10 +68,12 @@ export default function EditNewsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
     if (!title.trim()) {
       setError('O título é obrigatório.');
       return;
     }
+
     setSaving(true);
     try {
       await apiPatch(
@@ -112,6 +127,7 @@ export default function EditNewsPage() {
             ← Back to News
           </Link>
         </div>
+
         <h1 className="text-3xl font-bold mb-6">Edit news</h1>
 
         <form onSubmit={handleSubmit} className="max-w-2xl space-y-6 bg-white border rounded-lg p-6 shadow-sm">
@@ -174,7 +190,7 @@ export default function EditNewsPage() {
             {imageUrl && (
               <div className="mt-2">
                 <img
-                  src={imageUrl.startsWith('http') ? imageUrl : imageUrl}
+                  src={resolvedImage}
                   alt="Preview"
                   className="max-h-40 rounded object-cover border"
                   onError={(e) => (e.currentTarget.style.display = 'none')}

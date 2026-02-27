@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import RegattaHeader from '../components/RegattaHeader'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { BASE_URL } from '@/lib/api'
 import {
@@ -185,6 +186,9 @@ export default function OverallResultsPage() {
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
 
   return (
+    <main className="min-h-screen bg-gray-50">
+      <RegattaHeader regattaId={Number(regattaId)} />
+      <div className="container-page py-8">
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-2xl font-bold"> Classificação Geral</h2>
@@ -300,5 +304,7 @@ export default function OverallResultsPage() {
         </div>
       )}
     </div>
+    </div>
+    </main>
   )
 }

@@ -12,11 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
-
 from app.database import create_database
 from app.routes import (
     auth,
     regattas,
+    regatta_sponsors,
     entries,
     notices,
     results,
@@ -32,6 +32,7 @@ from app.routes import (
     discards,
     publication,
     news,
+    uploads,  # ✅ ADICIONADO
 )
 from app.routes.discards import router as discard_router
 
@@ -71,22 +72,16 @@ app.add_middleware(
     max_age=86400,
 )
 
-
-# ---------- Exception handler: 500 com CORS para o cliente ver o erro real ----------
+# ---------- Exception handler ----------
 logger = logging.getLogger("sailscore")
-
 
 @app.exception_handler(Exception)
 def unhandled_exception_handler(request, exc: Exception):
     logger.exception("Unhandled exception: %s", exc)
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": str(exc),
-            "type": type(exc).__name__,
-        },
+        content={"detail": str(exc), "type": type(exc).__name__},
     )
-
 
 # ---------- Paths base ----------
 UPLOADS_DIR = Path("uploads").resolve()
@@ -100,6 +95,9 @@ FILES_DIR.mkdir(parents=True, exist_ok=True)
 @app.on_event("startup")
 def _ensure_upload_dirs():
     (UPLOADS_DIR / "notices").mkdir(parents=True, exist_ok=True)
+    (UPLOADS_DIR / "news").mkdir(parents=True, exist_ok=True)
+    (UPLOADS_DIR / "regattas").mkdir(parents=True, exist_ok=True)
+    (UPLOADS_DIR / "sponsors").mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
 
@@ -109,6 +107,7 @@ create_database()
 # ---------- Routers ----------
 app.include_router(auth.router)
 app.include_router(regattas.router)
+app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(notices.router)
 app.include_router(results.router, prefix="/results", tags=["Results"])
@@ -121,13 +120,15 @@ app.include_router(protest_time_limit.router)
 app.include_router(scoring_routes.router)
 app.include_router(requests_routes.router)
 app.include_router(entry_attachments.router)
-app.include_router(questions_router)  # sem prefix extra
-app.include_router(class_settings.router)  # 👈 adiciona após os outros routers
+app.include_router(questions_router)
+app.include_router(class_settings.router)
 app.include_router(fleets_router.router)
-app.include_router(public_fleets_router)   # 👈 ADICIONAR AQUI
+app.include_router(public_fleets_router)
 app.include_router(discards.router)
 app.include_router(publication.router)
 app.include_router(news.router)
+
+app.include_router(uploads.router)  # ✅ NOVO (POST /uploads/news)
 
 # ---------- Utilitários ----------
 @app.get("/health")
@@ -157,6 +158,3 @@ app.openapi_schema = None
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 app.mount("/files", StaticFiles(directory=str(FILES_DIR)), name="files")
-
-
-

@@ -481,6 +481,33 @@ class NewsItemRead(BaseModel):
 
 
 # =========================
+# REGATTA SPONSORS
+# =========================
+class RegattaSponsorRead(BaseModel):
+    id: int
+    regatta_id: int
+    category: str
+    image_url: str
+    link_url: Optional[str] = None
+    sort_order: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RegattaSponsorCreate(BaseModel):
+    category: str
+    image_url: str
+    link_url: Optional[str] = None
+    sort_order: int = 0
+
+
+class RegattaSponsorUpdate(BaseModel):
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    link_url: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+# =========================
 # RULE 42
 # =========================
 class Rule42Create(BaseModel):
