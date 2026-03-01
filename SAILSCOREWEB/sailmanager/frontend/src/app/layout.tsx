@@ -3,6 +3,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import ContentContainer from "@/components/ContentContainer";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -23,7 +24,15 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
   const isActive = (p: string) => pathname === p;
-  const showMainHeader = !pathname.match(/^\/regattas\/\d+(?:\/|$)/);
+  const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/);
+  const useContentContainer =
+    pathname !== '/' &&
+    !pathname?.match(/^\/admin(\/|$)/) &&
+    !pathname?.match(/^\/login(\/|$)/) &&
+    !pathname?.match(/^\/register(\/|$)/) &&
+    !pathname?.match(/^\/dashboard(\/|$)/) &&
+    !pathname?.match(/^\/accept-invite(\/|$)/) &&
+    !pathname?.match(/^\/regattas\/\d+/);
 
   return (
     <html lang="pt">
@@ -33,13 +42,13 @@ export default function RootLayout({
         <AuthProvider>
           {/* Navbar global — oculto nas páginas de regata (usa header próprio) */}
           {showMainHeader && (
-          <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 to-sky-600 text-white shadow-md">
-            <div className="mx-auto max-w-7xl px-6 h-16 flex items-center justify-between">
-              <Link href="/" className="text-xl font-bold tracking-wide">
+          <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-lg backdrop-blur-md">
+            <div className="w-full h-28 flex items-center justify-between px-4 sm:px-6">
+              <Link href="/" className="text-xl font-bold tracking-tight hover:opacity-90 transition-opacity">
                 SailScore
               </Link>
 
-              <nav className="hidden md:flex items-center gap-2 text-sm font-medium">
+              <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
                 {[
                   { href: "/", label: "Home" },
                   { href: "/calendar", label: "Calendar" },
@@ -49,10 +58,10 @@ export default function RootLayout({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-3 py-1 rounded-md transition ${
+                    className={`px-3 py-2 rounded-lg transition ${
                       isActive(item.href)
-                        ? "bg-white/20"
-                        : "hover:bg-white/10"
+                        ? "bg-white/25 text-white"
+                        : "hover:bg-white/15 text-white/95"
                     }`}
                   >
                     {item.label}
@@ -62,7 +71,7 @@ export default function RootLayout({
 
               
 <Link href="/admin/login">
-  <button className="px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white">
+  <button className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-sm transition shadow-sm">
     Admin Account
   </button>
 </Link>
@@ -72,15 +81,17 @@ export default function RootLayout({
           </header>
           )}
 
-          {/* Conteúdo principal */}
-          <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full">
-            {children}
+          {/* Conteúdo principal — container nas páginas públicas; homepage, admin, login, dashboard sem container */}
+          <main className="flex-1 w-full py-8">
+            {useContentContainer ? <ContentContainer>{children}</ContentContainer> : children}
           </main>
 
           {/* Footer */}
-          <footer className="bg-gray-100 border-t mt-10">
-            <div className="max-w-7xl mx-auto px-6 py-4 text-center text-sm text-gray-500">
-              © {new Date().getFullYear()} SailScore — Sailing Results Platform
+          <footer className="bg-white border-t border-gray-200 mt-auto">
+            <div className="max-w-screen-2xl mx-auto py-6 text-center px-2 lg:px-3">
+              <p className="text-sm text-gray-600">
+                © {new Date().getFullYear()} SailScore — Sailing Results Platform
+              </p>
             </div>
           </footer>
         </AuthProvider>

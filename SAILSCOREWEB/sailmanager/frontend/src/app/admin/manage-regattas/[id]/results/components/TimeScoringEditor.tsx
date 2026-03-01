@@ -603,6 +603,26 @@ export default function TimeScoringEditor({
                         <TimeInput
                           value={row.finishTime}
                           onChange={(v) => {
+                            const isComplete = (v || '').replace(/\D/g, '').length >= 6;
+                            if (!isComplete) return;
+                            onUpdateField(row.entryId, 'finishTime', v);
+                            if (raceStartTime && raceId != null) {
+                              const fd = typeof row.finishDay === 'number' ? row.finishDay : 0;
+                              const elapsedStr = computeElapsedFromStartAndFinish(
+                                START_DAY,
+                                timeStringToSeconds(raceStartTime),
+                                fd,
+                                timeStringToSeconds(v)
+                              );
+                              onUpdateField(row.entryId, 'elapsedTime', elapsedStr);
+                              const rating = getEffectiveRating(entry, method, orcRatingMode);
+                              if (rating != null) {
+                                onUpdateField(row.entryId, 'correctedTime', ancCorrectedFromElapsed(elapsedStr, rating));
+                              }
+                            }
+                          }}
+                          onBlurWithValue={(v) => {
+                            if ((v || '').replace(/\D/g, '').length >= 6) return;
                             onUpdateField(row.entryId, 'finishTime', v);
                             if (raceStartTime && raceId != null) {
                               const fd = typeof row.finishDay === 'number' ? row.finishDay : 0;
@@ -627,6 +647,27 @@ export default function TimeScoringEditor({
                         <TimeInput
                           value={row.elapsedTime}
                           onChange={(v) => {
+                            const isComplete = (v || '').replace(/\D/g, '').length >= 6;
+                            if (!isComplete) return;
+                            onUpdateField(row.entryId, 'elapsedTime', v);
+                            if (raceStartTime && raceId != null) {
+                              const startSec = timeStringToSeconds(raceStartTime);
+                              const elapsedSec = parseElapsedToSeconds(v);
+                              const { finishDay, finishTime } = computeFinishFromStartAndElapsed(
+                                START_DAY,
+                                startSec,
+                                elapsedSec
+                              );
+                              onUpdateField(row.entryId, 'finishTime', finishTime);
+                              onUpdateField(row.entryId, 'finishDay', finishDay);
+                            }
+                            const rating = getEffectiveRating(entry, method, orcRatingMode);
+                            if (rating != null) {
+                              onUpdateField(row.entryId, 'correctedTime', ancCorrectedFromElapsed(v, rating));
+                            }
+                          }}
+                          onBlurWithValue={(v) => {
+                            if ((v || '').replace(/\D/g, '').length >= 6) return;
                             onUpdateField(row.entryId, 'elapsedTime', v);
                             if (raceStartTime && raceId != null) {
                               const startSec = timeStringToSeconds(raceStartTime);

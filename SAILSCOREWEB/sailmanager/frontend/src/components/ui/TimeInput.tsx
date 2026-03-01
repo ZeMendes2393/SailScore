@@ -27,6 +27,8 @@ interface TimeInputProps {
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
+  /** Chamado no blur com o valor final (HH:MM:SS). Útil para commit só ao sair do campo. */
+  onBlurWithValue?: (value: string) => void;
   placeholder?: string;
   className?: string;
   id?: string;
@@ -42,6 +44,7 @@ export function TimeInput({
   value,
   onChange,
   onBlur: onBlurProp,
+  onBlurWithValue,
   placeholder = 'HH:MM:SS',
   className = '',
   id,
@@ -78,10 +81,12 @@ export function TimeInput({
 
   const handleBlur = useCallback(() => {
     setFocused(false);
-    const d = timeToDigits(value);
+    const d = timeToDigits(local);
+    const formatted = digitsToTime(d);
     setLocal(formatTimeDisplay(d));
+    onBlurWithValue?.(formatted);
     onBlurProp?.();
-  }, [value, onBlurProp]);
+  }, [local, onBlurProp, onBlurWithValue]);
 
   return (
     <input

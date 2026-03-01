@@ -114,6 +114,7 @@ export default function EditNewsPage() {
           <Link href="/admin/news" className="hover:underline font-semibold text-blue-600">News</Link>
           <Link href="/admin/manage-users" className="hover:underline">Users</Link>
           <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
+          <Link href="/admin/design" className="hover:underline">Design</Link>
           <Link href="/admin/settings" className="hover:underline">Settings</Link>
         </nav>
         <Link href="/admin/news" className="mt-6 inline-block text-sm text-blue-600 hover:underline">

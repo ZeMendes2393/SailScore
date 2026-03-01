@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 
 interface Regatta {
   id: number;
@@ -31,6 +30,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://
 export default function HomePage() {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [featuredRegattas, setFeaturedRegattas] = useState<Regatta[]>([]);
+  const [homeImages, setHomeImages] = useState<{ url: string; position_x?: number; position_y?: number }[]>([]);
+  const [heroTitle, setHeroTitle] = useState<string | null>(null);
+  const [heroSubtitle, setHeroSubtitle] = useState<string | null>(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -58,6 +62,47 @@ export default function HomePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/design/featured-regattas`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as Regatta[];
+        setFeaturedRegattas(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Erro ao buscar regatas em destaque:', err);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/design/homepage`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          home_images: { url: string; position_x?: number; position_y?: number }[];
+          hero_title?: string | null;
+          hero_subtitle?: string | null;
+        };
+        const hi = data?.home_images ?? [];
+        setHomeImages(
+          Array.isArray(hi)
+            ? hi.slice(0, 3).map((img) => ({
+                url: img.url?.startsWith('http') ? img.url : `${API_BASE}${img.url}`,
+                position_x: Math.max(0, Math.min(100, img.position_x ?? 50)),
+                position_y: Math.max(0, Math.min(100, img.position_y ?? 50)),
+              }))
+            : []
+        );
+        setHeroTitle(data?.hero_title ?? null);
+        setHeroSubtitle(data?.hero_subtitle ?? null);
+      } catch (err) {
+        console.error('Erro ao buscar imagens da homepage:', err);
+      }
+    })();
+  }, []);
+
   const formatNewsDate = (s: string) => {
     try {
       return new Date(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -71,46 +116,189 @@ export default function HomePage() {
     return url.startsWith('http') ? url : `${API_BASE}${url}`;
   };
 
+  const formatRegattaDate = (start: string, end: string) => {
+    try {
+      const s = new Date(start);
+      const e = new Date(end);
+      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts);
+      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
+    } catch {
+      return `${start} – ${end}`;
+    }
+  };
+
+  const upcomingRegattas = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return regattas
+      .filter((r) => r.start_date >= today)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 3);
+  }, [regattas]);
+
+  useEffect(() => {
+    if (homeImages.length <= 1) return;
+    const t = setInterval(() => {
+      setActiveSlide((i) => (i + 1) % homeImages.length);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [homeImages.length]);
+
+  const heroBgStyle =
+    homeImages[activeSlide]
+      ? {
+          backgroundImage: `url(${homeImages[activeSlide].url})`,
+          backgroundSize: 'cover',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: `${homeImages[activeSlide].position_x}% ${homeImages[activeSlide].position_y}%`,
+        }
+      : undefined;
+
   return (
     <>
-      {/* HERO */}
-      <section className="relative w-full text-center py-28 bg-[url('/waves.jpg')] bg-cover bg-center text-white">
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-blue-900/80" />
-        <div className="relative z-10">
-          <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg">Regatta Management & Results</h1>
-          <p className="text-lg opacity-90 drop-shadow">
-            Track, participate and follow the world of sailing competitions.
+      {/* HERO: carousel de imagens (como nas regatas) ou fundo waves */}
+      <section
+        className="relative w-full min-h-[70vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-24 md:py-32 text-white overflow-hidden"
+        style={{
+          ...(heroBgStyle ?? {
+            backgroundImage: "url('/waves.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }),
+        }}
+      >
+        {/* Overlay: neutro sobre imagens personalizadas, azul sobre waves */}
+        <div
+          className={`absolute inset-0 ${
+            homeImages.length > 0
+              ? 'bg-black/40'
+              : 'bg-gradient-to-b from-blue-900/50 via-blue-800/60 to-blue-900/85'
+          }`}
+        />
+        {homeImages.length > 1 && (
+          <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center gap-2">
+            {homeImages.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Slide ${i + 1}`}
+                onClick={() => setActiveSlide(i)}
+                className={`w-2.5 h-2.5 rounded-full transition ${
+                  i === activeSlide ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+        <div className="relative z-10 max-w-3xl mx-auto px-4">
+          <h1 className="text-7xl md:text-8xl font-bold mb-4 tracking-tight drop-shadow-lg">
+            {heroTitle?.trim() || 'Regatta Management & Results'}
+          </h1>
+          <p className="text-3xl md:text-4xl text-white/95 drop-shadow">
+            {heroSubtitle?.trim() || 'Track, participate and follow the world of sailing competitions.'}
           </p>
         </div>
       </section>
 
-      {/* Regattas Calendar */}
-      <section className="bg-gray-50 py-16">
-        <div className="container-page">
-          <RegattaCalendar
-            regattas={regattas}
-            regattaLinkPrefix="/regattas"
-            labels={{
-              noRegattas: 'No regattas in this month.',
-              viewButton: 'View',
-              statusOpen: 'Registrations open',
-              statusClosed: 'Registrations closed',
-            }}
-          />
+      {/* Upcoming regattas (next 3) or featured when none upcoming */}
+      <section className="py-16 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-screen-2xl mx-auto px-2 lg:px-3">
+          {upcomingRegattas.length > 0 ? (
+            <>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Próximas regatas</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {upcomingRegattas.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/regattas/${r.id}`}
+                    className="group bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all"
+                  >
+                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
+                      {r.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <span aria-hidden>📍</span> {r.location}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {formatRegattaDate(r.start_date, r.end_date)}
+                    </p>
+                    <p className="text-xs mt-2 font-medium">
+                      {r.online_entry_open !== false ? (
+                        <span className="text-emerald-600">Inscrições abertas</span>
+                      ) : (
+                        <span className="text-gray-500">Inscrições encerradas</span>
+                      )}
+                    </p>
+                    <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
+                      Ver →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div className="mt-8 text-center">
+                <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
+                  Ver calendário completo →
+                </Link>
+              </div>
+            </>
+          ) : featuredRegattas.length > 0 ? (
+            <>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Regatas em destaque</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {featuredRegattas.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/regattas/${r.id}`}
+                    className="group bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all"
+                  >
+                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
+                      {r.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <span aria-hidden>📍</span> {r.location}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {formatRegattaDate(r.start_date, r.end_date)}
+                    </p>
+                    {r.class_names && r.class_names.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Classes: {r.class_names.join(' • ')}
+                      </p>
+                    )}
+                    <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
+                      Ver →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div className="mt-8 text-center">
+                <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
+                  Ver calendário completo →
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Próximas regatas</h2>
+              <p className="text-gray-600">
+                Não há próximas regatas. Consulte o <Link href="/calendar" className="text-blue-600 hover:underline">calendário</Link>.
+              </p>
+            </>
+          )}
         </div>
       </section>
 
       {/* News */}
       {news.length > 0 && (
-        <section className="bg-white py-16 border-t">
-          <div className="container-page">
-            <h2 className="text-3xl font-bold mb-8 text-gray-900">News</h2>
+        <section className="py-16 bg-white w-full">
+          <div className="max-w-screen-2xl mx-auto px-2 lg:px-3">
+            <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">News</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {news.map((item) => (
                 <Link
                   key={item.id}
                   href={`/news/${item.id}`}
-                  className="group bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  className="group bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-gray-200 transition-all"
                 >
                   <div className="aspect-[16/10] bg-gray-200 overflow-hidden">
                     {item.image_url ? (

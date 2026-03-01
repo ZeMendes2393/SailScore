@@ -10,6 +10,8 @@ import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 
+type HomeImageItem = { url: string; position_x?: number; position_y?: number };
+
 interface Regatta {
   id: number;
   name: string;
@@ -19,6 +21,7 @@ interface Regatta {
   online_entry_open?: boolean;
   entry_list_columns?: string[] | Record<string, string[]> | null;
   poster_url?: string | null;
+  home_images?: HomeImageItem[] | null;
 }
 
 type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'design' | 'sponsors' | 'delete';
@@ -49,6 +52,7 @@ export default function AdminRegattaPage() {
   const [newSailorsOD, setNewSailorsOD] = useState(1);
   const [newClassNameH, setNewClassNameH] = useState('');
   const [posterUrl, setPosterUrl] = useState('');
+  const [homeImages, setHomeImages] = useState<HomeImageItem[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
@@ -58,7 +62,20 @@ export default function AdminRegattaPage() {
         // default true when backend doesn't yet send the field
         if (typeof r.online_entry_open === 'undefined') r.online_entry_open = true;
         setRegatta(r);
-        setPosterUrl((r as { poster_url?: string | null }).poster_url ?? '');
+        const rAny = r as Regatta;
+        setPosterUrl(rAny.poster_url ?? '');
+        const hi = rAny.home_images ?? [];
+        if (Array.isArray(hi) && hi.length > 0) {
+          setHomeImages(hi.slice(0, 3).map((img) => ({
+            url: typeof img === 'object' && img && 'url' in img ? String(img.url) : String(img),
+            position_x: typeof img === 'object' && img && 'position_x' in img ? Number(img.position_x) ?? 50 : 50,
+            position_y: typeof img === 'object' && img && 'position_y' in img ? Number(img.position_y) ?? 50 : 50,
+          })));
+        } else if (rAny.poster_url) {
+          setHomeImages([{ url: rAny.poster_url, position_x: 50, position_y: 50 }]);
+        } else {
+          setHomeImages([]);
+        }
         setName(r.name);
         setLocation(r.location);
         setStartDate(r.start_date);
@@ -135,9 +152,9 @@ export default function AdminRegattaPage() {
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !token) return;
+    if (!file || !token || homeImages.length >= 3) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Formato inválido. Use JPG, PNG ou WebP.');
+      alert('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -145,28 +162,27 @@ export default function AdminRegattaPage() {
       const form = new FormData();
       form.append('file', file);
       const data = await apiUpload<{ url: string }>('/uploads/regattas', form, token);
+      setHomeImages((prev) => [...prev, { url: data.url, position_x: 50, position_y: 50 }]);
       setPosterUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao enviar imagem.');
+      alert(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const handleRemoveImage = async () => {
-    if (!token) return;
-    setSaving(true);
-    try {
-      const patched = await apiSend<Regatta>(`/regattas/${regattaId}`, 'PATCH', { poster_url: null }, token);
-      setRegatta(prev => (prev ? { ...prev, poster_url: null } : prev));
-      setPosterUrl('');
-      alert('Imagem removida.');
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao remover imagem.');
-    } finally {
-      setSaving(false);
-    }
+  const handleRemoveHomeImage = (index: number) => {
+    setHomeImages((prev) => prev.filter((_, i) => i !== index));
+    if (homeImages.length === 1) setPosterUrl('');
+  };
+
+  const handleSetFocalPoint = (index: number, position_x: number, position_y: number) => {
+    setHomeImages((prev) =>
+      prev.map((img, i) =>
+        i === index ? { ...img, position_x: Math.round(position_x), position_y: Math.round(position_y) } : img
+      )
+    );
   };
 
   const handleSaveDesign = async (e: React.FormEvent) => {
@@ -178,17 +194,15 @@ export default function AdminRegattaPage() {
     }
     setSaving(true);
     try {
-      const patched = await apiSend<Regatta>(
-        `/regattas/${regattaId}`,
-        'PATCH',
-        { poster_url: posterUrl.trim() || null },
-        token
-      );
-      setRegatta(prev => prev ? { ...prev, poster_url: patched?.poster_url ?? (posterUrl || null) } : prev);
-      alert('Design guardado.');
+      const payload = homeImages.length > 0
+        ? { home_images: homeImages.slice(0, 3) }
+        : { home_images: [], poster_url: null };
+      const patched = await apiSend<Regatta>(`/regattas/${regattaId}`, 'PATCH', payload, token);
+      setRegatta((prev) => (prev ? { ...prev, home_images: patched?.home_images ?? homeImages, poster_url: patched?.poster_url ?? null } : prev));
+      alert('Design saved.');
       setActiveTab(null);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Falha ao guardar design.');
+      alert(err instanceof Error ? err.message : 'Failed to save design.');
     } finally {
       setSaving(false);
     }
@@ -585,48 +599,71 @@ export default function AdminRegattaPage() {
 
       {/* DESIGN / LAYOUT */}
       {activeTab === 'design' && (
-        <div className="p-6 bg-white rounded shadow max-w-2xl">
+        <div className="p-6 bg-white rounded shadow max-w-3xl">
           <h2 className="text-xl font-semibold mb-4">Design & Layout</h2>
           <p className="text-sm text-gray-600 mb-6">
-            Configure as imagens do campeonato. As secções abaixo indicam onde cada imagem aparece na página pública.
+            Configure the homepage hero images (up to 3). Images rotate automatically on the public page.
           </p>
 
-          <form onSubmit={handleSaveDesign} className="space-y-8">
-            {/* Secção 1: Imagem do cabeçalho / Hero */}
-            <section className="border rounded-lg p-5 bg-gray-50">
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
-                Imagem do cabeçalho / Hero do campeonato
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                Imagem de fundo do topo da página pública (nome e datas centrados por cima).
-              </p>
+          <form onSubmit={handleSaveDesign} className="space-y-6">
+            <section className="border rounded-lg p-5 bg-gray-50 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800">Homepage hero images (max 3)</h3>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleUploadImage}
-                disabled={uploadingImage}
+                disabled={uploadingImage || homeImages.length >= 3}
                 className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100 disabled:opacity-60"
               />
-              {posterUrl && (
-                <div className="mt-3 space-y-2">
-                  <div className="rounded overflow-hidden border max-h-48 bg-white">
-                    <img
-                      src={posterUrl.startsWith('http') ? posterUrl : `${BASE_URL}${posterUrl}`}
-                      alt="Preview do hero"
-                      className="w-full h-36 object-cover"
-                      onError={(e) => (e.currentTarget.style.display = 'none')}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    disabled={saving}
-                    className="text-sm text-red-600 hover:underline disabled:opacity-60"
-                  >
-                    Remover imagem
-                  </button>
-                </div>
+              {homeImages.length >= 3 && (
+                <p className="text-xs text-amber-700">Maximum 3 images. Remove one to add another.</p>
               )}
+              <div className="space-y-6">
+                {homeImages.map((img, idx) => (
+                  <div key={idx} className="border rounded-lg p-4 bg-white">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Image {idx + 1} — click to set focal point</p>
+                    <div
+                      className="relative aspect-[16/9] rounded overflow-hidden cursor-crosshair border"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+                        handleSetFocalPoint(idx, x, y);
+                      }}
+                    >
+                      <img
+                        src={img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`}
+                        alt={`Hero ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        style={{
+                          objectPosition: `${img.position_x ?? 50}% ${img.position_y ?? 50}%`,
+                        }}
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                        draggable={false}
+                      />
+                      <div
+                        className="absolute w-4 h-4 border-2 border-white rounded-full shadow-lg pointer-events-none"
+                        style={{
+                          left: `${img.position_x ?? 50}%`,
+                          top: `${img.position_y ?? 50}%`,
+                          transform: 'translate(-50%, -50%)',
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Focal point: {img.position_x ?? 50}% × {img.position_y ?? 50}%
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHomeImage(idx)}
+                      disabled={saving}
+                      className="mt-2 text-sm text-red-600 hover:underline disabled:opacity-60"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                ))}
+              </div>
             </section>
 
             <div className="flex gap-2">
@@ -635,10 +672,10 @@ export default function AdminRegattaPage() {
                 disabled={saving}
                 className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
               >
-                {saving ? 'A guardar…' : 'Guardar design'}
+                {saving ? 'Saving…' : 'Save design'}
               </button>
               <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
-                Cancelar
+                Cancel
               </button>
             </div>
           </form>

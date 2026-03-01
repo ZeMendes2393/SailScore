@@ -60,6 +60,8 @@ class Regatta(Base):
     # Campos opcionais
     description = Column(String, nullable=True)
     poster_url = Column(String, nullable=True)
+    # Até 3 imagens para homepage: [{url, position_x, position_y}, ...] position 0-100 (background-position %)
+    home_images = Column(JSON, nullable=True, default=list)
     notice_board_url = Column(String, nullable=True)
     entry_list_url = Column(String, nullable=True)
     online_entry_url = Column(String, nullable=True)
@@ -255,7 +257,7 @@ class RegattaSponsor(Base):
     __tablename__ = "regatta_sponsors"
 
     id = Column(Integer, primary_key=True, index=True)
-    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL = global (all events)
     category = Column(String(200), nullable=False)  # ex: "Patrocinadores Oficiais", "Parceiros Oficiais", "Membro de"
     image_url = Column(String(500), nullable=False)
     link_url = Column(String(500), nullable=True)  # URL para onde o clique leva
@@ -870,3 +872,19 @@ class FleetAssignment(Base):
 
     fleet_set = relationship("FleetSet", back_populates="assignments")
     fleet = relationship("Fleet")
+
+
+# =========================
+# SITE DESIGN (homepage featured regattas when no upcoming + hero images)
+# =========================
+class SiteDesign(Base):
+    """Single-row table: featured regatta IDs and homepage hero images."""
+    __tablename__ = "site_design"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    # Up to 3 regatta IDs, order preserved (e.g. [3, 1, 7])
+    featured_regatta_ids = sa.Column(sa.JSON, nullable=False, default=list, server_default=sa.text("'[]'"))
+    # Up to 3 hero images with focal point: [{url, position_x?, position_y?}, ...]
+    home_images = sa.Column(sa.JSON, nullable=True)
+    hero_title = sa.Column(sa.String(500), nullable=True)
+    hero_subtitle = sa.Column(sa.String(500), nullable=True)

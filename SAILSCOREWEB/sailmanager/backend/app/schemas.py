@@ -35,6 +35,13 @@ class Token(BaseModel):
 # =========================
 # REGATTAS
 # =========================
+class HomeImageItem(BaseModel):
+    """Uma imagem da homepage da regata com ponto focal (estilo Facebook cover)."""
+    url: str
+    position_x: int = 50  # 0-100, background-position x %
+    position_y: int = 50  # 0-100, background-position y %
+
+
 class RegattaBase(BaseModel):
     # obrigatórios
     name: str
@@ -45,6 +52,7 @@ class RegattaBase(BaseModel):
     # opcionais
     description: Optional[str] = None
     poster_url: Optional[str] = None
+    home_images: Optional[List[Dict[str, Any]]] = None  # [{url, position_x, position_y}, ...] max 3
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
@@ -89,6 +97,7 @@ class RegattaUpdate(BaseModel):
 
     description: Optional[str] = None
     poster_url: Optional[str] = None
+    home_images: Optional[List[Dict[str, Any]]] = None
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
@@ -485,7 +494,7 @@ class NewsItemRead(BaseModel):
 # =========================
 class RegattaSponsorRead(BaseModel):
     id: int
-    regatta_id: int
+    regatta_id: Optional[int] = None  # None = global (all events)
     category: str
     image_url: str
     link_url: Optional[str] = None
@@ -498,6 +507,7 @@ class RegattaSponsorCreate(BaseModel):
     image_url: str
     link_url: Optional[str] = None
     sort_order: int = 0
+    add_to_all_events: bool = False
 
 
 class RegattaSponsorUpdate(BaseModel):

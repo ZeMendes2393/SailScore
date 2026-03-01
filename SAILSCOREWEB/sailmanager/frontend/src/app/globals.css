@@ -22,8 +22,14 @@ body {
   font-family: var(--font-geist-sans), sans-serif;
 }
 
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid rgb(59 130 246);
+  outline-offset: 2px;
+}
+
 /* Helpers */
-.container-page { @apply max-w-7xl mx-auto px-4 md:px-6; }
+.container-page { @apply w-full max-w-6xl mx-auto px-4 sm:px-6; }
 .card { @apply rounded-2xl border bg-white shadow-[0_10px_24px_rgba(0,0,0,.08)]; }
 
 /* 🚨 TESTE: deve aparecer uma caixa vermelha */

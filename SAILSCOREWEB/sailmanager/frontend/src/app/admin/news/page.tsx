@@ -92,6 +92,9 @@ export default function AdminNewsPage() {
           <Link href="/admin/manage-protests" className="hover:underline">
             Protests
           </Link>
+          <Link href="/admin/design" className="hover:underline">
+            Design
+          </Link>
           <Link href="/admin/settings" className="hover:underline">
             Settings
           </Link>

@@ -89,7 +89,7 @@ export default function NewsListPage() {
   const rest = useMemo(() => (news.length > 1 ? news.slice(1) : []), [news]);
 
   return (
-    <div className="container-page py-8">
+    <div className="py-8">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900">News</h1>
         <p className="text-gray-600 mt-2">

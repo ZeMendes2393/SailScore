@@ -11,7 +11,9 @@ import ExistingResultsTable from './ExistingResultsTable';
 import AddSingleForm from './AddSingleForm';
 import DraftResultsEditor from './DraftResultsEditor';
 import TimeScoringEditor from './TimeScoringEditor';
+import ImportRaceCsvModal from './ImportRaceCsvModal';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import { BASE_URL } from '@/lib/api';
 
 type View = 'existing' | 'draft' | 'add' | 'time';
 
@@ -110,6 +112,8 @@ export default function RaceResultsManager({
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
   const [view, setView] = useState<View>('existing');
+
+  const [showImportCsvModal, setShowImportCsvModal] = useState(false);
 
   const initialAppliedRef = useRef(false);
   const lastClassRef = useRef<string | null>(null);
@@ -420,6 +424,41 @@ export default function RaceResultsManager({
                 </div>
                 {selectedRaceId && (
                   <div className="ml-auto flex items-center gap-2 shrink-0">
+                    {currentRace && !isHandicapClass && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!token || !selectedRaceId) return;
+                            try {
+                              const url = `${BASE_URL}/results/races/${selectedRaceId}/export/csv`;
+                              const res = await fetch(url, {
+                                headers: { Authorization: `Bearer ${token}` },
+                              });
+                              if (!res.ok) throw new Error(await res.text());
+                              const blob = await res.blob();
+                              const a = document.createElement('a');
+                              a.href = URL.createObjectURL(blob);
+                              a.download = `one_design_race_${selectedRaceId}.csv`;
+                              a.click();
+                              URL.revokeObjectURL(a.href);
+                            } catch (e: any) {
+                              alert(e?.message || 'Export failed.');
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
+                        >
+                          Export this race (CSV)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowImportCsvModal(true)}
+                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
+                        >
+                          Import into this race (CSV)
+                        </button>
+                      </>
+                    )}
                     {currentRace && (
                       <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-xs lg:text-sm">
                         <span className="text-gray-700">Discardable</span>
@@ -640,6 +679,16 @@ export default function RaceResultsManager({
             </div>
           </div>
         </div>
+      )}
+
+      {showImportCsvModal && selectedRaceId && (
+        <ImportRaceCsvModal
+          raceId={selectedRaceId}
+          raceName={currentRace?.name}
+          token={token ?? undefined}
+          onClose={() => setShowImportCsvModal(false)}
+          onSuccess={() => refreshExisting(selectedRaceId)}
+        />
       )}
     </div>
   );

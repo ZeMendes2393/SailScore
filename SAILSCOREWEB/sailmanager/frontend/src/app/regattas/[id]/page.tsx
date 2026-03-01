@@ -10,6 +10,8 @@ import RegattaHeader from './components/RegattaHeader';
 const API_BASE =
   (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000');
 
+type HomeImage = { url: string; position_x?: number; position_y?: number };
+
 type Regatta = {
   id: number;
   name: string;
@@ -17,6 +19,7 @@ type Regatta = {
   start_date: string;
   end_date: string;
   poster_url?: string | null;
+  home_images?: HomeImage[] | null;
 };
 
 type NewsItem = {
@@ -80,16 +83,41 @@ export default function RegattaHomePage() {
     })();
   }, [regattaId]);
 
+  const heroSlides = useMemo(() => {
+    if (!regatta) return [];
+    const homeImages = (regatta.home_images ?? []) as HomeImage[];
+    if (homeImages.length > 0) {
+      return homeImages.slice(0, 3).map((img) => ({
+        url: img.url.startsWith('http') ? img.url : `${API_BASE}${img.url}`,
+        position_x: Math.max(0, Math.min(100, img.position_x ?? 50)),
+        position_y: Math.max(0, Math.min(100, img.position_y ?? 50)),
+      }));
+    }
+    const poster = regatta.poster_url?.trim();
+    if (poster) {
+      return [{ url: poster.startsWith('http') ? poster : `${API_BASE}${poster}`, position_x: 50, position_y: 50 }];
+    }
+    return [];
+  }, [regatta]);
+
+  const [activeSlide, setActiveSlide] = useState(0);
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const t = setInterval(() => {
+      setActiveSlide((i) => (i + 1) % heroSlides.length);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [heroSlides.length]);
+
   if (!regattaId) return <p className="p-8">Loading…</p>;
   if (!regatta) return <p className="p-8">Loading regatta…</p>;
 
-  const heroImageUrl = regatta.poster_url?.trim();
-  const heroBgStyle = heroImageUrl
+  const heroBgStyle = heroSlides[activeSlide]
     ? {
-        backgroundImage: `url(${heroImageUrl.startsWith('http') ? heroImageUrl : `${API_BASE}${heroImageUrl}`})`,
+        backgroundImage: `url(${heroSlides[activeSlide].url})`,
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
+        backgroundPosition: `${heroSlides[activeSlide].position_x}% ${heroSlides[activeSlide].position_y}%`,
       }
     : undefined;
 
@@ -129,16 +157,29 @@ export default function RegattaHomePage() {
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader regattaId={regattaId} />
 
-      {/* Hero: full-bleed */}
+      {/* Hero: carousel de até 3 imagens, rotação automática, focal point personalizado */}
       <section
-        className="relative w-screen text-center py-20 md:py-28"
+        className="relative w-full min-h-[70vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-14 md:py-20 overflow-hidden"
         style={{
-          marginLeft: 'calc(50% - 50vw)',
-          marginRight: 'calc(50% - 50vw)',
           ...(heroBgStyle ?? { background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)' }),
         }}
       >
         <div className="absolute inset-0 bg-black/40" />
+        {heroSlides.length > 1 && (
+          <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center gap-2">
+            {heroSlides.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Slide ${i + 1}`}
+                onClick={() => setActiveSlide(i)}
+                className={`w-2.5 h-2.5 rounded-full transition ${
+                  i === activeSlide ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
+                }`}
+              />
+            ))}
+          </div>
+        )}
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
           <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
@@ -148,7 +189,7 @@ export default function RegattaHomePage() {
         </div>
       </section>
 
-      <div className="container-page py-8">
+      <div className="w-full px-4 sm:px-6 py-8">
       {/* Navegação rápida: botões abaixo da imagem, antes das notícias */}
       <section className="mb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -216,15 +257,14 @@ export default function RegattaHomePage() {
         </section>
       )}
 
-      {/* Sponsors & Apoios */}
-      {Object.keys(sponsorsByCategory).length > 0 && (
-        <section className="mt-12 pt-8 border-t">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Patrocinadores e Apoios</h2>
-          <div className="space-y-8">
+      {/* Sponsors & Apoios — sempre visível por baixo das news */}
+      <section className="mt-12 pt-8 border-t text-center">
+        {Object.keys(sponsorsByCategory).length > 0 ? (
+          <div className="space-y-8 flex flex-col items-center">
             {Object.entries(sponsorsByCategory).map(([category, items]) => (
-              <div key={category}>
+              <div key={category} className="w-full">
                 <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wider mb-4">{category}</h3>
-                <div className="flex flex-wrap gap-6 items-center">
+                <div className="flex flex-wrap justify-center gap-8 items-center">
                   {items.map((s) => {
                     const Wrapper = s.link_url ? 'a' : 'span';
                     const props = s.link_url
@@ -239,7 +279,7 @@ export default function RegattaHomePage() {
                         <img
                           src={imageSrc(s.image_url) ?? ''}
                           alt={category}
-                          className="max-h-16 max-w-[140px] object-contain"
+                          className="max-h-40 max-w-[320px] object-contain"
                         />
                       </Wrapper>
                     );
@@ -248,8 +288,10 @@ export default function RegattaHomePage() {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <p className="text-gray-500 text-sm">Ainda não há patrocinadores configurados. Configure na secção Sponsors do admin desta regata.</p>
+        )}
+      </section>
       </div>
     </main>
   );

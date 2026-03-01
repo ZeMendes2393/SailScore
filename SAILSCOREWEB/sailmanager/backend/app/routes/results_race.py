@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Body, status
+import csv
+import io
+from typing import List, Union, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Body, status, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
-from typing import List, Union, Optional  # garante que tens isto no topo
 
 from app.database import get_db
 from app import models, schemas
@@ -469,3 +473,260 @@ def create_results_for_race(
         .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
+
+
+# ========== One Design CSV Export / Import (v1: this race only) ==========
+
+def _race_is_one_design(db: Session, race: models.Race) -> bool:
+    regatta_class = (
+        db.query(models.RegattaClass)
+        .filter(
+            models.RegattaClass.regatta_id == race.regatta_id,
+            func.lower(models.RegattaClass.class_name) == func.lower(str(race.class_name or "")),
+        )
+        .first()
+    )
+    return regatta_class is not None and (regatta_class.class_type or "").lower() != "handicap"
+
+
+@router.get("/races/{race_id}/export/csv")
+def export_race_results_csv(
+    race_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Export this race results as CSV (one design only). Header: sail_number,points,code."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    race = db.query(models.Race).filter(models.Race.id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    if not _race_is_one_design(db, race):
+        raise HTTPException(
+            status_code=400,
+            detail="Export CSV está disponível apenas para corridas One Design.",
+        )
+    rows = (
+        db.query(models.Result)
+        .filter(models.Result.race_id == race_id)
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
+        .all()
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["sail_number", "points", "code"])
+    for r in rows:
+        pts = r.points_override if r.points_override is not None else (r.points or 0)
+        writer.writerow([r.sail_number or "", str(pts), (r.code or "").strip() or ""])
+    content = buf.getvalue()
+    filename = f"one_design_race_{race_id}.csv"
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _parse_one_design_csv(content: bytes) -> tuple:
+    """Parse CSV with header sail_number,points,code. Returns (rows, errors)."""
+    errors = []
+    rows = []
+    try:
+        text = content.decode("utf-8-sig").strip()
+    except Exception as e:
+        errors.append(f"Ficheiro não é UTF-8: {e}")
+        return rows, errors
+    if not text:
+        errors.append("Ficheiro vazio.")
+        return rows, errors
+    reader = csv.reader(io.StringIO(text))
+    header = next(reader, None)
+    if not header:
+        errors.append("Cabeçalho em falta.")
+        return rows, errors
+    norm_header = [h.strip().lower() for h in header]
+    idx_sn = idx_pts = idx_code = -1
+    for i, h in enumerate(norm_header):
+        if h == "sail_number":
+            idx_sn = i
+        elif h == "points":
+            idx_pts = i
+        elif h == "code":
+            idx_code = i
+    if idx_sn < 0:
+        errors.append("Coluna obrigatória 'sail_number' em falta.")
+        return rows, errors
+    if idx_pts < 0 and idx_code < 0:
+        errors.append("É obrigatório ter 'points' ou 'code' (ou ambos).")
+        return rows, errors
+    seen_sails = set()
+    for row_num, row in enumerate(reader, start=2):
+        max_idx = max(idx_sn, idx_pts if idx_pts >= 0 else 0, idx_code if idx_code >= 0 else 0)
+        if len(row) <= max_idx:
+            errors.append(f"Linha {row_num}: campos em falta.")
+            continue
+        sn = (row[idx_sn] or "").strip()
+        if not sn:
+            errors.append(f"Linha {row_num}: sail_number obrigatório.")
+            continue
+        sn_upper = sn.upper()
+        if sn_upper in seen_sails:
+            errors.append(f"Linha {row_num}: sail_number duplicado '{sn}'.")
+            continue
+        seen_sails.add(sn_upper)
+        pts_val = (row[idx_pts] or "").strip() if idx_pts >= 0 else ""
+        code_val = (row[idx_code] or "").strip() if idx_code >= 0 else ""
+        if not pts_val and not code_val:
+            errors.append(f"Linha {row_num}: é obrigatório preencher 'points' ou 'code'.")
+            continue
+        if pts_val:
+            try:
+                float(pts_val)
+            except ValueError:
+                errors.append(f"Linha {row_num}: 'points' deve ser numérico.")
+                continue
+        rows.append({"sail_number": sn_upper, "points": pts_val, "code": code_val.upper() if code_val else None})
+    return rows, errors
+
+
+@router.post("/races/{race_id}/import/csv")
+def import_race_results_csv(
+    race_id: int,
+    file: UploadFile = File(...),
+    clear_existing: bool = Form(False),
+    confirm: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Import CSV for this race (one design only).
+    Without confirm: returns validation + preview.
+    With confirm: applies import (upsert by sail_number); optional clear_existing.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if not file:
+        raise HTTPException(status_code=400, detail="Ficheiro em falta.")
+    race = db.query(models.Race).filter(models.Race.id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    if not _race_is_one_design(db, race):
+        raise HTTPException(
+            status_code=400,
+            detail="Import CSV está disponível apenas para corridas One Design.",
+        )
+    content = file.file.read()
+    file.file.close()
+    rows, parse_errors = _parse_one_design_csv(content)
+    if parse_errors:
+        return {
+            "ok": False,
+            "preview": [],
+            "errors": parse_errors,
+            "unmatched": [],
+        }
+    entries = (
+        db.query(models.Entry)
+        .filter(
+            models.Entry.regatta_id == race.regatta_id,
+            func.lower(models.Entry.class_name) == func.lower(str(race.class_name or "")),
+        )
+        .all()
+    )
+    valid_sails = {_norm_sn(e.sail_number) or "" for e in entries if getattr(e, "sail_number", None)}
+    entry_by_sail = {}
+    for e in entries:
+        sn = _norm_sn(getattr(e, "sail_number", None))
+        if sn:
+            entry_by_sail[sn] = e
+    unmatched = [r["sail_number"] for r in rows if r["sail_number"] not in valid_sails]
+    preview = [{"sail_number": r["sail_number"], "points": r["points"], "code": r["code"]} for r in rows[:15]]
+
+    if not confirm:
+        err_msg = [f"sail_number(s) não encontrados na lista de inscrições: {', '.join(unmatched)}"] if unmatched else []
+        return {
+            "ok": len(unmatched) == 0,
+            "preview": preview,
+            "errors": err_msg,
+            "unmatched": unmatched,
+        }
+
+    if unmatched:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossível importar: sail_number(s) não encontrados na lista de inscrições: {', '.join(unmatched)}",
+        )
+
+    scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
+    if clear_existing:
+        db.query(models.Result).filter(models.Result.race_id == race_id).delete(synchronize_session=False)
+        db.flush()
+
+    for i, r in enumerate(rows):
+        sn = r["sail_number"]
+        pts_str = r["points"]
+        code = _norm(r["code"]) if r["code"] else None
+        if code:
+            try:
+                pts_val = compute_points_for_code(
+                    db=db,
+                    race=race,
+                    sail_number=sn,
+                    code=code,
+                    manual_points=float(pts_str) if pts_str else None,
+                    scoring_map=scoring_map,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Linha {i + 2}: {e}")
+        else:
+            pts_val = float(pts_str)
+        entry = entry_by_sail.get(sn)
+        boat_cc = getattr(entry, "boat_country_code", None) if entry else None
+        boat_name = getattr(entry, "boat_name", None) if entry else None
+        helm_name = (
+            f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip()
+            if entry else ""
+        )
+        existing = (
+            db.query(models.Result)
+            .filter(
+                models.Result.race_id == race_id,
+                models.Result.sail_number == sn,
+            )
+            .first()
+        )
+        if existing:
+            existing.points = float(pts_val)
+            existing.code = code
+            existing.points_override = float(pts_val) if code else None
+        else:
+            new_res = models.Result(
+                regatta_id=race.regatta_id,
+                race_id=race_id,
+                sail_number=sn,
+                boat_country_code=boat_cc,
+                boat_name=boat_name,
+                class_name=race.class_name,
+                skipper_name=helm_name or None,
+                position=i + 1,
+                points=float(pts_val),
+                code=code,
+                points_override=float(pts_val) if code else None,
+            )
+            db.add(new_res)
+
+    db.flush()
+    normalize_race_results(db, race)
+    db.commit()
+
+    updated = (
+        db.query(models.Result)
+        .filter(models.Result.race_id == race_id)
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
+        .all()
+    )
+    return {
+        "ok": True,
+        "applied": len(rows),
+        "results": [schemas.ResultRead.model_validate(r) for r in updated],
+    }

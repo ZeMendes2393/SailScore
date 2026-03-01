@@ -52,6 +52,7 @@ export default function AdminPage() {
           <Link href="/admin/news" className="hover:underline">News</Link>
           <Link href="/admin/manage-users" className="hover:underline">Users</Link>
           <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
+          <Link href="/admin/design" className="hover:underline">Design</Link>
           <Link href="/admin/settings" className="hover:underline">Settings</Link>
         </nav>
 

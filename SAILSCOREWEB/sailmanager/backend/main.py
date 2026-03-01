@@ -32,7 +32,8 @@ from app.routes import (
     discards,
     publication,
     news,
-    uploads,  # ✅ ADICIONADO
+    uploads,
+    design,
 )
 from app.routes.discards import router as discard_router
 
@@ -98,6 +99,7 @@ def _ensure_upload_dirs():
     (UPLOADS_DIR / "news").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "regattas").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "sponsors").mkdir(parents=True, exist_ok=True)
+    (UPLOADS_DIR / "homepage").mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
 
@@ -127,6 +129,7 @@ app.include_router(public_fleets_router)
 app.include_router(discards.router)
 app.include_router(publication.router)
 app.include_router(news.router)
+app.include_router(design.router)
 
 app.include_router(uploads.router)  # ✅ NOVO (POST /uploads/news)
 

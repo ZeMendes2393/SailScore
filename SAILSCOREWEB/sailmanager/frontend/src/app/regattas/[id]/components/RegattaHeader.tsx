@@ -21,10 +21,9 @@ export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
 
   return (
     <header
-      className="sticky top-0 z-50 w-screen bg-gradient-to-r from-blue-700 to-sky-600 text-white shadow-md"
-      style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}
+      className="sticky top-0 z-50 w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md"
     >
-      <div className="mx-auto max-w-7xl px-6 h-14 flex items-center justify-between">
+      <div className="w-full h-24 flex items-center justify-between px-4 sm:px-6">
         <Link href="/" className="text-lg font-bold tracking-wide shrink-0">
           SailScore
         </Link>

@@ -814,7 +814,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
         token
       );
 
-      setHandicapDraft([]);
+      // Manter o rascunho para permitir correções sem rescore completo
       await refreshExisting(selectedRaceId);
       alert('Handicap results saved successfully.');
     } catch (err) {
@@ -912,8 +912,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       token
     );
 
-    // ✅ Backend deve: normalizar posições + preencher missing como DNC **apenas na fleet não escoreada**
-    setDraft([]); // Limpa o rascunho
+    // Manter o rascunho para permitir correções sem rescore completo
     await refreshExisting(selectedRaceId); // Atualiza os resultados
     alert('Results saved successfully.');
   } catch (err) {

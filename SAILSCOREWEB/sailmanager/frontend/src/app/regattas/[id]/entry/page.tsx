@@ -8,6 +8,8 @@ import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
+type HomeImage = { url: string; position_x?: number; position_y?: number };
+
 type Regatta = {
   id: number;
   name: string;
@@ -15,6 +17,7 @@ type Regatta = {
   start_date: string;
   end_date: string;
   poster_url?: string | null;
+  home_images?: HomeImage[] | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
 };
 
@@ -67,13 +70,15 @@ export default function RegattaEntryPage() {
     })();
   }, [regattaId]);
 
-  const heroImageUrl = regatta?.poster_url?.trim();
+  const hi = regatta?.home_images?.[0];
+  const heroImageUrl = (regatta?.poster_url?.trim() || hi?.url)?.trim();
+  const heroPos = hi ? { x: hi.position_x ?? 50, y: hi.position_y ?? 50 } : { x: 50, y: 50 };
   const heroBgStyle = heroImageUrl
     ? {
         backgroundImage: `url(${heroImageUrl.startsWith('http') ? heroImageUrl : `${API_BASE}${heroImageUrl}`})`,
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
+        backgroundPosition: `${heroPos.x}% ${heroPos.y}%`,
       }
     : undefined;
 

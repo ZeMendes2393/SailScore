@@ -117,12 +117,12 @@ export function RegattaCalendar({
   }, []);
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       {/* Year selector */}
       <div className="mb-4 flex items-center gap-2">
         <span className="text-sm font-medium text-gray-600">{t.regattas}</span>
         <select
-          className="border rounded px-2 py-1 text-sm"
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
         >
@@ -148,9 +148,9 @@ export function RegattaCalendar({
           <button
             key={m}
             onClick={() => setMonth(i)}
-            className={`px-2 py-1 rounded text-sm font-medium transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition ${
               month === i
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -217,7 +217,7 @@ export function RegattaCalendar({
                 ? r.class_names.join(' • ')
                 : null;
               return (
-                <li key={r.id} className="border border-gray-200 rounded-lg p-4 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <li key={r.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/80 hover:bg-gray-50 hover:border-gray-200 transition-colors">
                   <div className="flex flex-col gap-1.5">
                     <h4 className="font-semibold text-gray-900">{r.name}</h4>
                     <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date)}</p>
@@ -234,7 +234,7 @@ export function RegattaCalendar({
                     </p>
                     <Link
                       href={`${regattaLinkPrefix}/${r.id}`}
-                      className="self-start mt-1 text-sm bg-gray-800 text-white px-3 py-1.5 rounded hover:bg-gray-700"
+                      className="self-start mt-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
                       {t.viewButton}
                     </Link>
