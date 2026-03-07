@@ -32,6 +32,7 @@ def list_regattas(db: Session = Depends(get_db)):
             end_date=r.end_date,
             online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
             class_names=[c.class_name for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))],
+            listing_logo_url=getattr(r, "listing_logo_url", None),
         )
         for r in regattas
     ]

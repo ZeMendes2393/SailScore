@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
+import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
+
 interface NewsItem {
   id: number;
   title: string;
@@ -226,6 +228,7 @@ export default function NewsListPage() {
           </div>
         </>
       )}
+      <GlobalSponsorsFooter />
     </div>
   );
 }

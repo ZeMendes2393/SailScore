@@ -14,6 +14,100 @@ from utils.auth_utils import verify_role
 router = APIRouter()
 
 
+@router.get("/sponsors/categories", response_model=List[str])
+def list_sponsor_categories(db: Session = Depends(get_db)):
+    """Lista todas as categorias de sponsors usadas em qualquer regata (para dropdown partilhado)."""
+    rows = (
+        db.query(models.RegattaSponsor.category)
+        .distinct()
+        .filter(models.RegattaSponsor.category.isnot(None), models.RegattaSponsor.category != "")
+        .order_by(models.RegattaSponsor.category)
+        .all()
+    )
+    return [r[0] for r in rows if r[0]]
+
+
+@router.get("/sponsors", response_model=List[schemas.RegattaSponsorRead])
+def list_global_sponsors(db: Session = Depends(get_db)):
+    """Lista sponsors globais (regatta_id NULL) para homepage, calendar, news."""
+    sponsors = (
+        db.query(models.RegattaSponsor)
+        .filter(models.RegattaSponsor.regatta_id.is_(None))
+        .order_by(models.RegattaSponsor.category, models.RegattaSponsor.sort_order)
+        .all()
+    )
+    return sponsors
+
+
+@router.post("/sponsors", response_model=schemas.RegattaSponsorRead, status_code=201)
+def create_global_sponsor(
+    body: schemas.RegattaSponsorCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    """Criar sponsor global (aparece na homepage, calendar, news e em todas as regatas)."""
+    item = models.RegattaSponsor(
+        regatta_id=None,
+        category=body.category.strip(),
+        image_url=body.image_url.strip(),
+        link_url=body.link_url.strip() if body.link_url else None,
+        sort_order=body.sort_order,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/sponsors/{sponsor_id}", response_model=schemas.RegattaSponsorRead)
+def update_global_sponsor(
+    sponsor_id: int,
+    body: schemas.RegattaSponsorUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    """Atualizar sponsor global (admin)."""
+    item = (
+        db.query(models.RegattaSponsor)
+        .filter(models.RegattaSponsor.id == sponsor_id, models.RegattaSponsor.regatta_id.is_(None))
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        if k == "category" and v is not None:
+            setattr(item, k, v.strip())
+        elif k == "image_url" and v is not None:
+            setattr(item, k, v.strip())
+        elif k == "link_url":
+            setattr(item, k, v.strip() if v else None)
+        elif k in ("sort_order",):
+            setattr(item, k, v)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/sponsors/{sponsor_id}", status_code=204)
+def delete_global_sponsor(
+    sponsor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    """Eliminar sponsor global (admin)."""
+    item = (
+        db.query(models.RegattaSponsor)
+        .filter(models.RegattaSponsor.id == sponsor_id, models.RegattaSponsor.regatta_id.is_(None))
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    db.delete(item)
+    db.commit()
+    return None
+
+
 @router.get("/regattas/{regatta_id}/sponsors", response_model=List[schemas.RegattaSponsorRead])
 def list_sponsors(regatta_id: int, db: Session = Depends(get_db)):
     """Lista os sponsors/apoios da regata (global + específicos)."""

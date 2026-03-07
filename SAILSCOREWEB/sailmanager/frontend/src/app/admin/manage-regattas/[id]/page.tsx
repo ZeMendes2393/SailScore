@@ -22,6 +22,7 @@ interface Regatta {
   entry_list_columns?: string[] | Record<string, string[]> | null;
   poster_url?: string | null;
   home_images?: HomeImageItem[] | null;
+  listing_logo_url?: string | null;
 }
 
 type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'design' | 'sponsors' | 'delete';
@@ -54,6 +55,8 @@ export default function AdminRegattaPage() {
   const [posterUrl, setPosterUrl] = useState('');
   const [homeImages, setHomeImages] = useState<HomeImageItem[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [listingLogoUrl, setListingLogoUrl] = useState<string>('');
+  const [uploadingListingLogo, setUploadingListingLogo] = useState(false);
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -76,6 +79,7 @@ export default function AdminRegattaPage() {
         } else {
           setHomeImages([]);
         }
+        setListingLogoUrl((r as { listing_logo_url?: string | null }).listing_logo_url ?? '');
         setName(r.name);
         setLocation(r.location);
         setStartDate(r.start_date);
@@ -177,6 +181,27 @@ export default function AdminRegattaPage() {
     if (homeImages.length === 1) setPosterUrl('');
   };
 
+  const handleUploadListingLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Invalid format. Use JPG, PNG or WebP.');
+      return;
+    }
+    setUploadingListingLogo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const data = await apiUpload<{ url: string }>('/uploads/regattas', form, token);
+      setListingLogoUrl(data.url);
+      e.target.value = '';
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error uploading image.');
+    } finally {
+      setUploadingListingLogo(false);
+    }
+  };
+
   const handleSetFocalPoint = (index: number, position_x: number, position_y: number) => {
     setHomeImages((prev) =>
       prev.map((img, i) =>
@@ -194,11 +219,21 @@ export default function AdminRegattaPage() {
     }
     setSaving(true);
     try {
-      const payload = homeImages.length > 0
-        ? { home_images: homeImages.slice(0, 3) }
-        : { home_images: [], poster_url: null };
+      const payload: { home_images: HomeImageItem[]; poster_url?: string | null; listing_logo_url?: string | null } =
+        homeImages.length > 0
+          ? { home_images: homeImages.slice(0, 3), listing_logo_url: listingLogoUrl.trim() || null }
+          : { home_images: [], poster_url: null, listing_logo_url: listingLogoUrl.trim() || null };
       const patched = await apiSend<Regatta>(`/regattas/${regattaId}`, 'PATCH', payload, token);
-      setRegatta((prev) => (prev ? { ...prev, home_images: patched?.home_images ?? homeImages, poster_url: patched?.poster_url ?? null } : prev));
+      setRegatta((prev) =>
+        prev
+          ? {
+              ...prev,
+              home_images: patched?.home_images ?? homeImages,
+              poster_url: patched?.poster_url ?? null,
+              listing_logo_url: patched?.listing_logo_url ?? (listingLogoUrl || null),
+            }
+          : prev
+      );
       alert('Design saved.');
       setActiveTab(null);
     } catch (err: unknown) {
@@ -664,6 +699,37 @@ export default function AdminRegattaPage() {
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="border rounded-lg p-5 bg-gray-50 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800">Regatta logo (listing)</h3>
+              <p className="text-sm text-gray-600">
+                Mini logo shown on each regatta card in the public listing (homepage and calendar). Choose a square or horizontal image for best results.
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleUploadListingLogo}
+                disabled={uploadingListingLogo}
+                className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100 disabled:opacity-60"
+              />
+              {listingLogoUrl && (
+                <div className="flex items-center gap-3 mt-2">
+                  <img
+                    src={listingLogoUrl.startsWith('http') ? listingLogoUrl : `${BASE_URL}${listingLogoUrl}`}
+                    alt="Regatta listing logo"
+                    className="h-16 w-auto object-contain border rounded bg-white p-1"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setListingLogoUrl('')}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Remove logo
+                  </button>
+                </div>
+              )}
             </section>
 
             <div className="flex gap-2">

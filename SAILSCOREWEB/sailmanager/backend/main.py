@@ -100,6 +100,7 @@ def _ensure_upload_dirs():
     (UPLOADS_DIR / "regattas").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "sponsors").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "homepage").mkdir(parents=True, exist_ok=True)
+    (UPLOADS_DIR / "header").mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
 

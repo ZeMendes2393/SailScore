@@ -53,6 +53,7 @@ class RegattaBase(BaseModel):
     description: Optional[str] = None
     poster_url: Optional[str] = None
     home_images: Optional[List[Dict[str, Any]]] = None  # [{url, position_x, position_y}, ...] max 3
+    listing_logo_url: Optional[str] = None
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
@@ -87,6 +88,7 @@ class RegattaListRead(BaseModel):
     end_date: str
     online_entry_open: bool = True
     class_names: List[str] = []
+    listing_logo_url: Optional[str] = None
 
 
 class RegattaUpdate(BaseModel):
@@ -98,6 +100,7 @@ class RegattaUpdate(BaseModel):
     description: Optional[str] = None
     poster_url: Optional[str] = None
     home_images: Optional[List[Dict[str, Any]]] = None
+    listing_logo_url: Optional[str] = None
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None

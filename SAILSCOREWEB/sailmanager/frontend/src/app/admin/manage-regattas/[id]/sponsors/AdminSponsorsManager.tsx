@@ -25,6 +25,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [addToAllEvents, setAddToAllEvents] = useState(false);
+  const [allCategories, setAllCategories] = useState<string[]>([]);
 
   const fetchSponsors = async () => {
     try {
@@ -37,8 +38,18 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
     }
   };
 
+  const fetchAllCategories = async () => {
+    try {
+      const data = await apiGet<string[]>('/sponsors/categories');
+      setAllCategories(Array.isArray(data) ? data : []);
+    } catch {
+      setAllCategories([]);
+    }
+  };
+
   useEffect(() => {
     fetchSponsors();
+    fetchAllCategories();
   }, [regattaId]);
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,7 +73,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
     }
   };
 
-  const existingCategories = [...new Set(sponsors.map((s) => s.category).filter(Boolean))] as string[];
+  const existingCategories = [...new Set([...allCategories, ...sponsors.map((s) => s.category).filter(Boolean)])].sort();
   const effectiveCategory = (useNewCategory || existingCategories.length === 0) ? newCategory.trim() : selectedCategory.trim();
 
   const handleAddSponsor = async (e: React.FormEvent) => {
@@ -78,11 +89,13 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
         image_url: newImageUrl,
         link_url: newLinkUrl.trim() || null,
         sort_order: sponsors.length,
+        add_to_all_events: addToAllEvents,
       }, token);
       setNewLinkUrl('');
       setNewImageUrl('');
       if (useNewCategory) setNewCategory('');
       fetchSponsors();
+      fetchAllCategories();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error adding.');
     } finally {

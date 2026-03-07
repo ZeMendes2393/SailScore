@@ -50,6 +50,7 @@ def get_featured_regattas(db: Session = Depends(get_db)):
                     end_date=r.end_date,
                     online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
                     class_names=[c.class_name for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))],
+                    listing_logo_url=getattr(r, "listing_logo_url", None),
                 )
             )
     return result
@@ -89,25 +90,48 @@ class HomepageOut(BaseModel):
     home_images: list[dict]
     hero_title: str | None = None
     hero_subtitle: str | None = None
+    club_logo_url: str | None = None
+    club_logo_link: str | None = None
+
+
+class HeaderOut(BaseModel):
+    club_logo_url: str | None = None
+    club_logo_link: str | None = None
 
 
 class HomepageUpdate(BaseModel):
     home_images: list[dict] | None = None  # [{url, position_x?, position_y?}, ...] max 3
     hero_title: str | None = None
     hero_subtitle: str | None = None
+    club_logo_url: str | None = None
+    club_logo_link: str | None = None
 
 
 @router.get("/homepage", response_model=HomepageOut)
 def get_homepage_design(db: Session = Depends(get_db)):
-    """Public: returns homepage hero images and hero text for the main site."""
+    """Public: returns homepage hero images, hero text and header settings."""
     row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
     if not row:
-        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None)
+        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
     images = (row.home_images or [])[:3]
     return HomepageOut(
         home_images=images,
         hero_title=getattr(row, "hero_title", None),
         hero_subtitle=getattr(row, "hero_subtitle", None),
+        club_logo_url=getattr(row, "club_logo_url", None),
+        club_logo_link=getattr(row, "club_logo_link", None),
+    )
+
+
+@router.get("/header", response_model=HeaderOut)
+def get_header_design(db: Session = Depends(get_db)):
+    """Public: returns header club logo and link for the main site."""
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    if not row:
+        return HeaderOut(club_logo_url=None, club_logo_link=None)
+    return HeaderOut(
+        club_logo_url=getattr(row, "club_logo_url", None),
+        club_logo_link=getattr(row, "club_logo_link", None),
     )
 
 
@@ -126,10 +150,16 @@ def set_homepage_design(
         row.hero_title = body.hero_title.strip() or None
     if body.hero_subtitle is not None:
         row.hero_subtitle = body.hero_subtitle.strip() or None
+    if body.club_logo_url is not None:
+        row.club_logo_url = body.club_logo_url.strip() or None
+    if body.club_logo_link is not None:
+        row.club_logo_link = body.club_logo_link.strip() or None
     db.commit()
     db.refresh(row)
     return HomepageOut(
         home_images=row.home_images or [],
         hero_title=getattr(row, "hero_title", None),
         hero_subtitle=getattr(row, "hero_subtitle", None),
+        club_logo_url=getattr(row, "club_logo_url", None),
+        club_logo_link=getattr(row, "club_logo_link", None),
     )

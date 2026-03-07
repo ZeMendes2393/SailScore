@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
+import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
 
 interface Regatta {
   id: number;
@@ -11,6 +12,7 @@ interface Regatta {
   end_date: string;
   online_entry_open?: boolean;
   class_names?: string[];
+  listing_logo_url?: string | null;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -52,6 +54,8 @@ export default function CalendarPage() {
           }}
         />
       </div>
+
+      <GlobalSponsorsFooter />
     </div>
   );
 }

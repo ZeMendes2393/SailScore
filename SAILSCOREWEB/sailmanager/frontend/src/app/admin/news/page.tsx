@@ -95,6 +95,9 @@ export default function AdminNewsPage() {
           <Link href="/admin/design" className="hover:underline">
             Design
           </Link>
+          <Link href="/admin/sponsors" className="hover:underline">
+            Sponsors
+          </Link>
           <Link href="/admin/settings" className="hover:underline">
             Settings
           </Link>

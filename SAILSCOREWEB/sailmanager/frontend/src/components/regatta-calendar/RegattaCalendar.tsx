@@ -17,6 +17,8 @@ export interface RegattaItem {
   online_entry_open?: boolean;
   /** Nomes das classes (ex.: ["ILCA 7", "ILCA 6"]) */
   class_names?: string[];
+  /** Mini logo para o card na listagem */
+  listing_logo_url?: string | null;
 }
 
 interface RegattaCalendarProps {
@@ -77,6 +79,10 @@ function getCalendarDays(year: number, month: number): (number | null)[] {
   for (let d = 1; d <= daysInMonth; d++) result.push(d);
   return result;
 }
+
+const API_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL)
+  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
+  : 'http://127.0.0.1:8000';
 
 export function RegattaCalendar({
   regattas,
@@ -218,26 +224,38 @@ export function RegattaCalendar({
                 : null;
               return (
                 <li key={r.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/80 hover:bg-gray-50 hover:border-gray-200 transition-colors">
-                  <div className="flex flex-col gap-1.5">
-                    <h4 className="font-semibold text-gray-900">{r.name}</h4>
-                    <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date)}</p>
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      <span aria-hidden>📍</span> {r.location}
-                    </p>
-                    {classesText && (
-                      <p className="text-sm text-gray-600">
-                        Classes: {classesText}
-                      </p>
+                  <div className="flex gap-4">
+                    {r.listing_logo_url && (
+                      <div className="shrink-0 w-28 h-28 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+                        <img
+                          src={r.listing_logo_url.startsWith('http') ? r.listing_logo_url : `${API_BASE}${r.listing_logo_url}`}
+                          alt=""
+                          className="w-full h-full object-contain"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                      </div>
                     )}
-                    <p className="text-sm font-medium text-gray-700">
-                      Status: {isOpen ? t.statusOpen : t.statusClosed}
-                    </p>
-                    <Link
-                      href={`${regattaLinkPrefix}/${r.id}`}
-                      className="self-start mt-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      {t.viewButton}
-                    </Link>
+                    <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                      <h4 className="font-semibold text-gray-900">{r.name}</h4>
+                      <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date)}</p>
+                      <p className="text-sm text-gray-600 flex items-center gap-1">
+                        <span aria-hidden>📍</span> {r.location}
+                      </p>
+                      {classesText && (
+                        <p className="text-sm text-gray-600">
+                          Classes: {classesText}
+                        </p>
+                      )}
+                      <p className="text-sm font-medium text-gray-700">
+                        Status: {isOpen ? t.statusOpen : t.statusClosed}
+                      </p>
+                      <Link
+                        href={`${regattaLinkPrefix}/${r.id}`}
+                        className="self-start mt-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        {t.viewButton}
+                      </Link>
+                    </div>
                   </div>
                 </li>
               );

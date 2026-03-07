@@ -62,6 +62,8 @@ class Regatta(Base):
     poster_url = Column(String, nullable=True)
     # Até 3 imagens para homepage: [{url, position_x, position_y}, ...] position 0-100 (background-position %)
     home_images = Column(JSON, nullable=True, default=list)
+    # Mini logo para listagem (cada card da regata)
+    listing_logo_url = Column(String(500), nullable=True)
     notice_board_url = Column(String, nullable=True)
     entry_list_url = Column(String, nullable=True)
     online_entry_url = Column(String, nullable=True)
@@ -888,3 +890,6 @@ class SiteDesign(Base):
     home_images = sa.Column(sa.JSON, nullable=True)
     hero_title = sa.Column(sa.String(500), nullable=True)
     hero_subtitle = sa.Column(sa.String(500), nullable=True)
+    # Header: club logo (mini image) + optional link
+    club_logo_url = sa.Column(sa.String(500), nullable=True)
+    club_logo_link = sa.Column(sa.String(500), nullable=True)

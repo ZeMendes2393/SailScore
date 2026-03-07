@@ -21,12 +21,18 @@ export default function AdminDesignPage() {
   const [heroTitle, setHeroTitle] = useState('');
   const [heroSubtitle, setHeroSubtitle] = useState('');
 
-  const [openSections, setOpenSections] = useState<{ featured: boolean; homeImages: boolean }>({
-    featured: true,
-    homeImages: true,
+  const [clubLogoUrl, setClubLogoUrl] = useState('');
+  const [clubLogoLink, setClubLogoLink] = useState('');
+  const [savingHeader, setSavingHeader] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const [openSections, setOpenSections] = useState<{ featured: boolean; homeImages: boolean; header: boolean }>({
+    featured: false,
+    homeImages: false,
+    header: false,
   });
 
-  const toggleSection = (key: 'featured' | 'homeImages') => {
+  const toggleSection = (key: 'featured' | 'homeImages' | 'header') => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -36,7 +42,7 @@ export default function AdminDesignPage() {
         const [regattaList, ids, homepage] = await Promise.all([
           apiGet<Regatta[]>('/regattas/'),
           apiGet<number[]>('/design/featured-regattas/ids').catch(() => []),
-          apiGet<{ home_images: HomeImageItem[]; hero_title?: string | null; hero_subtitle?: string | null }>('/design/homepage').catch(() => ({ home_images: [] })),
+          apiGet<{ home_images: HomeImageItem[]; hero_title?: string | null; hero_subtitle?: string | null; club_logo_url?: string | null; club_logo_link?: string | null }>('/design/homepage').catch(() => ({ home_images: [] })),
         ]);
         setRegattas(Array.isArray(regattaList) ? regattaList : []);
         if (Array.isArray(ids) && ids.length >= 3) {
@@ -59,6 +65,8 @@ export default function AdminDesignPage() {
         );
         setHeroTitle(homepage?.hero_title ?? '');
         setHeroSubtitle(homepage?.hero_subtitle ?? '');
+        setClubLogoUrl(homepage?.club_logo_url ?? '');
+        setClubLogoLink(homepage?.club_logo_link ?? '');
       } catch (e) {
         console.error(e);
       } finally {
@@ -138,6 +146,49 @@ export default function AdminDesignPage() {
     }
   };
 
+  const handleUploadClubLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Invalid format. Use JPG, PNG or WebP.');
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const data = await apiUpload<{ url: string }>('/uploads/header', form, token);
+      setClubLogoUrl(data.url);
+      e.target.value = '';
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error uploading image.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleSaveHeader = async () => {
+    if (!token) return;
+    setSavingHeader(true);
+    try {
+      await apiSend(
+        '/design/homepage',
+        'PUT',
+        {
+          club_logo_url: clubLogoUrl.trim() || null,
+          club_logo_link: clubLogoLink.trim() || null,
+        },
+        token
+      );
+      alert('Header club logo and link saved.');
+    } catch (e) {
+      console.error(e);
+      alert('Error saving.');
+    } finally {
+      setSavingHeader(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen">
       <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
@@ -160,6 +211,9 @@ export default function AdminDesignPage() {
           </Link>
           <Link href="/admin/design" className="hover:underline font-semibold text-blue-600">
             Design
+          </Link>
+          <Link href="/admin/sponsors" className="hover:underline">
+            Sponsors
           </Link>
           <Link href="/admin/settings" className="hover:underline">
             Settings
@@ -360,6 +414,83 @@ export default function AdminDesignPage() {
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                   >
                     {savingHome ? 'Saving…' : 'Save homepage hero'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Header / Club logo */}
+          <div className="border-t">
+            <button
+              type="button"
+              onClick={() => toggleSection('header')}
+              className="w-full flex items-center gap-2 px-8 py-4 text-left hover:bg-gray-50 transition"
+            >
+              <h2 className="text-xl font-semibold text-gray-900">Header / Club logo</h2>
+              <svg
+                className={`w-5 h-5 text-gray-500 shrink-0 transition-transform ${openSections.header ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openSections.header && (
+              <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
+                <p className="text-sm text-gray-500 mb-4">
+                  Club logo shown in the top-left of the header (instead of SailScore). You can add an optional link so clicking the logo opens a URL (e.g. your club website).
+                </p>
+                <div className="border rounded-lg p-5 bg-gray-50 space-y-4 max-w-xl">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Club logo image</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleUploadClubLogo}
+                      disabled={uploadingLogo}
+                      className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100 disabled:opacity-60"
+                    />
+                    {clubLogoUrl && (
+                      <div className="flex items-center gap-3 mt-2">
+                        <img
+                          src={clubLogoUrl.startsWith('http') ? clubLogoUrl : `${BASE_URL}${clubLogoUrl}`}
+                          alt="Club logo"
+                          className="h-12 w-auto object-contain border rounded bg-white p-1"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setClubLogoUrl('')}
+                          className="text-sm text-red-600 hover:underline"
+                        >
+                          Remove logo
+                        </button>
+                      </div>
+                    )}
+                    {!clubLogoUrl && (
+                      <p className="text-xs text-gray-500">If no logo is set, &quot;SailScore&quot; text is shown.</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Optional link URL</label>
+                    <input
+                      type="url"
+                      value={clubLogoLink}
+                      onChange={(e) => setClubLogoLink(e.target.value)}
+                      placeholder="https://your-club-website.com"
+                      className="w-full border rounded px-3 py-2 text-gray-900"
+                    />
+                    <p className="text-xs text-gray-500">Leave empty if the logo should not be clickable.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveHeader}
+                    disabled={savingHeader}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {savingHeader ? 'Saving…' : 'Save header'}
                   </button>
                 </div>
               </div>

@@ -15,10 +15,12 @@ NEWS_DIR = UPLOADS_DIR / "news"
 REGATTAS_DIR = UPLOADS_DIR / "regattas"
 SPONSORS_DIR = UPLOADS_DIR / "sponsors"
 HOMEPAGE_DIR = UPLOADS_DIR / "homepage"
+HEADER_DIR = UPLOADS_DIR / "header"
 NEWS_DIR.mkdir(parents=True, exist_ok=True)
 REGATTAS_DIR.mkdir(parents=True, exist_ok=True)
 SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
 HOMEPAGE_DIR.mkdir(parents=True, exist_ok=True)
+HEADER_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED = {"image/jpeg", "image/png", "image/webp"}
 MAX_MB = 6
@@ -92,3 +94,20 @@ async def upload_homepage_image(
     filename = f"{uuid4().hex}{ext}"
     (HOMEPAGE_DIR / filename).write_bytes(content)
     return {"url": f"/uploads/homepage/{filename}"}
+
+
+@router.post("/header", status_code=status.HTTP_201_CREATED)
+async def upload_header_image(
+    file: UploadFile = File(...),
+    current_user=Depends(verify_role(["admin"])),
+):
+    """Upload club logo image for the site header."""
+    if file.content_type not in ALLOWED:
+        raise HTTPException(status_code=400, detail="Invalid file type. Use JPG/PNG/WebP.")
+    content = await file.read()
+    if len(content) > MAX_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_MB}MB.")
+    ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
+    filename = f"{uuid4().hex}{ext}"
+    (HEADER_DIR / filename).write_bytes(content)
+    return {"url": f"/uploads/header/{filename}"}

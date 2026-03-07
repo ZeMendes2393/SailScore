@@ -21,13 +21,13 @@ export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
 
   return (
     <header
-      className="sticky top-0 z-50 w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md"
+      className="sticky top-0 z-50 w-full bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-md backdrop-blur-md"
     >
       <div className="w-full h-24 flex items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="text-lg font-bold tracking-wide shrink-0">
+        <Link href="/" className="text-xl font-bold tracking-wide shrink-0">
           SailScore
         </Link>
-        <nav className="flex items-center gap-2 md:gap-4 text-sm font-medium flex-wrap justify-center">
+        <nav className="flex items-center gap-2 md:gap-4 text-lg font-medium flex-wrap justify-end ml-auto">
           <Link href={base} className={linkClass(isHome)} title="Vista principal da regata">
             Home
           </Link>
@@ -46,7 +46,7 @@ export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
         </nav>
         <Link
           href={`/login?regattaId=${regattaId}`}
-          className="shrink-0 px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white text-sm"
+          className="shrink-0 px-4 py-2 rounded bg-white/20 hover:bg-white/30 text-white text-lg font-medium"
         >
           Sailor account
         </Link>
