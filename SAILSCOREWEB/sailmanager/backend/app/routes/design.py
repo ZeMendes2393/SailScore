@@ -107,6 +107,38 @@ class HomepageUpdate(BaseModel):
     club_logo_link: str | None = None
 
 
+class FooterDesignOut(BaseModel):
+    footer_site_name: str | None = None
+    footer_tagline: str | None = None
+    footer_contact_email: str | None = None
+    footer_phone: str | None = None
+    footer_address: str | None = None
+    footer_instagram_url: str | None = None
+    footer_facebook_url: str | None = None
+    footer_show_privacy_policy: bool = True
+    footer_show_terms_of_service: bool = True
+    footer_show_cookie_policy: bool = True
+    footer_privacy_policy_text: str | None = None
+    footer_terms_of_service_text: str | None = None
+    footer_cookie_policy_text: str | None = None
+
+
+class FooterDesignUpdate(BaseModel):
+    footer_site_name: str | None = None
+    footer_tagline: str | None = None
+    footer_contact_email: str | None = None
+    footer_phone: str | None = None
+    footer_address: str | None = None
+    footer_instagram_url: str | None = None
+    footer_facebook_url: str | None = None
+    footer_show_privacy_policy: bool | None = None
+    footer_show_terms_of_service: bool | None = None
+    footer_show_cookie_policy: bool | None = None
+    footer_privacy_policy_text: str | None = None
+    footer_terms_of_service_text: str | None = None
+    footer_cookie_policy_text: str | None = None
+
+
 @router.get("/homepage", response_model=HomepageOut)
 def get_homepage_design(db: Session = Depends(get_db)):
     """Public: returns homepage hero images, hero text and header settings."""
@@ -163,3 +195,81 @@ def set_homepage_design(
         club_logo_url=getattr(row, "club_logo_url", None),
         club_logo_link=getattr(row, "club_logo_link", None),
     )
+
+
+@router.get("/footer", response_model=FooterDesignOut)
+def get_footer_design(db: Session = Depends(get_db)):
+    """Public: returns footer configuration (brand, contacts, legal texts)."""
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    if not row:
+        # Defaults if not configured yet
+        return FooterDesignOut()
+    return FooterDesignOut(
+        footer_site_name=getattr(row, "footer_site_name", None),
+        footer_tagline=getattr(row, "footer_tagline", None),
+        footer_contact_email=getattr(row, "footer_contact_email", None),
+        footer_phone=getattr(row, "footer_phone", None),
+        footer_address=getattr(row, "footer_address", None),
+        footer_instagram_url=getattr(row, "footer_instagram_url", None),
+        footer_facebook_url=getattr(row, "footer_facebook_url", None),
+        footer_show_privacy_policy=bool(
+            getattr(row, "footer_show_privacy_policy", True)
+        ),
+        footer_show_terms_of_service=bool(
+            getattr(row, "footer_show_terms_of_service", True)
+        ),
+        footer_show_cookie_policy=bool(
+            getattr(row, "footer_show_cookie_policy", True)
+        ),
+        footer_privacy_policy_text=getattr(row, "footer_privacy_policy_text", None),
+        footer_terms_of_service_text=getattr(row, "footer_terms_of_service_text", None),
+        footer_cookie_policy_text=getattr(row, "footer_cookie_policy_text", None),
+    )
+
+
+@router.put("/footer", response_model=FooterDesignOut)
+def set_footer_design(
+    body: FooterDesignUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    row = _get_or_create_site_design(db)
+
+    def _clean(value: str | None) -> str | None:
+        if value is None:
+            return None
+        v = value.strip()
+        return v or None
+
+    if body.footer_site_name is not None:
+        row.footer_site_name = _clean(body.footer_site_name)
+    if body.footer_tagline is not None:
+        row.footer_tagline = _clean(body.footer_tagline)
+    if body.footer_contact_email is not None:
+        row.footer_contact_email = _clean(body.footer_contact_email)
+    if body.footer_phone is not None:
+        row.footer_phone = _clean(body.footer_phone)
+    if body.footer_address is not None:
+        row.footer_address = _clean(body.footer_address)
+    if body.footer_instagram_url is not None:
+        row.footer_instagram_url = _clean(body.footer_instagram_url)
+    if body.footer_facebook_url is not None:
+        row.footer_facebook_url = _clean(body.footer_facebook_url)
+    if body.footer_show_privacy_policy is not None:
+        row.footer_show_privacy_policy = bool(body.footer_show_privacy_policy)
+    if body.footer_show_terms_of_service is not None:
+        row.footer_show_terms_of_service = bool(body.footer_show_terms_of_service)
+    if body.footer_show_cookie_policy is not None:
+        row.footer_show_cookie_policy = bool(body.footer_show_cookie_policy)
+    if body.footer_privacy_policy_text is not None:
+        row.footer_privacy_policy_text = _clean(body.footer_privacy_policy_text)
+    if body.footer_terms_of_service_text is not None:
+        row.footer_terms_of_service_text = _clean(body.footer_terms_of_service_text)
+    if body.footer_cookie_policy_text is not None:
+        row.footer_cookie_policy_text = _clean(body.footer_cookie_policy_text)
+
+    db.commit()
+    db.refresh(row)
+    return get_footer_design(db)

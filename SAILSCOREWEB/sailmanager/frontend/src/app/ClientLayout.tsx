@@ -2,6 +2,7 @@
 
 import ContentContainer from '@/components/ContentContainer';
 import MainHeader from '@/components/MainHeader';
+import GlobalFooter from '@/components/GlobalFooter';
 import { usePathname } from 'next/navigation';
 
 export type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
@@ -30,13 +31,7 @@ export default function ClientLayout({
       <main className={`flex-1 w-full ${pathname === '/' ? 'pt-0 pb-8' : 'py-8'}`}>
         {useContentContainer ? <ContentContainer>{children}</ContentContainer> : children}
       </main>
-      <footer className="bg-white border-t border-gray-200 mt-auto">
-        <div className="max-w-screen-2xl mx-auto py-6 text-center px-2 lg:px-3">
-          <p className="text-sm text-gray-600">
-            © {new Date().getFullYear()} SailScore — Sailing Results Platform
-          </p>
-        </div>
-      </footer>
+      <GlobalFooter />
     </>
   );
 }

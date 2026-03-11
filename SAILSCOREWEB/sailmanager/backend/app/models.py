@@ -86,6 +86,9 @@ class Regatta(Base):
     entry_list_columns = Column(JSON, nullable=True)
     # Colunas visíveis nos results overall (place, fleet, sail_no, boat, skipper, class, model, bow, total, net)
     results_overall_columns = Column(JSON, nullable=True)
+    # Country (ISO 3166-1 alpha-2, ex: PT, ES) + timezone (IANA, ex: Europe/Lisbon)
+    country_code = Column(String(2), nullable=True)
+    timezone = Column(String(64), nullable=True)
 
 
 # =========================
@@ -823,6 +826,7 @@ class RegattaClassPublication(Base):
     )
     class_name = sa.Column(sa.String(255), nullable=False, index=True)
     published_races_count = sa.Column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    published_at = sa.Column(sa.DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         sa.UniqueConstraint("regatta_id", "class_name", name="uq_regatta_class_publication"),
@@ -893,3 +897,17 @@ class SiteDesign(Base):
     # Header: club logo (mini image) + optional link
     club_logo_url = sa.Column(sa.String(500), nullable=True)
     club_logo_link = sa.Column(sa.String(500), nullable=True)
+    # Footer: configurable brand, contacts and legal texts
+    footer_site_name = sa.Column(sa.String(200), nullable=True)
+    footer_tagline = sa.Column(sa.String(500), nullable=True)
+    footer_contact_email = sa.Column(sa.String(255), nullable=True)
+    footer_phone = sa.Column(sa.String(50), nullable=True)
+    footer_address = sa.Column(sa.String(500), nullable=True)
+    footer_instagram_url = sa.Column(sa.String(500), nullable=True)
+    footer_facebook_url = sa.Column(sa.String(500), nullable=True)
+    footer_show_privacy_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    footer_show_terms_of_service = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    footer_show_cookie_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    footer_privacy_policy_text = sa.Column(sa.Text, nullable=True)
+    footer_terms_of_service_text = sa.Column(sa.Text, nullable=True)
+    footer_cookie_policy_text = sa.Column(sa.Text, nullable=True)

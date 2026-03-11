@@ -11,6 +11,8 @@ import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
+type CountryItem = { code: string; name: string };
+type TimezonesResponse = { country: string; timezones: string[] };
 
 interface Regatta {
   id: number;
@@ -19,6 +21,8 @@ interface Regatta {
   start_date: string;
   end_date: string;
   online_entry_open?: boolean;
+  country_code?: string | null;
+  timezone?: string | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
   poster_url?: string | null;
   home_images?: HomeImageItem[] | null;
@@ -57,6 +61,11 @@ export default function AdminRegattaPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [listingLogoUrl, setListingLogoUrl] = useState<string>('');
   const [uploadingListingLogo, setUploadingListingLogo] = useState(false);
+  const [countries, setCountries] = useState<CountryItem[]>([]);
+  const [countryCode, setCountryCode] = useState('');
+  const [timezoneOptions, setTimezoneOptions] = useState<string[]>([]);
+  const [timezone, setTimezone] = useState('');
+  const [loadingTimezones, setLoadingTimezones] = useState(false);
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -84,6 +93,10 @@ export default function AdminRegattaPage() {
         setLocation(r.location);
         setStartDate(r.start_date);
         setEndDate(r.end_date);
+        const cc = (r as { country_code?: string | null }).country_code ?? '';
+        const tz = (r as { timezone?: string | null }).timezone ?? '';
+        setCountryCode(cc);
+        setTimezone(tz);
       }
     };
 
@@ -112,6 +125,34 @@ export default function AdminRegattaPage() {
     }
   }, [activeTab, availableClasses, selectedClass]);
 
+  useEffect(() => {
+    apiGet<CountryItem[]>('/metadata/countries')
+      .then((data) => setCountries(Array.isArray(data) ? data : []))
+      .catch(() => setCountries([]));
+  }, []);
+
+  useEffect(() => {
+    if (!countryCode) {
+      setTimezoneOptions([]);
+      return;
+    }
+    setLoadingTimezones(true);
+    apiGet<TimezonesResponse>(`/metadata/timezones?country=${encodeURIComponent(countryCode)}`)
+      .then((data) => {
+        const tzList = data?.timezones ?? [];
+        setTimezoneOptions(tzList);
+        if (tzList.length === 1) setTimezone(tzList[0]);
+        else if (tzList.length > 0 && !tzList.includes(timezone)) setTimezone(tzList[0]);
+      })
+      .catch(() => setTimezoneOptions([]))
+      .finally(() => setLoadingTimezones(false));
+  }, [countryCode]);
+
+  const handleCountryChange = (code: string) => {
+    setCountryCode(code);
+    if (!code) setTimezone('');
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
@@ -124,7 +165,14 @@ export default function AdminRegattaPage() {
       const patched = await apiSend<Regatta>(
         `/regattas/${regattaId}`,
         'PATCH',
-        { name, location, start_date: startDate, end_date: endDate },
+        {
+          name,
+          location,
+          start_date: startDate,
+          end_date: endDate,
+          country_code: countryCode || null,
+          timezone: timezone || null,
+        },
         token
       );
       setRegatta(prev => ({ ...(patched || prev), online_entry_open: prev?.online_entry_open ?? true }));
@@ -502,6 +550,37 @@ export default function AdminRegattaPage() {
                 onChange={(e) => setLocation(e.target.value)}
                 required
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Country & timezone</label>
+              <p className="text-xs text-gray-500 mb-2">
+                Used for official event times, notices, and result publication timestamps. Select country first, then timezone.
+              </p>
+              <div className="flex gap-3 flex-wrap">
+                <select
+                  value={countryCode}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                  className="border rounded px-3 py-2 min-w-[140px]"
+                >
+                  <option value="">— Select country —</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  disabled={!countryCode || loadingTimezones}
+                  className="border rounded px-3 py-2 flex-1 min-w-[180px] disabled:opacity-60 disabled:bg-gray-100"
+                >
+                  <option value="">
+                    {!countryCode ? 'Select country first' : loadingTimezones ? 'Loading…' : '— Select timezone —'}
+                  </option>
+                  {timezoneOptions.map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               <div>

@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any, Tuple, Union
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app import models
 
@@ -81,7 +82,8 @@ def _format_delta(seconds: float) -> str:
 
 
 def compute_handicap_ranking(
-    items: List[Tuple[Optional[float], Optional[str]]]
+    items: List[Tuple[Optional[float], Optional[str]]],
+    total_competitors: int,
 ) -> List[Tuple[int, str, float]]:
     """
     Given list of (corrected_time_seconds, code), return (position, delta_str, points).
@@ -124,8 +126,8 @@ def compute_handicap_ranking(
         pos += tie_count
         idx += tie_count
 
-    # Non-rankable: position = n_rankable + 1, etc.; points = N+1
-    n_plus_one = n_rankable + 1
+    # Non-rankable: position = n_rankable + 1, etc.; points = N+1 (N = competidores válidos na corrida)
+    n_plus_one = total_competitors + 1
     for orig_i, _ in non_rankable:
         result[orig_i] = (n_plus_one, "—", float(n_plus_one))
 
@@ -319,13 +321,20 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
 
 
 def _auto_n_plus_one_points(ctx: Dict[str, Any], sail_number_norm: str) -> float:
+    """
+    N+1 para códigos auto (DNC, DNF, OCS, UFD, etc.).
+    - Com fleets: N = nº de sailors nessa fleet (pode variar por fleet).
+    - Sem fleets: N = nº total de barcos válidos (paid+confirmed) da classe.
+    sail_number_norm pode ser "" se não houver; nesse caso usa total_count.
+    """
     total = int(ctx["total_count"])
     sn_to_fid: Dict[str, int] = ctx["sn_to_fleet_id"]
     fleet_counts: Dict[int, int] = ctx["fleet_counts"]
 
-    fid = sn_to_fid.get(sail_number_norm)
-    if fid is not None and fid in fleet_counts:
-        return float(int(fleet_counts[fid]) + 1)
+    if sail_number_norm:
+        fid = sn_to_fid.get(sail_number_norm)
+        if fid is not None and fid in fleet_counts:
+            return float(int(fleet_counts[fid]) + 1)
 
     return float(total + 1)
 
@@ -369,9 +378,7 @@ def compute_points_for_code(
         ctx = _build_competitor_context_for_race(db, race)
 
     if c in AUTO_N_PLUS_ONE_CODES:
-        sn_norm = _norm_sn(sail_number)
-        if not sn_norm:
-            raise ValueError(f"{c} requer sail_number")
+        sn_norm = _norm_sn(sail_number) or ""
         return _auto_n_plus_one_points(ctx, sn_norm)
 
     if c in ADJUSTABLE_CODES:
@@ -465,7 +472,7 @@ def ensure_missing_results_as_dnc(
 # NORMALIZE: compact + points + overrides
 # =========================================================
 
-def _normalize_group(rows, scoring_map, ctx):
+def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
     ranked = [r for r in rows if not removes_from_ranking(r.code)]
     unranked = [r for r in rows if removes_from_ranking(r.code)]
 
@@ -498,6 +505,8 @@ def _normalize_group(rows, scoring_map, ctx):
         r.position = pos
         c = _norm(getattr(r, "code", None))
         if c in AUTO_N_PLUS_ONE_CODES:
+            # Para códigos auto N+1 (DNC, DNF, DNS, etc.), usar sempre N+1,
+            # tanto em One Design como em Handicap.
             sn_norm = _norm_sn(r.sail_number) or ""
             r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
         else:
@@ -510,6 +519,16 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
     ctx = _build_competitor_context_for_race(db, race)
 
+    regatta_class = (
+        db.query(models.RegattaClass)
+        .filter(
+            models.RegattaClass.regatta_id == race.regatta_id,
+            func.lower(models.RegattaClass.class_name) == func.lower(str(race.class_name or "")),
+        )
+        .first()
+    )
+    is_handicap = regatta_class and (regatta_class.class_type or "").lower() == "handicap"
+
     rows = (
         db.query(models.Result)
         .filter(models.Result.race_id == int(race.id))
@@ -519,7 +538,6 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
     if not rows:
         return
 
-    # se tem fleets: normaliza separado por fleet (sem misturar posições)
     if getattr(race, "fleet_set_id", None):
         sn_to_fid = ctx["sn_to_fleet_id"]
         by_fleet: Dict[Optional[int], List[models.Result]] = {}
@@ -530,8 +548,7 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
             by_fleet.setdefault(fid, []).append(r)
 
         for _fid, group in by_fleet.items():
-            _normalize_group(group, scoring_map, ctx)
+            _normalize_group(group, scoring_map, ctx, is_handicap=is_handicap)
         return
 
-    # sem fleets: normaliza global
-    _normalize_group(rows, scoring_map, ctx)
+    _normalize_group(rows, scoring_map, ctx, is_handicap=is_handicap)

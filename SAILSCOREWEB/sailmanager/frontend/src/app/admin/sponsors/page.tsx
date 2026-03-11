@@ -54,7 +54,7 @@ export default function AdminSponsorsPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Formato inválido. Use JPG, PNG ou WebP.');
+      alert('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -65,7 +65,7 @@ export default function AdminSponsorsPage() {
       setNewImageUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro no upload.');
+      alert(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
@@ -78,7 +78,7 @@ export default function AdminSponsorsPage() {
   const handleAddSponsor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !effectiveCategory || !newImageUrl) {
-      alert('Escolha ou crie uma categoria e faça upload de uma imagem.');
+      alert('Choose or create a category and upload an image.');
       return;
     }
     setSaving(true);
@@ -99,21 +99,21 @@ export default function AdminSponsorsPage() {
       if (useNewCategory) setNewCategory('');
       fetchSponsors();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao adicionar.');
+      alert(err instanceof Error ? err.message : 'Error adding sponsor.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteSponsor = async (sponsorId: number) => {
-    if (!token || !confirm('Remover este patrocinador? Ele deixará de aparecer na homepage, calendário, news e em todas as regatas.'))
+    if (!token || !confirm('Remove this sponsor? It will no longer appear on the homepage, calendar, news and all regattas.'))
       return;
     setSaving(true);
     try {
       await apiDelete(`/sponsors/${sponsorId}`, token);
       fetchSponsors();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao remover.');
+      alert(err instanceof Error ? err.message : 'Error removing sponsor.');
     } finally {
       setSaving(false);
     }
@@ -121,7 +121,7 @@ export default function AdminSponsorsPage() {
 
   const imageSrc = (url: string) => (url.startsWith('http') ? url : `${BASE_URL}${url}`);
   const byCategory = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
-    const cat = s.category || 'Outros';
+    const cat = s.category || 'Other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(s);
     return acc;
@@ -164,19 +164,19 @@ export default function AdminSponsorsPage() {
           }}
           className="mt-6 text-sm text-red-600 hover:underline"
         >
-          Terminar sessão
+          Log out
         </button>
       </aside>
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
           <Link href="/admin" className="text-sm text-blue-600 hover:underline">
-            ← Voltar ao Dashboard
+            ← Back to Dashboard
           </Link>
         </div>
         <h1 className="text-3xl font-bold mb-2">Sponsors</h1>
         <p className="text-gray-600 mb-8">
-          Patrocinadores adicionados aqui aparecem na <strong>homepage</strong>, no <strong>calendário</strong>, em <strong>news</strong> e em <strong>todas as regatas</strong>. Para patrocinadores apenas de uma regata, use a secção Sponsors dentro de cada regata.
+          Sponsors added here appear on the <strong>homepage</strong>, <strong>calendar</strong>, <strong>news</strong> and in <strong>all regattas</strong>. For regatta-specific sponsors only, use the Sponsors section within each regatta.
         </p>
 
         <div className="max-w-3xl space-y-8">
@@ -184,7 +184,7 @@ export default function AdminSponsorsPage() {
             onSubmit={handleAddSponsor}
             className="border rounded-lg p-6 bg-white shadow-sm space-y-4"
           >
-            <h2 className="text-xl font-semibold text-gray-800">Adicionar patrocinador global</h2>
+            <h2 className="text-xl font-semibold text-gray-800">Add global sponsor</h2>
 
             <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
               <input
@@ -195,15 +195,15 @@ export default function AdminSponsorsPage() {
                 className="rounded border-gray-300"
               />
               <label htmlFor="addToAllRegattas" className="text-sm font-medium text-gray-800">
-                Adicionar a todas as regatas (aparece na homepage, calendário, news e em cada regata)
+                Add to all regattas (appears on homepage, calendar, news and each regatta)
               </label>
             </div>
             <p className="text-xs text-gray-500">
-              Os patrocinadores criados nesta página estão sempre &quot;em todas as regatas&quot;.
+              Sponsors created on this page are always &quot;in all regattas&quot;.
             </p>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Categoria</label>
+              <label className="block text-sm font-medium mb-1">Category</label>
               <div className="space-y-2">
                 {existingCategories.length > 0 && (
                   <div className="flex items-center gap-2">
@@ -216,13 +216,13 @@ export default function AdminSponsorsPage() {
                         if (v !== '__new__') setSelectedCategory(v);
                       }}
                     >
-                      <option value="">— Escolher categoria —</option>
+                      <option value="">— Choose category —</option>
                       {existingCategories.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
                       ))}
-                      <option value="__new__">➕ Nova categoria</option>
+                      <option value="__new__">➕ New category</option>
                     </select>
                   </div>
                 )}
@@ -240,7 +240,7 @@ export default function AdminSponsorsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Logo (imagem)</label>
+              <label className="block text-sm font-medium mb-1">Logo (image)</label>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
@@ -260,14 +260,14 @@ export default function AdminSponsorsPage() {
                     onClick={() => setNewImageUrl('')}
                     className="text-sm text-red-600 hover:underline"
                   >
-                    Remover
+                    Remove
                   </button>
                 </div>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Link (URL) — opcional</label>
+              <label className="block text-sm font-medium mb-1">Link (URL) — optional</label>
               <input
                 type="url"
                 className="w-full border rounded px-3 py-2"
@@ -282,15 +282,15 @@ export default function AdminSponsorsPage() {
               disabled={saving || !effectiveCategory || !newImageUrl}
               className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
             >
-              {saving ? 'A guardar…' : 'Adicionar'}
+              {saving ? 'Saving…' : 'Add'}
             </button>
           </form>
 
           {loading ? (
-            <p className="text-gray-500">A carregar…</p>
+            <p className="text-gray-500">Loading…</p>
           ) : sponsors.length > 0 ? (
             <div className="border rounded-lg p-6 bg-white shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Patrocinadores globais</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Global sponsors</h2>
               <div className="space-y-8">
                 {Object.entries(byCategory).map(([category, items]) => (
                   <div key={category}>
@@ -332,7 +332,7 @@ export default function AdminSponsorsPage() {
               </div>
             </div>
           ) : (
-            <p className="text-gray-500">Ainda não há patrocinadores globais. Adicione um acima.</p>
+            <p className="text-gray-500">No global sponsors yet. Add one above.</p>
           )}
         </div>
       </main>

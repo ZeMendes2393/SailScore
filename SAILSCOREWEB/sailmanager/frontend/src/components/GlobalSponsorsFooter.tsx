@@ -30,7 +30,7 @@ export default function GlobalSponsorsFooter() {
   }, []);
 
   const sponsorsByCategory = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
-    const cat = s.category || 'Outros';
+    const cat = s.category || 'Other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(s);
     return acc;

@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute
 from app.database import create_database
 from app.routes import (
     auth,
+    metadata_routes,
     regattas,
     regatta_sponsors,
     entries,
@@ -73,6 +74,30 @@ app.add_middleware(
     max_age=86400,
 )
 
+
+# Garantir CORS mesmo em respostas de erro (ex.: 500) para evitar bloqueio no browser
+import re as _re
+_origins_set = set(ALLOWED_ORIGINS)
+
+def _origin_allowed(origin: str | None) -> bool:
+    if not origin:
+        return False
+    if origin in _origins_set:
+        return True
+    return bool(_re.match(ALLOWED_ORIGIN_REGEX, origin))
+
+
+@app.middleware("http")
+async def add_cors_headers_to_all_responses(request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin and _origin_allowed(origin) and "access-control-allow-origin" not in {
+        k.lower() for k in response.headers.keys()
+    }:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 # ---------- Exception handler ----------
 logger = logging.getLogger("sailscore")
 
@@ -109,6 +134,7 @@ create_database()
 
 # ---------- Routers ----------
 app.include_router(auth.router)
+app.include_router(metadata_routes.router)
 app.include_router(regattas.router)
 app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])

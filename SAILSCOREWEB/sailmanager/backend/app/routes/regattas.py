@@ -8,8 +8,26 @@ from datetime import datetime, timedelta, timezone
 import os
 
 from app import models, schemas
+from app.metadata.timezones import is_valid_iana_timezone, is_valid_timezone_for_country
 from app.database import get_db
 from utils.auth_utils import get_current_user
+
+
+def _validate_regatta_timezone_country(country_code: str | None, timezone_str: str) -> None:
+    """Validate that timezone is IANA-valid and belongs to the country. Raises HTTPException on failure."""
+    if not timezone_str:
+        return
+    if not is_valid_iana_timezone(timezone_str):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid IANA timezone: {timezone_str}. Use identifiers like Europe/Lisbon, Atlantic/Azores.",
+        )
+    if country_code and not is_valid_timezone_for_country(timezone_str, str(country_code)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Timezone {timezone_str} is not valid for country {country_code}.",
+        )
+
 
 router = APIRouter(prefix="/regattas", tags=["regattas"])
 
@@ -45,7 +63,12 @@ def create_regatta(
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Acesso negado")
-    new_regatta = models.Regatta(**regatta.model_dump())
+    data = regatta.model_dump()
+    cc = data.get("country_code")
+    tz = data.get("timezone")
+    if tz:
+        _validate_regatta_timezone_country(cc, tz)
+    new_regatta = models.Regatta(**data)
     db.add(new_regatta)
     db.commit()
     db.refresh(new_regatta)
@@ -72,7 +95,18 @@ def update_regatta(
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    cc_new = data.get("country_code")
+    tz_new = data.get("timezone")
+    cc = str(cc_new) if cc_new is not None else getattr(reg, "country_code", None)
+    tz = str(tz_new) if tz_new is not None else getattr(reg, "timezone", None)
+
+    if tz:
+        _validate_regatta_timezone_country(cc, tz)
+    if "country_code" in data and cc and tz and not is_valid_timezone_for_country(tz, str(cc)):
+        data["timezone"] = None
+
+    for field, value in data.items():
         setattr(reg, field, value)
 
     db.commit()

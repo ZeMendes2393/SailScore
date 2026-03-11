@@ -21,6 +21,7 @@ from app.routes.results_utils import (
     _norm_sn,
     _parse_time_to_seconds,
     _format_delta,
+    _build_competitor_context_for_race,
     compute_handicap_ranking,
     removes_from_ranking,
     get_scoring_map,
@@ -403,11 +404,12 @@ def create_results_for_race(
 
     # Handicap: calcular ranking a partir de corrected_time e inserir (One Design já inserido acima)
     if is_handicap:
+        ctx = _build_competitor_context_for_race(db, race)
         items = [
             (_parse_time_to_seconds(getattr(r, "corrected_time", None)), _norm(getattr(r, "code", None)))
             for r in results
         ]
-        rankings = compute_handicap_ranking(items)
+        rankings = compute_handicap_ranking(items, ctx["total_count"])
         for r, (pos, delta_str, pts) in zip(results, rankings):
             sn_norm = _norm_sn(r.sail_number)
             # snapshot de dados da Entry (country code + rating)

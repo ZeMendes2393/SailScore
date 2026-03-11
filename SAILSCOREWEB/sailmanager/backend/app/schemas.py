@@ -64,6 +64,8 @@ class RegattaBase(BaseModel):
 
     # controlo de inscrições online (visível no GET)
     online_entry_open: bool = True
+    country_code: Optional[str] = None  # ISO 3166-1 alpha-2, ex: PT, ES
+    timezone: Optional[str] = None  # IANA, ex: Europe/Lisbon
 
 
 class RegattaCreate(RegattaBase):
@@ -96,6 +98,8 @@ class RegattaUpdate(BaseModel):
     location: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    country_code: Optional[str] = None
+    timezone: Optional[str] = None
 
     description: Optional[str] = None
     poster_url: Optional[str] = None

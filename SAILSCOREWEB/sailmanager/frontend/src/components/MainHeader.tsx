@@ -46,7 +46,13 @@ export default function MainHeader({ initialDesign = null }: { initialDesign?: H
               {logoContent}
             </Link>
           )}
-          <span className="text-2xl md:text-3xl font-bold tracking-tight uppercase">Regattas</span>
+          <Link
+            href="/"
+            className="text-2xl md:text-3xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
+            prefetch={false}
+          >
+            Regattas
+          </Link>
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-auto">
@@ -68,10 +74,11 @@ export default function MainHeader({ initialDesign = null }: { initialDesign?: H
               </Link>
             ))}
           </nav>
-          <Link href="/admin/login">
-            <button className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm">
-              Admin Account
-            </button>
+          <Link
+            href="/admin/login"
+            className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
+          >
+            Admin Account
           </Link>
         </div>
       </div>

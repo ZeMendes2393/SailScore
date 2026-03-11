@@ -109,10 +109,13 @@ export default function PublishDrawer({ regattaId, class_name, onClose, races }:
               </label>
               {orderedRaces.map((race, idx) => {
                 const k = idx + 1;
+                const willBePublished = selectedK >= k;
                 return (
                   <label
                     key={race.id}
-                    className="flex items-center gap-2 p-2 rounded border cursor-pointer hover:bg-gray-50"
+                    className={`flex items-center gap-2 p-2 rounded border cursor-pointer hover:bg-gray-50 ${
+                      willBePublished ? 'bg-blue-50 border-blue-400' : ''
+                    }`}
                   >
                     <input
                       type="radio"
@@ -123,8 +126,13 @@ export default function PublishDrawer({ regattaId, class_name, onClose, races }:
                     />
                     <span>
                       Race {k}: {race.name}
+                      {willBePublished && (
+                        <span className="ml-2 inline-flex items-center text-xs font-medium text-blue-700">
+                          ✓ will be published
+                        </span>
+                      )}
                       {k === currentK && currentK > 0 && (
-                        <span className="ml-2 text-xs text-blue-600">(current)</span>
+                        <span className="ml-2 text-xs text-gray-500">(currently public up to here)</span>
                       )}
                     </span>
                   </label>

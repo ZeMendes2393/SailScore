@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiSend, apiDelete } from '@/lib/api';
 import type { Entry, Race, ApiResult, DraftResult, ScoringConfig } from '../types';
@@ -107,12 +107,110 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   const [existingResultsRaw, setExistingResultsRaw] = useState<ApiResult[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
 
-  // ---- Rascunho (bulk)
-  const [draft, setDraft] = useState<DraftLine[]>([]);
+  const DRAFT_STORAGE_KEY = `sailscore-results-draft-${regattaId}`;
+
+  function loadDraftFromStorage(): {
+    draftByRace: Record<number, DraftLine[]>;
+    handicapDraftByRace: Record<number, HandicapDraftLine[]>;
+  } {
+    if (typeof window === 'undefined') return { draftByRace: {}, handicapDraftByRace: {} };
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!raw) return { draftByRace: {}, handicapDraftByRace: {} };
+      const parsed = JSON.parse(raw);
+      const draftByRace: Record<number, DraftLine[]> = {};
+      const handicapDraftByRace: Record<number, HandicapDraftLine[]> = {};
+      if (parsed?.draftByRace && typeof parsed.draftByRace === 'object') {
+        for (const [k, v] of Object.entries(parsed.draftByRace)) {
+          const raceId = Number(k);
+          if (!Number.isNaN(raceId) && Array.isArray(v)) {
+            draftByRace[raceId] = v as DraftLine[];
+          }
+        }
+      }
+      if (parsed?.handicapDraftByRace && typeof parsed.handicapDraftByRace === 'object') {
+        for (const [k, v] of Object.entries(parsed.handicapDraftByRace)) {
+          const raceId = Number(k);
+          if (!Number.isNaN(raceId) && Array.isArray(v)) {
+            handicapDraftByRace[raceId] = v as HandicapDraftLine[];
+          }
+        }
+      }
+      return { draftByRace, handicapDraftByRace };
+    } catch {
+      return { draftByRace: {}, handicapDraftByRace: {} };
+    }
+  }
+
+  // ---- Rascunho (bulk) — um por race, persistido em localStorage (lazy init para sobreviver ao refresh)
+  const [draftByRace, setDraftByRace] = useState<Record<number, DraftLine[]>>(() =>
+    loadDraftFromStorage().draftByRace
+  );
+  const [handicapDraftByRace, setHandicapDraftByRace] = useState<Record<number, HandicapDraftLine[]>>(() =>
+    loadDraftFromStorage().handicapDraftByRace
+  );
   const [draftInput, setDraftInput] = useState('');
 
-  // ---- Handicap / Time Scoring (bulk por tempos)
-  const [handicapDraft, setHandicapDraft] = useState<HandicapDraftLine[]>([]);
+  // Recarregar draft quando mudar de regatta (navegação)
+  const prevRegattaIdRef = useRef(regattaId);
+  useEffect(() => {
+    if (prevRegattaIdRef.current !== regattaId) {
+      prevRegattaIdRef.current = regattaId;
+      const { draftByRace: d, handicapDraftByRace: h } = loadDraftFromStorage();
+      setDraftByRace(d);
+      setHandicapDraftByRace(h);
+    }
+  }, [regattaId]);
+
+  // Persistir draft em localStorage quando mudar (debounce leve para evitar writes excessivos)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            draftByRace: { ...draftByRace },
+            handicapDraftByRace: { ...handicapDraftByRace },
+          })
+        );
+      } catch {
+        // ignorar (quota, modo privado, etc.)
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [draftByRace, handicapDraftByRace, DRAFT_STORAGE_KEY]);
+
+  // Derive draft corrente da race selecionada
+  const draft = useMemo(
+    () => (selectedRaceId ? (draftByRace[selectedRaceId] ?? []) : []),
+    [selectedRaceId, draftByRace]
+  );
+  const handicapDraft = useMemo(
+    () => (selectedRaceId ? (handicapDraftByRace[selectedRaceId] ?? []) : []),
+    [selectedRaceId, handicapDraftByRace]
+  );
+
+  const setDraftForCurrentRace = useCallback(
+    (updater: (prev: DraftLine[]) => DraftLine[]) => {
+      if (!selectedRaceId) return;
+      setDraftByRace((prev) => ({
+        ...prev,
+        [selectedRaceId]: updater(prev[selectedRaceId] ?? []),
+      }));
+    },
+    [selectedRaceId]
+  );
+  const setHandicapDraftForCurrentRace = useCallback(
+    (updater: (prev: HandicapDraftLine[]) => HandicapDraftLine[]) => {
+      if (!selectedRaceId) return;
+      setHandicapDraftByRace((prev) => ({
+        ...prev,
+        [selectedRaceId]: updater(prev[selectedRaceId] ?? []),
+      }));
+    },
+    [selectedRaceId]
+  );
 
   // ---- Adicionar 1 em falta
   const [singleSail, setSingleSail] = useState('');
@@ -186,7 +284,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     })();
   }, [regattaId]);
 
-  // Integrar nova corrida criada
+  // Integrar nova corrida criada — não limpa drafts das outras races
   useEffect(() => {
     if (!newlyCreatedRace) return;
     setRaces((prev) => {
@@ -195,8 +293,6 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       return next.slice().sort((a: any, b: any) => (a.order_index ?? a.id) - (b.order_index ?? b.id));
     });
     setSelectedRaceId(newlyCreatedRace.id);
-    setDraft([]);
-    setHandicapDraft([]);
     setExistingResultsRaw([]);
   }, [newlyCreatedRace]);
 
@@ -515,7 +611,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       if (draft.some((r) => r.entryId === best.id)) return alert('This boat is already in the draft.');
       if (fleetEntryIdSet && !fleetEntryIdSet.has(best.id))
         return alert('This boat does not belong to the selected fleet for this race.');
-      setDraft((d) => [...d, { position: d.length + 1, entryId: best.id, code: null, manualPoints: null }]);
+      setDraftForCurrentRace((d) => [...d, { position: d.length + 1, entryId: best.id, code: null, manualPoints: null }]);
       setDraftInput('');
       return;
     }
@@ -525,7 +621,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       return;
     }
 
-    setDraft((d) => [...d, { position: d.length + 1, entryId: candidates[0].id, code: null, manualPoints: null }]);
+    setDraftForCurrentRace((d) => [...d, { position: d.length + 1, entryId: candidates[0].id, code: null, manualPoints: null }]);
     setDraftInput('');
   };
 
@@ -536,7 +632,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId))
       return alert('This boat does not belong to the selected fleet for this race.');
     if (draft.some((r) => r.entryId === entryId)) return alert('This boat is already in the draft.');
-    setDraft((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
+    setDraftForCurrentRace((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
     setDraftInput('');
     setSailChoicePending(null);
   }, [sailChoicePending, fleetEntryIdSet, draft]);
@@ -549,15 +645,15 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     if (fleetEntryIdSet && !fleetEntryIdSet.has(entryId))
       return alert('This boat does not belong to the selected fleet for this race.');
 
-    setDraft((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
+    setDraftForCurrentRace((d) => [...d, { position: d.length + 1, entryId, code: null, manualPoints: null }]);
   };
 
   const removeDraft = (entryId: number) => {
-    setDraft((d) => d.filter((r) => r.entryId !== entryId).map((r, i) => ({ ...r, position: i + 1 })));
+    setDraftForCurrentRace((d) => d.filter((r) => r.entryId !== entryId).map((r, i) => ({ ...r, position: i + 1 })));
   };
 
   const moveDraft = (index: number, dir: -1 | 1) => {
-    setDraft((d) => {
+    setDraftForCurrentRace((d) => {
       const tgt = index + dir;
       if (tgt < 0 || tgt >= d.length) return d;
       const copy = [...d];
@@ -568,7 +664,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const onSetDraftPos = (entryId: number, pos: number) => {
     const newPos = Math.max(1, Number(pos) || 1);
-    setDraft((d) => {
+    setDraftForCurrentRace((d) => {
       const copy = d.map((r) => (r.entryId === entryId ? { ...r, position: newPos } : r));
       return copy.sort((a, b) => a.position - b.position).map((r, i) => ({ ...r, position: i + 1 }));
     });
@@ -576,7 +672,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const onSetDraftCode = (entryId: number, code: string | null) => {
     const c = normCode(code);
-    setDraft((d) =>
+    setDraftForCurrentRace((d) =>
       d.map((r) => {
         if (r.entryId !== entryId) return r;
         const keepManual = isAdjustable(c);
@@ -587,7 +683,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const onSetDraftPoints = (entryId: number, points: number | null) => {
     const v = points == null ? null : Number(points);
-    setDraft((d) => d.map((r) => (r.entryId === entryId ? { ...r, manualPoints: v } : r)));
+    setDraftForCurrentRace((d) => d.map((r) => (r.entryId === entryId ? { ...r, manualPoints: v } : r)));
   };
 
   // =====================================================
@@ -610,7 +706,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       return;
     }
 
-    setHandicapDraft((prev) => [
+    setHandicapDraftForCurrentRace((prev) => [
       ...prev,
       {
         entryId,
@@ -625,7 +721,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   };
 
   const removeHandicapEntry = (entryId: number) => {
-    setHandicapDraft((prev) => prev.filter((r) => r.entryId !== entryId));
+    setHandicapDraftForCurrentRace((prev) => prev.filter((r) => r.entryId !== entryId));
   };
 
   const updateHandicapField = (
@@ -633,7 +729,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     field: 'finishTime' | 'finishDay' | 'elapsedTime' | 'correctedTime',
     value: string | number
   ) => {
-    setHandicapDraft((prev) =>
+    setHandicapDraftForCurrentRace((prev) =>
       prev.map((r) => {
         if (r.entryId !== entryId) return r;
         if (field === 'finishDay') {
@@ -647,13 +743,13 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   const updateHandicapCode = (entryId: number, code: string | null) => {
     const c = normCode(code);
-    setHandicapDraft((prev) =>
+    setHandicapDraftForCurrentRace((prev) =>
       prev.map((r) => (r.entryId === entryId ? { ...r, code: c } : r))
     );
   };
 
   const updateHandicapNotes = (entryId: number, notes: string) => {
-    setHandicapDraft((prev) =>
+    setHandicapDraftForCurrentRace((prev) =>
       prev.map((r) => (r.entryId === entryId ? { ...r, notes } : r))
     );
   };
@@ -1071,11 +1167,20 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     try {
       await apiDelete(`/races/${raceId}`, token);
       setRaces((prev) => prev.filter((r) => r.id !== raceId));
+      // Remove apenas o draft dessa race (outras races mantêm os seus)
+      setDraftByRace((prev) => {
+        const next = { ...prev };
+        delete next[raceId];
+        return next;
+      });
+      setHandicapDraftByRace((prev) => {
+        const next = { ...prev };
+        delete next[raceId];
+        return next;
+      });
       if (selectedRaceId === raceId) {
         setSelectedRaceId(null);
         setExistingResultsRaw([]);
-        setDraft([]);
-        setHandicapDraft([]);
       }
     } catch (e) {
       console.error('deleteRace falhou:', e);

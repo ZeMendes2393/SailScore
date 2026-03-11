@@ -161,7 +161,10 @@ type RankingPreview = {
   points: number;
 };
 
-function computeHandicapRankingPreview(rows: HandicapDraftRow[]): RankingPreview[] {
+function computeHandicapRankingPreview(
+  rows: HandicapDraftRow[],
+  totalCompetitors: number
+): RankingPreview[] {
   if (!rows.length) return [];
 
   type Item = { idx: number; ct: number | null; code: string | null };
@@ -229,7 +232,7 @@ function computeHandicapRankingPreview(rows: HandicapDraftRow[]): RankingPreview
     idx += tieCount;
   }
 
-  const nPlusOne = nRankable + 1;
+  const nPlusOne = totalCompetitors + 1;
   for (const item of nonRankable) {
     out[item.idx] = {
       position: nPlusOne,
@@ -337,7 +340,10 @@ export default function TimeScoringEditor({
     return Array.from(all);
   }, [scoringCodes]);
 
-  const rankingPreview = useMemo(() => computeHandicapRankingPreview(draft), [draft]);
+  const rankingPreview = useMemo(
+    () => computeHandicapRankingPreview(draft, eligibleEntries.length),
+    [draft, eligibleEntries.length]
+  );
 
   const rows = useMemo(() => {
     return draft
@@ -447,13 +453,19 @@ export default function TimeScoringEditor({
         {filteredAvailable.length === 0 ? (
           <p className="text-xs text-gray-500">No entries match the filter.</p>
         ) : (
-          <ul className="space-y-1 max-h-56 overflow-auto pr-1">
+          <ul className="space-y-1 max-h-56 overflow-auto pr-1 flex flex-col items-start">
             {filteredAvailable.map((entry) => (
               <li
                 key={entry.id}
-                className="flex justify-between items-center p-2 border rounded bg-white hover:bg-gray-50"
+                className="flex items-center gap-3 p-2 border rounded bg-white hover:bg-gray-50 w-fit max-w-full"
               >
-                <span className="truncate">
+                <button
+                  onClick={() => onAddEntry(entry.id)}
+                  className="shrink-0 px-3 py-1.5 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition"
+                >
+                  Add
+                </button>
+                <span className="truncate max-w-md">
                   <SailNumberDisplay
                     countryCode={(entry as any).boat_country_code}
                     sailNumber={entry.sail_number}
@@ -467,12 +479,6 @@ export default function TimeScoringEditor({
                     </span>
                   ) : null}
                 </span>
-                <button
-                  onClick={() => onAddEntry(entry.id)}
-                  className="text-sm text-green-700 hover:underline"
-                >
-                  Add
-                </button>
               </li>
             ))}
           </ul>

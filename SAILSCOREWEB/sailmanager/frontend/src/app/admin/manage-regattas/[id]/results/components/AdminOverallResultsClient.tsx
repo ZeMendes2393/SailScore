@@ -268,10 +268,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       if (!selectedClass) return;
       setLoadingResults(true);
       try {
-        const data: OverallResult[] = await apiGet(
+        const data = await apiGet<OverallResult[] | { rows: OverallResult[] }>(
           `/results/overall/${regattaId}?class_name=${encodeURIComponent(selectedClass)}`
         );
-        setRawResults(data || []);
+        const rows = Array.isArray(data) ? data : (data?.rows ?? []);
+        setRawResults(rows);
       } catch {
         setError('Erro ao carregar resultados');
       } finally {
@@ -573,10 +574,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     setRacesByClass(grouped);
 
                     if (race.class_name === selectedClass) {
-                      const data: OverallResult[] = await apiGet(
+                      const data = await apiGet<OverallResult[] | { rows: OverallResult[] }>(
                         `/results/overall/${regattaId}?class_name=${encodeURIComponent(race.class_name)}`
                       );
-                      setRawResults(data || []);
+                      const rows = Array.isArray(data) ? data : (data?.rows ?? []);
+                      setRawResults(rows);
                     }
                   } catch (e) {
                     console.error('refresh após criar corrida falhou', e);

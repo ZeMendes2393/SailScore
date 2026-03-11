@@ -1,9 +1,12 @@
 # app/routes/results_overall.py
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,6 +15,7 @@ from app.scoring.tiebreakers import (
     sort_overall_rows,           # ✅ já tinhas
     tie_signature_overall,       # ✅ NOVO (para ranks com empate 1,2,2,4)
 )
+from app.services.results_pdf import build_results_pdf
 
 router = APIRouter()
 
@@ -250,6 +254,21 @@ def _get_published_races_count(db: Session, regatta_id: int, class_name: str) ->
     return int(row.published_races_count) if row else 0
 
 
+def _get_published_at_iso(db: Session, regatta_id: int, class_name: str) -> str | None:
+    row = (
+        db.query(models.RegattaClassPublication)
+        .filter(
+            models.RegattaClassPublication.regatta_id == regatta_id,
+            models.RegattaClassPublication.class_name == class_name,
+        )
+        .first()
+    )
+    if not row or not getattr(row, "published_at", None):
+        return None
+    dt = row.published_at
+    return dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+
+
 @router.get("/overall/{regatta_id}")
 def get_overall_results(
     regatta_id: int,
@@ -278,7 +297,7 @@ def get_overall_results(
             k = _get_published_races_count(db, regatta_id, class_name)
             races = races[:k] if k > 0 else []
             if k == 0:
-                return []  # Public sees "No published results yet" for this class
+                return {"rows": [], "races_meta": {}, "published_at": None}  # Public sees "No published results yet" for this class
         else:
             # multi-class: for each class take first K races
             by_class: dict[str, list] = {}
@@ -451,6 +470,10 @@ def get_overall_results(
             "base_points": float(r.points),
             "multiplier": mult,
             "code": getattr(r, "code", None),
+            "finish_time": getattr(r, "finish_time", None),
+            "elapsed_time": getattr(r, "elapsed_time", None),
+            "corrected_time": getattr(r, "corrected_time", None),
+            "delta": getattr(r, "delta", None),
         }
 
         if key not in info_map:
@@ -520,6 +543,7 @@ def get_overall_results(
                     "per_race": per_race_named,
                     "per_race_fleet": per_race_fleet,
                     "per_race_code": per_race_code,
+                    "per_race_times": {race_map[rid]: {} for rid in race_ids},
                 }
             )
 
@@ -547,6 +571,7 @@ def get_overall_results(
             per_race_named: dict[str, object] = {}
             per_race_fleet: dict[str, object] = {}
             per_race_code: dict[str, object] = {}
+            per_race_times: dict[str, dict[str, object]] = {}
 
             for rid in race_ids:
                 name = race_map[rid]
@@ -555,6 +580,7 @@ def get_overall_results(
                     per_race_named[name] = "-"
                     per_race_fleet[name] = None
                     per_race_code[name] = None
+                    per_race_times[name] = {}
                     continue
 
                 pts = float(per_by_id[rid]["points"])
@@ -575,6 +601,25 @@ def get_overall_results(
 
                 per_race_fleet[name] = fleet_by_sn_race.get((cls, sn_norm, rid))
 
+                # Handicap: tempos e dados preenchidos pelo admin
+                ft = per_by_id[rid].get("finish_time")
+                et = per_by_id[rid].get("elapsed_time")
+                ct = per_by_id[rid].get("corrected_time")
+                delta = per_by_id[rid].get("delta")
+                pts = per_by_id[rid].get("base_points")
+                pos = per_by_id[rid].get("position")
+                if ft is not None or et is not None or ct is not None or delta is not None or pts is not None:
+                    per_race_times[name] = {
+                        "finish_time": ft,
+                        "elapsed_time": et,
+                        "corrected_time": ct,
+                        "delta": delta,
+                        "points": float(pts) if pts is not None else None,
+                        "position": int(pos) if pos is not None else None,
+                    }
+                else:
+                    per_race_times[name] = {"points": float(pts) if pts is not None else None, "position": int(pos) if pos is not None else None}
+
             sn_norm = key[1]
             cc = (info.get("boat_country_code") or "").strip().upper() if info.get("boat_country_code") else ""
             extra = entry_extra.get((sn_norm, cc), {})
@@ -592,6 +637,7 @@ def get_overall_results(
                     "per_race": per_race_named,
                     "per_race_fleet": per_race_fleet,
                     "per_race_code": per_race_code,
+                    "per_race_times": per_race_times,
                 }
             )
 
@@ -696,4 +742,69 @@ def get_overall_results(
 
         row["is_medal"] = (sn in medal_set) if class_name else False
 
-    return overall
+    # Metadados das races (start_time, handicap_method, orc_rating_mode) para detalhe handicap
+    races_meta: dict[str, dict[str, object]] = {}
+    for r in races:
+        rname = race_map.get(int(r.id), r.name)
+        races_meta[rname] = {
+            "start_time": getattr(r, "start_time", None),
+            "handicap_method": getattr(r, "handicap_method", None),
+            "orc_rating_mode": getattr(r, "orc_rating_mode", None),
+        }
+
+    out: dict[str, object] = {"rows": overall, "races_meta": races_meta}
+    if public and class_name:
+        published_at_iso = _get_published_at_iso(db, regatta_id, class_name)
+        out["published_at"] = published_at_iso
+    elif public and race_ids_by_class:
+        # Uma única classe nos resultados publicados
+        classes_in_result = list(race_ids_by_class.keys())
+        if len(classes_in_result) == 1:
+            published_at_iso = _get_published_at_iso(db, regatta_id, classes_in_result[0])
+            out["published_at"] = published_at_iso
+    return out
+
+
+@router.get("/overall/{regatta_id}/pdf", response_class=Response)
+def get_overall_results_pdf(
+    regatta_id: int,
+    class_name: str = Query(..., description="Class name for which to generate the PDF."),
+    db: Session = Depends(get_db),
+):
+    """Generate PDF of published overall results for the given class. Public endpoint."""
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(404, "Regatta not found")
+    data = get_overall_results(
+        regatta_id=regatta_id,
+        class_name=class_name,
+        public=True,
+        db=db,
+    )
+    rows = data.get("rows") or []
+    if not rows:
+        raise HTTPException(404, "No published results for this class")
+    races_meta = data.get("races_meta") or {}
+    race_names = list(races_meta.keys())
+
+    sponsors = (
+        db.query(models.RegattaSponsor)
+        .filter(
+            or_(
+                models.RegattaSponsor.regatta_id.is_(None),
+                models.RegattaSponsor.regatta_id == regatta_id,
+            )
+        )
+        .order_by(models.RegattaSponsor.category, models.RegattaSponsor.sort_order)
+        .all()
+    )
+
+    uploads_dir = Path("uploads").resolve()
+    pdf_bytes = build_results_pdf(reg, class_name, data, race_names, uploads_dir, sponsors)
+    safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in f"{getattr(reg, 'name', 'Results')} - {class_name}")
+    filename = f"Results - {safe_name}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

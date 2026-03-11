@@ -7,6 +7,21 @@ import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
+type FooterDesign = {
+  footer_site_name: string | null;
+  footer_tagline: string | null;
+  footer_contact_email: string | null;
+  footer_phone: string | null;
+  footer_address: string | null;
+  footer_instagram_url: string | null;
+  footer_facebook_url: string | null;
+  footer_show_privacy_policy: boolean;
+  footer_show_terms_of_service: boolean;
+  footer_show_cookie_policy: boolean;
+  footer_privacy_policy_text: string | null;
+  footer_terms_of_service_text: string | null;
+  footer_cookie_policy_text: string | null;
+};
 
 export default function AdminDesignPage() {
   const { token, logout } = useAuth();
@@ -25,24 +40,56 @@ export default function AdminDesignPage() {
   const [clubLogoLink, setClubLogoLink] = useState('');
   const [savingHeader, setSavingHeader] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [footerDesign, setFooterDesign] = useState<FooterDesign | null>(null);
+  const [savingFooter, setSavingFooter] = useState(false);
 
-  const [openSections, setOpenSections] = useState<{ featured: boolean; homeImages: boolean; header: boolean }>({
+  const [openSections, setOpenSections] = useState<{
+    featured: boolean;
+    homeImages: boolean;
+    header: boolean;
+    footer: boolean;
+  }>({
     featured: false,
     homeImages: false,
     header: false,
+    footer: false,
   });
 
-  const toggleSection = (key: 'featured' | 'homeImages' | 'header') => {
+  const toggleSection = (key: 'featured' | 'homeImages' | 'header' | 'footer') => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   useEffect(() => {
     (async () => {
       try {
-        const [regattaList, ids, homepage] = await Promise.all([
+        const [regattaList, ids, homepage, footer] = await Promise.all([
           apiGet<Regatta[]>('/regattas/'),
           apiGet<number[]>('/design/featured-regattas/ids').catch(() => []),
-          apiGet<{ home_images: HomeImageItem[]; hero_title?: string | null; hero_subtitle?: string | null; club_logo_url?: string | null; club_logo_link?: string | null }>('/design/homepage').catch(() => ({ home_images: [] })),
+          apiGet<{
+            home_images: HomeImageItem[];
+            hero_title?: string | null;
+            hero_subtitle?: string | null;
+            club_logo_url?: string | null;
+            club_logo_link?: string | null;
+          }>('/design/homepage').catch(() => ({ home_images: [] })),
+          apiGet<FooterDesign>('/design/footer').catch(
+            () =>
+              ({
+                footer_site_name: null,
+                footer_tagline: null,
+                footer_contact_email: null,
+                footer_phone: null,
+                footer_address: null,
+                footer_instagram_url: null,
+                footer_facebook_url: null,
+                footer_show_privacy_policy: true,
+                footer_show_terms_of_service: true,
+                footer_show_cookie_policy: true,
+                footer_privacy_policy_text: null,
+                footer_terms_of_service_text: null,
+                footer_cookie_policy_text: null,
+              } as FooterDesign),
+          ),
         ]);
         setRegattas(Array.isArray(regattaList) ? regattaList : []);
         if (Array.isArray(ids) && ids.length >= 3) {
@@ -67,6 +114,7 @@ export default function AdminDesignPage() {
         setHeroSubtitle(homepage?.hero_subtitle ?? '');
         setClubLogoUrl(homepage?.club_logo_url ?? '');
         setClubLogoLink(homepage?.club_logo_link ?? '');
+        setFooterDesign(footer);
       } catch (e) {
         console.error(e);
       } finally {
@@ -186,6 +234,27 @@ export default function AdminDesignPage() {
       alert('Error saving.');
     } finally {
       setSavingHeader(false);
+    }
+  };
+
+  const handleSaveFooter = async () => {
+    if (!token || !footerDesign) return;
+    setSavingFooter(true);
+    try {
+      await apiSend(
+        '/design/footer',
+        'PUT',
+        {
+          ...footerDesign,
+        },
+        token,
+      );
+      alert('Footer design saved.');
+    } catch (e) {
+      console.error(e);
+      alert('Error saving footer design.');
+    } finally {
+      setSavingFooter(false);
     }
   };
 
@@ -493,6 +562,244 @@ export default function AdminDesignPage() {
                     {savingHeader ? 'Saving…' : 'Save header'}
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Footer */}
+          <div className="border-t">
+            <button
+              type="button"
+              onClick={() => toggleSection('footer')}
+              className="w-full flex items-center gap-2 px-8 py-4 text-left hover:bg-gray-50 transition"
+            >
+              <h2 className="text-xl font-semibold text-gray-900">Footer</h2>
+              <svg
+                className={`w-5 h-5 text-gray-500 shrink-0 transition-transform ${
+                  openSections.footer ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openSections.footer && (
+              <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
+                {!footerDesign ? (
+                  <p className="text-gray-500">Loading footer design…</p>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-900">Brand</h3>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Site name</label>
+                          <input
+                            type="text"
+                            value={footerDesign.footer_site_name ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_site_name: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="e.g. Clube de Vela XYZ"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Tagline / short description
+                          </label>
+                          <input
+                            type="text"
+                            value={footerDesign.footer_tagline ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_tagline: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="e.g. Regatta management & live results."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-900">Contact</h3>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Contact email</label>
+                          <input
+                            type="email"
+                            value={footerDesign.footer_contact_email ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_contact_email: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="e.g. info@clubexyz.pt"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
+                          <input
+                            type="text"
+                            value={footerDesign.footer_phone ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_phone: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="+351 ..."
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">Address</label>
+                          <textarea
+                            value={footerDesign.footer_address ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_address: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900 min-h-[70px]"
+                            placeholder="Street, city, country"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Instagram URL (optional)
+                          </label>
+                          <input
+                            type="url"
+                            value={footerDesign.footer_instagram_url ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_instagram_url: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="https://instagram.com/..."
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Facebook URL (optional)
+                          </label>
+                          <input
+                            type="url"
+                            value={footerDesign.footer_facebook_url ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_facebook_url: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900"
+                            placeholder="https://facebook.com/..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr className="border-gray-200" />
+
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900">Legal links & texts</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={footerDesign.footer_show_privacy_policy}
+                              onChange={(e) =>
+                                setFooterDesign((prev) =>
+                                  prev
+                                    ? { ...prev, footer_show_privacy_policy: e.target.checked }
+                                    : prev,
+                                )
+                              }
+                            />
+                            Show Privacy Policy link
+                          </label>
+                          <textarea
+                            value={footerDesign.footer_privacy_policy_text ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_privacy_policy_text: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900 min-h-[120px] text-sm"
+                            placeholder="Privacy Policy text shown in the modal."
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={footerDesign.footer_show_terms_of_service}
+                              onChange={(e) =>
+                                setFooterDesign((prev) =>
+                                  prev
+                                    ? { ...prev, footer_show_terms_of_service: e.target.checked }
+                                    : prev,
+                                )
+                              }
+                            />
+                            Show Terms of Service link
+                          </label>
+                          <textarea
+                            value={footerDesign.footer_terms_of_service_text ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_terms_of_service_text: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900 min-h-[120px] text-sm"
+                            placeholder="Terms of Service text shown in the modal."
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={footerDesign.footer_show_cookie_policy}
+                              onChange={(e) =>
+                                setFooterDesign((prev) =>
+                                  prev
+                                    ? { ...prev, footer_show_cookie_policy: e.target.checked }
+                                    : prev,
+                                )
+                              }
+                            />
+                            Show Cookie Policy link
+                          </label>
+                          <textarea
+                            value={footerDesign.footer_cookie_policy_text ?? ''}
+                            onChange={(e) =>
+                              setFooterDesign((prev) =>
+                                prev ? { ...prev, footer_cookie_policy_text: e.target.value } : prev,
+                              )
+                            }
+                            className="w-full border rounded px-3 py-2 text-gray-900 min-h-[120px] text-sm"
+                            placeholder="Cookie Policy text shown in the modal."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveFooter}
+                      disabled={savingFooter}
+                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {savingFooter ? 'Saving…' : 'Save footer design'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

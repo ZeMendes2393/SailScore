@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
-import { apiSend } from '@/lib/api';
+import { apiGet, apiSend } from '@/lib/api';
+
+type CountryItem = { code: string; name: string };
+type TimezonesResponse = { country: string; timezones: string[] };
 
 const AVAILABLE_CLASSES = [
   '420',
@@ -27,6 +30,11 @@ export default function CreateRegattaPage() {
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [countries, setCountries] = useState<CountryItem[]>([]);
+  const [countryCode, setCountryCode] = useState('');
+  const [timezoneOptions, setTimezoneOptions] = useState<string[]>([]);
+  const [timezone, setTimezone] = useState('');
+  const [loadingTimezones, setLoadingTimezones] = useState(false);
   type OneDesignItem = { class_name: string; sailors_per_boat: number };
   const [selectedOneDesign, setSelectedOneDesign] = useState<OneDesignItem[]>([]);
   const [selectedHandicap, setSelectedHandicap] = useState<string[]>([]);
@@ -75,6 +83,41 @@ export default function CreateRegattaPage() {
     setNewClassH('');
   };
 
+  useEffect(() => {
+    apiGet<CountryItem[]>('/metadata/countries')
+      .then((data) => setCountries(Array.isArray(data) ? data : []))
+      .catch(() => setCountries([]));
+  }, []);
+
+  useEffect(() => {
+    if (!countryCode) {
+      setTimezoneOptions([]);
+      setTimezone('');
+      return;
+    }
+    setLoadingTimezones(true);
+    apiGet<TimezonesResponse>(`/metadata/timezones?country=${encodeURIComponent(countryCode)}`)
+      .then((data) => {
+        const tzList = data?.timezones ?? [];
+        setTimezoneOptions(tzList);
+        if (tzList.length === 1) {
+          setTimezone(tzList[0]);
+        } else if (!tzList.includes(timezone)) {
+          setTimezone(tzList[0] ?? '');
+        }
+      })
+      .catch(() => {
+        setTimezoneOptions([]);
+        setTimezone('');
+      })
+      .finally(() => setLoadingTimezones(false));
+  }, [countryCode]);
+
+  const handleCountryChange = (code: string) => {
+    setCountryCode(code);
+    if (!code) setTimezone('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
@@ -86,9 +129,16 @@ export default function CreateRegattaPage() {
     try {
       // 1) Criar regata
       const regatta = await apiSend<{ id: number }>(
-        '/regattas/', // trailing slash evita 307/308
+        '/regattas/',
         'POST',
-        { name, location, start_date: startDate, end_date: endDate },
+        {
+          name,
+          location,
+          start_date: startDate,
+          end_date: endDate,
+          country_code: countryCode || undefined,
+          timezone: timezone || undefined,
+        },
         token
       );
 
@@ -142,6 +192,37 @@ export default function CreateRegattaPage() {
             className="w-full border p-2 rounded"
             required
           />
+          <div>
+            <label className="block text-sm font-medium mb-1">Country & timezone</label>
+            <p className="text-xs text-gray-500 mb-2">
+              Used for official event times, notices, and result publication timestamps. Select country first, then timezone.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <select
+                value={countryCode}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                className="border p-2 rounded min-w-[140px]"
+              >
+                <option value="">— Select country —</option>
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                disabled={!countryCode || loadingTimezones}
+                className="border p-2 rounded flex-1 min-w-[180px] disabled:opacity-60 disabled:bg-gray-100"
+              >
+                <option value="">
+                  {!countryCode ? 'Select country first' : loadingTimezones ? 'Loading…' : '— Select timezone —'}
+                </option>
+                {timezoneOptions.map((tz) => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="flex gap-4">
             <input
               type="date"

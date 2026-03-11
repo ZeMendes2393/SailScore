@@ -42,6 +42,7 @@ export default function OverallResultsPage() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null)
 
   const [rawResults, setRawResults] = useState<OverallResult[]>([])
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [loadingResults, setLoadingResults] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -113,8 +114,9 @@ export default function OverallResultsPage() {
         const res = await fetch(url)
         if (!res.ok) throw new Error('Falha ao obter resultados')
         const data = await res.json()
-        if (!Array.isArray(data)) throw new Error('Formato inesperado da resposta')
-        setRawResults(data)
+        const rows = Array.isArray(data) ? data : (data?.rows ?? [])
+        setRawResults(rows)
+        setPublishedAt(data?.published_at ?? null)
       } catch (e: any) {
         setError(e?.message || 'Erro ao carregar resultados')
       } finally {
@@ -183,23 +185,48 @@ export default function OverallResultsPage() {
     [regatta?.results_overall_columns, selectedClass]
   )
 
+  /** Format ISO published_at as "11 Mar 2026 at 02:17" (local time, English). */
+  const formattedPublishedAt = useMemo(() => {
+    if (!publishedAt) return null
+    try {
+      const d = new Date(publishedAt)
+      if (Number.isNaN(d.getTime())) return null
+      const day = d.getDate()
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const month = months[d.getMonth()]
+      const year = d.getFullYear()
+      const h = d.getHours().toString().padStart(2, '0')
+      const m = d.getMinutes().toString().padStart(2, '0')
+      return `${day} ${month} ${year} at ${h}:${m}`
+    } catch {
+      return null
+    }
+  }, [publishedAt])
+
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
 
   return (
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader regattaId={Number(regattaId)} />
       <div className="container-page py-8">
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-2">
+      <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h2 className="text-2xl font-bold"> Classificação Geral</h2>
-        {regatta && (
-          <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+        <div className="flex flex-wrap items-center gap-2">
+          {formattedPublishedAt && (
+            <span className="text-sm bg-slate-100 text-slate-700 px-2 py-1 rounded">
+              Published at {formattedPublishedAt}
+            </span>
+          )}
+          {regatta && (
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
             Descartes: <strong>{regatta.discard_count}</strong>
             {regatta.discard_count > 0 && (
               <> (após <strong>{regatta.discard_threshold}</strong> regatas)</>
             )}
           </span>
         )}
+        </div>
       </div>
 
       {error && (
