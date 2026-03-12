@@ -7,11 +7,13 @@ from typing import List, Union, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body, status, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
+from pathlib import Path
 
 from app.database import get_db
 from app import models, schemas
 from utils.auth_utils import get_current_user
+from app.services.results_pdf import build_race_results_pdf
 
 from app.routes.results_utils import (
     ResultUpsert,
@@ -260,6 +262,58 @@ def reorder_race_results(
         .filter(models.Result.race_id == race_id)
         .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
+    )
+
+
+@router.get("/races/{race_id}/results/pdf", response_class=Response)
+def get_race_results_pdf(
+    race_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate PDF for a single race, including handicap time fields.
+    Public endpoint (no auth required).
+    """
+    race = db.query(models.Race).filter(models.Race.id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == race.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+
+    results = (
+        db.query(models.Result)
+        .filter(models.Result.race_id == race_id)
+        .order_by(models.Result.position.asc(), models.Result.id.asc())
+        .all()
+    )
+    if not results:
+        raise HTTPException(status_code=404, detail="No results for this race")
+
+    sponsors = (
+        db.query(models.RegattaSponsor)
+        .filter(
+            or_(
+                models.RegattaSponsor.regatta_id.is_(None),
+                models.RegattaSponsor.regatta_id == race.regatta_id,
+            )
+        )
+        .order_by(models.RegattaSponsor.category, models.RegattaSponsor.sort_order)
+        .all()
+    )
+
+    uploads_dir = Path("uploads").resolve()
+    pdf_bytes = build_race_results_pdf(regatta, race, results, sponsors, uploads_dir)
+
+    base_name = f"{getattr(regatta, 'name', 'Regatta')} - {getattr(race, 'name', 'Race')}"
+    safe_name = "".join(c if c.isalnum() or c in " -_." else "_" for c in base_name)
+    filename = f"{safe_name}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

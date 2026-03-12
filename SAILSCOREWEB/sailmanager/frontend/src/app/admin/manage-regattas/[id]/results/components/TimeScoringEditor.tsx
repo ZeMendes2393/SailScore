@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Entry } from '../types';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { TimeInput } from '@/components/ui/TimeInput';
+import { BASE_URL } from '@/lib/api';
 
 type HandicapDraftRow = {
   entryId: number;
@@ -378,9 +379,10 @@ export default function TimeScoringEditor({
 
       {raceId != null && (
         <>
-          <div className="flex flex-wrap items-center gap-3 p-3 border rounded bg-gray-50">
-            <span className="text-sm font-medium">Método de score:</span>
-            <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded bg-gray-50">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium">Método de score:</span>
+              <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => onPatchHandicapMethod(raceId, 'manual')}
@@ -403,6 +405,14 @@ export default function TimeScoringEditor({
                 ORC
               </button>
             </div>
+            <a
+              href={`${BASE_URL}/results/races/${raceId}/results/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-blue-700 hover:text-blue-800 underline"
+            >
+              Download race PDF
+            </a>
           </div>
           {method === 'orc' && (
             <div className="flex flex-wrap items-center gap-3 mt-2 p-3 border rounded bg-gray-50">

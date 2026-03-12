@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -269,6 +269,20 @@ def _get_published_at_iso(db: Session, regatta_id: int, class_name: str) -> str 
     return dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
 
 
+def _short_race_name(r: models.Race) -> str:
+    """
+    Return a compact race name for column headers.
+    Example: 'R1 (ORC A)' -> 'R1'. If no ' (', returns the original name.
+    """
+    name = (getattr(r, "name", "") or "").strip()
+    if not name:
+        idx = getattr(r, "order_index", None)
+        return f"R{idx}" if idx is not None else "Race"
+    if " (" in name:
+        return name.split(" (", 1)[0].strip()
+    return name
+
+
 @router.get("/overall/{regatta_id}")
 def get_overall_results(
     regatta_id: int,
@@ -311,7 +325,7 @@ def get_overall_results(
             races = sorted(kept, key=lambda r: (r.order_index or 0, r.id))
 
     race_ids = [int(r.id) for r in races]
-    race_map = {int(r.id): r.name for r in races}
+    race_map = {int(r.id): _short_race_name(r) for r in races}
 
     # estas nunca podem ser descartadas
     non_discardable_race_ids = {
@@ -747,12 +761,24 @@ def get_overall_results(
     for r in races:
         rname = race_map.get(int(r.id), r.name)
         races_meta[rname] = {
+            "race_id": int(r.id),
+            "race_date": getattr(r, "date", None),
             "start_time": getattr(r, "start_time", None),
             "handicap_method": getattr(r, "handicap_method", None),
             "orc_rating_mode": getattr(r, "orc_rating_mode", None),
         }
 
     out: dict[str, object] = {"rows": overall, "races_meta": races_meta}
+    if class_name:
+        rc = (
+            db.query(models.RegattaClass)
+            .filter(
+                models.RegattaClass.regatta_id == regatta_id,
+                func.lower(models.RegattaClass.class_name) == func.lower(str(class_name)),
+            )
+            .first()
+        )
+        out["class_type"] = (rc.class_type or "one_design").strip().lower() if rc else "one_design"
     if public and class_name:
         published_at_iso = _get_published_at_iso(db, regatta_id, class_name)
         out["published_at"] = published_at_iso

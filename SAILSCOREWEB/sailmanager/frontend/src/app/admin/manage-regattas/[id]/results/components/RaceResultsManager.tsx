@@ -460,6 +460,16 @@ export default function RaceResultsManager({
                       </>
                     )}
                     {currentRace && (
+                      <a
+                        href={`${BASE_URL}/results/races/${selectedRaceId}/results/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
+                      >
+                        Download race PDF
+                      </a>
+                    )}
+                    {currentRace && (
                       <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-xs lg:text-sm">
                         <span className="text-gray-700">Discardable</span>
                         <input

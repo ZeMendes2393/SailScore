@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
+import { BASE_URL } from '@/lib/api'
 
 interface Result {
   id: number
@@ -24,7 +25,7 @@ export default function RaceResultsPage() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/results/races/${raceId}/results`, {
+        const res = await fetch(`${BASE_URL}/results/races/${raceId}/results`, {
           cache: 'no-store',
           credentials: 'include',
         })
@@ -50,7 +51,7 @@ export default function RaceResultsPage() {
     if (!confirm) return
 
     try {
-      const res = await fetch(`http://localhost:8000/results/${resultId}`, {
+      const res = await fetch(`${BASE_URL}/results/${resultId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -70,9 +71,19 @@ export default function RaceResultsPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">
-        Resultados da Corrida #{raceId}
-      </h2>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h2 className="text-2xl font-bold">
+          Resultados da Corrida #{raceId}
+        </h2>
+        <a
+          href={`${BASE_URL}/results/races/${raceId}/results/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-blue-700 hover:text-blue-800 underline"
+        >
+          Download PDF
+        </a>
+      </div>
 
       {loading ? (
         <p className="text-gray-500">A carregar...</p>
