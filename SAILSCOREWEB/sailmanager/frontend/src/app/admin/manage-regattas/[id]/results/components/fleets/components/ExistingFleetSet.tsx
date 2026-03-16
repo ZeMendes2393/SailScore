@@ -44,7 +44,7 @@ export default function ExistingFleetSet({
 
       {/* TITLE + ACTIONS */}
       <div className="space-y-2 border-t pt-3">
-        <label className="text-xs font-medium">Título público:</label>
+        <label className="text-xs font-medium">Public title:</label>
 
         <input
           type="text"
@@ -56,7 +56,7 @@ export default function ExistingFleetSet({
         {/* aviso inline (opcional mas recomendado) */}
         {!selectedSet.is_published && missingTitle && (
           <p className="text-xs text-amber-700">
-            Define um título público para poderes publicar este Fleet Set.
+            Set a public title to publish this Fleet Set.
           </p>
         )}
 
@@ -65,16 +65,16 @@ export default function ExistingFleetSet({
             className="px-3 py-1 text-xs bg-blue-600 text-white rounded"
             onClick={() => updateSetTitle(selectedSet.id, localTitle)}
           >
-            Guardar título
+            Save title
           </button>
 
           <button
             title={
               !selectedSet.is_published && missingTitle
-                ? 'Falta definir um título público antes de publicar.'
+                ? 'Please set a public title before publishing.'
                 : selectedSet.is_published
-                ? 'Despublicar este Fleet Set'
-                : 'Publicar este Fleet Set'
+                ? 'Unpublish this Fleet Set'
+                : 'Publish this Fleet Set'
             }
             // só bloqueia quando é "Publicar" e falta o título
             disabled={!selectedSet.is_published && missingTitle}
@@ -87,7 +87,7 @@ export default function ExistingFleetSet({
             }`}
             onClick={async () => {
               if (!selectedSet.is_published && missingTitle) {
-                alert('Falta definir um título público antes de publicar.');
+                alert('Please set a public title before publishing.');
                 return;
               }
 
@@ -98,7 +98,7 @@ export default function ExistingFleetSet({
               }
             }}
           >
-            {selectedSet.is_published ? 'Despublicar' : 'Publicar'}
+            {selectedSet.is_published ? 'Unpublish' : 'Publish'}
           </button>
 
           {/* 🗑 DELETE */}
@@ -106,7 +106,7 @@ export default function ExistingFleetSet({
             className="px-3 py-1 text-xs rounded border border-red-600 text-red-600 hover:bg-red-50"
             onClick={async () => {
               const ok = window.confirm(
-                `Tens a certeza que queres apagar o Fleet Set "${selectedSet.label}"?`
+                `Are you sure you want to delete the Fleet Set "${selectedSet.label}"?`
               );
               if (!ok) return;
 
@@ -126,25 +126,25 @@ export default function ExistingFleetSet({
 
                 if (detail?.code === 'FLEETSET_HAS_RESULTS') {
                   const force = window.confirm(
-                    `Este Fleet Set tem ${detail.result_count} resultados associados.\n\nQueres apagar à força?`
+                    `This Fleet Set has ${detail.result_count} associated results.\n\nForce delete anyway?`
                   );
                   if (force) {
                     await deleteFleetSet(selectedSet.id, true);
                   }
                 } else {
                   console.error('Erro ao apagar FleetSet:', err);
-                  alert('Erro ao apagar o Fleet Set.');
+                  alert('Error deleting Fleet Set.');
                 }
               }
             }}
           >
-            🗑 Apagar
+            🗑 Delete
           </button>
         </div>
 
         {selectedSet.published_at && (
           <p className="text-xs text-gray-500">
-            Publicado em:{' '}
+            Published on:{' '}
             {new Date(selectedSet.published_at).toLocaleString()}
           </p>
         )}
@@ -152,11 +152,11 @@ export default function ExistingFleetSet({
 
       {/* RACES */}
       <div className="space-y-3 border-t pt-3">
-        <h4 className="font-semibold">Races ligadas</h4>
+        <h4 className="font-semibold">Linked races</h4>
 
         {racesInSelectedSet.length === 0 ? (
           <div className="text-xs text-gray-500 italic">
-            Nenhuma corrida ligada a este FleetSet.
+            No races linked to this Fleet Set.
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -183,7 +183,7 @@ export default function ExistingFleetSet({
         )}
 
         <div className="space-y-1 text-xs">
-          <div className="text-gray-600">Adicionar race:</div>
+          <div className="text-gray-600">Add race:</div>
 
           <div className="flex gap-2 flex-wrap">
             {racesAvailable.map((r) => (

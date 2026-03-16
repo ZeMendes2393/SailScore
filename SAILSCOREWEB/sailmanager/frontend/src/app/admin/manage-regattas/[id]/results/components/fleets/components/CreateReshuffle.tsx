@@ -91,9 +91,9 @@ export default function CreateReshuffle({
           try {
             const fs = await reshuffle(rLabel, rNum, rRaceIds);
             setRRaceIds([]);
-            alert(`Reshuffle criado com sucesso! (FleetSet #${fs.id})`);
+            alert(`Reshuffle created successfully! (Fleet Set #${fs.id})`);
           } catch (e: any) {
-            alert(e?.message ?? 'Erro ao criar Reshuffle.');
+            alert(e?.message ?? 'Error creating Reshuffle.');
           }
         }}
       >

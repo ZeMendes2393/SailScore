@@ -92,9 +92,9 @@ export default function CreateQualifying({
           try {
             const fs = await createQualifying(qLabel, qNum, qRaceIds);
             setQRaceIds([]);
-            alert(`Qualifying criado com sucesso! (FleetSet #${fs.id})`);
+            alert(`Qualifying created successfully! (Fleet Set #${fs.id})`);
           } catch (e: any) {
-            alert(e?.message ?? 'Erro ao criar Qualifying.');
+            alert(e?.message ?? 'Error creating Qualifying.');
           }
         }}
       >

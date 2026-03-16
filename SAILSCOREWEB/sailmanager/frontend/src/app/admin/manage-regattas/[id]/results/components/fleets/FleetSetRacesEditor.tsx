@@ -30,9 +30,9 @@ export default function FleetSetRacesEditor({
 
   const handleRemove = async (raceId: number) => {
     const ok = window.confirm(
-      'Esta race pode já ter resultados associados a este grupo.\n' +
-        'Se a remover do Fleet Set, os resultados mantêm-se na corrida, mas deixam de estar agrupados aqui.\n\n' +
-        'Queres mesmo remover esta race deste Fleet Set?'
+      'This race may already have results linked to this group.\n' +
+        'If you remove it from the Fleet Set, results will remain in the race but will no longer be grouped here.\n\n' +
+        'Do you want to remove this race from this Fleet Set?'
     );
     if (!ok) return;
 

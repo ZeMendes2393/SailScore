@@ -53,12 +53,12 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
   const [localTitle, setLocalTitle] = useState('');
 
   // ---------------- QUALIFYING ----------------
-  const [qLabel, setQLabel] = useState('Quali D1');
+  const [qLabel, setQLabel] = useState('Qual D1');
   const [qNum, setQNum] = useState<2 | 3 | 4>(2);
   const [qRaceIds, setQRaceIds] = useState<number[]>([]);
 
   // ---------------- RESHUFFLE ----------------
-  const [rLabel, setRLabel] = useState('Quali D2');
+  const [rLabel, setRLabel] = useState('Qual D2');
   const [rNum, setRNum] = useState<2 | 3 | 4>(2);
   const [rRaceIds, setRRaceIds] = useState<number[]>([]);
 
@@ -120,8 +120,8 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
       {/* Aviso se não há ranking */}
       {selectedClass && modeCreate !== '' && classOverall.length === 0 && (
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
-          Ainda não há ranking/overall para <strong>{selectedClass}</strong>. Garante
-          que já existem corridas com resultados para esta classe.
+          No ranking/overall yet for <strong>{selectedClass}</strong>. Ensure there are
+          races with results for this class.
         </div>
       )}
 

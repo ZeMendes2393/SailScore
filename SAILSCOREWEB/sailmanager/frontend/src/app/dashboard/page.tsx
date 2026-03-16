@@ -92,7 +92,6 @@ export default function DashboardPage() {
               <div className="text-gray-600">
                 <span className="font-medium">Windows:</span>{' '}
                 Rule 42 {status?.windows?.rule42 ? '✔' : '✖'} ·{' '}
-                Score Review {status?.windows?.scoreReview ? '✔' : '✖'} ·{' '}
                 Requests {status?.windows?.requests ? '✔' : '✖'} ·{' '}
                 Questions {status?.windows?.questions ? '✔' : '✖'} ·{' '}
                 Protest {status?.windows?.protest ? '✔' : '✖'}
@@ -133,14 +132,6 @@ export default function DashboardPage() {
             href={`/dashboard/scoring?regattaId=${regattaId}`}
             enabled={Boolean((status as any)?.windows?.scoringEnquiry ?? status?.windows?.scoreReview)}
             cta="Go to Scoring Enquiries"
-          />
-
-          <FeatureCard
-            title="Score Review"
-            description="Submit score review requests and follow decisions."
-            href={`/dashboard/score-review?regattaId=${regattaId}`}
-            enabled={Boolean(status?.windows?.scoreReview)}
-            cta="Go to Score Review"
           />
 
           <FeatureCard

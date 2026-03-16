@@ -153,6 +153,9 @@ export default function AdminSponsorsPage() {
           <Link href="/admin/sponsors" className="hover:underline font-semibold text-blue-600">
             Sponsors
           </Link>
+          <Link href="/admin/email" className="hover:underline">
+            Email
+          </Link>
           <Link href="/admin/settings" className="hover:underline">
             Settings
           </Link>

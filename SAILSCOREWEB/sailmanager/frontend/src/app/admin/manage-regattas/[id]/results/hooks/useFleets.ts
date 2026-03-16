@@ -299,7 +299,7 @@ export function useFleets() {
   //
   const createQualifying = useCallback(
     async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
-      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
+      if (!regattaId || !selectedClass) throw new Error('No class selected.');
 
       const fs = await apiSend<FleetSet>(
         `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/qualifying`,
@@ -311,7 +311,7 @@ export function useFleets() {
       setSelectedSetId(fs.id);
 
       setSuccessMessage(
-        `Qualifying criado com sucesso (${fs.public_title ?? fs.label ?? 'sem título'}).`
+        `Qualifying created successfully (${fs.public_title ?? fs.label ?? 'untitled'}).`
       );
 
       return fs;
@@ -321,7 +321,7 @@ export function useFleets() {
 
   const reshuffle = useCallback(
     async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
-      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
+      if (!regattaId || !selectedClass) throw new Error('No class selected.');
 
       const fs = await apiSend<FleetSet>(
         `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/reshuffle`,
@@ -333,7 +333,7 @@ export function useFleets() {
       setSelectedSetId(fs.id);
 
       setSuccessMessage(
-        `Reshuffle criado com sucesso (${fs.public_title ?? fs.label ?? 'sem título'}).`
+        `Reshuffle created successfully (${fs.public_title ?? fs.label ?? 'untitled'}).`
       );
 
       return fs;
@@ -343,7 +343,7 @@ export function useFleets() {
 
   const startFinals = useCallback(
     async (label: string, grouping: Record<string, number>, race_ids?: number[]) => {
-      if (!regattaId || !selectedClass) throw new Error('Classe não selecionada.');
+      if (!regattaId || !selectedClass) throw new Error('No class selected.');
 
       const body = { label, grouping, race_ids: race_ids ?? [] };
 
@@ -359,7 +359,7 @@ export function useFleets() {
         setSelectedSetId(res.id);
 
         setSuccessMessage(
-          `Finals criado com sucesso (${res.public_title ?? res.label ?? 'Finals'}).`
+          `Finals created successfully (${res.public_title ?? res.label ?? 'Finals'}).`
         );
 
         return res;
@@ -382,10 +382,10 @@ export function useFleets() {
         );
 
         await refreshSetsAndRaces();
-        setSuccessMessage('Races atualizadas com sucesso.');
+        setSuccessMessage('Races updated successfully.');
       } catch (err) {
         console.error('updateFleetSetRaces falhou:', err);
-        alert('Não foi possível atualizar as races deste FleetSet.');
+        alert('Could not update races for this Fleet Set.');
       }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
@@ -398,7 +398,7 @@ export function useFleets() {
         'POST'
       );
       await refreshSetsAndRaces();
-      setSuccessMessage('Fleet Set publicado com sucesso.');
+        setSuccessMessage('Fleet Set published successfully.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -410,7 +410,7 @@ export function useFleets() {
         'POST'
       );
       await refreshSetsAndRaces();
-      setSuccessMessage('Fleet Set despublicado com sucesso.');
+        setSuccessMessage('Fleet Set unpublished successfully.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -423,7 +423,7 @@ export function useFleets() {
         { public_title: newTitle }
       );
       await refreshSetsAndRaces();
-      setSuccessMessage('Título atualizado com sucesso.');
+        setSuccessMessage('Title updated successfully.');
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -436,7 +436,7 @@ export function useFleets() {
       toRank: number,
       raceIds: number[] = [] // ✅ pode ser vazio
     ) => {
-      if (!regattaId) throw new Error('Regatta inválida.');
+      if (!regattaId) throw new Error('Invalid regatta.');
 
       try {
         await apiSend(
@@ -452,9 +452,9 @@ export function useFleets() {
         );
 
         await refreshSetsAndRaces();
-        setSuccessMessage('Medal Race criada com sucesso.');
+        setSuccessMessage('Medal Race created successfully.');
       } catch (e: any) {
-        throw new Error(e?.message ?? 'Não foi possível criar Medal Race.');
+        throw new Error(e?.message ?? 'Could not create Medal Race.');
       }
     },
     [regattaId, token, refreshSetsAndRaces]
@@ -471,7 +471,7 @@ export function useFleets() {
         await refreshSetsAndRaces();
         setSelectedSetId(null);
 
-        setSuccessMessage('Fleet Set apagado com sucesso.');
+        setSuccessMessage('Fleet Set deleted successfully.');
       } catch (e: any) {
         throw e;
       }

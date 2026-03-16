@@ -34,13 +34,26 @@ export default function LoginPage() {
       return;
     }
 
-    if (user.role === 'admin') {
-      router.replace('/admin');
-    } else if (user.role === 'regatista') {
+    // Se estamos em modo admin e já há sessão, reaproveita.
+    if (mode === 'admin') {
+      if (user.role === 'admin') {
+        router.replace('/admin');
+      } else if (user.role === 'regatista') {
+        const rid = user.current_regatta_id ?? undefined;
+        router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
+      }
+      return;
+    }
+
+    // Modo sailor:
+    // - Se já é regatista, pode ser redirecionado logo para o dashboard da regata.
+    // - Se a sessão atual é de admin, NÃO fazemos redirect automático,
+    //   para permitir que o utilizador troque para a Sailor Account.
+    if (mode === 'sailor' && user.role === 'regatista') {
       const rid = user.current_regatta_id ?? qsId ?? undefined;
       router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
     }
-  }, [user, router, qsId]);
+  }, [user, router, qsId, mode]);
 
   const title = useMemo(
     () =>

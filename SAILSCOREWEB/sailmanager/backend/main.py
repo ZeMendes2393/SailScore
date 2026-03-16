@@ -35,6 +35,7 @@ from app.routes import (
     news,
     uploads,
     design,
+    global_settings as global_settings_routes,
 )
 from app.routes.discards import router as discard_router
 
@@ -157,6 +158,7 @@ app.include_router(discards.router)
 app.include_router(publication.router)
 app.include_router(news.router)
 app.include_router(design.router)
+app.include_router(global_settings_routes.router)
 
 app.include_router(uploads.router)  # ✅ NOVO (POST /uploads/news)
 

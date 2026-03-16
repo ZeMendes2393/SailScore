@@ -9,19 +9,6 @@ import { apiGet, apiSend } from '@/lib/api';
 type CountryItem = { code: string; name: string };
 type TimezonesResponse = { country: string; timezones: string[] };
 
-const AVAILABLE_CLASSES = [
-  '420',
-  '470',
-  '49er',
-  '49erFX',
-  'ILCA 4',
-  'ILCA 6',
-  'ILCA 7',
-  'Optimist',
-  'Snipe',
-  'Nacra 17',
-];
-
 export default function CreateRegattaPage() {
   const router = useRouter();
   const { token, user } = useAuth();
@@ -43,18 +30,14 @@ export default function CreateRegattaPage() {
   const [newClassH, setNewClassH] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleOneDesign = (className: string) => {
-    setSelectedOneDesign((prev) => {
-      const has = prev.some((c) => c.class_name === className);
-      if (has) return prev.filter((c) => c.class_name !== className);
-      return [...prev, { class_name: className, sailors_per_boat: 1 }].sort((a, b) => a.class_name.localeCompare(b.class_name));
-    });
-  };
-
   const setSailorsOD = (className: string, sailors: number) => {
     setSelectedOneDesign((prev) =>
       prev.map((x) => (x.class_name === className ? { ...x, sailors_per_boat: sailors } : x))
     );
+  };
+
+  const removeOneDesign = (className: string) => {
+    setSelectedOneDesign((prev) => prev.filter((c) => c.class_name !== className));
   };
 
   const addCustomOneDesign = () => {
@@ -121,7 +104,7 @@ export default function CreateRegattaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert('Sem sessão. Faz login de novo.');
+      alert('No session. Please log in again.');
       router.push('/admin/login');
       return;
     }
@@ -160,7 +143,7 @@ export default function CreateRegattaPage() {
       router.push('/admin');
     } catch (err: any) {
       console.error('Create regatta error:', err);
-      alert(err?.message || 'Erro ao criar regata.');
+      alert(err?.message || 'Error creating regatta.');
     } finally {
       setSubmitting(false);
     }
@@ -169,16 +152,16 @@ export default function CreateRegattaPage() {
   return (
     <RequireAuth roles={['admin']}>
       <div className="p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Criar Nova Regata</h1>
+        <h1 className="text-2xl font-bold mb-6">Create New Regatta</h1>
 
         <div className="mb-4 text-sm text-gray-600">
-          Sessão: {user?.email ?? '—'} {token ? '✅' : '❌'}
+          Session: {user?.email ?? '—'} {token ? '✅' : '❌'}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 shadow rounded">
           <input
             type="text"
-            placeholder="Nome da Regata"
+            placeholder="Regatta name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full border p-2 rounded"
@@ -186,7 +169,7 @@ export default function CreateRegattaPage() {
           />
           <input
             type="text"
-            placeholder="Localização"
+            placeholder="Location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="w-full border p-2 rounded"
@@ -242,61 +225,58 @@ export default function CreateRegattaPage() {
 
           <div>
             <p className="font-medium mb-2">Classes</p>
-            <p className="text-xs text-gray-500 mb-3">One Design e Handicap separados.</p>
+            <p className="text-xs text-gray-500 mb-3">Add One Design and Handicap classes separately.</p>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="border rounded p-3">
                 <h4 className="text-sm font-semibold mb-2">One Design</h4>
-                <p className="text-xs text-gray-500 mb-2">Nº de velejadores por embarcação.</p>
-                <div className="grid grid-cols-2 gap-1 mb-2">
-                  {AVAILABLE_CLASSES.map((c) => (
-                    <label key={c} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedOneDesign.some((x) => x.class_name === c)}
-                        onChange={() => toggleOneDesign(c)}
-                      />
-                      {c}
-                    </label>
-                  ))}
-                </div>
+                <p className="text-xs text-gray-500 mb-2">Enter the class name and choose the number of sailors per boat (crew size).</p>
                 {selectedOneDesign.length > 0 && (
-                  <div className="mb-2 space-y-1">
+                  <div className="mb-3 space-y-1">
                     {selectedOneDesign.map((item) => (
-                      <div key={item.class_name} className="flex items-center gap-2 text-sm">
+                      <div key={item.class_name} className="flex items-center gap-2 text-sm flex-wrap">
                         <span className="font-medium">{item.class_name}</span>
-                        <label className="text-xs text-gray-600">Velejadores:</label>
-                        <select value={item.sailors_per_boat} onChange={(e) => setSailorsOD(item.class_name, Number(e.target.value))} className="border rounded px-1.5 py-0.5 text-sm w-14">
+                        <label className="text-xs text-gray-600">Sailors per boat:</label>
+                        <select value={item.sailors_per_boat} onChange={(e) => setSailorsOD(item.class_name, Number(e.target.value))} className="border rounded px-1.5 py-0.5 text-sm w-14" title="Number of sailors in the crew">
                           {[1, 2, 3, 4, 5].map((n) => (
                             <option key={n} value={n}>{n}</option>
                           ))}
                         </select>
+                        <button
+                          type="button"
+                          onClick={() => removeOneDesign(item.class_name)}
+                          className="text-red-600 hover:underline"
+                          aria-label="Remove"
+                        >
+                          ×
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 mt-2 flex-wrap items-end">
+                <div className="flex gap-2 flex-wrap items-end">
                   <input
-                    className="border rounded px-2 py-1.5 flex-1 min-w-[100px] text-sm"
-                    placeholder="Outra classe (ex: RS Aero)"
+                    className="border rounded px-2 py-1.5 flex-1 min-w-[120px] text-sm"
+                    placeholder="Class name (e.g. Optimist, 420)"
                     value={newClassOD}
                     onChange={(e) => setNewClassOD(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomOneDesign())}
                   />
-                  <select value={newSailorsOD} onChange={(e) => setNewSailorsOD(Number(e.target.value))} className="border rounded px-2 py-1.5 text-sm w-14">
+                  <label className="text-xs text-gray-600 shrink-0">Sailors per boat:</label>
+                  <select value={newSailorsOD} onChange={(e) => setNewSailorsOD(Number(e.target.value))} className="border rounded px-2 py-1.5 text-sm w-20" title="Number of sailors in the crew">
                     {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={n} value={n}>{n} vel.</option>
+                      <option key={n} value={n}>{n}</option>
                     ))}
                   </select>
-                  <button type="button" className="border rounded px-2" onClick={addCustomOneDesign}>
-                    +
+                  <button type="button" className="border rounded px-2 py-1.5 bg-gray-100 hover:bg-gray-200" onClick={addCustomOneDesign}>
+                    Add
                   </button>
                 </div>
               </div>
 
               <div className="border rounded p-3">
                 <h4 className="text-sm font-semibold mb-2">Handicap</h4>
-                <p className="text-xs text-gray-500 mb-2">Ex: ANC A, ANC B, IRC, ORC…</p>
+                <p className="text-xs text-gray-500 mb-2">e.g. ANC A, ANC B, IRC, ORC…</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {selectedHandicap.map((c) => (
                     <span
@@ -308,6 +288,7 @@ export default function CreateRegattaPage() {
                         type="button"
                         onClick={() => toggleHandicap(c)}
                         className="text-red-600 hover:underline"
+                        aria-label="Remove"
                       >
                         ×
                       </button>
@@ -317,13 +298,13 @@ export default function CreateRegattaPage() {
                 <div className="flex gap-2 mt-2">
                   <input
                     className="border rounded px-2 py-1.5 flex-1 text-sm"
-                    placeholder="ex: ANC A"
+                    placeholder="e.g. ANC A"
                     value={newClassH}
                     onChange={(e) => setNewClassH(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomHandicap())}
                   />
-                  <button type="button" className="border rounded px-2" onClick={addCustomHandicap}>
-                    +
+                  <button type="button" className="border rounded px-2 py-1.5 bg-gray-100 hover:bg-gray-200" onClick={addCustomHandicap}>
+                    Add
                   </button>
                 </div>
               </div>
@@ -331,7 +312,7 @@ export default function CreateRegattaPage() {
 
             {(selectedOneDesign.length > 0 || selectedHandicap.length > 0) && (
               <p className="text-xs text-gray-600 mt-2">
-                One Design: {selectedOneDesign.map((c) => `${c.class_name} (${c.sailors_per_boat} vel.)`).join(', ') || '—'} | Handicap: {selectedHandicap.join(', ') || '—'}
+                One Design: {selectedOneDesign.map((c) => `${c.class_name} (${c.sailors_per_boat} sailors/boat)`).join(', ') || '—'} | Handicap: {selectedHandicap.join(', ') || '—'}
               </p>
             )}
           </div>
@@ -341,7 +322,7 @@ export default function CreateRegattaPage() {
             disabled={submitting}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {submitting ? 'A criar...' : 'Criar Regata'}
+            {submitting ? 'Creating…' : 'Create Regatta'}
           </button>
         </form>
       </div>

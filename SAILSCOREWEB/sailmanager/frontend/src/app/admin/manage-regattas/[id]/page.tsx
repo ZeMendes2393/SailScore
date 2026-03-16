@@ -520,6 +520,11 @@ export default function AdminRegattaPage() {
                 <p className="text-gray-500 mt-2">
                   Admins cannot submit entries here — this area only exposes the toggle for consistency.
                 </p>
+                <p className="text-gray-500 mt-3">
+                  <Link href="/admin/email" className="text-blue-600 hover:underline">
+                    Configure entry confirmation email →
+                  </Link>
+                </p>
               </div>
             </div>
           )}

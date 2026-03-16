@@ -217,59 +217,9 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
 
       <section className="py-16 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-screen-2xl mx-auto px-2 lg:px-3">
-          {upcomingRegattas.length > 0 ? (
+          {featuredRegattas.length > 0 ? (
             <>
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Próximas regatas</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {upcomingRegattas.map((r) => (
-                  <Link
-                    key={r.id}
-                    href={`/regattas/${r.id}`}
-                    className="group flex gap-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left"
-                  >
-                    {r.listing_logo_url && logoUrl(r.listing_logo_url) && (
-                      <div className="shrink-0 w-32 h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
-                        <img
-                          src={logoUrl(r.listing_logo_url)!}
-                          alt=""
-                          className="w-full h-full object-contain"
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                        />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
-                        {r.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 flex items-center gap-1">
-                        <span aria-hidden>📍</span> {r.location}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {formatRegattaDate(r.start_date, r.end_date)}
-                      </p>
-                      <p className="text-xs mt-2 font-medium">
-                        {r.online_entry_open !== false ? (
-                          <span className="text-emerald-600">Inscrições abertas</span>
-                        ) : (
-                          <span className="text-gray-500">Inscrições encerradas</span>
-                        )}
-                      </p>
-                      <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
-                        Ver →
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              <div className="mt-8 text-center">
-                <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
-                  Ver calendário completo →
-                </Link>
-              </div>
-            </>
-          ) : featuredRegattas.length > 0 ? (
-            <>
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Regatas em destaque</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Featured regattas</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {featuredRegattas.map((r) => (
                   <Link
@@ -318,9 +268,64 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
           ) : (
             <>
               <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Próximas regatas</h2>
-              <p className="text-gray-600">
-                Não há próximas regatas. Consulte o <Link href="/calendar" className="text-blue-600 hover:underline">calendário</Link>.
-              </p>
+              {upcomingRegattas.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {upcomingRegattas.map((r) => (
+                      <Link
+                        key={r.id}
+                        href={`/regattas/${r.id}`}
+                        className="group flex gap-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left"
+                      >
+                        {r.listing_logo_url && logoUrl(r.listing_logo_url) && (
+                          <div className="shrink-0 w-32 h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+                            <img
+                              src={logoUrl(r.listing_logo_url)!}
+                              alt=""
+                              className="w-full h-full object-contain"
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
+                            {r.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 flex items-center gap-1">
+                            <span aria-hidden>📍</span> {r.location}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {formatRegattaDate(r.start_date, r.end_date)}
+                          </p>
+                          <p className="text-xs mt-2 font-medium">
+                            {r.online_entry_open !== false ? (
+                              <span className="text-emerald-600">Inscrições abertas</span>
+                            ) : (
+                              <span className="text-gray-500">Inscrições encerradas</span>
+                            )}
+                          </p>
+                          <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
+                            Ver →
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-8 text-center">
+                    <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
+                      Ver calendário completo →
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-600">
+                  Não há próximas regatas. Consulte o{' '}
+                  <Link href="/calendar" className="text-blue-600 hover:underline">
+                    calendário
+                  </Link>
+                  .
+                </p>
+              )}
             </>
           )}
         </div>

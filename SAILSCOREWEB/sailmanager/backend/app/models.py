@@ -911,3 +911,15 @@ class SiteDesign(Base):
     footer_privacy_policy_text = sa.Column(sa.Text, nullable=True)
     footer_terms_of_service_text = sa.Column(sa.Text, nullable=True)
     footer_cookie_policy_text = sa.Column(sa.Text, nullable=True)
+
+
+# =========================
+# GLOBAL SETTINGS (reusable org/payment variables for emails, registration, etc.)
+# =========================
+class GlobalSetting(Base):
+    """Key-value store for admin-managed global variables (club name, IBAN, etc.)."""
+    __tablename__ = "global_settings"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    key = sa.Column(sa.String(128), unique=True, nullable=False, index=True)
+    value = sa.Column(sa.Text, nullable=True)

@@ -284,6 +284,9 @@ export default function AdminDesignPage() {
           <Link href="/admin/sponsors" className="hover:underline">
             Sponsors
           </Link>
+          <Link href="/admin/email" className="hover:underline">
+            Email
+          </Link>
           <Link href="/admin/settings" className="hover:underline">
             Settings
           </Link>

@@ -205,51 +205,150 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
     prof.territory = entry.territory or prof.territory
     return user
 
-def _send_combined_entry_email(
-    background: BackgroundTasks,
+def _get_global_setting(db: Session, key: str) -> str | None:
+    row = db.query(models.GlobalSetting).filter(models.GlobalSetting.key == key).first()
+    return row.value if row and row.value else None
+
+
+def _entry_email_enabled(db: Session) -> bool:
+    v = _get_global_setting(db, "entry_email_enabled")
+    if v is None or v.strip() == "":
+        return True
+    return v.strip().lower() in ("1", "true", "yes")
+
+
+def _build_entry_confirmation_email(
+    db: Session,
     *,
-    to_email: str,
-    athlete_name: str,
-    regatta_name: str,
-    username: Optional[str],
-    temp_password: Optional[str],
-    contact_phone: Optional[str],
-):
-    """
-    Email de confirmação de inscrição + credenciais de Sailor Account (em inglês).
-    """
-    contact_phone = contact_phone or "—"
-    login_url = f"{FRONTEND_BASE}/login"
+    sailor_name: str,
+    event_name: str,
+    class_name: str,
+    boat_name: str,
+    sail_number: str,
+    helm_name: str,
+    username: Optional[str] = None,
+    temp_password: Optional[str] = None,
+) -> tuple[str, str]:
+    """Build entry application received email from configurable template."""
+    from app.routes.global_settings import (
+        DEFAULT_ENTRY_EMAIL_SUBJECT,
+        DEFAULT_ENTRY_EMAIL_INTRO,
+        DEFAULT_ENTRY_EMAIL_PAYMENT,
+        DEFAULT_ENTRY_EMAIL_CLOSING,
+    )
 
-    if temp_password and username:
-        subject = f"Entry confirmed + Sailor Account access — {regatta_name}"
-        text = f"""Hi {athlete_name},
+    subject_raw = DEFAULT_ENTRY_EMAIL_SUBJECT
+    custom_intro = DEFAULT_ENTRY_EMAIL_INTRO
+    payment_instructions = _get_global_setting(db, "entry_email_payment_instructions") or DEFAULT_ENTRY_EMAIL_PAYMENT
+    closing_note = _get_global_setting(db, "entry_email_closing_note") or DEFAULT_ENTRY_EMAIL_CLOSING
+    club = _get_global_setting(db, "club_name") or CLUB_NAME
+    iban = _get_global_setting(db, "entry_fee_transfer_iban") or ""
+    contact = _get_global_setting(db, "contact_email") or REPLY_TO or ""
 
-Your entry for the regatta "{regatta_name}" has been received.
+    placeholders = {
+        "{{sailor_name}}": sailor_name,
+        "{{event_name}}": event_name,
+        "{{class_name}}": class_name,
+        "{{boat_name}}": boat_name,
+        "{{sail_number}}": sail_number,
+        "{{helm_name}}": helm_name,
+        "{{entry_fee_transfer_iban}}": iban,
+        "{{contact_email}}": contact,
+        "{{club_name}}": club,
+    }
 
+    def replace_all(t: str) -> str:
+        out = t
+        for k, v in placeholders.items():
+            out = out.replace(k, v)
+        return out
+
+    subject = replace_all(subject_raw)
+    custom_intro = replace_all(custom_intro)
+    payment_instructions = replace_all(payment_instructions)
+    closing_note = replace_all(closing_note)
+
+    # Fixed middle block (conditions for confirmation)
+    conditions_block = (
+        "Please note that this does not yet guarantee your place in the championship. "
+        "Your entry will only be considered confirmed once both of the following conditions have been met:\n\n"
+        "1. The entry fee has been paid\n"
+        "2. The entry has been reviewed and approved by the Race Office"
+    )
+    confirm_followup = (
+        "Once payment has been received and the Race Office has approved your entry, "
+        "you will receive a further confirmation."
+    )
+
+    body = f"""Dear {sailor_name},
+
+Thank you for registering for {event_name}.
+
+We confirm that your entry application has been received successfully.
+
+{custom_intro}
+
+{conditions_block}
+
+{payment_instructions}
+
+Entry details
+
+- Event: {event_name}
+- Class: {class_name}
+- Boat name: {boat_name}
+- Sail number: {sail_number}
+- Helm: {helm_name}
+
+{confirm_followup}
+
+{closing_note}
+
+Kind regards,
+{club}"""
+
+    if username and temp_password:
+        login_url = f"{FRONTEND_BASE}/login"
+        body += f"""
+
+---
 Sailor Account access:
 • Username: {username}
 • Temporary password: {temp_password}
 
-Login here:
-{login_url}
+Login here: {login_url}"""
 
-If you are a coach, please share these credentials with the athlete.
+    return subject, body
 
-Contact phone: {contact_phone}
 
-Best regards,
-{CLUB_NAME}
-"""
-    else:
-        subject = f"Entry confirmed — {regatta_name}"
-        text = f"""Hi {athlete_name},
-
-Your entry for the regatta "{regatta_name}" has been received.
-
-Best regards,
-{CLUB_NAME}
-"""
+def _send_combined_entry_email(
+    background: BackgroundTasks,
+    db: Session,
+    *,
+    to_email: str,
+    sailor_name: str,
+    regatta_name: str,
+    class_name: str,
+    boat_name: str,
+    sail_number: str,
+    helm_name: str,
+    username: Optional[str],
+    temp_password: Optional[str],
+):
+    """Send entry confirmation email using configurable template."""
+    subject, text = _build_entry_confirmation_email(
+        db,
+        sailor_name=sailor_name,
+        event_name=regatta_name,
+        class_name=class_name,
+        boat_name=boat_name,
+        sail_number=sail_number,
+        helm_name=helm_name,
+        username=username,
+        temp_password=temp_password,
+    )
+    club = _get_global_setting(db, "club_name") or CLUB_NAME
+    reply_to = _get_global_setting(db, "contact_email") or REPLY_TO or None
 
     background.add_task(
         send_email,
@@ -257,8 +356,8 @@ Best regards,
         subject,
         None,
         text,
-        from_name=CLUB_NAME,
-        reply_to=REPLY_TO,
+        from_name=club,
+        reply_to=reply_to,
     )
 
 # ---------------- endpoints ----------------
@@ -326,21 +425,26 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         )
         db.add(new_entry); db.commit(); db.refresh(new_entry)
 
-        athlete_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or entry.email
-        regatta_name = regatta.name if regatta else "Regata"
+        sailor_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or (entry.email or "sailor")
+        helm_name = sailor_name
+        regatta_name = regatta.name if regatta else "Regatta"
         temp_pwd = getattr(user, "_plaintext_password", None)
-        # Enviar sempre para o email de contacto indicado na entry (pode ser do treinador)
         to_email = (entry.email or "").strip() or user.email
 
-        _send_combined_entry_email(
-            background,
-            to_email=to_email,
-            athlete_name=athlete_name,
-            regatta_name=regatta_name,
-            username=getattr(user, "username", None),
-            temp_password=temp_pwd,
-            contact_phone=entry.contact_phone_1 or "",
-        )
+        if _entry_email_enabled(db):
+            _send_combined_entry_email(
+                background,
+                db,
+                to_email=to_email,
+                sailor_name=sailor_name,
+                regatta_name=regatta_name,
+                class_name=entry.class_name or "",
+                boat_name=entry.boat_name or "",
+                sail_number=entry.sail_number or "",
+                helm_name=helm_name,
+                username=getattr(user, "username", None),
+                temp_password=temp_pwd,
+            )
         return {"message": "Inscrição criada com sucesso", "id": new_entry.id, "user_id": user.id}
     except HTTPException:
         raise

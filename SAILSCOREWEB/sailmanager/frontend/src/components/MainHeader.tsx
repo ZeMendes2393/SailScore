@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { apiGet, BASE_URL } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
 
 export default function MainHeader({ initialDesign = null }: { initialDesign?: HeaderDesign | null }) {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const isLoggedIn = !!user;
   const isActive = (p: string) => pathname === p;
   const [design, setDesign] = useState<HeaderDesign | null>(initialDesign);
 
@@ -46,40 +49,67 @@ export default function MainHeader({ initialDesign = null }: { initialDesign?: H
               {logoContent}
             </Link>
           )}
-          <Link
-            href="/"
-            className="text-2xl md:text-3xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
-            prefetch={false}
-          >
-            Regattas
-          </Link>
+          {!isLoggedIn && (
+            <Link
+              href="/"
+              className="text-2xl md:text-3xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
+              prefetch={false}
+            >
+              Regattas
+            </Link>
+          )}
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-auto">
-          <nav className="flex items-center gap-2 text-lg font-medium">
-            {[
-              { href: '/', label: 'Home' },
-              { href: '/calendar', label: 'Calendar' },
-              { href: '/results', label: 'Results' },
-              { href: '/news', label: 'News' },
-            ].map((item) => (
+          {isLoggedIn ? (
+            <>
               <Link
-                key={item.href}
-                href={item.href}
-                className={`px-4 py-2 rounded-lg transition ${
-                  isActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
-                }`}
+                href="/admin"
+                className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
               >
-                {item.label}
+                Dashboard
               </Link>
-            ))}
-          </nav>
-          <Link
-            href="/admin/login"
-            className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
-          >
-            Admin Account
-          </Link>
+              <Link
+                href="/admin"
+                className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+              >
+                Admin Account
+              </Link>
+              <button
+                onClick={() => logout({ redirectTo: '/' })}
+                className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <nav className="flex items-center gap-2 text-lg font-medium">
+                {[
+                  { href: '/', label: 'Home' },
+                  { href: '/calendar', label: 'Calendar' },
+                  { href: '/results', label: 'Results' },
+                  { href: '/news', label: 'News' },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`px-4 py-2 rounded-lg transition ${
+                      isActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+              <Link
+                href="/admin/login"
+                className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
+              >
+                Admin Account
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

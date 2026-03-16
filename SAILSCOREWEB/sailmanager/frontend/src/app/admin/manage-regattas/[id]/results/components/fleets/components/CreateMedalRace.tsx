@@ -84,12 +84,12 @@ export default function CreateMedalRace({
 
       <div>
         <div className="text-sm mb-2">
-          (Opcional) Associar races já à Medal Race:
+          (Optional) Link races to this Medal Race:
         </div>
 
         {racesAvailable.length === 0 ? (
           <div className="text-xs text-gray-500">
-            Não há races disponíveis para associar agora (podes associar depois).
+            No races available to link now (you can link them later).
           </div>
         ) : (
           <div className="flex gap-2 flex-wrap">
@@ -122,9 +122,9 @@ export default function CreateMedalRace({
           try {
             await createMedalRace(selectedClass, from, to, selectedRaceIds);
             setSelectedRaceIds([]);
-            alert('Medal Race criada com sucesso!');
+            alert('Medal Race created successfully!');
           } catch (e: any) {
-            alert(e?.message ?? 'Erro ao criar Medal Race.');
+            alert(e?.message ?? 'Error creating Medal Race.');
           }
         }}
       >

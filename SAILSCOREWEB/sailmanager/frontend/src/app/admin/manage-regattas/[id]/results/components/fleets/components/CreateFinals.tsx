@@ -86,7 +86,7 @@ export default function CreateFinals({
 
       {/* MANUAL RANGES ONLY */}
       <div className="space-y-2">
-        <div className="text-sm">Define os ranges (posições no ranking):</div>
+        <div className="text-sm">Define ranges (ranking positions):</div>
 
         {manualRanges.map((r, i) => (
           <div key={i} className="flex gap-2 items-center flex-wrap">
@@ -179,7 +179,7 @@ export default function CreateFinals({
             const toRaw = (g.to || '').trim();
 
             if (!fromRaw || !toRaw) {
-              alert(`Range "${name}" tem from/to vazio.`);
+              alert(`Range "${name}" has empty from/to.`);
               return;
             }
 
@@ -188,7 +188,7 @@ export default function CreateFinals({
             const size = to - from + 1;
 
             if (!Number.isFinite(from) || !Number.isFinite(to) || size <= 0) {
-              alert(`Range inválido em "${name}".`);
+              alert(`Invalid range for "${name}".`);
               return;
             }
 
@@ -196,19 +196,19 @@ export default function CreateFinals({
           }
 
           if (Object.keys(grouping).length === 0) {
-            alert('Ranges inválidos.');
+            alert('Invalid ranges.');
             return;
           }
 
           const sum = Object.values(grouping).reduce((a, b) => a + b, 0);
           if (sum > totalBoats) {
-            alert(`Os ranges somam ${sum}, mas só há ${totalBoats} boats no ranking.`);
+            alert(`Ranges sum to ${sum}, but there are only ${totalBoats} boats in the ranking.`);
             return;
           }
 
           await startFinals('Finals', grouping, finalRaceIds);
           setFinalRaceIds([]);
-          alert('Finals criado com sucesso!');
+          alert('Finals created successfully!');
         }}
       >
         Start Finals
