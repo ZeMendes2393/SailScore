@@ -169,21 +169,11 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
             is_active=True,
             email_verified_at=None,
         )
-        if PROVISION_MODE == "temp_password":
-            # Password curta e simples para Sailor Account (6 caracteres)
-            pwd = _gen_temp_password(6)
-            user.hashed_password = hash_password(pwd)
-            user.email_verified_at = datetime.utcnow()
-            user._plaintext_password = pwd
+        # Credentials (password) are generated only when the entry is marked paid+confirmed,
+        # and sent in the "Confirmed entry" email. They can change per championship.
         db.add(user)
         db.flush()
-    else:
-        # Se a conta existir mas ainda não tiver password (modo temp_password), gera agora
-        if PROVISION_MODE == "temp_password" and not user.hashed_password:
-            pwd = _gen_temp_password(6)
-            user.hashed_password = hash_password(pwd)
-            user.email_verified_at = datetime.utcnow()
-            user._plaintext_password = pwd
+    # else: reutiliza conta existente; password pode ser definida quando entry for confirmada noutro campeonato
 
     prof = db.query(models.SailorProfile).filter(models.SailorProfile.user_id == user.id).first()
     if not prof:
@@ -204,6 +194,60 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
     prof.country_secondary = entry.helm_country_secondary or prof.country_secondary
     prof.territory = entry.territory or prof.territory
     return user
+
+
+def _build_sailor_username_base_from_entry(entry: models.Entry) -> str:
+    """Build username base from an existing Entry model (for get-or-create when sending confirmed email)."""
+    name_part = _normalize_name_for_username(
+        getattr(entry, "first_name", None),
+        getattr(entry, "last_name", None),
+    )
+    sail = (getattr(entry, "sail_number", None) or "").strip().replace(" ", "")
+    base = f"{name_part}{sail}" if sail else name_part
+    return base or "sailor"
+
+
+def _get_or_create_user_for_entry(db: Session, entry: models.Entry) -> models.User:
+    """Return the User for this entry. If entry has no user_id, create User and SailorProfile from entry data and link."""
+    if entry.user_id:
+        user = db.query(models.User).filter(models.User.id == entry.user_id).first()
+        if user:
+            return user
+    contact_email = (entry.email or "").strip().lower()
+    if not contact_email:
+        raise HTTPException(status_code=400, detail="Entry has no email; cannot create account.")
+    base_username = _build_sailor_username_base_from_entry(entry)
+    user = db.query(models.User).filter(models.User.username == base_username).first()
+    if not user:
+        full_name = f"{(getattr(entry, "first_name") or "").strip()} {(getattr(entry, "last_name") or "").strip()}".strip() or None
+        username = base_username
+        suffix = 1
+        while db.query(models.User.id).filter(models.User.username == username).first():
+            suffix += 1
+            username = f"{base_username}{suffix}"
+        local = username.lower()
+        internal_email = f"{local}@sailor.local"
+        email_suffix = 1
+        while db.query(models.User.id).filter(models.User.email == internal_email).first():
+            email_suffix += 1
+            internal_email = f"{local}{email_suffix}@sailor.local"
+        user = models.User(
+            name=full_name,
+            email=internal_email,
+            username=username,
+            role="regatista",
+            is_active=True,
+            email_verified_at=None,
+        )
+        db.add(user)
+        db.flush()
+        prof = models.SailorProfile(user_id=user.id)
+        db.add(prof)
+    entry.user_id = user.id
+    db.commit()
+    db.refresh(user)
+    return user
+
 
 def _get_global_setting(db: Session, key: str) -> str | None:
     row = db.query(models.GlobalSetting).filter(models.GlobalSetting.key == key).first()
@@ -232,39 +276,46 @@ def _build_entry_confirmation_email(
     """Build entry application received email from configurable template."""
     from app.routes.global_settings import (
         DEFAULT_ENTRY_EMAIL_SUBJECT,
-        DEFAULT_ENTRY_EMAIL_INTRO,
         DEFAULT_ENTRY_EMAIL_PAYMENT,
         DEFAULT_ENTRY_EMAIL_CLOSING,
     )
 
     subject_raw = DEFAULT_ENTRY_EMAIL_SUBJECT
-    custom_intro = DEFAULT_ENTRY_EMAIL_INTRO
     payment_instructions = _get_global_setting(db, "entry_email_payment_instructions") or DEFAULT_ENTRY_EMAIL_PAYMENT
     closing_note = _get_global_setting(db, "entry_email_closing_note") or DEFAULT_ENTRY_EMAIL_CLOSING
     club = _get_global_setting(db, "club_name") or CLUB_NAME
     iban = _get_global_setting(db, "entry_fee_transfer_iban") or ""
     contact = _get_global_setting(db, "contact_email") or REPLY_TO or ""
 
+    # Short and long placeholder names (replace longer first so e.g. {{event_name}} is not broken by {{event}}).
     placeholders = {
         "{{sailor_name}}": sailor_name,
+        "{{sailor}}": sailor_name,
         "{{event_name}}": event_name,
+        "{{event}}": event_name,
         "{{class_name}}": class_name,
+        "{{class}}": class_name,
         "{{boat_name}}": boat_name,
+        "{{boat}}": boat_name,
         "{{sail_number}}": sail_number,
+        "{{sail}}": sail_number,
         "{{helm_name}}": helm_name,
+        "{{helm}}": helm_name,
         "{{entry_fee_transfer_iban}}": iban,
+        "{{iban}}": iban,
         "{{contact_email}}": contact,
+        "{{contact}}": contact,
         "{{club_name}}": club,
+        "{{club}}": club,
     }
 
     def replace_all(t: str) -> str:
         out = t
-        for k, v in placeholders.items():
-            out = out.replace(k, v)
+        for k in sorted(placeholders.keys(), key=len, reverse=True):
+            out = out.replace(k, placeholders[k])
         return out
 
     subject = replace_all(subject_raw)
-    custom_intro = replace_all(custom_intro)
     payment_instructions = replace_all(payment_instructions)
     closing_note = replace_all(closing_note)
 
@@ -285,8 +336,6 @@ def _build_entry_confirmation_email(
 Thank you for registering for {event_name}.
 
 We confirm that your entry application has been received successfully.
-
-{custom_intro}
 
 {conditions_block}
 
@@ -359,6 +408,91 @@ def _send_combined_entry_email(
         from_name=club,
         reply_to=reply_to,
     )
+
+
+def _confirmed_entry_email_enabled(db: Session) -> bool:
+    v = _get_global_setting(db, "confirmed_entry_email_enabled")
+    if v is None or v.strip() == "":
+        return True
+    return v.strip().lower() in ("1", "true", "yes")
+
+
+def _build_confirmed_entry_email(
+    db: Session,
+    *,
+    sailor_name: str,
+    event_name: str,
+    class_name: str,
+    boat_name: str,
+    sail_number: str,
+    helm_name: str,
+    username: Optional[str] = None,
+    temp_password: Optional[str] = None,
+) -> tuple[str, str]:
+    """Build confirmed entry email (paid + confirmed). Uses configurable main_message and closing_note; appends account credentials when provided."""
+    from app.routes.global_settings import (
+        DEFAULT_CONFIRMED_ENTRY_SUBJECT,
+        DEFAULT_CONFIRMED_ENTRY_MESSAGE,
+        DEFAULT_CONFIRMED_ENTRY_CLOSING,
+    )
+
+    subject_raw = DEFAULT_CONFIRMED_ENTRY_SUBJECT
+    main_message = _get_global_setting(db, "confirmed_entry_email_main_message") or DEFAULT_CONFIRMED_ENTRY_MESSAGE
+    closing_note = _get_global_setting(db, "confirmed_entry_email_closing_note") or DEFAULT_CONFIRMED_ENTRY_CLOSING
+    club = _get_global_setting(db, "club_name") or CLUB_NAME
+    contact = _get_global_setting(db, "contact_email") or REPLY_TO or ""
+
+    placeholders = {
+        "{{sailor_name}}": sailor_name,
+        "{{sailor}}": sailor_name,
+        "{{event_name}}": event_name,
+        "{{event}}": event_name,
+        "{{class_name}}": class_name,
+        "{{class}}": class_name,
+        "{{boat_name}}": boat_name,
+        "{{boat}}": boat_name,
+        "{{sail_number}}": sail_number,
+        "{{sail}}": sail_number,
+        "{{helm_name}}": helm_name,
+        "{{helm}}": helm_name,
+        "{{contact_email}}": contact,
+        "{{contact}}": contact,
+        "{{club_name}}": club,
+        "{{club}}": club,
+    }
+
+    def replace_all(t: str) -> str:
+        out = t
+        for k in sorted(placeholders.keys(), key=len, reverse=True):
+            out = out.replace(k, placeholders[k])
+        return out
+
+    subject = replace_all(subject_raw)
+    main_message = replace_all(main_message)
+    closing_note = replace_all(closing_note)
+
+    body = f"""Dear {sailor_name},
+
+{main_message}
+
+{closing_note}
+
+Kind regards,
+{club}"""
+
+    if username and temp_password:
+        login_url = f"{FRONTEND_BASE}/login"
+        body += f"""
+
+---
+Sailor Account access:
+• Username: {username}
+• Temporary password: {temp_password}
+
+Login here: {login_url}"""
+
+    return subject, body
+
 
 # ---------------- endpoints ----------------
 
@@ -630,3 +764,78 @@ def toggle_paid(
     entry.paid = not entry.paid
     db.commit()
     return {"id": entry.id, "paid": entry.paid}
+
+
+def _send_confirmed_entry_email(
+    background: BackgroundTasks,
+    db: Session,
+    entry: models.Entry,
+    username: str,
+    temp_password: str,
+) -> None:
+    """Queue sending of the confirmed entry email (paid+confirmed) with account credentials."""
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    regatta_name = regatta.name if regatta else "Regatta"
+    sailor_name = f"{(getattr(entry, "first_name") or "").strip()} {(getattr(entry, "last_name") or "").strip()}".strip() or (entry.email or "sailor")
+    to_email = (entry.email or "").strip()
+    if not to_email and entry.user_id:
+        u = db.query(models.User).filter(models.User.id == entry.user_id).first()
+        to_email = (u.email or "").strip() if u else ""
+    if not to_email:
+        return
+    subject, text = _build_confirmed_entry_email(
+        db,
+        sailor_name=sailor_name,
+        event_name=regatta_name,
+        class_name=entry.class_name or "",
+        boat_name=entry.boat_name or "",
+        sail_number=entry.sail_number or "",
+        helm_name=sailor_name,
+        username=username,
+        temp_password=temp_password,
+    )
+    club = _get_global_setting(db, "club_name") or CLUB_NAME
+    reply_to = _get_global_setting(db, "contact_email") or REPLY_TO or None
+    background.add_task(
+        send_email,
+        to_email,
+        subject,
+        None,
+        text,
+        from_name=club,
+        reply_to=reply_to,
+    )
+
+
+@router.post("/{entry_id}/send-confirmation-email")
+def send_confirmation_email(
+    entry_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Send the "Confirmed entry" email for this entry. Entry must be paid and confirmed.
+    Generates credentials (or a new password for this championship) and sends the email.
+    Credentials can change from championship to championship.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+    if not entry.paid or not entry.confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Entry must be paid and confirmed before sending the confirmation email.",
+        )
+    if not _confirmed_entry_email_enabled(db):
+        raise HTTPException(status_code=400, detail="Confirmed entry email is disabled in Email settings.")
+    user = _get_or_create_user_for_entry(db, entry)
+    # Generate new temporary password (per championship: overwrites any previous)
+    pwd = _gen_temp_password(6)
+    user.hashed_password = hash_password(pwd)
+    user.email_verified_at = datetime.utcnow()
+    db.commit()
+    _send_confirmed_entry_email(background, db, entry, user.username, pwd)
+    return {"message": "Confirmation email sent.", "entry_id": entry.id}

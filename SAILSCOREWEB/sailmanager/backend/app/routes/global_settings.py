@@ -83,14 +83,14 @@ def update_global_settings(
 
 
 # ---------- Entry application received email (Online Entry config) ----------
-DEFAULT_ENTRY_EMAIL_SUBJECT = "Entry application received – {{event_name}}"
-DEFAULT_ENTRY_EMAIL_INTRO = "We are pleased to receive your entry for this event."
+# When the database is empty, these defaults are used. Short placeholders: {{event}}, {{iban}}, {{contact}}, {{club}}, {{sailor}}, {{helm}}, {{class}}, {{boat}}, {{sail}}.
+DEFAULT_ENTRY_EMAIL_SUBJECT = "Entry application received – {{event}}"
 DEFAULT_ENTRY_EMAIL_PAYMENT = """To proceed with payment, please use the following IBAN:
 
-{{entry_fee_transfer_iban}}
+{{iban}}
 
 Please include your name and sail number in the payment reference."""
-DEFAULT_ENTRY_EMAIL_CLOSING = "If you have any questions, please contact us at {{contact_email}}."
+DEFAULT_ENTRY_EMAIL_CLOSING = "If you have any questions, please contact us at {{contact}}."
 
 
 def _get_bool(db: Session, key: str, default: bool = True) -> bool:
@@ -105,7 +105,7 @@ def _set_bool(db: Session, key: str, value: bool) -> None:
 
 
 class EntryEmailOut(BaseModel):
-    """Subject and custom intro are fixed by the system; only payment and closing are editable."""
+    """Subject is fixed by the system; only payment and closing are editable."""
     enabled: bool = True
     payment_instructions: str = ""
     closing_note: str = ""
@@ -119,7 +119,7 @@ class EntryEmailUpdate(BaseModel):
 
 @router.get("/entry-email", response_model=EntryEmailOut)
 def get_entry_email_config(db: Session = Depends(get_db)):
-    """Return entry application received email config. Subject and intro are fixed; only payment and closing are stored."""
+    """Return entry application received email config. Subject is fixed; only payment and closing are stored."""
     pay = _get_value(db, "entry_email_payment_instructions")
     close = _get_value(db, "entry_email_closing_note")
     return EntryEmailOut(
@@ -147,3 +147,65 @@ def update_entry_email_config(
         _set_value(db, "entry_email_closing_note", body.closing_note.strip() or None)
 
     return get_entry_email_config(db)
+
+
+# ---------- Confirmed entry email (sent when entry is paid + confirmed) ----------
+DEFAULT_CONFIRMED_ENTRY_SUBJECT = "Confirmed entry – {{event}}"
+DEFAULT_CONFIRMED_ENTRY_MESSAGE = """Your entry has been accepted.
+
+Payment has been received and your entry is now confirmed for the championship. You are officially registered for {{event}}.
+
+Entry details:
+- Event: {{event}}
+- Class: {{class}}
+- Boat: {{boat}}
+- Sail number: {{sail}}
+- Helm: {{helm}}
+
+We look forward to seeing you at the event."""
+DEFAULT_CONFIRMED_ENTRY_CLOSING = "If you have any questions, please contact us at {{contact}}."
+
+
+class ConfirmedEntryEmailOut(BaseModel):
+    """Subject is fixed; main message and closing note are editable. Account credentials are appended by the system when sending."""
+    enabled: bool = True
+    main_message: str = ""
+    closing_note: str = ""
+
+
+class ConfirmedEntryEmailUpdate(BaseModel):
+    enabled: bool | None = None
+    main_message: str | None = None
+    closing_note: str | None = None
+
+
+@router.get("/confirmed-entry-email", response_model=ConfirmedEntryEmailOut)
+def get_confirmed_entry_email_config(db: Session = Depends(get_db)):
+    """Return confirmed entry email config. Sent when an entry is marked paid and confirmed; can include account credentials."""
+    msg = _get_value(db, "confirmed_entry_email_main_message")
+    close = _get_value(db, "confirmed_entry_email_closing_note")
+    return ConfirmedEntryEmailOut(
+        enabled=_get_bool(db, "confirmed_entry_email_enabled", True),
+        main_message=msg.strip() if msg and msg.strip() else DEFAULT_CONFIRMED_ENTRY_MESSAGE,
+        closing_note=close.strip() if close and close.strip() else DEFAULT_CONFIRMED_ENTRY_CLOSING,
+    )
+
+
+@router.patch("/confirmed-entry-email", response_model=ConfirmedEntryEmailOut)
+def update_confirmed_entry_email_config(
+    body: ConfirmedEntryEmailUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Update confirmed entry email config. Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if body.enabled is not None:
+        _set_bool(db, "confirmed_entry_email_enabled", body.enabled)
+    if body.main_message is not None:
+        _set_value(db, "confirmed_entry_email_main_message", body.main_message.strip() or None)
+    if body.closing_note is not None:
+        _set_value(db, "confirmed_entry_email_closing_note", body.closing_note.strip() or None)
+
+    return get_confirmed_entry_email_config(db)

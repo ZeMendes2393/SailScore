@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -22,6 +22,15 @@ BASE_PUBLIC_PREFIX = "/uploads/entry_attachments"  # url pública (static)
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
+def _created_at_utc(dt: Optional[datetime]) -> str:
+    """Serialize datetime as ISO with Z (UTC) so frontend can convert to regatta timezone."""
+    if not dt:
+        return ""
+    if dt.tzinfo is not None:
+        return dt.isoformat()
+    return dt.isoformat() + "Z"
+
+
 def map_read(a: models.EntryAttachment) -> schemas.EntryAttachmentRead:
     return schemas.EntryAttachmentRead(
         id=a.id,
@@ -32,13 +41,19 @@ def map_read(a: models.EntryAttachment) -> schemas.EntryAttachmentRead:
         size_bytes=int(a.size_bytes or 0),
         visible_to_sailor=bool(a.visible_to_sailor),
         uploaded_by_name=a.uploaded_by_name,
-        created_at=a.created_at.isoformat() if a.created_at else "",
-        updated_at=a.updated_at.isoformat() if a.updated_at else None,
+        created_at=_created_at_utc(a.created_at),
+        updated_at=_created_at_utc(a.updated_at) if a.updated_at else None,
     )
 
+
 # ---------- LIST ----------
-@router.get("/{entry_id}/attachments", response_model=List[schemas.EntryAttachmentRead])
-def list_attachments(entry_id: int, db: Session = Depends(get_db), only_visible: Optional[bool] = None):
+@router.get("/{entry_id}/attachments")
+def list_attachments(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    only_visible: Optional[bool] = None,
+    with_timezone: bool = Query(False, description="If true, return { attachments, timezone } for display in regatta timezone"),
+):
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
@@ -47,7 +62,14 @@ def list_attachments(entry_id: int, db: Session = Depends(get_db), only_visible:
     if only_visible is True:
         q = q.filter(models.EntryAttachment.visible_to_sailor.is_(True))
     rows = q.order_by(models.EntryAttachment.created_at.desc()).all()
-    return [map_read(a) for a in rows]
+    attachments = [map_read(a) for a in rows]
+
+    if with_timezone:
+        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+        tz = (regatta.timezone or "").strip() or None
+        return schemas.ListAttachmentsResponse(attachments=attachments, timezone=tz)
+
+    return attachments
 
 # ---------- UPLOAD ----------
 # top of file

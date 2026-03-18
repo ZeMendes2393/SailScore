@@ -978,6 +978,11 @@ class EntryAttachmentPatch(BaseModel):
     visible_to_sailor: Optional[bool] = None
 
 
+class ListAttachmentsResponse(BaseModel):
+    attachments: List[EntryAttachmentRead]
+    timezone: Optional[str] = None
+
+
 class ClassSettingsRead(BaseModel):
     regatta_id: int
     class_name: str

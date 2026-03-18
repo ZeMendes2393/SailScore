@@ -145,13 +145,36 @@ export default function AdminEntryList({
     router.push(`/admin/manage-regattas/${regattaId}/entries/${entryId}?regattaId=${regattaId}`);
   };
 
+  const maybeSendConfirmedEmail = async (entryId: number, nextPaid: boolean, nextConfirmed: boolean) => {
+    if (!token) return;
+    const wasFullyConfirmed = entries.some((e) => e.id === entryId && e.paid && e.confirmed);
+    const willBeFullyConfirmed = nextPaid && nextConfirmed;
+    if (!willBeFullyConfirmed || wasFullyConfirmed) return;
+
+    const ok = window.confirm(
+      'This will mark the entry as PAID and CONFIRMED and send the confirmation email with account access details for this championship. Do you want to continue?'
+    );
+    if (!ok) return;
+
+    try {
+      await apiSend(`/entries/${entryId}/send-confirmation-email`, 'POST', {}, token);
+      alert('Confirmation email sent.');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to send confirmation email.');
+    }
+  };
+
   const handleStatusChange = async (entryId: number, confirmed: boolean) => {
     if (!token) return;
+    const current = entries.find((e) => e.id === entryId);
     try {
       await apiSend(`/entries/${entryId}`, 'PATCH', { confirmed }, token);
       setEntries((prev) =>
         prev.map((e) => (e.id === entryId ? { ...e, confirmed } : e))
       );
+      if (current) {
+        await maybeSendConfirmedEmail(entryId, !!current.paid, confirmed);
+      }
     } catch (e: any) {
       alert(e?.message || 'Erro ao atualizar status.');
     }
@@ -159,11 +182,15 @@ export default function AdminEntryList({
 
   const handlePaidChange = async (entryId: number, paid: boolean) => {
     if (!token) return;
+    const current = entries.find((e) => e.id === entryId);
     try {
       await apiSend(`/entries/${entryId}`, 'PATCH', { paid }, token);
       setEntries((prev) =>
         prev.map((e) => (e.id === entryId ? { ...e, paid } : e))
       );
+      if (current) {
+        await maybeSendConfirmedEmail(entryId, paid, !!current.confirmed);
+      }
     } catch (e: any) {
       alert(e?.message || 'Erro ao atualizar pagamento.');
     }
@@ -176,7 +203,7 @@ export default function AdminEntryList({
       {/* Seletor de colunas: definido aqui e usado na lista pública */}
       <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
         <span className="text-sm font-medium text-gray-700">
-          Colunas visíveis por classe{selectedClass ? ` (${selectedClass})` : ''}:
+          Visible columns per class{selectedClass ? ` (${selectedClass})` : ''}:
         </span>
         {!selectedClass && (
           <span className="text-xs text-amber-700">Seleciona uma classe acima para alterar as colunas.</span>

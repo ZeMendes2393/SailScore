@@ -184,15 +184,15 @@ export default function Step2Crew({ data, helm, sailorsPerBoat, onChange, onNext
                   className={inputClass}
                 />
               </Field>
-              <Field label="Gender" hint="Masculino or Feminino">
+              <Field label="Gender" hint="Male or Female">
                 <select
                   value={member.gender || ''}
                   onChange={(e) => updateCrewAt(index, { gender: e.target.value })}
                   className={inputClass}
                 >
                   <option value="">—</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Feminino">Feminino</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
                 </select>
               </Field>
               <Field label="Country">

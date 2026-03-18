@@ -15,7 +15,11 @@
 }
 
 /* Base */
-html, body { height: 100%; }
+html {
+  height: 100%;
+  font-size: 18px; /* AUMENTO GLOBAL DA FONTE (antes era o padrão ~16px) */
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

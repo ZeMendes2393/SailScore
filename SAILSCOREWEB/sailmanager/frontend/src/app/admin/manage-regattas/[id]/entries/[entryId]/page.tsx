@@ -13,12 +13,18 @@ import { COUNTRIES_UNIQUE } from '@/utils/countries';
 type EntryAttachment = {
   id: number;
   entry_id: number;
-  filename: string;      // nome original
-  stored_path: string;   // URL público (ex.: /uploads/entry_attachments/xxxx.pdf)
-  title: string;         // título dado pelo admin
+  filename?: string;
+  stored_path?: string;
+  url?: string;          // URL público (backend envia 'url')
+  title: string;
   size_bytes: number;
-  uploaded_at: string;
+  created_at?: string;   // backend envia created_at (UTC ISO)
+  uploaded_at?: string;
 };
+
+type AttachmentsResponse =
+  | EntryAttachment[]
+  | { attachments: EntryAttachment[]; timezone?: string | null };
 
 export default function Page() {
   const params = useParams<{ entryId: string }>();
@@ -74,12 +80,26 @@ export default function Page() {
 
   // ====== FORM LOCAL ======
   const [form, setForm] = useState<any>({});
+  const [isDirty, setIsDirty] = useState(false);
   useEffect(() => {
-    if (entry) setForm(entry);
+    if (entry) {
+      setForm(entry);
+      setIsDirty(false);
+    }
   }, [entry]);
 
   const onChange = (name: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [name]: value }));
+    setIsDirty(true);
+  };
+
+  const hasUnsavedChanges = () => {
+    if (!entry) return false;
+    if (isDirty) return true;
+    for (const k of Object.keys(form)) {
+      if ((form as any)[k] !== (entry as any)[k]) return true;
+    }
+    return false;
   };
 
   const onSave = async () => {
@@ -97,9 +117,30 @@ export default function Page() {
 
     try {
       const updated = await patch(changed, { propagate_keys: propagate });
-      if (updated) setEntry(updated);
-      window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
-      alert('Saved.');
+      if (updated) {
+        const wasFullyConfirmed = Boolean(entry.paid) && Boolean(entry.confirmed);
+        const nowFullyConfirmed = Boolean(updated.paid) && Boolean(updated.confirmed);
+        setEntry(updated);
+        setIsDirty(false);
+        window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+        alert('Saved.');
+        if (!wasFullyConfirmed && nowFullyConfirmed && token) {
+          const ok = window.confirm(
+            'This will send the confirmation email for this championship, with account access details for this sailor. Do you want to send it now?'
+          );
+          if (ok) {
+            try {
+              await apiSend(`/entries/${updated.id}/send-confirmation-email`, 'POST', {}, token);
+              alert('Confirmation email sent.');
+            } catch (err: any) {
+              alert(err?.message ?? 'Failed to send confirmation email.');
+            }
+          }
+        }
+      } else {
+        window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+        alert('Saved.');
+      }
     } catch (e: any) {
       alert(e?.message ?? 'Failed to save.');
     }
@@ -124,6 +165,7 @@ export default function Page() {
 
   // ====== DOCUMENTS (attachments) ======
   const [atts, setAtts] = useState<EntryAttachment[]>([]);
+  const [attachmentsTimezone, setAttachmentsTimezone] = useState<string | null>(null);
   const [attsLoading, setAttsLoading] = useState(false);
   const [attsErr, setAttsErr] = useState<string | null>(null);
 
@@ -132,13 +174,20 @@ export default function Page() {
     setAttsLoading(true);
     setAttsErr(null);
     try {
-      const data = await apiGet<EntryAttachment[]>(
-        `/entries/${entry.id}/attachments`,
+      const data = await apiGet<AttachmentsResponse>(
+        `/entries/${entry.id}/attachments?with_timezone=true`,
         token || undefined
       );
-      setAtts(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        setAtts(data);
+        setAttachmentsTimezone(null);
+      } else {
+        setAtts(data.attachments ?? []);
+        setAttachmentsTimezone(data.timezone ?? null);
+      }
     } catch (e: any) {
       setAtts([]);
+      setAttachmentsTimezone(null);
       setAttsErr(e?.message || 'Failed to load documents.');
     } finally {
       setAttsLoading(false);
@@ -198,7 +247,18 @@ export default function Page() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold">Edit entry #{entryId}</h1>
           <div className="flex gap-2">
-            <button className="px-3 py-2 rounded border" onClick={() => router.back()}>
+            <button
+              className="px-3 py-2 rounded border"
+              onClick={() => {
+                if (hasUnsavedChanges()) {
+                  const ok = window.confirm(
+                    'You have unsaved changes on this entry. Do you want to leave without saving?'
+                  );
+                  if (!ok) return;
+                }
+                router.push(`/admin/manage-regattas/${regattaId}?tab=entry`);
+              }}
+            >
               Back
             </button>
             <button
@@ -709,6 +769,7 @@ export default function Page() {
                       <AttachmentRow
                         key={a.id}
                         a={a}
+                        timezone={attachmentsTimezone}
                         onDelete={() => deleteAttachment(a.id)}
                         onRename={(newTitle) => renameAttachment(a.id, newTitle)}
                       />
@@ -732,6 +793,30 @@ function humanSize(bytes: number) {
   let i = 0, n = bytes;
   while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
   return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+function formatAttachmentDate(iso?: string | null, timezone?: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  if (timezone) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: timezone,
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  }
+  return d.toLocaleString();
+}
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
+function formatAttachmentLink(pathOrUrl: string) {
+  if (pathOrUrl.startsWith('http')) return pathOrUrl;
+  return `${API_BASE}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
 }
 
 function UploadBar({
@@ -788,10 +873,12 @@ function UploadBar({
 
 function AttachmentRow({
   a,
+  timezone,
   onDelete,
   onRename,
 }: {
   a: EntryAttachment;
+  timezone?: string | null;
   onDelete: () => void;
   onRename: (newTitle: string) => void;
 }) {
@@ -811,13 +898,15 @@ function AttachmentRow({
           />
         )}
       </td>
-      <td className="p-2">{a.filename}</td>
+      <td className="p-2">{a.filename ?? a.title ?? '—'}</td>
       <td className="p-2">{humanSize(a.size_bytes)}</td>
-      <td className="p-2">{new Date(a.uploaded_at).toLocaleString()}</td>
       <td className="p-2">
-        {a.stored_path ? (
+        {formatAttachmentDate(a.created_at ?? a.uploaded_at, timezone ?? null)}
+      </td>
+      <td className="p-2">
+        {(a.url ?? a.stored_path) ? (
           <a
-            href={a.stored_path}
+            href={formatAttachmentLink(a.url ?? a.stored_path!)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"

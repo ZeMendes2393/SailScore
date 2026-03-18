@@ -172,7 +172,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
 
-  // Colunas visíveis por classe
+  // Visible columns per class
   const visibleColumns = useMemo(
     () => getVisibleResultsOverallColumnsForClass(regatta?.results_overall_columns, selectedClass),
     [regatta?.results_overall_columns, selectedClass]

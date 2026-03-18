@@ -75,9 +75,9 @@ export default function Step2({ data, onChange, onNext, onBack }: Step2Props) {
           </Field>
           <Field label="Gender" required>
             <select name="gender" value={localData.gender || ''} onChange={handleChange} className={inputClass} required>
-              <option value="">Selecionar</option>
-              <option value="Masculino">Masculino</option>
-              <option value="Feminino">Feminino</option>
+              <option value="">Select…</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
             </select>
           </Field>
           <Field label="Federation license" hint="Federation license number/code (optional)">

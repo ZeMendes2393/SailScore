@@ -18,16 +18,17 @@ type Entry = {
 type EntryAttachment = {
   id: number;
   entry_id: number;
-  filename: string;
   title: string;
   size_bytes: number;
-
-  // BE pode devolver qualquer um destes:
-  stored_path?: string | null; // ex.: público absoluto/relativo
-  filepath?: string | null;    // ex.: "/uploads/entry_attachments/..."
+  url?: string | null;
+  filepath?: string | null;
   created_at?: string | null;
   uploaded_at?: string | null;
 };
+
+type AttachmentsResponse =
+  | EntryAttachment[]
+  | { attachments: EntryAttachment[]; timezone?: string | null };
 
 // ------- helpers -------
 function humanSize(bytes: number) {
@@ -38,12 +39,24 @@ function humanSize(bytes: number) {
   return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
 }
 
-function fmtDate(s?: string | null) {
+/** Format date in regatta timezone when provided (ISO string is UTC from backend). */
+function fmtDate(s?: string | null, timezone?: string | null) {
   if (!s) return '—';
-  // tolera "YYYY-MM-DD HH:mm:ss" (sem 'T')
   const iso = s.includes('T') ? s : s.replace(' ', 'T');
   const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleString() : '—';
+  if (!Number.isFinite(d.getTime())) return '—';
+  if (timezone) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: timezone,
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  }
+  return d.toLocaleString();
 }
 
 export default function Page() {
@@ -58,6 +71,7 @@ export default function Page() {
 
   const [entry, setEntry] = useState<Entry | null>(null);
   const [atts, setAtts] = useState<EntryAttachment[]>([]);
+  const [attachmentsTimezone, setAttachmentsTimezone] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -101,17 +115,24 @@ export default function Page() {
       setLoading(true);
       setErr(null);
       try {
-        const rows = await apiGet<EntryAttachment[]>(
-          `/entries/${entry.id}/attachments`,
+        const data = await apiGet<AttachmentsResponse>(
+          `/entries/${entry.id}/attachments?with_timezone=true`,
           token
         );
         if (!alive) return;
-        setAtts(Array.isArray(rows) ? rows : []);
+        if (Array.isArray(data)) {
+          setAtts(data);
+          setAttachmentsTimezone(null);
+        } else {
+          setAtts(data.attachments ?? []);
+          setAttachmentsTimezone(data.timezone ?? null);
+        }
       } catch (e: any) {
         if (e?.status === 401) return; // ❌ não re-tentar
         if (!alive) return;
         setErr(e?.message || 'Failed to load documents.');
         setAtts([]);
+        setAttachmentsTimezone(null);
       } finally {
         if (alive) setLoading(false);
       }
@@ -156,11 +177,9 @@ export default function Page() {
                 )}
 
                 {atts.map((a) => {
-                  // ⬇️ Link sempre funcional:
-                  // 1) se houver filepath, monta URL absoluto em cima do API_BASE
-                  // 2) senão, usa o endpoint de download
-                  const downloadHref = a.filepath
-                    ? `${API_BASE}${a.filepath.startsWith('/') ? '' : '/'}${a.filepath}`
+                  const pathOrUrl = a.url ?? a.filepath;
+                  const downloadHref = pathOrUrl
+                    ? `${API_BASE}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`
                     : `${API_BASE}/entries/${a.entry_id}/attachments/${a.id}/download`;
 
                   const when = a.created_at ?? a.uploaded_at ?? null;
@@ -168,9 +187,9 @@ export default function Page() {
                   return (
                     <tr key={a.id} className="border-t">
                       <td className="p-2">{a.title || '—'}</td>
-                      <td className="p-2">{a.filename}</td>
+                      <td className="p-2">{a.title || '—'}</td>
                       <td className="p-2">{humanSize(a.size_bytes)}</td>
-                      <td className="p-2">{fmtDate(when)}</td>
+                      <td className="p-2">{fmtDate(when, attachmentsTimezone)}</td>
                       <td className="p-2">
                         {a.id ? (
                           <a
