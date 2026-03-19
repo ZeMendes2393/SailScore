@@ -103,7 +103,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
         <label className="block">
           <span className="text-sm font-medium">Title *</span>
           <input
-            className="mt-1 block w-full rounded border p-2"
+            className="mt-1 block w-full rounded-md border border-gray-300 p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -113,7 +113,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
         <label className="block">
           <span className="text-sm font-medium">Category / Source</span>
           <select
-            className="mt-1 block w-full rounded border p-2 bg-white"
+            className="mt-1 block w-full rounded-md border border-gray-300 p-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={source}
             onChange={(e) => setSource(e.target.value as NoticeSource)}
           >
@@ -182,7 +182,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
             setError(null);
             setSuccess(null);
           }}
-          className="rounded-md border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50"
         >
           Clear
         </button>

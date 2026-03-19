@@ -95,7 +95,7 @@ export default function EditRegattaPage() {
   };
 
   const saveMeta = async () => {
-    if (!token || !meta) return alert('Sem sessão.');
+    if (!token || !meta) return alert('No session.');
     setSavingMeta(true);
     try {
       await apiSend<Regatta>(
@@ -104,18 +104,18 @@ export default function EditRegattaPage() {
         { name, location, start_date: startDate, end_date: endDate },
         token
       );
-      alert('Dados atualizados.');
+      alert('Details updated.');
       await load();
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Falha ao atualizar dados.');
+      alert(e?.message || 'Failed to update details.');
     } finally {
       setSavingMeta(false);
     }
   };
 
   const saveClasses = async () => {
-    if (!token) return alert('Sem sessão.');
+    if (!token) return alert('No session.');
     setSavingClasses(true);
     try {
       await apiSend<{ updated: number }>(
@@ -124,62 +124,62 @@ export default function EditRegattaPage() {
         { classes: selectedClasses },
         token
       );
-      alert('Classes atualizadas.');
+      alert('Classes updated.');
       await load();
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Falha ao atualizar classes.');
+      alert(e?.message || 'Failed to update classes.');
     } finally {
       setSavingClasses(false);
     }
   };
 
   const deleteRegatta = async () => {
-    if (!token) return alert('Sem sessão.');
-    if (!confirm('Apagar esta regata? Esta ação é irreversível.')) return;
+    if (!token) return alert('No session.');
+    if (!confirm('Delete this regatta? This action is irreversible.')) return;
     setDeleting(true);
     try {
       await apiSend<void>(`/regattas/${regattaId}`, 'DELETE', undefined, token);
-      alert('Regata apagada.');
+      alert('Regatta deleted.');
       router.push('/admin');
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Falha ao apagar regata.');
+      alert(e?.message || 'Failed to delete regatta.');
     } finally {
       setDeleting(false);
     }
   };
 
   if (!Number.isFinite(regattaId)) {
-    return <div className="p-6">Regatta ID inválido.</div>;
+    return <div className="p-6">Invalid regatta ID.</div>;
   }
 
   return (
     <RequireAuth roles={['admin']}>
       <div className="max-w-3xl mx-auto p-6 space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Editar Regata #{regattaId}</h1>
+          <h1 className="text-2xl font-bold">Edit Regatta #{regattaId}</h1>
           <button onClick={() => router.push('/admin')} className="border rounded px-3 py-1">
-            Voltar
+            Back
           </button>
         </div>
 
         {loading ? (
-          <div className="text-gray-500">A carregar…</div>
+          <div className="text-gray-500">Loading…</div>
         ) : (
           <>
             {/* Meta */}
             <section className="bg-white rounded border p-6 space-y-4">
-              <h2 className="font-semibold">Dados principais</h2>
+              <h2 className="font-semibold">Main details</h2>
               <input
                 className="w-full border rounded px-3 py-2"
-                placeholder="Nome da Regata"
+                placeholder="Regatta name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <input
                 className="w-full border rounded px-3 py-2"
-                placeholder="Localização"
+                placeholder="Location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
@@ -202,7 +202,7 @@ export default function EditRegattaPage() {
                 onClick={saveMeta}
                 disabled={savingMeta}
               >
-                {savingMeta ? 'A guardar…' : 'Guardar dados'}
+                {savingMeta ? 'Saving…' : 'Save details'}
               </button>
             </section>
 
@@ -227,18 +227,18 @@ export default function EditRegattaPage() {
               <div className="flex gap-2">
                 <input
                   className="border rounded px-3 py-2 flex-1"
-                  placeholder="Adicionar classe personalizada"
+                  placeholder="Add custom class"
                   value={newClass}
                   onChange={(e) => setNewClass(e.target.value)}
                 />
                 <button className="border rounded px-3" type="button" onClick={addCustomClass}>
-                  Adicionar
+                  Add
                 </button>
               </div>
 
               {selectedClasses.length > 0 && (
                 <p className="text-xs text-gray-600">
-                  Selecionadas: {selectedClasses.join(', ')}
+                  Selected: {selectedClasses.join(', ')}
                 </p>
               )}
 
@@ -247,22 +247,22 @@ export default function EditRegattaPage() {
                 onClick={saveClasses}
                 disabled={savingClasses}
               >
-                {savingClasses ? 'A guardar…' : 'Guardar classes'}
+                {savingClasses ? 'Saving…' : 'Save classes'}
               </button>
             </section>
 
             {/* Danger zone */}
             <section className="bg-white rounded border p-6 space-y-3">
-              <h2 className="font-semibold text-red-700">Apagar regata</h2>
+              <h2 className="font-semibold text-red-700">Delete regatta</h2>
               <p className="text-sm text-gray-600">
-                Esta ação é permanente e apaga todos os dados associados a esta regata.
+                This action is permanent and deletes all data associated with this regatta.
               </p>
               <button
                 className="border border-red-300 text-red-700 rounded px-4 py-2 hover:bg-red-50 disabled:opacity-60"
                 onClick={deleteRegatta}
                 disabled={deleting}
               >
-                {deleting ? 'A apagar…' : 'Apagar regata'}
+                {deleting ? 'Deleting…' : 'Delete regatta'}
               </button>
             </section>
           </>

@@ -923,3 +923,23 @@ class GlobalSetting(Base):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     key = sa.Column(sa.String(128), unique=True, nullable=False, index=True)
     value = sa.Column(sa.Text, nullable=True)
+
+
+# =========================
+# ORGANIZATIONS
+# =========================
+class Organization(Base):
+    """
+    Root tenant entity for future multi-organization support.
+    For now, it is intentionally standalone (no foreign keys to existing models yet).
+    """
+    __tablename__ = "organizations"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.String(255), nullable=False, index=True)
+    slug = sa.Column(sa.String(120), unique=True, nullable=False, index=True)
+    is_active = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at = sa.Column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()
+    )

@@ -101,11 +101,6 @@ export default function NewsDetailPage() {
       <header className="mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-sm text-gray-500">{formatDate(item.published_at)}</span>
-          {item.category && (
-            <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-              {item.category}
-            </span>
-          )}
         </div>
 
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{item.title}</h1>

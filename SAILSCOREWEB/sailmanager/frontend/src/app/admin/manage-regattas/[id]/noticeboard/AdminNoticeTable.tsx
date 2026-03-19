@@ -36,33 +36,33 @@ export default function AdminNoticeTable({ items, timezone, onChanged }: Props) 
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white">
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50 text-left">
           <tr>
-            <th className="p-3">Title</th>
-            <th className="p-3">Published</th>
-            <th className="p-3 text-right">Actions</th>
+            <th className="p-3 font-medium text-gray-700">Title</th>
+            <th className="p-3 font-medium text-gray-700">Published</th>
+            <th className="p-3 text-right font-medium text-gray-700">Actions</th>
           </tr>
         </thead>
         <tbody>
           {items.map((n) => (
-            <tr key={n.id} className="border-t">
+            <tr key={n.id} className="border-t hover:bg-gray-50 transition-colors">
               <td className="p-3">{n.title}</td>
               <td className="p-3 whitespace-nowrap text-sm text-gray-700">
                 {formatDate(n.published_at, timezone)}
               </td>
               <td className="p-3 text-right">
-                <div className="inline-flex gap-3">
+                <div className="inline-flex gap-2">
                   <a
                     href={`${API_BASE}/notices/${n.id}/download`}
-                    className="text-blue-600 hover:underline"
+                    className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
                   >
                     Download
                   </a>
                   <button
                     onClick={() => del(n.id)}
-                    className="text-red-600 hover:underline"
+                    className="inline-flex items-center rounded-md border border-red-100 bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100"
                   >
                     Delete
                   </button>

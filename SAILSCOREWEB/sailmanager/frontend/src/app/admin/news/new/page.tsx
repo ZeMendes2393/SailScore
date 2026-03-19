@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiPost } from '@/lib/api';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -19,8 +20,6 @@ export default function NewNewsPage() {
 
   const [title, setTitle] = useState('');
   const [publishedAt, setPublishedAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState('');
-  const [excerpt, setExcerpt] = useState('');
   const [imageUrl, setImageUrl] = useState(''); // "/uploads/news/xxx.jpg"
   const [body, setBody] = useState(''); // texto normal
 
@@ -44,7 +43,7 @@ export default function NewNewsPage() {
     setError(null);
 
     if (!title.trim()) {
-      setError('O título é obrigatório.');
+      setError('Title is required.');
       return;
     }
 
@@ -55,8 +54,6 @@ export default function NewNewsPage() {
         {
           title: title.trim(),
           published_at: publishedAt ? `${publishedAt}T12:00:00Z` : undefined,
-          category: category.trim() || undefined,
-          excerpt: excerpt.trim() || undefined,
           image_url: imageUrl || undefined,
           body: body.trim() || undefined,
         },
@@ -64,7 +61,7 @@ export default function NewNewsPage() {
       );
       router.push('/admin/news');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao guardar.');
+      setError(err instanceof Error ? err.message : 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -72,23 +69,7 @@ export default function NewNewsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
-        <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
-        <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">Dashboard</Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
-          <Link href="/admin/news" className="hover:underline font-semibold text-blue-600">News</Link>
-          <Link href="/admin/manage-users" className="hover:underline">Users</Link>
-          <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
-          <Link href="/admin/design" className="hover:underline">Design</Link>
-          <Link href="/admin/sponsors" className="hover:underline">Sponsors</Link>
-          <Link href="/admin/email" className="hover:underline">Email</Link>
-          <Link href="/admin/settings" className="hover:underline">Settings</Link>
-        </nav>
-        <Link href="/admin/news" className="mt-6 inline-block text-sm text-blue-600 hover:underline">
-          ← News
-        </Link>
-      </aside>
+      <AdminSidebar />
 
       <main className="flex-1 p-10 bg-gray-50 overflow-auto">
         <div className="mb-4">
@@ -112,7 +93,7 @@ export default function NewNewsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-1">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
@@ -122,25 +103,6 @@ export default function NewNewsPage() {
                 className="w-full border rounded px-3 py-2"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt (for card listing)</label>
-            <textarea
-              value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
-              rows={3}
-              className="w-full border rounded px-3 py-2"
-            />
           </div>
 
           {/* ✅ Upload mais claro */}
@@ -176,7 +138,7 @@ export default function NewNewsPage() {
                     const url = await uploadImage(file);
                     setImageUrl(url);
                   } catch (err: any) {
-                    setError(err?.message ?? 'Erro no upload.');
+                    setError(err?.message ?? 'Upload failed.');
                   } finally {
                     setUploading(false);
                   }
@@ -184,7 +146,7 @@ export default function NewNewsPage() {
               />
             </label>
 
-            {uploading && <p className="text-sm text-gray-500 mt-2">A carregar imagem…</p>}
+            {uploading && <p className="text-sm text-gray-500 mt-2">Uploading image…</p>}
 
             {imageUrl && (
               <div className="mt-3">
@@ -201,14 +163,14 @@ export default function NewNewsPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Body (plain text)</label>
             <p className="text-xs text-gray-500 mb-2">
-              Podes colar links (https://...). No público eles ficam clicáveis automaticamente.
+              You can paste links (https://...). They will be clickable automatically on the public site.
             </p>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={12}
               className="w-full border rounded px-3 py-2"
-              placeholder="Escreve aqui o texto da notícia..."
+              placeholder="Write the news text here..."
             />
           </div>
 

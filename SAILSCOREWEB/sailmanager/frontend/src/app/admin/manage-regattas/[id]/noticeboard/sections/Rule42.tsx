@@ -61,7 +61,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
       const data = await apiGet<Row[]>(`/rule42/${regattaId}`);
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
-      setError(e?.message || "Erro ao carregar.");
+      setError(e?.message || "Failed to load Rule 42 records.");
       setRows([]);
     } finally {
       setLoading(false);
@@ -80,7 +80,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
       !form.race.trim() ||
       !form.class_name.trim()
     ) {
-      alert("Preenche Sail Number, Penalty Number, Race e Class.");
+      alert("Please fill Sail Number, Penalty Number, Race and Class.");
       return;
     }
     setCreating(true);
@@ -104,12 +104,12 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
   }
 
   async function deleteRow(id: number) {
-    if (!confirm("Apagar este registo Rule 42?")) return;
+    if (!confirm("Delete this Rule 42 record?")) return;
     try {
       await apiDelete(`/rule42/${id}`);
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Falha ao apagar.");
+      alert(e?.message || "Failed to delete.");
     }
   }
 
@@ -120,7 +120,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
       setEdit({});
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Falha ao guardar.");
+      alert(e?.message || "Failed to save.");
     }
   }
 
@@ -131,35 +131,35 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
         <button
           type="button"
           onClick={fetchRows}
-          className="text-sm px-3 py-1 border rounded hover:bg-gray-50"
+          className="inline-flex items-center gap-2 text-sm px-3 py-1.5 border border-gray-200 rounded-md bg-white hover:bg-gray-50 shadow-sm"
         >
-          Atualizar
+          Update
         </button>
       </div>
 
       {/* Criar */}
-      <div className="grid gap-3 bg-white border rounded p-4">
+      <div className="grid gap-3 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <div className="grid md:grid-cols-4 gap-3">
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Sail Number"
             value={form.sail_num}
             onChange={(e) => setForm({ ...form, sail_num: e.target.value })}
           />
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Penalty Number"
             value={form.penalty_number}
             onChange={(e) => setForm({ ...form, penalty_number: e.target.value })}
           />
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Race"
             value={form.race}
             onChange={(e) => setForm({ ...form, race: e.target.value })}
           />
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Group"
             value={form.group ?? ""}
             onChange={(e) => setForm({ ...form, group: e.target.value })}
@@ -168,51 +168,51 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
 
         <div className="grid md:grid-cols-4 gap-3">
           <input
-            className="border rounded p-2"
-            placeholder="Rule (ex.: RRS 42)"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Rule (e.g. RRS 42)"
             value={form.rule}
             onChange={(e) => setForm({ ...form, rule: e.target.value })}
           />
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Competitor action"
             value={form.comp_action ?? ""}
             onChange={(e) => setForm({ ...form, comp_action: e.target.value })}
           />
           <input
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Class"
             value={form.class_name}
             onChange={(e) => setForm({ ...form, class_name: e.target.value })}
           />
           <input
             type="date"
-            className="border rounded p-2"
+            className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
           />
         </div>
 
         <textarea
-          className="border rounded p-2"
+          className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
           rows={3}
           placeholder="Notes"
           value={form.description ?? ""}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 pt-1">
           <button
             onClick={createRow}
             disabled={creating}
-            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+            className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:bg-blue-700"
             type="button"
           >
-            {creating ? "A guardar…" : "Guardar"}
+            {creating ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
-            className="px-4 py-2 rounded border"
+            className="px-4 py-2 rounded-md border border-gray-200 bg-gray-50 text-sm text-gray-700 hover:bg-gray-100 shadow-sm"
             onClick={() =>
               setForm({
                 sail_num: "",
@@ -227,51 +227,51 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
               })
             }
           >
-            Limpar
+            Clear
           </button>
         </div>
       </div>
 
       {/* Lista */}
-      <div className="overflow-x-auto rounded border bg-white">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
+          <thead className="bg-gray-50 text-gray-700">
             <tr>
-              <th className="p-2">Sail Number</th>
-              <th className="p-2">Penalty Number</th>
-              <th className="p-2">Race</th>
-              <th className="p-2">Group</th>
-              <th className="p-2">Rule</th>
-              <th className="p-2">Competitor action</th>
-              <th className="p-2">Notes</th>
-              <th className="p-2">Class</th>
-              <th className="p-2">Date</th>
-              <th className="p-2 text-right">Ações</th>
+              <th className="p-2 font-medium text-left">Sail Number</th>
+              <th className="p-2 font-medium text-left">Penalty Number</th>
+              <th className="p-2 font-medium text-left">Race</th>
+              <th className="p-2 font-medium text-left">Group</th>
+              <th className="p-2 font-medium text-left">Rule</th>
+              <th className="p-2 font-medium text-left">Competitor action</th>
+              <th className="p-2 font-medium text-left">Notes</th>
+              <th className="p-2 font-medium text-left">Class</th>
+              <th className="p-2 font-medium text-left">Date</th>
+              <th className="p-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
                 <td className="p-3" colSpan={10}>
-                  A carregar…
+                  Loading…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={10}>
-                  Sem registos.
+                  No records.
                 </td>
               </tr>
             )}
             {rows.map((r) => {
               const isEd = editingId === r.id;
               return (
-                <tr key={r.id} className="border-t align-top">
+                <tr key={r.id} className="border-t align-top hover:bg-gray-50">
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-40"
+                        className="border border-gray-300 rounded-md p-1 w-40 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.sail_num ?? r.sail_num}
                         onChange={(e) => setEdit({ ...edit, sail_num: e.target.value })}
                       />
@@ -282,7 +282,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-28"
+                        className="border border-gray-300 rounded-md p-1 w-28 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.penalty_number ?? r.penalty_number}
                         onChange={(e) =>
                           setEdit({ ...edit, penalty_number: e.target.value })
@@ -295,7 +295,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-20"
+                        className="border border-gray-300 rounded-md p-1 w-20 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.race ?? r.race}
                         onChange={(e) => setEdit({ ...edit, race: e.target.value })}
                       />
@@ -306,7 +306,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-24"
+                        className="border border-gray-300 rounded-md p-1 w-24 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.group ?? r.group ?? ""}
                         onChange={(e) => setEdit({ ...edit, group: e.target.value })}
                       />
@@ -317,7 +317,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-28"
+                        className="border border-gray-300 rounded-md p-1 w-28 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.rule ?? r.rule}
                         onChange={(e) => setEdit({ ...edit, rule: e.target.value })}
                       />
@@ -328,7 +328,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-40"
+                        className="border border-gray-300 rounded-md p-1 w-40 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.comp_action ?? r.comp_action ?? ""}
                         onChange={(e) =>
                           setEdit({ ...edit, comp_action: e.target.value })
@@ -341,7 +341,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <textarea
-                        className="border rounded p-1 w-64"
+                        className="border border-gray-300 rounded-md p-1 w-64 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                         value={edit.description ?? r.description ?? ""}
                         onChange={(e) =>
                           setEdit({ ...edit, description: e.target.value })
@@ -354,7 +354,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   <td className="p-2">
                     {isEd ? (
                       <input
-                        className="border rounded p-1 w-28"
+                        className="border border-gray-300 rounded-md p-1 w-28 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.class_name ?? r.class_name}
                         onChange={(e) => setEdit({ ...edit, class_name: e.target.value })}
                       />
@@ -366,7 +366,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                     {isEd ? (
                       <input
                         type="date"
-                        className="border rounded p-1"
+                        className="border border-gray-300 rounded-md p-1 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.date ?? r.date}
                         onChange={(e) => setEdit({ ...edit, date: e.target.value })}
                       />
@@ -376,39 +376,39 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                   </td>
                   <td className="p-2 text-right">
                     {!isEd ? (
-                      <div className="inline-flex gap-3">
+                      <div className="inline-flex gap-2">
                         <button
-                          className="text-blue-600 hover:underline"
+                          className="px-2 py-1 rounded-md text-blue-600 hover:bg-blue-50 border border-blue-100"
                           onClick={() => {
                             setEditingId(r.id);
                             setEdit({});
                           }}
                         >
-                          Editar
+                          Edit
                         </button>
                         <button
-                          className="text-red-600 hover:underline"
+                          className="px-2 py-1 rounded-md text-red-600 hover:bg-red-50 border border-red-100"
                           onClick={() => deleteRow(r.id)}
                         >
-                          Apagar
+                          Delete
                         </button>
                       </div>
                     ) : (
-                      <div className="inline-flex gap-3">
+                      <div className="inline-flex gap-2">
                         <button
-                          className="text-blue-600 hover:underline"
+                          className="px-2 py-1 rounded-md text-blue-600 hover:bg-blue-50 border border-blue-100"
                           onClick={() => saveEdit(r.id)}
                         >
-                          Guardar
+                          Save
                         </button>
                         <button
-                          className="text-gray-600 hover:underline"
+                          className="px-2 py-1 rounded-md text-gray-600 hover:bg-gray-100 border border-gray-200"
                           onClick={() => {
                             setEditingId(null);
                             setEdit({});
                           }}
                         >
-                          Cancelar
+                          Cancel
                         </button>
                       </div>
                     )}

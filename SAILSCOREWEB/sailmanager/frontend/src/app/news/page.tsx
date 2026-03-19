@@ -45,6 +45,17 @@ export default function NewsListPage() {
     }
   };
 
+  const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
+    if (!body) return null;
+    const text = body
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return null;
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen - 1)}…`;
+  };
+
   const fetchPage = async (offset: number) => {
     const res = await fetch(`${API_BASE}/news/?limit=${PAGE_SIZE}&offset=${offset}`, {
       cache: 'no-store',
@@ -143,19 +154,16 @@ export default function NewsListPage() {
                 <div className="p-6 md:p-8">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className="text-xs text-gray-500">{formatDate(featured.published_at)}</span>
-                    {featured.category && (
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-                        {featured.category}
-                      </span>
-                    )}
                   </div>
 
                   <h2 className="text-2xl md:text-3xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                     {featured.title}
                   </h2>
 
-                  {(featured.excerpt || '').trim() && (
-                    <p className="text-gray-600 mt-3 line-clamp-3">{featured.excerpt}</p>
+                  {bodyToSnippet(featured.body, 200) && (
+                    <p className="text-gray-600 mt-3 line-clamp-3">
+                      {bodyToSnippet(featured.body, 200)}
+                    </p>
                   )}
 
                   <div className="mt-5 inline-flex items-center text-blue-600 font-medium">
@@ -193,19 +201,16 @@ export default function NewsListPage() {
                 <div className="p-4">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="text-xs text-gray-500">{formatDate(item.published_at)}</span>
-                    {item.category && (
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-                        {item.category}
-                      </span>
-                    )}
                   </div>
 
                   <h2 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                     {item.title}
                   </h2>
 
-                  {item.excerpt && (
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{item.excerpt}</p>
+                  {bodyToSnippet(item.body, 120) && (
+                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      {bodyToSnippet(item.body, 120)}
+                    </p>
                   )}
                 </div>
               </Link>

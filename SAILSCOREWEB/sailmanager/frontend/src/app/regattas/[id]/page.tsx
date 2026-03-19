@@ -130,6 +130,17 @@ export default function RegattaHomePage() {
     }
   };
 
+  const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
+    if (!body) return null;
+    const text = body
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return null;
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen - 1)}…`;
+  };
+
   return (
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader regattaId={regattaId} />
@@ -203,7 +214,7 @@ export default function RegattaHomePage() {
 
       {news.length > 0 && (
         <section className="mt-0">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Notícias</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">News</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {news.map((n) => (
               <Link
@@ -223,13 +234,15 @@ export default function RegattaHomePage() {
                 <div className="p-4">
                   <p className="text-xs text-gray-500 mb-1">{formatNewsDate(n.published_at)}</p>
                   <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">{n.title}</h3>
-                  {n.excerpt && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{n.excerpt}</p>}
+                  {bodyToSnippet(n.body, 120) && (
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{bodyToSnippet(n.body, 120)}</p>
+                  )}
                 </div>
               </Link>
             ))}
           </div>
           <Link href="/news" className="inline-block mt-4 text-blue-600 font-medium hover:underline">
-            Ver todas as notícias →
+            View all news →
           </Link>
         </section>
       )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 
 type GlobalSettings = {
   club_name: string | null;
@@ -13,7 +14,7 @@ type GlobalSettings = {
 };
 
 export default function AdminSettingsPage() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const [settings, setSettings] = useState<GlobalSettings>({
     club_name: '',
     entry_fee_transfer_iban: '',
@@ -75,26 +76,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
-        <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
-        <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">Dashboard</Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
-          <Link href="/admin/news" className="hover:underline">News</Link>
-          <Link href="/admin/manage-users" className="hover:underline">Users</Link>
-          <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
-          <Link href="/admin/design" className="hover:underline">Design</Link>
-          <Link href="/admin/sponsors" className="hover:underline">Sponsors</Link>
-          <Link href="/admin/email" className="hover:underline">Email</Link>
-          <Link href="/admin/settings" className="hover:underline font-semibold text-blue-600">Settings</Link>
-        </nav>
-        <button
-          onClick={() => { logout(); window.location.href = '/'; }}
-          className="mt-6 text-sm text-red-600 hover:underline"
-        >
-          Log out
-        </button>
-      </aside>
+      <AdminSidebar />
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">

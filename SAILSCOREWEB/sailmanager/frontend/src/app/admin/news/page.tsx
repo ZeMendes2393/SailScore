@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiDelete } from '@/lib/api';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 
 export type NewsItem = {
   id: number;
@@ -23,14 +24,14 @@ const API_BASE =
 export default function AdminNewsPage() {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
 
   const fetchNews = async () => {
     try {
       const data = await apiGet<NewsItem[]>(`/news/`, token ?? undefined);
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Erro ao carregar news:', err);
+      console.error('Failed to load news:', err);
       setItems([]);
     } finally {
       setLoading(false);
@@ -44,20 +45,20 @@ export default function AdminNewsPage() {
   }, [token]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Eliminar esta notícia?')) return;
+    if (!confirm('Delete this news item?')) return;
     try {
       await apiDelete(`/news/${id}`, token ?? undefined);
       setItems((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
-      console.error('Erro ao eliminar:', err);
-      alert('Erro ao eliminar.');
+      console.error('Failed to delete news item:', err);
+      alert('Failed to delete news item.');
     }
   };
 
   const formatDate = (s: string) => {
     try {
       const d = new Date(s);
-      return d.toLocaleDateString('pt-PT', {
+      return d.toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -67,6 +68,17 @@ export default function AdminNewsPage() {
     }
   };
 
+  const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
+    if (!body) return null;
+    const text = body
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return null;
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen - 1)}…`;
+  };
+
   const imageSrc = (url: string | null) => {
     if (!url) return null;
     return url.startsWith('http') ? url : `${API_BASE}${url}`;
@@ -74,52 +86,12 @@ export default function AdminNewsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
-        <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
-        <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">
-            Dashboard
-          </Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">
-            Regattas
-          </Link>
-          <Link href="/admin/news" className="hover:underline font-semibold text-blue-600">
-            News
-          </Link>
-          <Link href="/admin/manage-users" className="hover:underline">
-            Users
-          </Link>
-          <Link href="/admin/manage-protests" className="hover:underline">
-            Protests
-          </Link>
-          <Link href="/admin/design" className="hover:underline">
-            Design
-          </Link>
-          <Link href="/admin/sponsors" className="hover:underline">
-            Sponsors
-          </Link>
-          <Link href="/admin/email" className="hover:underline">
-            Email
-          </Link>
-          <Link href="/admin/settings" className="hover:underline">
-            Settings
-          </Link>
-        </nav>
-        <button
-          onClick={() => {
-            logout();
-            window.location.href = '/';
-          }}
-          className="mt-6 text-sm text-red-600 hover:underline"
-        >
-          Terminar sessão
-        </button>
-      </aside>
+      <AdminSidebar />
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
           <Link href="/admin" className="text-sm text-blue-600 hover:underline">
-            ← Back to Dashboard
+            ← Back to dashboard
           </Link>
         </div>
 
@@ -134,10 +106,10 @@ export default function AdminNewsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-500">A carregar…</p>
+          <p className="text-gray-500">Loading news…</p>
         ) : items.length === 0 ? (
           <div className="bg-white border rounded-lg p-8 text-center text-gray-500">
-            Ainda não há notícias. Clica em &quot;Add news&quot; para criar a primeira.
+            There are no news items yet. Click &quot;Add news&quot; to create the first one.
           </div>
         ) : (
           <ul className="space-y-4">
@@ -157,14 +129,13 @@ export default function AdminNewsPage() {
                   )}
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500">{formatDate(n.published_at)}</span>
-                    {n.category && (
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-                        {n.category}
-                      </span>
-                    )}
                   </div>
                   <h2 className="font-semibold text-gray-900 truncate">{n.title}</h2>
-                  {n.excerpt && <p className="text-sm text-gray-600 mt-1 line-clamp-2">{n.excerpt}</p>}
+                  {bodyToSnippet(n.body, 140) && (
+                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      {bodyToSnippet(n.body, 140)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">

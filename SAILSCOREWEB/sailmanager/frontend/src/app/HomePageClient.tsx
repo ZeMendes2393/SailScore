@@ -127,6 +127,17 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
     }
   };
 
+  const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
+    if (!body) return null;
+    const text = body
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return null;
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen - 1)}…`;
+  };
+
   const newsImageSrc = (url: string | null) => {
     if (!url) return null;
     return url.startsWith('http') ? url : `${API_BASE}${url}`;
@@ -253,7 +264,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
                         </p>
                       )}
                       <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
-                        Ver →
+                        View →
                       </span>
                     </div>
                   </Link>
@@ -261,13 +272,13 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
               </div>
               <div className="mt-8 text-center">
                 <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
-                  Ver calendário completo →
+                  View full calendar →
                 </Link>
               </div>
             </>
           ) : (
             <>
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Próximas regatas</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Upcoming regattas</h2>
               {upcomingRegattas.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -299,13 +310,13 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
                           </p>
                           <p className="text-xs mt-2 font-medium">
                             {r.online_entry_open !== false ? (
-                              <span className="text-emerald-600">Inscrições abertas</span>
+                              <span className="text-emerald-600">Entry open</span>
                             ) : (
-                              <span className="text-gray-500">Inscrições encerradas</span>
+                              <span className="text-gray-500">Entry closed</span>
                             )}
                           </p>
                           <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
-                            Ver →
+                            View →
                           </span>
                         </div>
                       </Link>
@@ -313,15 +324,15 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
                   </div>
                   <div className="mt-8 text-center">
                     <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
-                      Ver calendário completo →
+                    View full calendar →
                     </Link>
                   </div>
                 </>
               ) : (
                 <p className="text-gray-600">
-                  Não há próximas regatas. Consulte o{' '}
+                  No upcoming regattas. Check the{' '}
                   <Link href="/calendar" className="text-blue-600 hover:underline">
-                    calendário
+                    calendar
                   </Link>
                   .
                 </p>
@@ -360,17 +371,13 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       {formatNewsDate(item.published_at)}
                     </p>
-                    {item.category && (
-                      <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                        {item.category}
-                      </p>
-                    )}
                     <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                       {item.title}
                     </h3>
-                    {item.excerpt && (
-                      <p className="text-base text-gray-600 mt-1 line-clamp-2">{item.excerpt}</p>
+                    {bodyToSnippet(item.body, 140) && (
+                      <p className="text-base text-gray-600 mt-1 line-clamp-2">
+                        {bodyToSnippet(item.body, 140)}
+                      </p>
                     )}
                   </div>
                 </Link>

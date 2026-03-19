@@ -12,6 +12,7 @@ export default function MainHeader({ initialDesign = null }: { initialDesign?: H
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const isLoggedIn = !!user;
+  const isSailor = user?.role === 'regatista';
   const isActive = (p: string) => pathname === p;
   const [design, setDesign] = useState<HeaderDesign | null>(initialDesign);
 
@@ -62,26 +63,38 @@ export default function MainHeader({ initialDesign = null }: { initialDesign?: H
 
         <div className="hidden md:flex items-center gap-2 ml-auto">
           {isLoggedIn ? (
-            <>
-              <Link
-                href="/admin"
-                className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/admin"
-                className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
-              >
-                Admin Account
-              </Link>
-              <button
-                onClick={() => logout({ redirectTo: '/' })}
-                className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
-              >
-                Sign out
-              </button>
-            </>
+            isSailor ? (
+              // Sailor account: show identity only; page handles Sign out / navigation
+              <div className="flex flex-col items-end text-right">
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                  Sailor account
+                </span>
+                <span className="text-sm text-white">
+                  {user?.email || (user as any)?.username || (user as any)?.name || 'Signed in'}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/admin"
+                  className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/admin"
+                  className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+                >
+                  Admin Account
+                </Link>
+                <button
+                  onClick={() => logout({ redirectTo: '/' })}
+                  className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+                >
+                  Sign out
+                </button>
+              </>
+            )
           ) : (
             <>
               <nav className="flex items-center gap-2 text-lg font-medium">

@@ -8,6 +8,8 @@ import { parseRegattaId } from '@/utils/parseRegattaId';
 
 type TokenRes = { access_token: string };
 
+type RegattaLite = { id: number; name: string };
+
 export default function LoginPage() {
   const router = useRouter();
   const qs = useSearchParams();
@@ -21,6 +23,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [regattaName, setRegattaName] = useState<string>('');
+  const [regattaNameLoading, setRegattaNameLoading] = useState(false);
 
   // Já autenticado? Faz redireciono gentil.
   useEffect(() => {
@@ -55,12 +59,33 @@ export default function LoginPage() {
     }
   }, [user, router, qsId, mode]);
 
+  useEffect(() => {
+    const fetchRegattaName = async () => {
+      if (mode !== 'sailor' || !qsId) return;
+      setRegattaNameLoading(true);
+      try {
+        const r = await apiGet<RegattaLite>(`/regattas/${qsId}`).catch(() => null);
+        setRegattaName(r?.name ?? '');
+      } catch {
+        setRegattaName('');
+      } finally {
+        setRegattaNameLoading(false);
+      }
+    };
+
+    fetchRegattaName();
+  }, [mode, qsId]);
+
   const title = useMemo(
     () =>
       mode === 'sailor'
-        ? `Entrar — Regata #${qsId ?? '—'}`
-        : 'Entrar — Admin',
-    [mode, qsId]
+        ? regattaName
+          ? `Sign in — ${regattaName}`
+          : regattaNameLoading
+            ? 'Sign in — Regatta'
+            : `Sign in — Regatta #${qsId ?? '—'}`
+        : 'Sign in — Admin',
+    [mode, qsId, regattaName]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +96,7 @@ export default function LoginPage() {
       // corpo do login: inclui regatta_id apenas no modo sailor
       const body: any = { email, password };
       if (mode === 'sailor') {
-        if (!qsId) throw new Error('Regata inválida no URL.');
+        if (!qsId) throw new Error('Invalid regatta in URL.');
         body.regatta_id = qsId;
       }
 
@@ -101,12 +126,12 @@ export default function LoginPage() {
         router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
       }
     } catch (err: any) {
-      let msg = String(err?.message || 'Erro ao iniciar sessão.');
+      let msg = String(err?.message || 'Failed to sign in.');
       try {
         const j = JSON.parse(msg);
         if (j?.detail?.requires_regatta_selection) {
           msg =
-            'Esta conta tem inscrições em várias regatas. Entra a partir da página da regata pretendida.';
+            'This account has entries in multiple regattas. Please sign in from the desired regatta page.';
         } else if (j?.detail) {
           msg = j.detail;
         }
@@ -130,13 +155,13 @@ export default function LoginPage() {
 
         {/* Só mostra erro de regata quando realmente estamos em modo sailor sem regattaId */}
         {mode === 'sailor' && !qsId && (
-          <div className="mb-3 text-sm text-red-600">Regata inválida no URL.</div>
+          <div className="mb-3 text-sm text-red-600">Invalid regatta in URL.</div>
         )}
 
         {user && (
           <div className="mb-4 flex items-center justify-between gap-3 text-sm">
             <span className="text-gray-600">
-              Sessão atual:{' '}
+              Current session:{' '}
               <b>
                 {user.role === 'regatista' && (user as any).username
                   ? (user as any).username
@@ -148,7 +173,7 @@ export default function LoginPage() {
               onClick={() => logout({ redirectTo: relogUrl })}
               className="px-3 py-1 rounded border hover:bg-gray-50"
             >
-              Entrar com outra conta
+              Sign in with another account
             </button>
           </div>
         )}
@@ -161,8 +186,8 @@ export default function LoginPage() {
             className="w-full border rounded px-3 py-2"
             placeholder={
               mode === 'admin'
-                ? 'Email do admin'
-                : 'Sailor username (ex.: JoseMendes115)'
+                ? 'Admin email'
+                : 'Sailor username (e.g. JoseMendes115)'
             }
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -173,7 +198,7 @@ export default function LoginPage() {
           <input
             type="password"
             className="w-full border rounded px-3 py-2"
-            placeholder="Palavra-passe"
+            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -187,7 +212,7 @@ export default function LoginPage() {
               loading || (mode === 'sailor' && !qsId) || email.trim() === '' || password.trim() === ''
             }
           >
-            {loading ? 'A entrar…' : 'Entrar'}
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>

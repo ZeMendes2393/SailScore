@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 import { apiGet, apiSend } from '@/lib/api';
 
 type GlobalSettings = {
@@ -78,7 +79,7 @@ function getEntryEmailPreviewPlaceholders(globalSettings: GlobalSettings): Recor
 }
 
 export default function AdminEmailPage() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const [selectedEmailType, setSelectedEmailType] = useState<EmailTypeId | ''>('');
   const [settings, setSettings] = useState<GlobalSettings>({
     club_name: '',
@@ -266,26 +267,7 @@ Login here: [link]`;
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
-        <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
-        <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">Dashboard</Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">Regattas</Link>
-          <Link href="/admin/news" className="hover:underline">News</Link>
-          <Link href="/admin/manage-users" className="hover:underline">Users</Link>
-          <Link href="/admin/manage-protests" className="hover:underline">Protests</Link>
-          <Link href="/admin/design" className="hover:underline">Design</Link>
-          <Link href="/admin/sponsors" className="hover:underline">Sponsors</Link>
-          <Link href="/admin/email" className="hover:underline font-semibold text-blue-600">Email</Link>
-          <Link href="/admin/settings" className="hover:underline">Settings</Link>
-        </nav>
-        <button
-          onClick={() => { logout(); window.location.href = '/'; }}
-          className="mt-6 text-sm text-red-600 hover:underline"
-        >
-          Log out
-        </button>
-      </aside>
+      <AdminSidebar />
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">

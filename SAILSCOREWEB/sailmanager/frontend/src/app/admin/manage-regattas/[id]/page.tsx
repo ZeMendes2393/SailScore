@@ -397,7 +397,7 @@ export default function AdminRegattaPage() {
           href="/admin"
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
-          ← Voltar à lista de campeonatos
+          ← Back to regattas list
         </Link>
       </div>
 
@@ -614,22 +614,24 @@ export default function AdminRegattaPage() {
             <div>
               <label className="block text-sm font-medium mb-2">Classes</label>
               <p className="text-xs text-gray-500 mb-2">
-                Classes incluídas neste campeonato, separadas por tipo.
+                Classes included in this championship, separated by type.
               </p>
 
               <div className="grid md:grid-cols-2 gap-4 mb-3">
                 <div className="border rounded p-3">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">One Design</h4>
-                  <p className="text-xs text-gray-500 mb-2">Nº de velejadores por embarcação (para inscrição).</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Number of sailors per boat (for registration).
+                  </p>
                   <ul className="divide-y mb-2">
                     {editClassesOneDesign.length === 0 ? (
-                      <li className="px-2 py-1 text-gray-500 text-sm">Nenhuma</li>
+                      <li className="px-2 py-1 text-gray-500 text-sm">None</li>
                     ) : (
                       editClassesOneDesign.map((item) => (
                         <li key={item.class_name} className="px-2 py-1.5 flex justify-between items-center gap-2">
                           <span className="font-medium">{item.class_name}</span>
                           <span className="flex items-center gap-1">
-                            <label className="text-xs text-gray-600">Velejadores:</label>
+                            <label className="text-xs text-gray-600">Sailors:</label>
                             <select
                               value={item.sailors_per_boat}
                               onChange={(e) => setSailorsForOD(item.class_name, Number(e.target.value))}
@@ -639,7 +641,13 @@ export default function AdminRegattaPage() {
                                 <option key={n} value={n}>{n}</option>
                               ))}
                             </select>
-                            <button type="button" onClick={() => removeEditClassOD(item.class_name)} className="text-red-600 hover:underline text-xs">Remover</button>
+                            <button
+                              type="button"
+                              onClick={() => removeEditClassOD(item.class_name)}
+                              className="text-red-600 hover:underline text-xs"
+                            >
+                              Remove
+                            </button>
                           </span>
                         </li>
                       ))
@@ -649,13 +657,13 @@ export default function AdminRegattaPage() {
                     <input
                       type="text"
                       className="flex-1 min-w-[100px] border rounded px-2 py-1.5 text-sm"
-                      placeholder="ex: ILCA 7"
+                      placeholder="e.g. ILCA 7"
                       value={newClassNameOD}
                       onChange={(e) => setNewClassNameOD(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditClassOD())}
                     />
                     <span className="flex items-center gap-1">
-                      <label className="text-xs text-gray-600">Velejadores:</label>
+                      <label className="text-xs text-gray-600">Sailors:</label>
                       <select value={newSailorsOD} onChange={(e) => setNewSailorsOD(Number(e.target.value))} className="border rounded px-2 py-1.5 text-sm w-14">
                         {[1, 2, 3, 4, 5].map((n) => (
                           <option key={n} value={n}>{n}</option>
@@ -670,12 +678,18 @@ export default function AdminRegattaPage() {
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Handicap</h4>
                   <ul className="divide-y mb-2">
                     {editClassesHandicap.length === 0 ? (
-                      <li className="px-2 py-1 text-gray-500 text-sm">Nenhuma</li>
+                      <li className="px-2 py-1 text-gray-500 text-sm">None</li>
                     ) : (
                       editClassesHandicap.map((cls) => (
                         <li key={cls} className="px-2 py-1 flex justify-between items-center">
                           <span>{cls}</span>
-                          <button type="button" onClick={() => removeEditClassH(cls)} className="text-red-600 hover:underline text-xs">Remover</button>
+                          <button
+                            type="button"
+                            onClick={() => removeEditClassH(cls)}
+                            className="text-red-600 hover:underline text-xs"
+                          >
+                            Remove
+                          </button>
                         </li>
                       ))
                     )}
@@ -684,7 +698,7 @@ export default function AdminRegattaPage() {
                     <input
                       type="text"
                       className="flex-1 border rounded px-2 py-1.5 text-sm"
-                      placeholder="ex: ANC A, ANC B"
+                      placeholder="e.g. ANC A, ANC B"
                       value={newClassNameH}
                       onChange={(e) => setNewClassNameH(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditClassH())}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
@@ -24,7 +25,7 @@ type FooterDesign = {
 };
 
 export default function AdminDesignPage() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const [featuredIds, setFeaturedIds] = useState<number[]>([0, 0, 0]);
   const [loading, setLoading] = useState(true);
@@ -260,47 +261,7 @@ export default function AdminDesignPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 bg-white border-r p-6 space-y-4 shadow-sm">
-        <h2 className="text-xl font-bold mb-6">ADMIN DASHBOARD</h2>
-        <nav className="flex flex-col space-y-2">
-          <Link href="/admin" className="hover:underline">
-            Dashboard
-          </Link>
-          <Link href="/admin/manage-regattas" className="hover:underline">
-            Regattas
-          </Link>
-          <Link href="/admin/news" className="hover:underline">
-            News
-          </Link>
-          <Link href="/admin/manage-users" className="hover:underline">
-            Users
-          </Link>
-          <Link href="/admin/manage-protests" className="hover:underline">
-            Protests
-          </Link>
-          <Link href="/admin/design" className="hover:underline font-semibold text-blue-600">
-            Design
-          </Link>
-          <Link href="/admin/sponsors" className="hover:underline">
-            Sponsors
-          </Link>
-          <Link href="/admin/email" className="hover:underline">
-            Email
-          </Link>
-          <Link href="/admin/settings" className="hover:underline">
-            Settings
-          </Link>
-        </nav>
-        <button
-          onClick={() => {
-            logout();
-            window.location.href = '/';
-          }}
-          className="mt-6 text-sm text-red-600 hover:underline"
-        >
-          Log out
-        </button>
-      </aside>
+      <AdminSidebar />
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
