@@ -6,7 +6,10 @@ from sqlalchemy import func
 import sqlalchemy as sa
 
 from app.database import get_db
-from app.models import FleetSet, FleetAssignment, Race, Result, Fleet
+from app import models
+from app.models import FleetSet, FleetAssignment, Race, Result, Fleet, Regatta
+from app.org_scope import assert_user_can_manage_org_id
+from utils.auth_utils import get_current_user
 from app.services.fleets import (
     create_initial_set_random,
     reshuffle_from_ranking,
@@ -29,6 +32,16 @@ router = APIRouter(prefix="/regattas", tags=["fleets"])
 # -------------------------
 # Helpers
 # -------------------------
+def _assert_can_manage_regatta(db: Session, regatta_id: int, current_user: models.User) -> None:
+    """Admin/platform_admin: assert org scope."""
+    if current_user.role not in ("admin", "platform_admin"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    regatta = db.query(Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+
+
 def _ensure_single_phase_set(
     db: Session,
     regatta_id: int,
@@ -113,7 +126,9 @@ def create_quali_set(
     class_name: str,
     body: CreateQualifyingSetIn,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = create_initial_set_random(
         db, regatta_id, class_name, body.label, body.num_fleets
     )
@@ -139,7 +154,9 @@ def reshuffle(
     class_name: str,
     body: ReshuffleIn,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     prev = (
         db.query(FleetSet)
         .filter(FleetSet.regatta_id == regatta_id, FleetSet.class_name == class_name)
@@ -181,7 +198,9 @@ def start_finals_set(
     class_name: str,
     body: StartFinalsIn,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     _ensure_single_phase_set(db, regatta_id, class_name, "finals")
 
     grouping = None
@@ -235,7 +254,9 @@ def list_sets(
     class_name: str,
     phase: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     q = db.query(FleetSet).filter(
         FleetSet.regatta_id == regatta_id,
         FleetSet.class_name == class_name,
@@ -251,7 +272,9 @@ def list_assignments(
     class_name: str,
     set_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter_by(id=set_id, regatta_id=regatta_id, class_name=class_name)
@@ -281,7 +304,9 @@ def delete_fleet_set(
     set_id: int,
     force: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter(
@@ -353,7 +378,9 @@ def update_fleet_set_races(
     body: FleetSetRacesUpdate,
     force: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter(
@@ -415,8 +442,13 @@ def update_fleet_set_races(
 # -------------------------
 @router.post("/{regatta_id}/classes/{class_name}/fleet-sets/{set_id}/publish")
 def publish_set(
-    regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)
+    regatta_id: int,
+    class_name: str,
+    set_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter(
@@ -444,8 +476,13 @@ def publish_set(
 
 @router.post("/{regatta_id}/classes/{class_name}/fleet-sets/{set_id}/unpublish")
 def unpublish_set(
-    regatta_id: int, class_name: str, set_id: int, db: Session = Depends(get_db)
+    regatta_id: int,
+    class_name: str,
+    set_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter(
@@ -484,7 +521,9 @@ def update_fleet_set(
     set_id: int,
     body: FleetSetUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     fs = (
         db.query(FleetSet)
         .filter(
@@ -514,7 +553,9 @@ def assign_medal_race_entries(
     regatta_id: int,
     data: MedalRaceAssignSchema,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
+    _assert_can_manage_regatta(db, regatta_id, current_user)
     _ensure_single_phase_set(db, regatta_id, data.class_name, "medal")
 
     ranking = compute_overall_ranking(db, regatta_id, data.class_name)

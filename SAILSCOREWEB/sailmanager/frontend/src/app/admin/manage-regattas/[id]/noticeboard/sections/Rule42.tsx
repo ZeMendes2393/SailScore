@@ -187,6 +187,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
           />
           <input
             type="date"
+            lang="en-GB"
             className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
@@ -366,6 +367,7 @@ export default function Rule42({ regattaId }: { regattaId: number }) {
                     {isEd ? (
                       <input
                         type="date"
+                        lang="en-GB"
                         className="border border-gray-300 rounded-md p-1 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={edit.date ?? r.date}
                         onChange={(e) => setEdit({ ...edit, date: e.target.value })}

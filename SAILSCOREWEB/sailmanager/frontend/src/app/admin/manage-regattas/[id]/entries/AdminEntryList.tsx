@@ -12,6 +12,7 @@ import {
 } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
+import { isAdminRole } from '@/lib/roles';
 
 interface RegattaForEntryList {
   id: number;
@@ -33,7 +34,7 @@ export default function AdminEntryList({
 }: AdminEntryListProps) {
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminRole(user?.role);
 
   const [entries, setEntries] = useState<EntryListEntry[]>([]);
   const [savingColumns, setSavingColumns] = useState(false);

@@ -20,6 +20,7 @@ type Regatta = {
   end_date: string;
   poster_url?: string | null;
   home_images?: HomeImage[] | null;
+  organization_slug?: string | null;
 };
 
 type NewsItem = {
@@ -53,16 +54,20 @@ export default function RegattaHomePage() {
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as Regatta;
         setRegatta(data);
+
+        const newsQs = new URLSearchParams({ limit: '6', offset: '0' });
+        if (data.organization_slug) {
+          newsQs.set('org', data.organization_slug);
+        }
+        const newsRes = await fetch(`${API_BASE}/news/?${newsQs}`, { cache: 'no-store' });
+        if (newsRes.ok) {
+          const newsData = (await newsRes.json()) as NewsItem[];
+          setNews(Array.isArray(newsData) ? newsData : []);
+        } else {
+          setNews([]);
+        }
       } catch (err) {
         console.error('Failed to fetch regatta:', err);
-      }
-    })();
-
-    (async () => {
-      const res = await fetch(`${API_BASE}/news/?limit=6&offset=0`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = (await res.json()) as NewsItem[];
-        setNews(Array.isArray(data) ? data : []);
       }
     })();
   }, [regattaId]);

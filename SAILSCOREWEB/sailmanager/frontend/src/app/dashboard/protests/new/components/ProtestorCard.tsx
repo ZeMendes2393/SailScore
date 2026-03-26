@@ -49,18 +49,18 @@ export default function ProtestorCard({
   return (
     <div className="space-y-3">
       {loadingEntries && (
-        <div className="text-sm text-gray-500">A carregar os teus dados…</div>
+        <div className="text-sm text-gray-500">Loading your data…</div>
       )}
 
       {!loadingEntries && myEntries.length === 0 && (
         <div className="p-3 rounded border bg-amber-50 text-amber-900 text-sm">
-          Não encontrámos nenhuma inscrição tua nesta regata.
+          We couldn&apos;t find an entry for you in this regatta.
           <br />
-          Verifica em{' '}
+          Check{' '}
           <a href={`/dashboard/entry-data?regattaId=${regattaId}`} className="underline">
             Entry data
           </a>{' '}
-          ou pede à organização para associar a tua inscrição à tua conta.
+          or ask the organisation to link your entry to your account.
         </div>
       )}
 
@@ -76,7 +76,7 @@ export default function ProtestorCard({
             }}
           >
             <option value="" disabled>
-              Seleciona…
+              Select…
             </option>
             {myEntries.map((en) => (
               <option key={en.id} value={en.id}>
@@ -120,9 +120,9 @@ export default function ProtestorCard({
           type="button"
           className="mt-6 px-3 py-2 border rounded"
           onClick={() => setRepLocked(!repLocked)}
-          title={repLocked ? 'Editar' : 'Bloquear'}
+          title={repLocked ? 'Edit' : 'Lock'}
         >
-          {repLocked ? 'Editar' : 'Bloquear'}
+          {repLocked ? 'Edit' : 'Lock'}
         </button>
       </div>
     </div>

@@ -6,6 +6,7 @@ import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { useRule42, type Rule42Scope } from '@/lib/hooks/useRule42';
 import type { Rule42ListItem } from '@/lib/api';
+import { isAdminRole } from '@/lib/roles';
 
 function Row({ r }: { r: Rule42ListItem }) {
   return (
@@ -36,7 +37,7 @@ export default function Page() {
   }, [user?.role, user?.current_regatta_id, searchParams]);
 
   // Estado local (apenas scope)
-  const [scope, setScope] = useState<Rule42Scope>(user?.role === 'admin' ? 'all' : 'mine');
+  const [scope, setScope] = useState<Rule42Scope>(isAdminRole(user?.role) ? 'all' : 'mine');
 
   // Hook com paginação (sem search)
   const { items, loading, error, hasMore, loadMore } = useRule42(
@@ -71,7 +72,7 @@ export default function Page() {
             >
               Mine
             </button>
-            {user?.role === 'admin' && (
+            {isAdminRole(user?.role) && (
               <button
                 className={`px-3 py-1 rounded border ${scope === 'all' ? 'bg-gray-900 text-white' : 'bg-white'}`}
                 onClick={() => setScope('all')}

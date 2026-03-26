@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { BASE_URL } from '@/lib/api'
+import { isAdminRole } from '@/lib/roles'
 
 interface Result {
   id: number
@@ -96,7 +97,7 @@ export default function RaceResultsPage() {
               <th className="border px-4 py-2">Posição</th>
               <th className="border px-4 py-2">Número de Vela</th>
               <th className="border px-4 py-2">Nome</th>
-              {user?.role === 'admin' && <th className="border px-4 py-2">Ações</th>}
+              {isAdminRole(user?.role) && <th className="border px-4 py-2">Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -105,7 +106,7 @@ export default function RaceResultsPage() {
                 <td className="border px-4 py-2">{r.position}º</td>
                 <td className="border px-4 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="border px-4 py-2">{r.skipper_name}</td>
-                {user?.role === 'admin' && (
+                {isAdminRole(user?.role) && (
                   <td className="border px-4 py-2 text-center">
                     <button
                       className="text-red-500 hover:text-red-700"

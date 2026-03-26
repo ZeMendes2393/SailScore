@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import DatePicker from 'react-datepicker';
+import { format } from 'date-fns';
 
 type CountryItem = { code: string; name: string };
 type TimezonesResponse = { country: string; timezones: string[] };
@@ -12,11 +15,12 @@ type TimezonesResponse = { country: string; timezones: string[] };
 export default function CreateRegattaPage() {
   const router = useRouter();
   const { token, user } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [countries, setCountries] = useState<CountryItem[]>([]);
   const [countryCode, setCountryCode] = useState('');
   const [timezoneOptions, setTimezoneOptions] = useState<string[]>([]);
@@ -108,17 +112,21 @@ export default function CreateRegattaPage() {
       router.push('/admin/login');
       return;
     }
+    if (!startDate || !endDate) {
+      alert('Please select both start and end dates.');
+      return;
+    }
     setSubmitting(true);
     try {
       // 1) Criar regata
       const regatta = await apiSend<{ id: number }>(
-        '/regattas/',
+        withOrg('/regattas/', orgSlug),
         'POST',
         {
           name,
           location,
-          start_date: startDate,
-          end_date: endDate,
+          start_date: format(startDate, 'yyyy-MM-dd'),
+          end_date: format(endDate, 'yyyy-MM-dd'),
           country_code: countryCode || undefined,
           timezone: timezone || undefined,
         },
@@ -139,8 +147,7 @@ export default function CreateRegattaPage() {
         );
       }
 
-      // Ir para a página central (admin)
-      router.push('/admin');
+      router.push(withOrg('/admin', orgSlug));
     } catch (err: any) {
       console.error('Create regatta error:', err);
       alert(err?.message || 'Error creating regatta.');
@@ -207,25 +214,36 @@ export default function CreateRegattaPage() {
             </div>
           </div>
           <div className="flex gap-4">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+            <DatePicker
+              selected={startDate}
+              onChange={(date: Date | null) => setStartDate(date)}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="dd/mm/yyyy"
               className="w-full border p-2 rounded"
               required
             />
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+            <DatePicker
+              selected={endDate}
+              onChange={(date: Date | null) => setEndDate(date)}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="dd/mm/yyyy"
               className="w-full border p-2 rounded"
+              minDate={startDate ?? undefined}
               required
             />
           </div>
 
           <div>
             <p className="font-medium mb-2">Classes</p>
-            <p className="text-xs text-gray-500 mb-3">Add One Design and Handicap classes separately.</p>
+            <p className="text-xs text-gray-500 mb-1">
+              Add classes in two groups:
+              <span className="font-medium"> One Design</span> and
+              <span className="font-medium"> Handicap</span>.
+            </p>
+            <p className="text-xs text-gray-500 mb-3">
+              For each One Design class, choose how many sailors are in each boat (crew size).
+              Example: ILCA = 1 sailor per boat, 420 = 2 sailors per boat.
+            </p>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="border rounded p-3">

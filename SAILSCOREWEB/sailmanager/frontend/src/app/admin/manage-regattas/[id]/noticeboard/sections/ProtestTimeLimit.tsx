@@ -136,6 +136,7 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
           />
           <input
             type="date"
+            lang="en-GB"
             className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}

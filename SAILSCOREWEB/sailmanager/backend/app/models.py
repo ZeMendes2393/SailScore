@@ -27,16 +27,24 @@ from sqlalchemy import orm
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     name = Column(String)
-    # Login/contact identifier (unique per account, not necessarily the public email used on entries)
-    email = Column(String, unique=True, index=True)
-    # Username used for Sailor Account logins (e.g. JoseMendes115)
-    username = Column(String, unique=True, index=True, nullable=True)
+    # Login/contact identifier (unique por organização)
+    email = Column(String, nullable=False, index=True)
+    # Username used for Sailor Account logins (e.g. JoseMendes115), único por organização
+    username = Column(String, nullable=False, index=True)
     hashed_password = Column(String, nullable=True)
-    role = Column(String)  # "admin" | "regatista" (no MVP)
+    # platform_admin = gestão global (criar orgs, ver tudo); admin = só da sua organização; regatista = ...
+    role = Column(String)  # "platform_admin" | "admin" | "regatista"
     is_active = Column(Boolean, default=True, nullable=False)
     email_verified_at = Column(DateTime, nullable=True)
 
+    organization = relationship("Organization", back_populates="users")
     entries = relationship("Entry", back_populates="user")
     sailor_profile = relationship(
         "SailorProfile",
@@ -52,6 +60,12 @@ class User(Base):
 class Regatta(Base):
     __tablename__ = "regattas"
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     name = Column(String, index=True)
     location = Column(String)
     start_date = Column(String)
@@ -73,6 +87,7 @@ class Regatta(Base):
     discard_count = Column(Integer, nullable=False, default=0)
     discard_threshold = Column(Integer, nullable=False, default=4)
 
+    organization = relationship("Organization", back_populates="regattas")
     entries = relationship("Entry", back_populates="regatta", cascade="all, delete-orphan")
     results = relationship("Result", back_populates="regatta", cascade="all, delete-orphan")
     races = relationship("Race", back_populates="regatta", cascade="all, delete-orphan")
@@ -262,12 +277,19 @@ class RegattaSponsor(Base):
     __tablename__ = "regatta_sponsors"
 
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL = global (all events)
     category = Column(String(200), nullable=False)  # ex: "Patrocinadores Oficiais", "Parceiros Oficiais", "Membro de"
     image_url = Column(String(500), nullable=False)
     link_url = Column(String(500), nullable=True)  # URL para onde o clique leva
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
 
+    organization = relationship("Organization", back_populates="regatta_sponsors")
     regatta = relationship("Regatta", back_populates="sponsors")
 
 
@@ -275,9 +297,16 @@ class RegattaSponsor(Base):
 #   NEWS (homepage / public)
 # =========================
 class NewsItem(Base):
+    """News per organization. New org = empty news feed."""
     __tablename__ = "news_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     title = Column(String(500), nullable=False)
     # Data de publicação (para ordenação e exibição no card)
     published_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -291,6 +320,8 @@ class NewsItem(Base):
     category = Column(String(200), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    organization = relationship("Organization", back_populates="news_items")
 
 
 # =========================
@@ -884,10 +915,17 @@ class FleetAssignment(Base):
 # SITE DESIGN (homepage featured regattas when no upcoming + hero images)
 # =========================
 class SiteDesign(Base):
-    """Single-row table: featured regatta IDs and homepage hero images."""
+    """One row per organization: branding, featured regattas, hero, footer."""
     __tablename__ = "site_design"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    organization_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     # Up to 3 regatta IDs, order preserved (e.g. [3, 1, 7])
     featured_regatta_ids = sa.Column(sa.JSON, nullable=False, default=list, server_default=sa.text("'[]'"))
     # Up to 3 hero images with focal point: [{url, position_x?, position_y?}, ...]
@@ -912,17 +950,27 @@ class SiteDesign(Base):
     footer_terms_of_service_text = sa.Column(sa.Text, nullable=True)
     footer_cookie_policy_text = sa.Column(sa.Text, nullable=True)
 
+    organization = sa.orm.relationship("Organization", back_populates="site_design")
+
 
 # =========================
 # GLOBAL SETTINGS (reusable org/payment variables for emails, registration, etc.)
 # =========================
 class GlobalSetting(Base):
-    """Key-value store for admin-managed global variables (club name, IBAN, etc.)."""
+    """Key-value store per organization (club name, IBAN, etc.)."""
     __tablename__ = "global_settings"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    key = sa.Column(sa.String(128), unique=True, nullable=False, index=True)
+    organization_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    key = sa.Column(sa.String(128), nullable=False, index=True)
     value = sa.Column(sa.Text, nullable=True)
+
+    __table_args__ = (sa.UniqueConstraint("organization_id", "key", name="uq_global_settings_org_key"),)
 
 
 # =========================
@@ -930,8 +978,8 @@ class GlobalSetting(Base):
 # =========================
 class Organization(Base):
     """
-    Root tenant entity for future multi-organization support.
-    For now, it is intentionally standalone (no foreign keys to existing models yet).
+    Root tenant entity for multi-organization support.
+    Regattas, users (future), branding and settings are scoped per organization.
     """
     __tablename__ = "organizations"
 
@@ -943,3 +991,9 @@ class Organization(Base):
     updated_at = sa.Column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()
     )
+
+    regattas = relationship("Regatta", back_populates="organization", cascade="all, delete-orphan")
+    site_design = relationship("SiteDesign", back_populates="organization", uselist=False, cascade="all, delete-orphan")
+    news_items = relationship("NewsItem", back_populates="organization", cascade="all, delete-orphan")
+    regatta_sponsors = relationship("RegattaSponsor", back_populates="organization", cascade="all, delete-orphan")
+    users = relationship("User", back_populates="organization")

@@ -25,6 +25,8 @@ class UserLogin(BaseModel):
     email: str
     password: str
     regatta_id: Optional[int] = None  # usado por regatistas, opcional
+    # Slug da organização (website). Obrigatório para admin desse website; omitido = login plataforma (platform_admin).
+    org: Optional[str] = None
 
 
 class Token(BaseModel):
@@ -42,13 +44,19 @@ class OrganizationBase(BaseModel):
 
 
 class OrganizationCreate(OrganizationBase):
-    pass
+    """Criação de website: opcionalmente o primeiro admin (email + password) só desse website."""
+
+    admin_email: Optional[str] = None
+    admin_password: Optional[str] = None
+    admin_name: Optional[str] = None
 
 
 class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     is_active: Optional[bool] = None
+    admin_email: Optional[str] = None  # platform_admin only: altera email do admin do site
+    admin_password: Optional[str] = None  # platform_admin only: altera password do admin do site
 
 
 class OrganizationRead(OrganizationBase):
@@ -56,6 +64,11 @@ class OrganizationRead(OrganizationBase):
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class OrganizationReadWithAdmin(OrganizationRead):
+    """Organização com email do admin (para edição por platform_admin)."""
+    admin_email: Optional[str] = None
 
 
 # =========================
@@ -95,11 +108,13 @@ class RegattaBase(BaseModel):
 
 
 class RegattaCreate(RegattaBase):
-    pass
+    organization_id: Optional[int] = None  # se omitido, usa org default (sailscore)
 
 
 class RegattaRead(RegattaBase):
     id: int
+    organization_id: int
+    organization_slug: Optional[str] = None  # slug público da org (multi-tenant)
     scoring_codes: Optional[Dict[str, float]] = None
     # Por classe: Dict[class_name, List[column_id]]. Legado: List[str] (uma config para todas).
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
@@ -110,6 +125,8 @@ class RegattaRead(RegattaBase):
 class RegattaListRead(BaseModel):
     """Resposta do GET /regattas/ para lista/calendário: inclui nomes das classes e online_entry_open."""
     id: int
+    organization_id: int
+    organization_slug: Optional[str] = None
     name: str
     location: str
     start_date: str
@@ -120,6 +137,7 @@ class RegattaListRead(BaseModel):
 
 
 class RegattaUpdate(BaseModel):
+    organization_id: Optional[int] = None
     name: Optional[str] = None
     location: Optional[str] = None
     start_date: Optional[str] = None
@@ -511,6 +529,7 @@ class NewsItemUpdate(BaseModel):
 
 class NewsItemRead(BaseModel):
     id: int
+    organization_id: int
     title: str
     published_at: datetime
     excerpt: Optional[str] = None

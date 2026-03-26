@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
@@ -15,18 +16,65 @@ const geistMono = Geist_Mono({
 
 const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
+/** Homepage `/` sem /o/slug: usar a mesma org em todo o site (variável de ambiente). */
+const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headersList = await headers();
+  const pathname = headersList.get('x-pathname') || '';
+
+  // /o/[slug]/... ou /admin?org=slug → carregar design da org para evitar flash do site default
+  const orgMatch = pathname.match(/^\/o\/([^/]+)/);
+  let orgSlug = orgMatch?.[1] ?? null;
+  if (!orgSlug && pathname.startsWith('/admin')) {
+    orgSlug = headersList.get('x-org-slug')?.trim() || null;
+  }
+  if (!orgSlug && pathname === '/' && DEFAULT_PUBLIC_ORG_SLUG) {
+    orgSlug = DEFAULT_PUBLIC_ORG_SLUG;
+  }
+  if (!orgSlug && pathname.startsWith('/calendar')) {
+    const fromCalendarQs = headersList.get('x-org-slug')?.trim() || null;
+    if (fromCalendarQs) {
+      orgSlug = fromCalendarQs;
+    } else if (DEFAULT_PUBLIC_ORG_SLUG) {
+      orgSlug = DEFAULT_PUBLIC_ORG_SLUG;
+    }
+  }
+  if (!orgSlug) {
+    const regattaMatch = pathname.match(/^\/regattas\/(\d+)/);
+    if (regattaMatch) {
+      try {
+        const res = await fetch(`${API}/regattas/${regattaMatch[1]}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = (await res.json()) as { organization_slug?: string | null };
+          if (data.organization_slug && typeof data.organization_slug === 'string') {
+            orgSlug = data.organization_slug;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const q = orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : '';
+
   let headerDesign: { club_logo_url: string | null; club_logo_link: string | null } = {
     club_logo_url: null,
     club_logo_link: null,
   };
+  let footerDesign: Record<string, unknown> | null = null;
   try {
-    const res = await fetch(`${API}/design/header`, { cache: 'no-store' });
-    if (res.ok) headerDesign = await res.json();
+    const [headerRes, footerRes] = await Promise.all([
+      fetch(`${API}/design/header${q}`, { cache: 'no-store' }),
+      fetch(`${API}/design/footer${q}`, { cache: 'no-store' }),
+    ]);
+    if (headerRes.ok) headerDesign = await headerRes.json();
+    if (footerRes.ok) footerDesign = await footerRes.json();
   } catch {
     // ignore
   }
@@ -37,7 +85,13 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}
       >
         <AuthProvider>
-          <ClientLayout headerDesign={headerDesign}>{children}</ClientLayout>
+          <ClientLayout
+            headerDesign={headerDesign}
+            footerDesign={footerDesign}
+            serverOrgSlug={orgSlug}
+          >
+            {children}
+          </ClientLayout>
         </AuthProvider>
       </body>
     </html>

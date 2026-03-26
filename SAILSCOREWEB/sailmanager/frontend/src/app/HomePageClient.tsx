@@ -36,7 +36,16 @@ export type HomeDesign = {
   hero_subtitle: string | null;
 };
 
-export default function HomePageClient({ initialHomeDesign }: { initialHomeDesign?: HomeDesign | null }) {
+const orgParam = (slug: string | null | undefined) =>
+  slug ? `?org=${encodeURIComponent(slug)}` : '';
+
+export default function HomePageClient({
+  initialHomeDesign,
+  orgSlug,
+}: {
+  initialHomeDesign?: HomeDesign | null;
+  orgSlug?: string | null;
+}) {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [featuredRegattas, setFeaturedRegattas] = useState<Regatta[]>([]);
@@ -54,7 +63,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/regattas/`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/regattas/${orgParam(orgSlug)}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as Regatta[];
         setRegattas(data);
@@ -62,12 +71,12 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
         console.error('Erro ao buscar regatas:', err);
       }
     })();
-  }, []);
+  }, [orgSlug]);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/news/`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/news/${orgParam(orgSlug)}`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = (await res.json()) as NewsItem[];
         setNews(Array.isArray(data) ? data.slice(0, 6) : []);
@@ -75,12 +84,12 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
         console.error('Erro ao buscar news:', err);
       }
     })();
-  }, []);
+  }, [orgSlug]);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/design/featured-regattas`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/design/featured-regattas${orgParam(orgSlug)}`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = (await res.json()) as Regatta[];
         setFeaturedRegattas(Array.isArray(data) ? data : []);
@@ -88,13 +97,14 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
         console.error('Erro ao buscar regatas em destaque:', err);
       }
     })();
-  }, []);
+  }, [orgSlug]);
 
   useEffect(() => {
-    if (initialHomeDesign) return;
+    // SSR já enviou design (/) ou /o/[slug]) — não refetch no cliente (evita flash ~100ms).
+    if (initialHomeDesign != null) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/design/homepage`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/design/homepage${orgParam(orgSlug)}`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = (await res.json()) as {
           home_images: { url: string; position_x?: number; position_y?: number }[];
@@ -117,7 +127,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
         console.error('Erro ao buscar imagens da homepage:', err);
       }
     })();
-  }, [initialHomeDesign]);
+  }, [initialHomeDesign, orgSlug]);
 
   const formatNewsDate = (s: string) => {
     try {
@@ -350,7 +360,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
               {news.map((item) => (
                 <Link
                   key={item.id}
-                  href={`/news/${item.id}`}
+                  href={orgSlug ? `/o/${orgSlug}/news/${item.id}` : `/news/${item.id}`}
                   className="group bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-gray-200 transition-all"
                 >
                   <div className="aspect-[16/10] bg-gray-200 overflow-hidden">
@@ -384,7 +394,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
               ))}
             </div>
             <div className="mt-8 text-center">
-              <Link href="/news" className="text-blue-600 font-semibold text-lg hover:underline">
+              <Link href={orgSlug ? `/o/${orgSlug}/news` : '/news'} className="text-blue-600 font-semibold text-lg hover:underline">
                 View all news →
               </Link>
             </div>
@@ -392,7 +402,7 @@ export default function HomePageClient({ initialHomeDesign }: { initialHomeDesig
         </section>
       )}
 
-      <GlobalSponsorsFooter />
+      <GlobalSponsorsFooter orgSlug={orgSlug} />
     </>
   );
 }

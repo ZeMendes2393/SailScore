@@ -77,10 +77,19 @@ def get_current_user(
         email: str | None = payload.get("sub")
         if not email:
             raise credentials_exception
+        oid = payload.get("oid")
     except JWTError:
         raise credentials_exception
 
-    user = db.query(models.User).filter(models.User.email == email).first()
+    q = db.query(models.User).filter(models.User.email == email)
+    if oid is not None:
+        q = q.filter(models.User.organization_id == int(oid))
+    else:
+        # tokens antigos (sem oid): compatibilidade — só se existir um utilizador com este email
+        pass
+    user = q.first()
+    if user is None and oid is None:
+        user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
         raise credentials_exception
     return user
@@ -102,7 +111,13 @@ def get_current_user_optional(
         email: Optional[str] = payload.get("sub")
         if not email:
             return None
-        user = db.query(models.User).filter(models.User.email == email).first()
+        oid = payload.get("oid")
+        q = db.query(models.User).filter(models.User.email == email)
+        if oid is not None:
+            q = q.filter(models.User.organization_id == int(oid))
+        user = q.first()
+        if user is None and oid is None:
+            user = db.query(models.User).filter(models.User.email == email).first()
         return user
     except Exception:
         return None
@@ -118,7 +133,12 @@ def get_current_regatta_id(
     try:
         payload = _decode_token(token)
         rid = payload.get("regatta_id", None)
-        return int(rid) if rid is not None else None
+        if rid is None:
+            return None
+        try:
+            return int(rid)
+        except (ValueError, TypeError):
+            return None
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
@@ -141,8 +161,13 @@ def get_current_regatta_id_optional(
 
 # ---------------- Role guard ----------------
 def verify_role(required_roles: list[str]):
+    """Aceita 'admin' como sinónimo de admin de organização + platform_admin."""
+
     def role_checker(user: models.User = Depends(get_current_user)):
-        if user.role not in required_roles:
+        allowed = set(required_roles)
+        if "admin" in allowed:
+            allowed.add("platform_admin")
+        if user.role not in allowed:
             raise HTTPException(
                 status_code=403,
                 detail=f"Permissão negada. Requer um dos roles: {required_roles}"

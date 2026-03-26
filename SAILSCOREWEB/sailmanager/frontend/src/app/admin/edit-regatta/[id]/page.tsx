@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 const AVAILABLE_CLASSES = [
   '420',
@@ -39,6 +40,7 @@ export default function EditRegattaPage() {
   const regattaId = useMemo(() => Number(params?.id), [params?.id]);
 
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<Regatta | null>(null);
@@ -141,7 +143,7 @@ export default function EditRegattaPage() {
     try {
       await apiSend<void>(`/regattas/${regattaId}`, 'DELETE', undefined, token);
       alert('Regatta deleted.');
-      router.push('/admin');
+      router.push(withOrg('/admin', orgSlug));
     } catch (e: any) {
       console.error(e);
       alert(e?.message || 'Failed to delete regatta.');
@@ -159,7 +161,7 @@ export default function EditRegattaPage() {
       <div className="max-w-3xl mx-auto p-6 space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Edit Regatta #{regattaId}</h1>
-          <button onClick={() => router.push('/admin')} className="border rounded px-3 py-1">
+          <button onClick={() => router.push(withOrg('/admin', orgSlug))} className="border rounded px-3 py-1">
             Back
           </button>
         </div>
@@ -186,12 +188,14 @@ export default function EditRegattaPage() {
               <div className="flex gap-3">
                 <input
                   type="date"
+                  lang="en-GB"
                   className="w-full border rounded px-3 py-2"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
                 <input
                   type="date"
+                  lang="en-GB"
                   className="w-full border rounded px-3 py-2"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}

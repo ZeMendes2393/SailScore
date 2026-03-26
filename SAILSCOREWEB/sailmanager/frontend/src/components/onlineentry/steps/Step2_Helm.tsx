@@ -70,8 +70,8 @@ export default function Step2({ data, onChange, onNext, onBack }: Step2Props) {
           <Field label="Last name" required>
             <input type="text" name="last_name" placeholder="e.g. Smith" value={localData.last_name || ''} onChange={handleChange} className={inputClass} required />
           </Field>
-          <Field label="Date of birth" hint="Format: year-month-day">
-            <input type="date" name="date_of_birth" value={localData.date_of_birth || ''} onChange={handleChange} className={inputClass} />
+          <Field label="Date of birth" hint="Format: day/month/year">
+            <input type="date" lang="en-GB" name="date_of_birth" value={localData.date_of_birth || ''} onChange={handleChange} className={inputClass} />
           </Field>
           <Field label="Gender" required>
             <select name="gender" value={localData.gender || ''} onChange={handleChange} className={inputClass} required>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { apiGet, apiSend } from '@/lib/api';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 type GlobalSettings = {
   club_name: string | null;
@@ -80,6 +81,7 @@ function getEntryEmailPreviewPlaceholders(globalSettings: GlobalSettings): Recor
 
 export default function AdminEmailPage() {
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
   const [selectedEmailType, setSelectedEmailType] = useState<EmailTypeId | ''>('');
   const [settings, setSettings] = useState<GlobalSettings>({
     club_name: '',
@@ -107,8 +109,9 @@ export default function AdminEmailPage() {
   });
 
   const fetchSettings = async () => {
+    if (!token) return;
     try {
-      const data = await apiGet<GlobalSettings>('/settings/global');
+      const data = await apiGet<GlobalSettings>(withOrg('/settings/global', orgSlug), token);
       setSettings({
         club_name: data.club_name ?? '',
         entry_fee_transfer_iban: data.entry_fee_transfer_iban ?? '',
@@ -123,8 +126,9 @@ export default function AdminEmailPage() {
   };
 
   const fetchEntryEmail = async () => {
+    if (!token) return;
     try {
-      const data = await apiGet<EntryEmailConfig>('/settings/entry-email');
+      const data = await apiGet<EntryEmailConfig>(withOrg('/settings/entry-email', orgSlug), token);
       setEntryEmail({
         enabled: data.enabled ?? true,
         payment_instructions: data.payment_instructions ?? '',
@@ -138,8 +142,9 @@ export default function AdminEmailPage() {
   };
 
   const fetchConfirmedEntryEmail = async () => {
+    if (!token) return;
     try {
-      const data = await apiGet<ConfirmedEntryEmailConfig>('/settings/confirmed-entry-email');
+      const data = await apiGet<ConfirmedEntryEmailConfig>(withOrg('/settings/confirmed-entry-email', orgSlug), token);
       setConfirmedEntryEmail({
         enabled: data.enabled ?? true,
         main_message: data.main_message ?? '',
@@ -153,10 +158,14 @@ export default function AdminEmailPage() {
   };
 
   useEffect(() => {
+    if (!token) return;
+    setLoadingSettings(true);
+    setLoadingEntryEmail(true);
+    setLoadingConfirmedEntryEmail(true);
     fetchSettings();
     fetchEntryEmail();
     fetchConfirmedEntryEmail();
-  }, []);
+  }, [orgSlug, token]);
 
   const handleEntryEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +173,7 @@ export default function AdminEmailPage() {
     setSavingEntryEmail(true);
     setEntryEmailMessage(null);
     try {
-      await apiSend('/settings/entry-email', 'PATCH', {
+      await apiSend(withOrg('/settings/entry-email', orgSlug), 'PATCH', {
         enabled: entryEmail.enabled,
         payment_instructions: entryEmail.payment_instructions.trim() || null,
         closing_note: entryEmail.closing_note.trim() || null,
@@ -183,7 +192,7 @@ export default function AdminEmailPage() {
     setSavingConfirmedEntryEmail(true);
     setConfirmedEntryEmailMessage(null);
     try {
-      await apiSend('/settings/confirmed-entry-email', 'PATCH', {
+      await apiSend(withOrg('/settings/confirmed-entry-email', orgSlug), 'PATCH', {
         enabled: confirmedEntryEmail.enabled,
         main_message: confirmedEntryEmail.main_message.trim() || null,
         closing_note: confirmedEntryEmail.closing_note.trim() || null,
@@ -271,11 +280,11 @@ Login here: [link]`;
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">← Back to Dashboard</Link>
+          <Link href={withOrg('/admin', orgSlug)} className="text-sm text-blue-600 hover:underline">← Back to Dashboard</Link>
         </div>
-        <h1 className="text-3xl font-bold mb-2">Email</h1>
+        <h1 className="text-3xl font-bold mb-2">Automated Emails</h1>
         <p className="text-gray-600 mb-6">
-          Configure emails sent by the platform. Club name, IBAN and contact email used in these emails are set in <Link href="/admin/settings" className="text-blue-600 hover:underline">Settings</Link>.
+          Configure emails sent by the platform. Club name, IBAN and contact email used in these emails are set in <Link href={withOrg('/admin/settings', orgSlug)} className="text-blue-600 hover:underline">Settings</Link>.
         </p>
 
         <div className="max-w-2xl">
@@ -290,7 +299,7 @@ Login here: [link]`;
               className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Select an email type…</option>
-              {EMAIL_TYPES.map((t) => (
+              {EMAIL_TYPES.filter((t) => t.available).map((t) => (
                 <option key={t.id} value={t.id} disabled={!t.available}>
                   {t.label}{!t.available ? ' (coming soon)' : ''}
                 </option>
@@ -373,7 +382,7 @@ Login here: [link]`;
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">Preview (example)</h3>
                     {missingOrgSettings.length > 0 && (
                       <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        Not set in <Link href="/admin/settings" className="font-medium underline">Settings</Link>: {missingOrgSettings.join(', ')}.
+                        Not set in <Link href={withOrg('/admin/settings', orgSlug)} className="font-medium underline">Settings</Link>: {missingOrgSettings.join(', ')}.
                       </div>
                     )}
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 font-sans space-y-3">
@@ -482,7 +491,7 @@ Login here: [link]`;
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">Preview (example)</h3>
                     {missingOrgSettings.length > 0 && (
                       <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        The following are not set in <Link href="/admin/settings" className="font-medium underline">Settings</Link> and will appear as placeholders in the email until you save them there: {missingOrgSettings.join(', ')}.
+                        The following are not set in <Link href={withOrg('/admin/settings', orgSlug)} className="font-medium underline">Settings</Link> and will appear as placeholders in the email until you save them there: {missingOrgSettings.join(', ')}.
                       </div>
                     )}
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 font-sans space-y-3">

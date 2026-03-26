@@ -74,7 +74,7 @@ export function useProtests(
         nextCursorRef.current = data.page_info?.next_cursor ?? null;
         setHasMore(Boolean(data.page_info?.has_more));
       } catch (e: any) {
-        setError(e?.message ?? 'Falha a carregar protestos.');
+        setError(e?.message ?? 'Failed to load protests.');
       } finally {
         setLoading(false);
         inFlightKeyRef.current = null;

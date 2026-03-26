@@ -21,15 +21,35 @@ type FooterDesign = {
 
 type LegalModalType = 'privacy' | 'terms' | 'cookie' | null;
 
-export default function GlobalFooter() {
-  const [footer, setFooter] = useState<FooterDesign | null>(null);
+export default function GlobalFooter({
+  orgSlug,
+  initialFooter,
+  /** Slug da org para qual initialFooter foi carregado; só usamos initialFooter se coincidir */
+  serverOrgSlug,
+}: {
+  orgSlug?: string | null;
+  initialFooter?: FooterDesign | Record<string, unknown> | null;
+  serverOrgSlug?: string | null;
+}) {
+  /** Em /regattas/:id não há /o/slug no path; o layout define serverOrgSlug. */
+  const effectiveOrg = orgSlug ?? serverOrgSlug ?? null;
+  const useInitial =
+    !!initialFooter && (effectiveOrg ?? null) === (serverOrgSlug ?? null);
+  const [footer, setFooter] = useState<FooterDesign | null>(
+    useInitial ? (initialFooter as FooterDesign) : null
+  );
   const [openModal, setOpenModal] = useState<LegalModalType>(null);
 
   useEffect(() => {
-    apiGet<FooterDesign>('/design/footer')
+    if (useInitial) {
+      setFooter(initialFooter as FooterDesign);
+      return;
+    }
+    const q = effectiveOrg ? `?org=${encodeURIComponent(effectiveOrg)}` : '';
+    apiGet<FooterDesign>(`/design/footer${q}`)
       .then((data) => setFooter(data))
       .catch(() => setFooter(null));
-  }, []);
+  }, [effectiveOrg, initialFooter, serverOrgSlug, useInitial]);
 
   const siteName = (footer?.footer_site_name ?? '').trim() || 'SailScore';
   const tagline = (footer?.footer_tagline ?? '').trim();

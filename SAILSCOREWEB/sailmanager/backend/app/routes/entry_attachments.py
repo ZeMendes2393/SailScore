@@ -8,6 +8,8 @@ from datetime import datetime
 
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
+from utils.auth_utils import get_current_user
 
 
 import mimetypes
@@ -75,6 +77,19 @@ def list_attachments(
 # top of file
 
 
+def _can_manage_entry_attachment(current_user: models.User, entry: models.Entry, regatta: models.Regatta | None) -> bool:
+    """True se o user pode gerir attachments desta entry (admin da org ou dono da entry)."""
+    if current_user.role in ("admin", "platform_admin"):
+        if not regatta:
+            raise HTTPException(status_code=404, detail="Regatta not found")
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        return True
+    return bool(
+        entry.user_id == current_user.id
+        or (entry.email or "").lower() == (current_user.email or "").lower()
+    )
+
+
 @router.post("/{entry_id}/attachments", response_model=schemas.EntryAttachmentRead, status_code=status.HTTP_201_CREATED)
 def upload_attachment(
     entry_id: int,
@@ -82,10 +97,16 @@ def upload_attachment(
     visible_to_sailor: bool = Form(True),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
+    regatta = db.query(models.Regatta).filter_by(id=entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if not _can_manage_entry_attachment(current_user, entry, regatta):
+        raise HTTPException(status_code=403, detail="Acesso negado")
 
     # só PDF
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -129,7 +150,13 @@ def upload_attachment(
 # ---------- PATCH ----------
 # NOVO caminho com entry_id (o que o FE espera)
 @router.patch("/{entry_id}/attachments/{attachment_id}", response_model=schemas.EntryAttachmentRead)
-def patch_attachment_scoped(entry_id: int, attachment_id: int, payload: schemas.EntryAttachmentPatch, db: Session = Depends(get_db)):
+def patch_attachment_scoped(
+    entry_id: int,
+    attachment_id: int,
+    payload: schemas.EntryAttachmentPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     a = (
         db.query(models.EntryAttachment)
           .filter(models.EntryAttachment.id == attachment_id, models.EntryAttachment.entry_id == entry_id)
@@ -137,6 +164,14 @@ def patch_attachment_scoped(entry_id: int, attachment_id: int, payload: schemas.
     )
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    entry = db.query(models.Entry).filter_by(id=entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    regatta = db.query(models.Regatta).filter_by(id=entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if not _can_manage_entry_attachment(current_user, entry, regatta):
+        raise HTTPException(status_code=403, detail="Acesso negado")
     if payload.title is not None:
         a.title = payload.title.strip() or a.title
     if payload.visible_to_sailor is not None:
@@ -147,10 +182,23 @@ def patch_attachment_scoped(entry_id: int, attachment_id: int, payload: schemas.
 
 # Mantém rota antiga (retrocompatibilidade)
 @router.patch("/attachments/{attachment_id}", response_model=schemas.EntryAttachmentRead)
-def patch_attachment_legacy(attachment_id: int, payload: schemas.EntryAttachmentPatch, db: Session = Depends(get_db)):
+def patch_attachment_legacy(
+    attachment_id: int,
+    payload: schemas.EntryAttachmentPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     a = db.query(models.EntryAttachment).filter(models.EntryAttachment.id == attachment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    entry = db.query(models.Entry).filter_by(id=a.entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    regatta = db.query(models.Regatta).filter_by(id=entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if not _can_manage_entry_attachment(current_user, entry, regatta):
+        raise HTTPException(status_code=403, detail="Acesso negado")
     if payload.title is not None:
         a.title = payload.title.strip() or a.title
     if payload.visible_to_sailor is not None:
@@ -162,7 +210,12 @@ def patch_attachment_legacy(attachment_id: int, payload: schemas.EntryAttachment
 # ---------- DELETE ----------
 # NOVO caminho com entry_id (o que o FE espera)
 @router.delete("/{entry_id}/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_attachment_scoped(entry_id: int, attachment_id: int, db: Session = Depends(get_db)):
+def delete_attachment_scoped(
+    entry_id: int,
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     a = (
         db.query(models.EntryAttachment)
           .filter(models.EntryAttachment.id == attachment_id, models.EntryAttachment.entry_id == entry_id)
@@ -170,6 +223,14 @@ def delete_attachment_scoped(entry_id: int, attachment_id: int, db: Session = De
     )
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    entry = db.query(models.Entry).filter_by(id=entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    regatta = db.query(models.Regatta).filter_by(id=entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if not _can_manage_entry_attachment(current_user, entry, regatta):
+        raise HTTPException(status_code=403, detail="Acesso negado")
     try:
         if a.storage_path and os.path.exists(a.storage_path):
             os.remove(a.storage_path)
@@ -180,10 +241,22 @@ def delete_attachment_scoped(entry_id: int, attachment_id: int, db: Session = De
 
 # Mantém rota antiga (retrocompatibilidade)
 @router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_attachment_legacy(attachment_id: int, db: Session = Depends(get_db)):
+def delete_attachment_legacy(
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     a = db.query(models.EntryAttachment).filter(models.EntryAttachment.id == attachment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    entry = db.query(models.Entry).filter_by(id=a.entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    regatta = db.query(models.Regatta).filter_by(id=entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if not _can_manage_entry_attachment(current_user, entry, regatta):
+        raise HTTPException(status_code=403, detail="Acesso negado")
     try:
         if a.storage_path and os.path.exists(a.storage_path):
             os.remove(a.storage_path)

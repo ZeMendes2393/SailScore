@@ -2,8 +2,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { isTokenExpired } from '@/lib/api';
+import { isAdminRole } from '@/lib/roles';
+import {
+  buildSessionExpiredLoginUrl,
+  persistAdminOrgFromUrl,
+  persistAdminOrgFromUser,
+} from '@/lib/sessionExpiryLogin';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -13,6 +19,8 @@ type BaseUser = {
   name?: string | null;
   current_regatta_id?: number | null;
   id?: number | null;
+  organization_id?: number | null;
+  organization_slug?: string | null;
 };
 type SailorUser = BaseUser & { role: 'regatista'; id: number };
 export type User = SailorUser | BaseUser;
@@ -31,6 +39,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -41,12 +50,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       headers: { Authorization: `Bearer ${tok}` },
       cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Sessão inválida');
+    if (!res.ok) throw new Error('Invalid session');
     const me = (await res.json()) as User;
     setUser(me);
     sessionStorage.setItem('user', JSON.stringify(me));
     return me;
   };
+
+  // Lembrar org no admin: ?org= na URL ou slug do admin de organização
+  useEffect(() => {
+    if (!user || !token || typeof window === 'undefined') return;
+    persistAdminOrgFromUrl(pathname || '', window.location.search);
+    if (user.role === 'admin' && (user as { organization_slug?: string }).organization_slug) {
+      persistAdminOrgFromUser((user as { organization_slug: string }).organization_slug);
+    }
+  }, [user, token, pathname]);
 
   // Verificação periódica: se o token expirou, redireciona logo para login
   // (evita estar a score e só no save descobrir que perdeu a auth)
@@ -63,8 +81,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const path = typeof window !== 'undefined' ? window.location.pathname : '';
         const after = path + (typeof window !== 'undefined' ? window.location.search : '');
         sessionStorage.setItem('postLoginRedirect', after);
-        const url = path.startsWith('/admin') ? '/admin/login?reason=expired' : '/login?reason=expired';
-        router.replace(url);
+        router.replace(buildSessionExpiredLoginUrl());
       }
     }, 60_000); // cada 60 segundos
 
@@ -103,6 +120,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = (tok: string, usr: User) => {
     sessionStorage.setItem('token', tok);
     sessionStorage.setItem('user', JSON.stringify(usr));
+    // Manter localStorage alinhado com api.ts / login admin (evita JWT velho a “ganhar” nos headers)
+    try {
+      localStorage.setItem('access_token', tok);
+      localStorage.setItem('token', tok);
+    } catch {
+      /* ignore */
+    }
     setToken(tok);
     setUser(usr);
     setLoading(false);
@@ -110,8 +134,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Redirect pós-login
     const params = new URLSearchParams(window.location.search);
     const regattaId = params.get('regattaId');
-    if (usr.role === 'admin') {
-      router.replace('/admin');
+    if (isAdminRole(usr.role)) {
+      const orgFromLoginUrl = params.get('org')?.trim();
+      const orgFromUser = (usr as BaseUser).organization_slug?.trim();
+      const slug = orgFromLoginUrl || orgFromUser || null;
+      router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
     } else {
       if (regattaId) router.replace(`/dashboard?regattaId=${regattaId}`);
       else router.replace('/dashboard');
@@ -137,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const switchRegatta = async (regattaId: number) => {
     const t = sessionStorage.getItem('token') || '';
-    if (!t) throw new Error('Sem sessão');
+    if (!t) throw new Error('No session');
 
     const res = await fetch(`${API_BASE}/auth/switch-regatta?regatta_id=${regattaId}`, {
       method: 'POST',

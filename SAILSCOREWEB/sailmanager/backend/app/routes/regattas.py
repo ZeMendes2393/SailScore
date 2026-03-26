@@ -1,5 +1,5 @@
 # app/routes/regattas.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Dict, Optional, Literal
@@ -10,7 +10,8 @@ import os
 from app import models, schemas
 from app.metadata.timezones import is_valid_iana_timezone, is_valid_timezone_for_country
 from app.database import get_db
-from utils.auth_utils import get_current_user
+from app.org_scope import assert_user_can_manage_org_id, resolve_org
+from utils.auth_utils import get_current_user, get_current_user_optional
 
 
 def _validate_regatta_timezone_country(country_code: str | None, timezone_str: str) -> None:
@@ -34,26 +35,55 @@ router = APIRouter(prefix="/regattas", tags=["regattas"])
 # ---------------- Regattas CRUD ----------------
 
 @router.get("/", response_model=List[schemas.RegattaListRead])
-def list_regattas(db: Session = Depends(get_db)):
-    regattas = (
-        db.query(models.Regatta)
-        .options(joinedload(models.Regatta.classes))
-        .order_by(models.Regatta.start_date)
-        .all()
-    )
+def list_regattas(
+    organization_id: Optional[int] = Query(None, description="ID da organização"),
+    org: Optional[str] = Query(None, description="Slug da organização (alternativa a organization_id)"),
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
+):
+    q = db.query(models.Regatta).options(joinedload(models.Regatta.classes))
+    # Org admin: sempre filtrar pela sua organização (não pode ver outras)
+    if current_user and current_user.role == "admin" and current_user.organization_id:
+        q = q.filter(models.Regatta.organization_id == current_user.organization_id)
+    elif organization_id is not None:
+        q = q.filter(models.Regatta.organization_id == organization_id)
+    elif org:
+        organization = resolve_org(db, org_slug=org)
+        q = q.filter(models.Regatta.organization_id == organization.id)
+    else:
+        # Sem ?org nem organization_id: não listar todas as orgs misturadas (multi-tenant).
+        # Usa a organização default (slug sailscore) — igual a /design/homepage sem org.
+        # platform_admin pode pedir a lista global sem filtro (ferramentas internas).
+        if not (current_user and current_user.role == "platform_admin"):
+            default_org = resolve_org(db, org_slug=None)
+            q = q.filter(models.Regatta.organization_id == default_org.id)
+    regattas = q.order_by(models.Regatta.start_date).all()
+    # RegattaListRead exige str; colunas na BD podem ser NULL → sem coerção dava ValidationError (500).
     return [
         schemas.RegattaListRead(
             id=r.id,
-            name=r.name,
-            location=r.location,
-            start_date=r.start_date,
-            end_date=r.end_date,
+            organization_id=r.organization_id,
+            organization_slug=r.organization.slug if r.organization else None,
+            name=r.name or "",
+            location=r.location or "",
+            start_date=r.start_date or "",
+            end_date=r.end_date or "",
             online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
-            class_names=[c.class_name for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))],
+            class_names=[
+                (c.class_name or "")
+                for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))
+            ],
             listing_logo_url=getattr(r, "listing_logo_url", None),
         )
         for r in regattas
     ]
+
+def _get_default_org_id(db: Session) -> int:
+    org = db.query(models.Organization).filter(models.Organization.slug == "sailscore").first()
+    if not org:
+        raise HTTPException(status_code=500, detail="Organização default (sailscore) não encontrada")
+    return org.id
+
 
 @router.post("/", response_model=schemas.RegattaRead)
 def create_regatta(
@@ -61,9 +91,20 @@ def create_regatta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
-    data = regatta.model_dump()
+    if current_user.role == "admin":
+        org_id = current_user.organization_id
+    else:
+        org_id = regatta.organization_id if regatta.organization_id is not None else _get_default_org_id(db)
+    org = db.query(models.Organization).filter(models.Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=400, detail="Organização não encontrada")
+    if not org.is_active:
+        raise HTTPException(status_code=400, detail="Organização inativa")
+    assert_user_can_manage_org_id(current_user, org_id)
+    data = regatta.model_dump(exclude={"organization_id"})
+    data["organization_id"] = org_id
     cc = data.get("country_code")
     tz = data.get("timezone")
     if tz:
@@ -76,10 +117,17 @@ def create_regatta(
 
 @router.get("/{regatta_id}", response_model=schemas.RegattaRead)
 def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
-    r = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    r = (
+        db.query(models.Regatta)
+        .options(joinedload(models.Regatta.organization))
+        .filter(models.Regatta.id == regatta_id)
+        .first()
+    )
     if not r:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    return r
+    slug = r.organization.slug if r.organization else None
+    data = schemas.RegattaRead.model_validate(r, from_attributes=True)
+    return data.model_copy(update={"organization_slug": slug})
 
 @router.patch("/{regatta_id}", response_model=schemas.RegattaRead)
 def update_regatta(
@@ -88,14 +136,21 @@ def update_regatta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     data = body.model_dump(exclude_unset=True)
+    if "organization_id" in data:
+        org = db.query(models.Organization).filter(models.Organization.id == data["organization_id"]).first()
+        if not org:
+            raise HTTPException(status_code=400, detail="Organização não encontrada")
+        if not org.is_active:
+            raise HTTPException(status_code=400, detail="Organização inativa")
     cc_new = data.get("country_code")
     tz_new = data.get("timezone")
     cc = str(cc_new) if cc_new is not None else getattr(reg, "country_code", None)
@@ -119,12 +174,13 @@ def delete_regatta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     db.delete(reg)
     db.commit()
@@ -144,12 +200,13 @@ def update_scoring(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     regatta.discard_count = body.discard_count
     regatta.discard_threshold = body.discard_threshold
@@ -335,12 +392,13 @@ def replace_regatta_classes(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     # Normalizar: (class_name, class_type, sailors_per_boat)
     normalized: List[tuple[str, str, int]] = []

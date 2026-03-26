@@ -30,15 +30,22 @@ export default function RequireAuth({
       return;
     }
 
-    // role não autorizado
-    if (roles && !roles.includes(user.role)) {
-      router.replace('/'); // (ou '/admin')
-      return;
+    // role não autorizado (admin aceita também platform_admin)
+    if (roles) {
+      const ok = roles.some((r) => {
+        if (user.role === r) return true;
+        if (r === 'admin' && user.role === 'platform_admin') return true;
+        return false;
+      });
+      if (!ok) {
+        router.replace('/');
+        return;
+      }
     }
   }, [loading, user, roles, router, qsId]);
 
   if (loading || !user) {
-    return <div className="p-6 text-gray-500">A verificar sessão…</div>;
+    return <div className="p-6 text-gray-500">Checking session…</div>;
   }
 
   return <>{children}</>;

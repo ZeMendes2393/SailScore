@@ -25,6 +25,8 @@ interface RegattaCalendarProps {
   regattas: RegattaItem[];
   /** Base path for regatta links. Public: /regattas, Admin: /admin/manage-regattas */
   regattaLinkPrefix: string;
+  /** Optional query string appended to regatta links (e.g. ?org=slug) */
+  regattaLinkSuffix?: string;
   /** Optional: show Add Regatta button (admin only) */
   addRegattaHref?: string;
   /** English/Portuguese labels */
@@ -87,6 +89,7 @@ const API_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API
 export function RegattaCalendar({
   regattas,
   regattaLinkPrefix,
+  regattaLinkSuffix = '',
   addRegattaHref,
   labels = {},
 }: RegattaCalendarProps) {
@@ -250,7 +253,7 @@ export function RegattaCalendar({
                         Status: {isOpen ? t.statusOpen : t.statusClosed}
                       </p>
                       <Link
-                        href={`${regattaLinkPrefix}/${r.id}`}
+                        href={`${regattaLinkPrefix}/${r.id}${regattaLinkSuffix}`}
                         className="self-start mt-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                       >
                         {t.viewButton}

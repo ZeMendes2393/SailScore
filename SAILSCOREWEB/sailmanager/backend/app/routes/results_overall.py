@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import or_, func
+from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -817,7 +817,10 @@ def get_overall_results_pdf(
         db.query(models.RegattaSponsor)
         .filter(
             or_(
-                models.RegattaSponsor.regatta_id.is_(None),
+                and_(
+                    models.RegattaSponsor.regatta_id.is_(None),
+                    models.RegattaSponsor.organization_id == reg.organization_id,
+                ),
                 models.RegattaSponsor.regatta_id == regatta_id,
             )
         )

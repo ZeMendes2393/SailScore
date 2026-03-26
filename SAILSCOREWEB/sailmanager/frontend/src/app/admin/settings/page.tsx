@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 type GlobalSettings = {
   club_name: string | null;
@@ -15,6 +16,7 @@ type GlobalSettings = {
 
 export default function AdminSettingsPage() {
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
   const [settings, setSettings] = useState<GlobalSettings>({
     club_name: '',
     entry_fee_transfer_iban: '',
@@ -27,7 +29,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const data = await apiGet<GlobalSettings>('/settings/global');
+      const data = await apiGet<GlobalSettings>(withOrg('/settings/global', orgSlug));
       setSettings({
         club_name: data.club_name ?? '',
         entry_fee_transfer_iban: data.entry_fee_transfer_iban ?? '',
@@ -43,7 +45,7 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [orgSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +54,7 @@ export default function AdminSettingsPage() {
     setMessage(null);
     try {
       await apiSend(
-        '/settings/global',
+        withOrg('/settings/global', orgSlug),
         'PATCH',
         {
           club_name: settings.club_name.trim() || null,
@@ -80,11 +82,11 @@ export default function AdminSettingsPage() {
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">← Back to Dashboard</Link>
+          <Link href={withOrg('/admin', orgSlug)} className="text-sm text-blue-600 hover:underline">← Back to Dashboard</Link>
         </div>
         <h1 className="text-3xl font-bold mb-2">Global settings</h1>
         <p className="text-gray-600 mb-8">
-          Organisation and payment variables used across the platform (e.g. email templates, registration confirmations, payment instructions). Configure the entry confirmation email in <Link href="/admin/email" className="text-blue-600 hover:underline">Email</Link>.
+          Organisation and payment variables used across the platform (e.g. email templates, registration confirmations, payment instructions). Configure the entry confirmation email in <Link href={withOrg('/admin/email', orgSlug)} className="text-blue-600 hover:underline">Automated Emails</Link>.
         </p>
 
         {loading ? (

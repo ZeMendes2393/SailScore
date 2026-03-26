@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiPost } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -13,6 +14,7 @@ const API_BASE =
 export default function NewNewsPage() {
   const router = useRouter();
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -50,7 +52,7 @@ export default function NewNewsPage() {
     setSaving(true);
     try {
       await apiPost(
-        '/news/',
+        withOrg('/news/', orgSlug),
         {
           title: title.trim(),
           published_at: publishedAt ? `${publishedAt}T12:00:00Z` : undefined,
@@ -59,7 +61,7 @@ export default function NewNewsPage() {
         },
         token ?? undefined
       );
-      router.push('/admin/news');
+      router.push(withOrg('/admin/news', orgSlug));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
     } finally {
@@ -73,7 +75,7 @@ export default function NewNewsPage() {
 
       <main className="flex-1 p-10 bg-gray-50 overflow-auto">
         <div className="mb-4">
-          <Link href="/admin/news" className="text-sm text-blue-600 hover:underline">
+          <Link href={withOrg('/admin/news', orgSlug)} className="text-sm text-blue-600 hover:underline">
             ← Back to News
           </Link>
         </div>
@@ -98,6 +100,7 @@ export default function NewNewsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
                 type="date"
+                lang="en-GB"
                 value={publishedAt}
                 onChange={(e) => setPublishedAt(e.target.value)}
                 className="w-full border rounded px-3 py-2"
@@ -182,7 +185,7 @@ export default function NewNewsPage() {
             >
               {saving ? 'Saving…' : 'Save news'}
             </button>
-            <Link href="/admin/news" className="px-4 py-2 border rounded hover:bg-gray-50">
+            <Link href={withOrg('/admin/news', orgSlug)} className="px-4 py-2 border rounded hover:bg-gray-50">
               Cancel
             </Link>
           </div>

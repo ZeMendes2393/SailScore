@@ -68,7 +68,7 @@ export default function RespondentsEditor({
     <div className="space-y-2">
       <div className="flex items-center justify-between mt-2">
         <button className="px-3 py-1 border rounded" onClick={addRespondent}>
-          + Adicionar
+          + Add
         </button>
       </div>
 
@@ -130,7 +130,7 @@ export default function RespondentsEditor({
                   }}
                 >
                   <option value="" disabled>
-                    Seleciona classe…
+                    Select class…
                   </option>
                   {classes.map((c) => (
                     <option key={c} value={c}>
@@ -180,7 +180,7 @@ export default function RespondentsEditor({
           )}
 
           <div className="md:col-span-3">
-            <label className="block text-sm mb-1">Represented by (opcional)</label>
+            <label className="block text-sm mb-1">Represented by (optional)</label>
             <input
               className="w-full border rounded px-3 py-2"
               value={r.represented_by || ''}
@@ -193,9 +193,9 @@ export default function RespondentsEditor({
               className="px-3 py-2 border rounded text-red-600"
               onClick={() => removeRespondent(r.id)}
               disabled={respondents.length === 1}
-              title={respondents.length === 1 ? 'Mantém pelo menos um respondente' : 'Remover'}
+              title={respondents.length === 1 ? 'Keep at least one respondent' : 'Remove'}
             >
-              Remover
+              Remove
             </button>
           </div>
         </div>

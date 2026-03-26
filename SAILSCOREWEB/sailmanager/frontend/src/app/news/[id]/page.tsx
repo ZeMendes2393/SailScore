@@ -40,7 +40,7 @@ export default function NewsDetailPage() {
         const data = (await res.json()) as NewsItem;
         setItem(data);
       } catch {
-        setError('Notícia não encontrada.');
+        setError('Article not found.');
       } finally {
         setLoading(false);
       }
@@ -49,7 +49,7 @@ export default function NewsDetailPage() {
 
   const formatDate = (s: string) => {
     try {
-      return new Date(s).toLocaleDateString('pt-PT', {
+      return new Date(s).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',

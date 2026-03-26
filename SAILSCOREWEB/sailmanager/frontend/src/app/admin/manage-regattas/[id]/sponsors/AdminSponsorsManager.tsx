@@ -74,7 +74,12 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
   };
 
   const existingCategories = [...new Set([...allCategories, ...sponsors.map((s) => s.category).filter(Boolean)])].sort();
-  const effectiveCategory = (useNewCategory || existingCategories.length === 0) ? newCategory.trim() : selectedCategory.trim();
+  const hasExistingCategories = existingCategories.length > 0;
+  const effectiveCategory = !hasExistingCategories
+    ? newCategory.trim()
+    : useNewCategory
+      ? newCategory.trim()
+      : selectedCategory.trim();
 
   const handleAddSponsor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +98,9 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
       }, token);
       setNewLinkUrl('');
       setNewImageUrl('');
-      if (useNewCategory) setNewCategory('');
+      setNewCategory('');
+      setUseNewCategory(false);
+      setSelectedCategory(effectiveCategory);
       fetchSponsors();
       fetchAllCategories();
     } catch (err: unknown) {
@@ -142,37 +149,71 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
         <h3 className="font-semibold text-gray-800">Add new sponsor/supporter</h3>
         <div>
           <label className="block text-sm font-medium mb-1">Category</label>
-          <div className="space-y-2">
-            {existingCategories.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select
-                  className="flex-1 border rounded px-3 py-2"
-                  value={useNewCategory ? '__new__' : selectedCategory}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setUseNewCategory(v === '__new__');
-                    if (v !== '__new__') setSelectedCategory(v);
+          {!hasExistingCategories ? (
+            <input
+              type="text"
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. Official Sponsors, Official Partners, Member of"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+            />
+          ) : (
+            <div className="space-y-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="regattaSponsorCategoryMode"
+                  className="mt-1"
+                  checked={!useNewCategory}
+                  onChange={() => {
+                    setUseNewCategory(false);
+                    setNewCategory('');
                   }}
-                >
-                  <option value="">— Choose existing category —</option>
-                  {existingCategories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                  <option value="__new__">➕ New category</option>
-                </select>
-              </div>
-            )}
-            {(useNewCategory || existingCategories.length === 0) && (
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2"
-                placeholder="e.g. Official Sponsors, Official Partners, Member of"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onFocus={() => setUseNewCategory(true)}
-              />
-            )}
-          </div>
+                />
+                <span className="flex-1 space-y-2">
+                  <span className="block text-sm text-gray-800">Existing category</span>
+                  {!useNewCategory && (
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                      <option value="">— Choose category —</option>
+                      {existingCategories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="regattaSponsorCategoryMode"
+                  className="mt-1"
+                  checked={useNewCategory}
+                  onChange={() => {
+                    setUseNewCategory(true);
+                    setSelectedCategory('');
+                  }}
+                />
+                <span className="flex-1 space-y-2">
+                  <span className="block text-sm text-gray-800">New category</span>
+                  {useNewCategory && (
+                    <input
+                      type="text"
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="e.g. Official Sponsors, Official Partners, Member of"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                    />
+                  )}
+                </span>
+              </label>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Logo image</label>

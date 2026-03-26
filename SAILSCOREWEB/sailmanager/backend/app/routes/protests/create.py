@@ -26,6 +26,16 @@ from .helpers import (
 
 router = APIRouter()
 
+# Temporary feature flag: disable protest email notifications while not needed.
+# Keep the code path intact so it can be re-enabled by flipping this flag.
+PROTEST_EMAIL_ENABLED = os.getenv("SAILSCORE_PROTEST_EMAIL_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED)  # path vazio (correto)
 def create_protest(
@@ -260,7 +270,7 @@ def create_protest(
 
     # -------- emails (best-effort) --------
     try:
-        if resp_ids and background:
+        if PROTEST_EMAIL_ENABLED and resp_ids and background:
             entries = db.query(Entry).filter(Entry.id.in_(resp_ids)).all()
             to_emails = sorted({(e.email or "").strip().lower() for e in entries if e.email})
             if to_emails:

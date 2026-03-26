@@ -350,7 +350,7 @@ export default function Page() {
                   className="border rounded px-2 py-1"
                   value={form.bow_number ?? ''}
                   onChange={(e) => onChange('bow_number', e.target.value)}
-                  placeholder="Número de proa (admin)"
+                  placeholder="Bow number (admin)"
                 />
                 {(form.boat_country_code || form.sail_number) && (
                   <>
@@ -628,6 +628,7 @@ export default function Page() {
                 <label className="text-gray-500">Date of birth</label>
                 <input
                   type="date"
+                  lang="en-GB"
                   className="border rounded px-2 py-1"
                   value={form.date_of_birth ?? ''}
                   onChange={(e) => onChange('date_of_birth', e.target.value)}
@@ -801,7 +802,7 @@ function formatAttachmentDate(iso?: string | null, timezone?: string | null) {
   if (!Number.isFinite(d.getTime())) return '—';
   if (timezone) {
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      return new Intl.DateTimeFormat('pt-PT', {
         dateStyle: 'medium',
         timeStyle: 'short',
         timeZone: timezone,

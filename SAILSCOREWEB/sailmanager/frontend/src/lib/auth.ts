@@ -1,3 +1,5 @@
+import { buildSessionExpiredLoginUrl } from '@/lib/sessionExpiryLogin';
+
 // src/lib/api.ts
 export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000';
@@ -11,7 +13,7 @@ function handleUnauthorized() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token');
     sessionStorage.setItem('postLoginRedirect', window.location.pathname + window.location.search);
-    window.location.href = '/login?reason=expired';
+    window.location.href = buildSessionExpiredLoginUrl();
   }
 }
 

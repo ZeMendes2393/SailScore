@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/regattas/{regatta_id}/questions", tags=["questions"])
@@ -37,8 +38,8 @@ def list_questions(
     if current_user is None:
         q = q.filter(models.Question.visibility == models.QuestionVisibility.public)
 
-    # Autenticado não-admin → apenas as dele
-    elif current_user.role != "admin":
+    # Autenticado não-admin → apenas as dele (admin e platform_admin veem todas)
+    elif current_user.role not in ("admin", "platform_admin"):
         q = q.filter(models.Question.created_by == current_user.id)
 
     # Filtros comuns
@@ -80,6 +81,11 @@ def create_question(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     seq = _next_seq_for_regatta(db, regatta_id)
 
     q = models.Question(
@@ -114,8 +120,13 @@ def update_question(
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    is_admin = current_user.role == "admin"
+    is_admin = current_user.role in ("admin", "platform_admin")
     is_author = q.created_by == current_user.id
+
+    if is_admin:
+        regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+        if regatta:
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     if not is_admin:
         if not is_author:

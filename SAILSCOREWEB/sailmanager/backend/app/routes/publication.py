@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/regattas", tags=["publication"])
@@ -60,11 +61,12 @@ def get_publication(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if getattr(current_user, "role", None) != "admin":
+    if getattr(current_user, "role", None) not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
     row = _get_publication_row(db, regatta_id, class_name)
     k = int(row.published_races_count) if row else 0
     published_at_iso = None
@@ -86,11 +88,12 @@ def set_publication(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if getattr(current_user, "role", None) != "admin":
+    if getattr(current_user, "role", None) not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     races = (
         db.query(models.Race)

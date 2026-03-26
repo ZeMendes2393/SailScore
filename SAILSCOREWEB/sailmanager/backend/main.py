@@ -16,6 +16,7 @@ from app.database import create_database
 from app.routes import (
     auth,
     metadata_routes,
+    organizations,
     regattas,
     regatta_sponsors,
     entries,
@@ -136,6 +137,7 @@ create_database()
 # ---------- Routers ----------
 app.include_router(auth.router)
 app.include_router(metadata_routes.router)
+app.include_router(organizations.router)
 app.include_router(regattas.router)
 app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])

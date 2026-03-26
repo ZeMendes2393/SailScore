@@ -2,14 +2,19 @@ import HomePageClient from './HomePageClient';
 
 const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
+const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;
+
 export default async function Page() {
   let initialHomeDesign: {
     home_images: { url: string; position_x?: number; position_y?: number }[];
     hero_title: string | null;
     hero_subtitle: string | null;
   } | null = null;
+  const homeQ = DEFAULT_PUBLIC_ORG_SLUG
+    ? `?org=${encodeURIComponent(DEFAULT_PUBLIC_ORG_SLUG)}`
+    : '';
   try {
-    const res = await fetch(`${API}/design/homepage`, { cache: 'no-store' });
+    const res = await fetch(`${API}/design/homepage${homeQ}`, { cache: 'no-store' });
     if (res.ok) {
       const data = (await res.json()) as {
         home_images?: { url: string; position_x?: number; position_y?: number }[];
@@ -30,5 +35,7 @@ export default async function Page() {
   } catch {
     // ignore
   }
-  return <HomePageClient initialHomeDesign={initialHomeDesign} />;
+  return (
+    <HomePageClient initialHomeDesign={initialHomeDesign} orgSlug={DEFAULT_PUBLIC_ORG_SLUG} />
+  );
 }

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPostJson } from '@/lib/api';
 import { parseRegattaId } from '@/utils/parseRegattaId';
+import { isAdminRole } from '@/lib/roles';
 
 type TokenRes = { access_token: string };
 
@@ -40,8 +41,9 @@ export default function LoginPage() {
 
     // Se estamos em modo admin e já há sessão, reaproveita.
     if (mode === 'admin') {
-      if (user.role === 'admin') {
-        router.replace('/admin');
+      if (isAdminRole(user.role)) {
+        const slug = (user as { organization_slug?: string | null }).organization_slug?.trim();
+        router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
       } else if (user.role === 'regatista') {
         const rid = user.current_regatta_id ?? undefined;
         router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
@@ -115,8 +117,11 @@ export default function LoginPage() {
         sessionStorage.removeItem('postLoginRedirect');
         return;
       }
-      if ((me as any).role === 'admin') {
-        router.replace('/admin');
+      if (isAdminRole((me as any).role)) {
+        const orgQs = qs.get('org')?.trim();
+        const orgUser = (me as { organization_slug?: string | null }).organization_slug?.trim();
+        const slug = orgQs || orgUser || null;
+        router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
       } else {
         const rid =
           (me as any).current_regatta_id ??

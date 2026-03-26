@@ -1,27 +1,37 @@
-# app/routes/global_settings.py — global org/payment variables (club name, IBAN, etc.)
-from fastapi import APIRouter, Depends, HTTPException
+# app/routes/global_settings.py — org-scoped payment/config variables (club name, IBAN, etc.)
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import models
 from app.database import get_db
+from app.org_scope import assert_user_can_manage_organization, resolve_org
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/settings", tags=["global-settings"])
 
-# Known keys for template variables; add more here as needed.
 KNOWN_KEYS = frozenset({"club_name", "entry_fee_transfer_iban", "contact_email", "contact_phone"})
 
 
-def _get_value(db: Session, key: str) -> str | None:
-    row = db.query(models.GlobalSetting).filter(models.GlobalSetting.key == key).first()
+def _get_value(db: Session, key: str, organization_id: int) -> str | None:
+    row = (
+        db.query(models.GlobalSetting)
+        .filter(models.GlobalSetting.organization_id == organization_id, models.GlobalSetting.key == key)
+        .first()
+    )
     return row.value if row else None
 
 
-def _set_value(db: Session, key: str, value: str | None) -> None:
-    row = db.query(models.GlobalSetting).filter(models.GlobalSetting.key == key).first()
+def _set_value(db: Session, key: str, value: str | None, organization_id: int) -> None:
+    row = (
+        db.query(models.GlobalSetting)
+        .filter(models.GlobalSetting.organization_id == organization_id, models.GlobalSetting.key == key)
+        .first()
+    )
     if row is None:
-        row = models.GlobalSetting(key=key, value=value)
+        row = models.GlobalSetting(organization_id=organization_id, key=key, value=value)
         db.add(row)
     else:
         row.value = value
@@ -45,40 +55,47 @@ class GlobalSettingsUpdate(BaseModel):
 
 
 @router.get("/global", response_model=GlobalSettingsOut)
-def get_global_settings(db: Session = Depends(get_db)):
-    """Return current global settings. Used by admin UI and by backend (e.g. email templates)."""
+def get_global_settings(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
+    """Return org settings. Used by admin UI and backend (e.g. email templates)."""
+    organization = resolve_org(db, org_slug=org)
     return GlobalSettingsOut(
-        club_name=_get_value(db, "club_name"),
-        entry_fee_transfer_iban=_get_value(db, "entry_fee_transfer_iban"),
-        contact_email=_get_value(db, "contact_email"),
-        contact_phone=_get_value(db, "contact_phone"),
+        club_name=_get_value(db, "club_name", organization.id),
+        entry_fee_transfer_iban=_get_value(db, "entry_fee_transfer_iban", organization.id),
+        contact_email=_get_value(db, "contact_email", organization.id),
+        contact_phone=_get_value(db, "contact_phone", organization.id),
     )
 
 
 @router.patch("/global", response_model=GlobalSettingsOut)
 def update_global_settings(
     body: GlobalSettingsUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Update global settings. Admin only."""
-    if current_user.role != "admin":
+    """Update org settings. Admin only."""
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Access denied")
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
 
     if body.club_name is not None:
-        _set_value(db, "club_name", body.club_name.strip() or None)
+        _set_value(db, "club_name", body.club_name.strip() or None, organization.id)
     if body.entry_fee_transfer_iban is not None:
-        _set_value(db, "entry_fee_transfer_iban", body.entry_fee_transfer_iban.strip() or None)
+        _set_value(db, "entry_fee_transfer_iban", body.entry_fee_transfer_iban.strip() or None, organization.id)
     if body.contact_email is not None:
-        _set_value(db, "contact_email", body.contact_email.strip() or None)
+        _set_value(db, "contact_email", body.contact_email.strip() or None, organization.id)
     if body.contact_phone is not None:
-        _set_value(db, "contact_phone", body.contact_phone.strip() or None)
+        _set_value(db, "contact_phone", body.contact_phone.strip() or None, organization.id)
 
     return GlobalSettingsOut(
-        club_name=_get_value(db, "club_name"),
-        entry_fee_transfer_iban=_get_value(db, "entry_fee_transfer_iban"),
-        contact_email=_get_value(db, "contact_email"),
-        contact_phone=_get_value(db, "contact_phone"),
+        club_name=_get_value(db, "club_name", organization.id),
+        entry_fee_transfer_iban=_get_value(db, "entry_fee_transfer_iban", organization.id),
+        contact_email=_get_value(db, "contact_email", organization.id),
+        contact_phone=_get_value(db, "contact_phone", organization.id),
     )
 
 
@@ -93,15 +110,15 @@ Please include your name and sail number in the payment reference."""
 DEFAULT_ENTRY_EMAIL_CLOSING = "If you have any questions, please contact us at {{contact}}."
 
 
-def _get_bool(db: Session, key: str, default: bool = True) -> bool:
-    v = _get_value(db, key)
+def _get_bool(db: Session, key: str, organization_id: int, default: bool = True) -> bool:
+    v = _get_value(db, key, organization_id)
     if v is None or v.strip() == "":
         return default
     return v.strip().lower() in ("1", "true", "yes")
 
 
-def _set_bool(db: Session, key: str, value: bool) -> None:
-    _set_value(db, key, "1" if value else "0")
+def _set_bool(db: Session, key: str, value: bool, organization_id: int) -> None:
+    _set_value(db, key, "1" if value else "0", organization_id)
 
 
 class EntryEmailOut(BaseModel):
@@ -118,12 +135,16 @@ class EntryEmailUpdate(BaseModel):
 
 
 @router.get("/entry-email", response_model=EntryEmailOut)
-def get_entry_email_config(db: Session = Depends(get_db)):
+def get_entry_email_config(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
     """Return entry application received email config. Subject is fixed; only payment and closing are stored."""
-    pay = _get_value(db, "entry_email_payment_instructions")
-    close = _get_value(db, "entry_email_closing_note")
+    organization = resolve_org(db, org_slug=org)
+    pay = _get_value(db, "entry_email_payment_instructions", organization.id)
+    close = _get_value(db, "entry_email_closing_note", organization.id)
     return EntryEmailOut(
-        enabled=_get_bool(db, "entry_email_enabled", True),
+        enabled=_get_bool(db, "entry_email_enabled", organization.id, True),
         payment_instructions=pay.strip() if pay and pay.strip() else DEFAULT_ENTRY_EMAIL_PAYMENT,
         closing_note=close.strip() if close and close.strip() else DEFAULT_ENTRY_EMAIL_CLOSING,
     )
@@ -132,21 +153,24 @@ def get_entry_email_config(db: Session = Depends(get_db)):
 @router.patch("/entry-email", response_model=EntryEmailOut)
 def update_entry_email_config(
     body: EntryEmailUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Update entry application received email config. Admin only. Only enabled, payment_instructions and closing_note are editable."""
-    if current_user.role != "admin":
+    """Update entry application received email config. Admin only."""
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Access denied")
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
 
     if body.enabled is not None:
-        _set_bool(db, "entry_email_enabled", body.enabled)
+        _set_bool(db, "entry_email_enabled", body.enabled, organization.id)
     if body.payment_instructions is not None:
-        _set_value(db, "entry_email_payment_instructions", body.payment_instructions.strip() or None)
+        _set_value(db, "entry_email_payment_instructions", body.payment_instructions.strip() or None, organization.id)
     if body.closing_note is not None:
-        _set_value(db, "entry_email_closing_note", body.closing_note.strip() or None)
+        _set_value(db, "entry_email_closing_note", body.closing_note.strip() or None, organization.id)
 
-    return get_entry_email_config(db)
+    return get_entry_email_config(org=org, db=db)
 
 
 # ---------- Confirmed entry email (sent when entry is paid + confirmed) ----------
@@ -180,12 +204,16 @@ class ConfirmedEntryEmailUpdate(BaseModel):
 
 
 @router.get("/confirmed-entry-email", response_model=ConfirmedEntryEmailOut)
-def get_confirmed_entry_email_config(db: Session = Depends(get_db)):
-    """Return confirmed entry email config. Sent when an entry is marked paid and confirmed; can include account credentials."""
-    msg = _get_value(db, "confirmed_entry_email_main_message")
-    close = _get_value(db, "confirmed_entry_email_closing_note")
+def get_confirmed_entry_email_config(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
+    """Return confirmed entry email config. Sent when an entry is marked paid and confirmed."""
+    organization = resolve_org(db, org_slug=org)
+    msg = _get_value(db, "confirmed_entry_email_main_message", organization.id)
+    close = _get_value(db, "confirmed_entry_email_closing_note", organization.id)
     return ConfirmedEntryEmailOut(
-        enabled=_get_bool(db, "confirmed_entry_email_enabled", True),
+        enabled=_get_bool(db, "confirmed_entry_email_enabled", organization.id, True),
         main_message=msg.strip() if msg and msg.strip() else DEFAULT_CONFIRMED_ENTRY_MESSAGE,
         closing_note=close.strip() if close and close.strip() else DEFAULT_CONFIRMED_ENTRY_CLOSING,
     )
@@ -194,18 +222,21 @@ def get_confirmed_entry_email_config(db: Session = Depends(get_db)):
 @router.patch("/confirmed-entry-email", response_model=ConfirmedEntryEmailOut)
 def update_confirmed_entry_email_config(
     body: ConfirmedEntryEmailUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     """Update confirmed entry email config. Admin only."""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Access denied")
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
 
     if body.enabled is not None:
-        _set_bool(db, "confirmed_entry_email_enabled", body.enabled)
+        _set_bool(db, "confirmed_entry_email_enabled", body.enabled, organization.id)
     if body.main_message is not None:
-        _set_value(db, "confirmed_entry_email_main_message", body.main_message.strip() or None)
+        _set_value(db, "confirmed_entry_email_main_message", body.main_message.strip() or None, organization.id)
     if body.closing_note is not None:
-        _set_value(db, "confirmed_entry_email_closing_note", body.closing_note.strip() or None)
+        _set_value(db, "confirmed_entry_email_closing_note", body.closing_note.strip() or None, organization.id)
 
-    return get_confirmed_entry_email_config(db)
+    return get_confirmed_entry_email_config(org=org, db=db)

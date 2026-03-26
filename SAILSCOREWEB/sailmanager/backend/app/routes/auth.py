@@ -11,7 +11,9 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth_helpers import make_unique_username
 from app.database import get_db
+from app.org_scope import resolve_org
 from utils.auth_utils import (
     verify_password,
     create_access_token,
@@ -30,28 +32,61 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
     """
     Login JSON:
-    - Admin: body.email = email real
-    - Sailor Account: body.email = username (ex.: JoseMendes115)
+    - Admin: body.email = email; opcional body.org = slug do website (obrigatório para admin desse website).
+    - Sem body.org + email: apenas platform_admin (gestão global, org sailscore).
+    - Sailor Account: body.email = username (ex.: JoseMendes115); body.org recomendado se o username existir em várias orgs.
     """
     raw = (body.email or "").strip()
     if not raw:
-        raise HTTPException(status_code=400, detail="Identificador em falta.")
+        raise HTTPException(status_code=400, detail="Email or username is required.")
 
-    # Se parecer email, autentica por email; caso contrário, por username.
+    org_slug = (body.org or "").strip() or None
+    user: models.User | None = None
+
     if "@" in raw:
-        ident_is_email = True
-        lookup = db.query(models.User).filter(models.User.email == raw.lower()).first()
+        email_norm = raw.lower()
+        if org_slug:
+            organization = resolve_org(db, org_slug=org_slug)
+            user = (
+                db.query(models.User)
+                .filter(
+                    models.User.email == email_norm,
+                    models.User.organization_id == organization.id,
+                )
+                .first()
+            )
+        else:
+            default_org = resolve_org(db, org_slug=None)
+            user = (
+                db.query(models.User)
+                .filter(
+                    models.User.email == email_norm,
+                    models.User.organization_id == default_org.id,
+                    models.User.role == "platform_admin",
+                )
+                .first()
+            )
     else:
-        ident_is_email = False
-        lookup = db.query(models.User).filter(models.User.username == raw).first()
+        q = db.query(models.User).filter(models.User.username == raw)
+        if org_slug:
+            organization = resolve_org(db, org_slug=org_slug)
+            user = q.filter(models.User.organization_id == organization.id).first()
+        else:
+            matches = q.all()
+            if len(matches) == 1:
+                user = matches[0]
+            elif len(matches) > 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Specify the organization: add org=website-slug to the login request.",
+                )
 
-    user = lookup
     if not user or not verify_password(body.password, user.hashed_password or ""):
-        raise HTTPException(status_code=400, detail="Credenciais inválidas")
+        raise HTTPException(status_code=400, detail="Invalid credentials")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Conta inativa")
+        raise HTTPException(status_code=403, detail="Account is inactive")
 
-    claims: dict = {"sub": user.email, "role": user.role}
+    claims: dict = {"sub": user.email, "role": user.role, "oid": user.organization_id}
 
     if user.role == "regatista":
         # regatas onde tem inscrição
@@ -87,22 +122,32 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
 @router.post("/login-form", response_model=schemas.Token)
 def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """
-    Versão form-url-encoded:
-    - Se username tiver '@' → trata como email (admin)
-    - Caso contrário → trata como username (sailor)
+    Versão form-url-encoded (sem org no body; usar /auth/login JSON para org).
     """
     raw = (form.username or "").strip()
     if "@" in raw:
-        user = db.query(models.User).filter(models.User.email == raw.lower()).first()
+        default_org = resolve_org(db, org_slug=None)
+        user = (
+            db.query(models.User)
+            .filter(
+                models.User.email == raw.lower(),
+                models.User.organization_id == default_org.id,
+                models.User.role == "platform_admin",
+            )
+            .first()
+        )
+        if not user:
+            user = db.query(models.User).filter(models.User.email == raw.lower()).first()
     else:
-        user = db.query(models.User).filter(models.User.username == raw).first()
+        matches = db.query(models.User).filter(models.User.username == raw).all()
+        user = matches[0] if len(matches) == 1 else None
 
     if not user or not verify_password(form.password, user.hashed_password or ""):
-        raise HTTPException(status_code=400, detail="Credenciais inválidas")
+        raise HTTPException(status_code=400, detail="Invalid credentials")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Conta inativa")
+        raise HTTPException(status_code=403, detail="Account is inactive")
 
-    claims: dict = {"sub": user.email, "role": user.role}
+    claims: dict = {"sub": user.email, "role": user.role, "oid": user.organization_id}
     token = create_access_token(claims)
     return schemas.Token(access_token=token)
 
@@ -111,12 +156,16 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def me(
     current_user: models.User = Depends(get_current_user),
     current_regatta_id: Optional[int] = Depends(get_current_regatta_id),
+    db: Session = Depends(get_db),
 ):
+    org = db.query(models.Organization).filter(models.Organization.id == current_user.organization_id).first()
     return {
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
         "role": current_user.role,
+        "organization_id": current_user.organization_id,
+        "organization_slug": org.slug if org else None,
         "current_regatta_id": current_regatta_id,  # admin pode vir None
         "email_verified_at": current_user.email_verified_at,
     }
@@ -129,14 +178,31 @@ class RegisterInput(BaseModel):
     role: str
 
 @router.post("/register", dependencies=[Depends(verify_role(["admin"]))])
-def register_user(data: RegisterInput, db: Session = Depends(get_db)):
-    exists = db.query(models.User).filter(models.User.email == data.email).first()
+def register_user(
+    data: RegisterInput,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "platform_admin":
+        raise HTTPException(status_code=403, detail="Apenas administradores da plataforma podem criar utilizadores aqui.")
+    email_l = str(data.email).lower().strip()
+    exists = (
+        db.query(models.User)
+        .filter(
+            models.User.email == email_l,
+            models.User.organization_id == current_user.organization_id,
+        )
+        .first()
+    )
     if exists:
-        raise HTTPException(status_code=400, detail="Email já registado")
+        raise HTTPException(status_code=400, detail="Email já registado nesta organização")
 
+    uname = make_unique_username(db, current_user.organization_id, email_l.split("@")[0])
     new_user = models.User(
+        organization_id=current_user.organization_id,
         name=data.name,
-        email=str(data.email).lower().strip(),
+        email=email_l,
+        username=uname,
         hashed_password=hash_password(data.password),
         role=data.role,
         is_active=True,
@@ -179,7 +245,13 @@ def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
     if inv.expires_at < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Convite expirado")
 
-    user = db.query(models.User).filter(models.User.email == inv.email).first()
+    default_org = resolve_org(db, org_slug=None)
+    email_l = inv.email.lower().strip()
+    user = (
+        db.query(models.User)
+        .filter(models.User.email == email_l, models.User.organization_id == default_org.id)
+        .first()
+    )
     if user:
         user.role = inv.role
         if payload.password:
@@ -188,9 +260,12 @@ def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
         if not user.email_verified_at:
             user.email_verified_at = datetime.utcnow()
     else:
+        uname = make_unique_username(db, default_org.id, email_l.split("@")[0])
         user = models.User(
+            organization_id=default_org.id,
             name=None,
-            email=inv.email.lower().strip(),
+            email=email_l,
+            username=uname,
             hashed_password=hash_password(payload.password) if payload.password else None,
             role=inv.role,
             is_active=True,
@@ -218,9 +293,9 @@ def switch_regatta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    claims: dict = {"sub": current_user.email, "role": current_user.role}
+    claims: dict = {"sub": current_user.email, "role": current_user.role, "oid": current_user.organization_id}
 
-    if current_user.role == "admin":
+    if current_user.role in ("admin", "platform_admin"):
         claims["regatta_id"] = int(regatta_id)
         return schemas.Token(access_token=create_access_token(claims))
 

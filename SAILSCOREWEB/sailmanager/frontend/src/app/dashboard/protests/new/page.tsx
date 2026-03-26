@@ -36,12 +36,12 @@ export default function NewProtestPage() {
     return (
       <RequireAuth roles={['regatista']}>
         <div className="max-w-3xl mx-auto p-4 space-y-4">
-          <h1 className="text-2xl font-semibold">Novo Protesto</h1>
+          <h1 className="text-2xl font-semibold">New protest</h1>
           <p className="p-4 rounded border bg-amber-50 text-amber-900">
-            Abre este ecrã a partir da página da regata ou usa <code>?regattaId=…</code>.
+            Open this screen from the regatta page or use <code>?regattaId=…</code>.
           </p>
           <button className="px-3 py-2 rounded border" onClick={() => router.push('/regattas')}>
-            Ir para regattas
+            Go to regattas
           </button>
         </div>
       </RequireAuth>
@@ -52,21 +52,21 @@ export default function NewProtestPage() {
     <RequireAuth roles={['regatista']}>
       <div className="max-w-3xl mx-auto p-4 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Novo Protesto</h1>
+          <h1 className="text-2xl font-semibold">New protest</h1>
           <button
             className="px-3 py-2 rounded border"
             onClick={() => router.push(`/dashboard/protests?regattaId=${regattaId}`)}
           >
-            Voltar
+            Back
           </button>
         </div>
 
-        {/* Básico */}
+        {/* Basic */}
         <section className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-semibold">Informação básica</h2>
+          <h2 className="font-semibold">Basic information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm mb-1">Tipo</label>
+              <label className="block text-sm mb-1">Type</label>
               <select
                 className="w-full border rounded px-3 py-2"
                 value={api.type}
@@ -83,6 +83,7 @@ export default function NewProtestPage() {
               <label className="block text-sm mb-1">Race date</label>
               <input
                 type="date"
+                lang="en-GB"
                 className="w-full border rounded px-3 py-2"
                 value={api.raceDate}
                 onChange={(e) => api.setRaceDate(e.target.value)}
@@ -126,9 +127,9 @@ export default function NewProtestPage() {
           />
         </section>
 
-        {/* Respondentes */}
+        {/* Respondents */}
         <section className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-semibold">Respondentes</h2>
+          <h2 className="font-semibold">Respondents</h2>
           <RespondentsEditor
             respondents={api.respondents}
             classes={api.classes}
@@ -174,7 +175,7 @@ export default function NewProtestPage() {
           </div>
         </section>
 
-        {/* Submeter */}
+        {/* Submit */}
         {api.error && <div className="text-red-600">{api.error}</div>}
         <div className="flex items-center gap-3">
           <button
@@ -185,13 +186,13 @@ export default function NewProtestPage() {
             }}
             disabled={api.submitting}
           >
-            {api.submitting ? 'A enviar…' : 'Submeter protesto'}
+            {api.submitting ? 'Submitting…' : 'Submit protest'}
           </button>
           <button
             className="px-4 py-2 rounded border"
             onClick={() => router.push(`/dashboard/protests?regattaId=${regattaId}`)}
           >
-            Cancelar
+            Cancel
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, apiDelete, BASE_URL } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 type Sponsor = {
   id: number;
@@ -17,6 +18,7 @@ type Sponsor = {
 
 export default function AdminSponsorsPage() {
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,11 +28,10 @@ export default function AdminSponsorsPage() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
-  const [addToAllRegattas, setAddToAllRegattas] = useState(true);
 
   const fetchSponsors = async () => {
     try {
-      const data = await apiGet<Sponsor[]>('/sponsors');
+      const data = await apiGet<Sponsor[]>(withOrg('/sponsors', orgSlug), token ?? undefined);
       setSponsors(Array.isArray(data) ? data : []);
     } catch {
       setSponsors([]);
@@ -39,17 +40,9 @@ export default function AdminSponsorsPage() {
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      return await apiGet<string[]>('/sponsors/categories');
-    } catch {
-      return [];
-    }
-  };
-
   useEffect(() => {
     fetchSponsors();
-  }, []);
+  }, [orgSlug, token]);
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,8 +66,12 @@ export default function AdminSponsorsPage() {
   };
 
   const existingCategories = [...new Set(sponsors.map((s) => s.category).filter(Boolean))].sort();
-  const effectiveCategory =
-    useNewCategory || existingCategories.length === 0 ? newCategory.trim() : selectedCategory.trim();
+  const hasExistingCategories = existingCategories.length > 0;
+  const effectiveCategory = !hasExistingCategories
+    ? newCategory.trim()
+    : useNewCategory
+      ? newCategory.trim()
+      : selectedCategory.trim();
 
   const handleAddSponsor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +82,7 @@ export default function AdminSponsorsPage() {
     setSaving(true);
     try {
       await apiSend(
-        '/sponsors',
+        withOrg('/sponsors', orgSlug),
         'POST',
         {
           category: effectiveCategory,
@@ -97,7 +94,9 @@ export default function AdminSponsorsPage() {
       );
       setNewLinkUrl('');
       setNewImageUrl('');
-      if (useNewCategory) setNewCategory('');
+      setNewCategory('');
+      setUseNewCategory(false);
+      setSelectedCategory(effectiveCategory);
       fetchSponsors();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error adding sponsor.');
@@ -111,7 +110,7 @@ export default function AdminSponsorsPage() {
       return;
     setSaving(true);
     try {
-      await apiDelete(`/sponsors/${sponsorId}`, token);
+      await apiDelete(withOrg(`/sponsors/${sponsorId}`, orgSlug), token);
       fetchSponsors();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error removing sponsor.');
@@ -134,7 +133,7 @@ export default function AdminSponsorsPage() {
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">
+          <Link href={withOrg('/admin', orgSlug)} className="text-sm text-blue-600 hover:underline">
             ← Back to Dashboard
           </Link>
         </div>
@@ -150,57 +149,73 @@ export default function AdminSponsorsPage() {
           >
             <h2 className="text-xl font-semibold text-gray-800">Add global sponsor</h2>
 
-            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <input
-                type="checkbox"
-                id="addToAllRegattas"
-                checked={addToAllRegattas}
-                onChange={(e) => setAddToAllRegattas(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <label htmlFor="addToAllRegattas" className="text-sm font-medium text-gray-800">
-                Add to all regattas (appears on homepage, calendar, news and each regatta)
-              </label>
-            </div>
-            <p className="text-xs text-gray-500">
-              Sponsors created on this page are always &quot;in all regattas&quot;.
-            </p>
-
             <div>
               <label className="block text-sm font-medium mb-1">Category</label>
-              <div className="space-y-2">
-                {existingCategories.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="flex-1 border rounded px-3 py-2"
-                      value={useNewCategory ? '__new__' : selectedCategory}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setUseNewCategory(v === '__new__');
-                        if (v !== '__new__') setSelectedCategory(v);
+              {!hasExistingCategories ? (
+                <input
+                  type="text"
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="e.g. Official sponsors, Partners"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                />
+              ) : (
+                <div className="space-y-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="globalSponsorCategoryMode"
+                      className="mt-1"
+                      checked={!useNewCategory}
+                      onChange={() => {
+                        setUseNewCategory(false);
+                        setNewCategory('');
                       }}
-                    >
-                      <option value="">— Choose category —</option>
-                      {existingCategories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                      <option value="__new__">➕ New category</option>
-                    </select>
-                  </div>
-                )}
-                {(useNewCategory || existingCategories.length === 0) && (
-                  <input
-                    type="text"
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="ex: Patrocinadores Oficiais, Parceiros"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    onFocus={() => setUseNewCategory(true)}
-                  />
-                )}
-              </div>
+                    />
+                    <span className="flex-1 space-y-2">
+                      <span className="block text-sm text-gray-800">Existing category</span>
+                      {!useNewCategory && (
+                        <select
+                          className="w-full border rounded px-3 py-2"
+                          value={selectedCategory}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                        >
+                          <option value="">— Choose category —</option>
+                          {existingCategories.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="globalSponsorCategoryMode"
+                      className="mt-1"
+                      checked={useNewCategory}
+                      onChange={() => {
+                        setUseNewCategory(true);
+                        setSelectedCategory('');
+                      }}
+                    />
+                    <span className="flex-1 space-y-2">
+                      <span className="block text-sm text-gray-800">New category</span>
+                      {useNewCategory && (
+                        <input
+                          type="text"
+                          className="w-full border rounded px-3 py-2"
+                          placeholder="e.g. Official sponsors, Partners"
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                        />
+                      )}
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             <div>

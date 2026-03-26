@@ -1,10 +1,32 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 export default function AdminSidebar() {
   const { logout } = useAuth();
+  const { orgSlug, isPlatformAdmin } = useAdminOrg();
+  const pathname = usePathname();
+
+  const base = (path: string) => withOrg(path, orgSlug);
+  const itemClass = (active: boolean) =>
+    `px-3 py-2 rounded-lg text-sm ${
+      active
+        ? 'font-semibold text-blue-700 bg-blue-50 border border-blue-100'
+        : 'font-medium text-gray-700 hover:bg-gray-50'
+    }`;
+  const isRegattas =
+    pathname?.startsWith('/admin/manage-regattas') ||
+    pathname?.startsWith('/admin/create-regatta') ||
+    pathname?.startsWith('/admin/edit-regatta');
+  const isNews = pathname?.startsWith('/admin/news');
+  const isDesign = pathname?.startsWith('/admin/design');
+  const isSponsors = pathname?.startsWith('/admin/sponsors');
+  const isEmail = pathname?.startsWith('/admin/email');
+  const isSettings = pathname?.startsWith('/admin/settings');
+  const isOrganizations = pathname?.startsWith('/admin/organizations');
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 p-6 space-y-5 shadow-sm">
@@ -15,7 +37,7 @@ export default function AdminSidebar() {
 
       <div>
         <Link
-          href="/admin/create-regatta"
+          href={base('/admin/create-regatta')}
           className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
         >
           New regatta
@@ -23,25 +45,27 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="flex flex-col space-y-1">
-        <Link
-          href="/admin/manage-regattas"
-          className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100"
-        >
+        {isPlatformAdmin && (
+          <Link href={base('/admin/organizations')} className={itemClass(!!isOrganizations)}>
+            Organizations
+          </Link>
+        )}
+        <Link href={base('/admin/manage-regattas')} className={itemClass(!!isRegattas)}>
           Regattas
         </Link>
-        <Link href="/admin/news" className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700">
+        <Link href={base('/admin/news')} className={itemClass(!!isNews)}>
           News
         </Link>
-        <Link href="/admin/design" className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700">
+        <Link href={base('/admin/design')} className={itemClass(!!isDesign)}>
           Design
         </Link>
-        <Link href="/admin/sponsors" className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700">
+        <Link href={base('/admin/sponsors')} className={itemClass(!!isSponsors)}>
           Sponsors
         </Link>
-        <Link href="/admin/email" className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700">
-          Email
+        <Link href={base('/admin/email')} className={itemClass(!!isEmail)}>
+          Automated Emails
         </Link>
-        <Link href="/admin/settings" className="px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700">
+        <Link href={base('/admin/settings')} className={itemClass(!!isSettings)}>
           Settings
         </Link>
       </nav>
@@ -49,7 +73,7 @@ export default function AdminSidebar() {
       <div className="pt-3 border-t border-gray-100">
         <button
           onClick={() => {
-            logout({ redirectTo: '/' });
+            logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' });
           }}
           className="w-full mt-0 inline-flex items-center justify-center rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition"
         >

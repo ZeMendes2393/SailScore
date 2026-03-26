@@ -155,6 +155,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                     {isEd ? (
                       <input
                         type="date"
+                        lang="en-GB"
                         className="border rounded p-1"
                         value={(patch.sch_date ?? r.sch_date ?? "") as string}
                         onChange={(e) => setPatch({ ...patch, sch_date: e.target.value })}

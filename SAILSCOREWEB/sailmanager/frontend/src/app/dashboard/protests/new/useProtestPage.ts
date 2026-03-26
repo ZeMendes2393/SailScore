@@ -280,20 +280,20 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     setSubmitting(true);
     setError(null);
     try {
-      if (!regattaId) return (setError('Falta identificar a regata.'), false);
-      if (!initiatorEntryId) return (setError('Seleciona o barco iniciador.'), false);
-      if (respondents.length === 0) return (setError('Adiciona pelo menos um respondente.'), false);
+      if (!regattaId) return (setError('Could not identify the regatta.'), false);
+      if (!initiatorEntryId) return (setError('Select the initiating boat.'), false);
+      if (respondents.length === 0) return (setError('Add at least one respondent.'), false);
 
       for (const r of respondents) {
         if (r.type === 'boat' && !r.entry_id) {
-          return (setError('Seleciona a classe e o barco (sailor) a protestar.'), false);
+          return (setError('Select the class and boat (sailor) being protested.'), false);
         }
         if (r.type === 'coach' && !r.name_text?.trim()) {
-          return (setError('Indica o nome do Coach.'), false);
+          return (setError("Enter the coach's name."), false);
         }
       }
       if (respondents.some((r) => r.type === 'boat' && r.entry_id === initiatorEntryId)) {
-        return (setError('O iniciador não pode ser também respondente.'), false);
+        return (setError('The initiator cannot also be a respondent.'), false);
       }
 
       const respondentsApi: ProtestRespondentIn[] = respondents.map((r) => {
@@ -337,7 +337,7 @@ export default function useProtestPage(regattaId: number | null, token?: string)
 
       return true;
     } catch (e: any) {
-      setError(e?.message || 'Erro ao submeter o protesto.');
+      setError(e?.message || 'Failed to submit the protest.');
       return false;
     } finally {
       setSubmitting(false);

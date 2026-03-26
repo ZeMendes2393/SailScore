@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiPostJson } from '@/lib/api'; // troca para apiPost se não tiveres apiPostJson
+import { apiGet, apiPostJson } from '@/lib/api';
 
 type TokenRes = { access_token: string };
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const orgSlug = searchParams.get('org')?.trim() || '';
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -21,38 +23,32 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
     try {
-      // Login JSON (endpoint /auth/login do backend)
-      const { access_token } = await apiPostJson<TokenRes>('/auth/login', {
-        email,
-        password,
-      });
+      const body: { email: string; password: string; org?: string } = { email, password };
+      if (orgSlug) body.org = orgSlug;
 
-      // GUARDA o token para os próximos fetches com Authorization
+      const { access_token } = await apiPostJson<TokenRes>('/auth/login', body);
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', access_token);
       }
 
-      // Confirma que é admin
       const me = await apiGet('/auth/me', access_token);
-      if ((me as any)?.role !== 'admin') {
-        throw new Error('Esta conta não é admin.');
+      const r = (me as { role?: string })?.role;
+      if (r !== 'admin' && r !== 'platform_admin') {
+        throw new Error('This account is not an administrator.');
       }
 
-      // Atualiza o contexto (se ele também persistir user/token, óptimo)
       login(access_token, me as any);
 
-      // Respeita redirect pendente
-      const after = typeof window !== 'undefined'
-        ? sessionStorage.getItem('postLoginRedirect')
-        : null;
+      const after =
+        typeof window !== 'undefined' ? sessionStorage.getItem('postLoginRedirect') : null;
       if (after) {
         sessionStorage.removeItem('postLoginRedirect');
         router.replace(after);
-      } else {
-        router.replace('/admin');
       }
+      // Sem postLoginRedirect: AuthContext já redireciona para /admin?org=… quando aplicável
     } catch (err: any) {
-      setError(err?.message || 'Falha ao iniciar sessão.');
+      setError(err?.message || 'Sign-in failed.');
     } finally {
       setLoading(false);
     }
@@ -61,7 +57,13 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="w-full max-w-md bg-white rounded border p-6">
-        <h1 className="text-xl font-semibold mb-4">Entrar — Admin</h1>
+        <h1 className="text-xl font-semibold mb-4">Sign in — Admin</h1>
+        {!orgSlug && (
+          <p className="text-sm text-gray-500 mb-3">
+            Platform login (global management). For a club admin, use a link with{' '}
+            <code className="bg-gray-100 px-1 rounded">?org=club-slug</code>.
+          </p>
+        )}
 
         {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
 
@@ -69,7 +71,7 @@ export default function AdminLoginPage() {
           <input
             type="email"
             className="w-full border rounded px-3 py-2"
-            placeholder="Email do admin"
+            placeholder="Admin email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -79,7 +81,7 @@ export default function AdminLoginPage() {
           <input
             type="password"
             className="w-full border rounded px-3 py-2"
-            placeholder="Palavra-passe"
+            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -91,10 +93,18 @@ export default function AdminLoginPage() {
             className="w-full bg-blue-600 text-white rounded py-2 disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? 'A entrar…' : 'Entrar'}
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[40vh] flex items-center justify-center text-gray-500">Loading…</div>}>
+      <AdminLoginForm />
+    </Suspense>
   );
 }

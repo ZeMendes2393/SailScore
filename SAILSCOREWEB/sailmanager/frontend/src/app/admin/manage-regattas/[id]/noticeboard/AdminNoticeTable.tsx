@@ -11,7 +11,7 @@ function formatDate(iso: string | undefined, timezone?: string | null) {
   if (!Number.isFinite(d.getTime())) return "—";
   if (timezone) {
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      return new Intl.DateTimeFormat('pt-PT', {
         dateStyle: "medium",
         timeStyle: "short",
         timeZone: timezone,

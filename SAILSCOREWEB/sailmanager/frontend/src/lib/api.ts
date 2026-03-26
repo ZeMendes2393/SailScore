@@ -1,3 +1,5 @@
+import { buildSessionExpiredLoginUrl } from '@/lib/sessionExpiryLogin';
+
 // Base da API (sem trailing slash)
 export const BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
@@ -8,12 +10,17 @@ const buildUrl = (path: string) =>
 
 type HeadersDict = Record<string, string>;
 
+/**
+ * Token usado nos pedidos à API.
+ * Preferir sessionStorage — é onde o AuthContext grava após login;
+ * localStorage pode ter um JWT antigo/expirado de sessões anteriores e causava 401 em loop.
+ */
 const getStoredToken = (): string | undefined => {
   if (typeof window === 'undefined') return undefined;
   return (
+    sessionStorage.getItem('token') ||
     localStorage.getItem('access_token') ||
     localStorage.getItem('token') ||
-    sessionStorage.getItem('token') ||
     undefined
   );
 };
@@ -92,13 +99,11 @@ function handleUnauthorized() {
     return;
   }
 
-  // dashboard/admin: redireciona uma única vez
+  // dashboard/admin: redireciona uma única vez (preserva ?org= / última org admin)
   const after = path + window.location.search;
   sessionStorage.setItem('postLoginRedirect', after);
 
-  const isAdmin = path.startsWith('/admin');
-  const url = isAdmin ? '/admin/login?reason=expired' : '/login?reason=expired';
-  window.location.replace(url);
+  window.location.replace(buildSessionExpiredLoginUrl());
 }
 
 async function parseError(res: Response): Promise<Error> {

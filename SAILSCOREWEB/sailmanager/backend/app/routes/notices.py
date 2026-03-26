@@ -12,6 +12,8 @@ import os
 from app.database import get_db
 from app import models, schemas
 from app.models import NoticeSource, NoticeDocType, RegattaClass  # enums e modelo
+from app.org_scope import assert_user_can_manage_org_id
+from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -54,6 +56,7 @@ def map_notice_to_read(n: models.Notice) -> schemas.NoticeRead:
     "/upload/",
     response_model=schemas.NoticeRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_role(["admin"]))],
 )
 def upload_notice_file(
     regatta_id: int = Form(...),
@@ -70,7 +73,13 @@ def upload_notice_file(
 
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
 ):
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+
     ensure_upload_dir()
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -200,11 +209,22 @@ def get_notice_detail(notice_id: int, db: Session = Depends(get_db)):
 
 
 # ------------------------ delete ------------------------
-@router.delete("/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_notice(notice_id: int, db: Session = Depends(get_db)):
+@router.delete(
+    "/{notice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(verify_role(["admin"]))],
+)
+def delete_notice(
+    notice_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     # apaga ficheiro do sistema (mapeia caminho público -> pasta local)
     fs_path = n.filepath.replace("/uploads", "uploads")
@@ -225,11 +245,17 @@ class ImportantPatch(BaseModel):
     is_important: bool
 
 
-@router.patch("/{notice_id}/important", response_model=schemas.NoticeRead, status_code=status.HTTP_200_OK)
+@router.patch(
+    "/{notice_id}/important",
+    response_model=schemas.NoticeRead,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(verify_role(["admin"]))],
+)
 def set_notice_important(
     notice_id: int,
     payload: ImportantPatch,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
 ):
     """
     Atualiza o estado de destaque (is_important) de um notice.
@@ -238,6 +264,9 @@ def set_notice_important(
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     n.is_important = bool(payload.is_important)
     db.commit()

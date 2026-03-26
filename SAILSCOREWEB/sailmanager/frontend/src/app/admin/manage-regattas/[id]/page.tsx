@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import RequireAuth from '@/components/RequireAuth';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
@@ -36,6 +37,7 @@ export default function AdminRegattaPage() {
   const regattaId = parseInt(id as string);
   const router = useRouter();
   const { token, user } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
   const [activeTab, setActiveTab] = useState<Tab | null>(null);
@@ -360,7 +362,7 @@ export default function AdminRegattaPage() {
     try {
       await apiSend(`/regattas/${regattaId}`, 'DELETE', {}, token);
       alert('Regatta deleted.');
-      router.replace('/admin');
+      router.replace(withOrg('/admin', orgSlug));
     } catch (err: any) {
       alert(err?.message || 'Failed to delete regatta.');
     } finally {
@@ -394,7 +396,7 @@ export default function AdminRegattaPage() {
       {/* Voltar ao dashboard / lista de campeonatos */}
       <div className="mb-4">
         <Link
-          href="/admin"
+          href={withOrg('/admin/manage-regattas', orgSlug)}
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
           ← Back to regattas list
@@ -428,7 +430,7 @@ export default function AdminRegattaPage() {
 
         {/* Results agora é navegação para Overall */}
         <button
-          onClick={() => router.push(`/admin/manage-regattas/${regattaId}/overall`)}
+          onClick={() => router.push(withOrg(`/admin/manage-regattas/${regattaId}/overall`, orgSlug))}
           className="hover:underline"
         >
           Results
@@ -592,6 +594,7 @@ export default function AdminRegattaPage() {
                 <label className="block text-sm mb-1">Start date</label>
                 <input
                   type="date"
+                  lang="en-GB"
                   className="w-full border rounded px-3 py-2"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
@@ -602,6 +605,7 @@ export default function AdminRegattaPage() {
                 <label className="block text-sm mb-1">End date</label>
                 <input
                   type="date"
+                  lang="en-GB"
                   className="w-full border rounded px-3 py-2"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}

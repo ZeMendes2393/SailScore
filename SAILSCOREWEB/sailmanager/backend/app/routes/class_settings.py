@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 router = APIRouter(tags=["Class Settings"])
@@ -104,10 +105,11 @@ def upsert_class_settings(
     current_user: models.User = Depends(get_current_user),
 ):
     # só admin pode alterar
-    if getattr(current_user, "role", None) != "admin":
+    if getattr(current_user, "role", None) not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     regatta = _ensure_regatta(db, regatta_id)
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
     row = _get_settings_row(db, regatta_id, class_name)
 
     if row is None:

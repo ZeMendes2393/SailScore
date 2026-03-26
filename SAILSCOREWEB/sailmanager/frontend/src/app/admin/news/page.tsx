@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiDelete } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 export type NewsItem = {
   id: number;
@@ -25,10 +26,11 @@ export default function AdminNewsPage() {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const fetchNews = async () => {
     try {
-      const data = await apiGet<NewsItem[]>(`/news/`, token ?? undefined);
+      const data = await apiGet<NewsItem[]>(withOrg('/news/', orgSlug), token ?? undefined);
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load news:', err);
@@ -42,12 +44,12 @@ export default function AdminNewsPage() {
     if (!token) return;
     fetchNews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, orgSlug]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this news item?')) return;
     try {
-      await apiDelete(`/news/${id}`, token ?? undefined);
+      await apiDelete(withOrg(`/news/${id}`, orgSlug), token ?? undefined);
       setItems((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
       console.error('Failed to delete news item:', err);
@@ -90,7 +92,7 @@ export default function AdminNewsPage() {
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">
+          <Link href={withOrg('/admin', orgSlug)} className="text-sm text-blue-600 hover:underline">
             ← Back to dashboard
           </Link>
         </div>
@@ -98,7 +100,7 @@ export default function AdminNewsPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">News</h1>
           <Link
-            href="/admin/news/new"
+            href={withOrg('/admin/news/new', orgSlug)}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Add news
@@ -140,7 +142,7 @@ export default function AdminNewsPage() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <Link
-                    href={`/admin/news/${n.id}/edit`}
+                    href={withOrg(`/admin/news/${n.id}/edit`, orgSlug)}
                     className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
                   >
                     Edit

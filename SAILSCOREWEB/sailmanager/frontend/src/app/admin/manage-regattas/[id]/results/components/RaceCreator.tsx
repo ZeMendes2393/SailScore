@@ -143,6 +143,7 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
               <span className="text-xs text-gray-700">Date</span>
               <input
                 type="date"
+                lang="en-GB"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="mt-1 w-full border rounded px-3 py-2"

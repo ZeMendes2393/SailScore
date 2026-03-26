@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
@@ -26,6 +27,7 @@ type FooterDesign = {
 
 export default function AdminDesignPage() {
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const [featuredIds, setFeaturedIds] = useState<number[]>([0, 0, 0]);
   const [loading, setLoading] = useState(true);
@@ -64,16 +66,16 @@ export default function AdminDesignPage() {
     (async () => {
       try {
         const [regattaList, ids, homepage, footer] = await Promise.all([
-          apiGet<Regatta[]>('/regattas/'),
-          apiGet<number[]>('/design/featured-regattas/ids').catch(() => []),
+          apiGet<Regatta[]>(withOrg('/regattas/', orgSlug), token ?? undefined),
+          apiGet<number[]>(withOrg('/design/featured-regattas/ids', orgSlug)).catch(() => []),
           apiGet<{
             home_images: HomeImageItem[];
             hero_title?: string | null;
             hero_subtitle?: string | null;
             club_logo_url?: string | null;
             club_logo_link?: string | null;
-          }>('/design/homepage').catch(() => ({ home_images: [] })),
-          apiGet<FooterDesign>('/design/footer').catch(
+          }>(withOrg('/design/homepage', orgSlug)).catch(() => ({ home_images: [] })),
+          apiGet<FooterDesign>(withOrg('/design/footer', orgSlug)).catch(
             () =>
               ({
                 footer_site_name: null,
@@ -122,14 +124,14 @@ export default function AdminDesignPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [orgSlug, token]);
 
   const handleSave = async () => {
     if (!token) return;
     setSaving(true);
     try {
       const ids = featuredIds.filter((id) => id > 0);
-      await apiSend('/design/featured-regattas', 'PUT', { regatta_ids: ids }, token);
+      await apiSend(withOrg('/design/featured-regattas', orgSlug), 'PUT', { regatta_ids: ids }, token);
       alert('Featured regattas saved.');
     } catch (e) {
       console.error(e);
@@ -177,7 +179,7 @@ export default function AdminDesignPage() {
     setSavingHome(true);
     try {
       await apiSend(
-        '/design/homepage',
+        withOrg('/design/homepage', orgSlug),
         'PUT',
         {
           home_images: homeImages.slice(0, 3),
@@ -221,7 +223,7 @@ export default function AdminDesignPage() {
     setSavingHeader(true);
     try {
       await apiSend(
-        '/design/homepage',
+        withOrg('/design/homepage', orgSlug),
         'PUT',
         {
           club_logo_url: clubLogoUrl.trim() || null,
@@ -243,7 +245,7 @@ export default function AdminDesignPage() {
     setSavingFooter(true);
     try {
       await apiSend(
-        '/design/footer',
+        withOrg('/design/footer', orgSlug),
         'PUT',
         {
           ...footerDesign,
@@ -265,7 +267,7 @@ export default function AdminDesignPage() {
 
       <main className="flex-1 p-10 bg-gray-50">
         <div className="mb-4">
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">
+          <Link href={withOrg('/admin', orgSlug)} className="text-sm text-blue-600 hover:underline">
             ← Back to Dashboard
           </Link>
         </div>
@@ -296,7 +298,7 @@ export default function AdminDesignPage() {
             {openSections.featured && (
               <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500 mb-4">
-                  When there are no upcoming regattas, the homepage shows up to 3 regattas you choose here (e.g. past editions). Set the order: 1st, 2nd and 3rd slot.
+                  Choose up to 3 regattas to feature on the homepage (e.g. past editions or key events). They appear in a &quot;Featured regattas&quot; section. Set the order: 1st, 2nd and 3rd slot. If you leave all slots empty, the homepage will show upcoming regattas instead.
                 </p>
                 {loading ? (
                   <p className="text-gray-500">Loading…</p>
@@ -360,7 +362,7 @@ export default function AdminDesignPage() {
             {openSections.homeImages && (
               <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500 mb-4">
-                  Up to 3 images for the SailScore homepage hero (same as regatta pages). Images rotate in a carousel. Click an image to set the focal point. You can also edit the hero title and subtitle shown over the images.
+                  Choose up to 3 main images for the homepage banner. These images are shown at the top of the homepage in a rotating carousel. You can also set the title and subtitle that appear over the images. Click an image to define its focal point.
                 </p>
                 <div className="border rounded-lg p-5 bg-gray-50 space-y-4">
                   <div className="space-y-2">
@@ -384,6 +386,9 @@ export default function AdminDesignPage() {
                     />
                   </div>
                   <hr className="border-gray-200" />
+                  <div className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                    Upload area: add up to <span className="font-semibold">3 homepage images</span> here.
+                  </div>
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -391,6 +396,9 @@ export default function AdminDesignPage() {
                     disabled={uploadingImage || homeImages.length >= 3}
                     className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100 disabled:opacity-60"
                   />
+                  <p className="text-xs text-gray-600">
+                    Focal point tip: click on the image preview where you want the center to be.
+                  </p>
                   {homeImages.length >= 3 && (
                     <p className="text-xs text-amber-700">Maximum 3 images. Remove one to add another.</p>
                   )}
@@ -473,7 +481,7 @@ export default function AdminDesignPage() {
             {openSections.header && (
               <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500 mb-4">
-                  Club logo shown in the top-left of the header (instead of SailScore). You can add an optional link so clicking the logo opens a URL (e.g. your club website).
+                  Club logo shown in the top-left of the header. You can add an optional link so clicking the logo opens a URL (e.g. your club website).
                 </p>
                 <div className="border rounded-lg p-5 bg-gray-50 space-y-4 max-w-xl">
                   <div className="space-y-2">
@@ -559,7 +567,7 @@ export default function AdminDesignPage() {
                       <div className="space-y-3">
                         <h3 className="text-lg font-semibold text-gray-900">Brand</h3>
                         <div className="space-y-1">
-                          <label className="block text-sm font-medium text-gray-700">Site name</label>
+                          <label className="block text-sm font-medium text-gray-700">Club name</label>
                           <input
                             type="text"
                             value={footerDesign.footer_site_name ?? ''}

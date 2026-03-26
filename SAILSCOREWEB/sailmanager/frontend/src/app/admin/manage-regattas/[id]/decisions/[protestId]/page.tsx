@@ -193,7 +193,7 @@ export default function DecisionFormPage() {
           </div>
           <div>
             <label className="block text-sm mb-1">Date of Race</label>
-            <input type="date" className="w-full border rounded p-2" value={dateOfRace}
+            <input type="date" lang="en-GB" className="w-full border rounded p-2" value={dateOfRace}
                    onChange={(e) => setDateOfRace(e.target.value)} />
           </div>
           <div>
@@ -295,7 +295,7 @@ export default function DecisionFormPage() {
         <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm mb-1">Decision Date</label>
-            <input type="date" className="w-full border rounded p-2"
+            <input type="date" lang="en-GB" className="w-full border rounded p-2"
                    value={decisionDate} onChange={(e) => setDecisionDate(e.target.value)} />
           </div>
           <div>

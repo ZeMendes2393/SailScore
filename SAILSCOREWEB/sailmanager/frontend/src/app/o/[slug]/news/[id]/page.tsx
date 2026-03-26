@@ -1,0 +1,155 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import Linkify from 'linkify-react';
+
+import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
+
+interface NewsItem {
+  id: number;
+  title: string;
+  published_at: string;
+  excerpt: string | null;
+  body: string | null;
+  image_url: string | null;
+  category: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+
+export default function OrgNewsDetailPage() {
+  const params = useParams();
+  const slug = typeof params.slug === 'string' ? params.slug : null;
+  const id = params?.id as string;
+
+  const [item, setItem] = useState<NewsItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const orgParam = slug ? `?org=${encodeURIComponent(slug)}` : '';
+
+  useEffect(() => {
+    if (!id || !slug) {
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/news/${id}${orgParam}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Not found');
+        const data = (await res.json()) as NewsItem;
+        setItem(data);
+      } catch {
+        setError('Article not found.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id, slug, orgParam]);
+
+  const formatDate = (s: string) => {
+    try {
+      return new Date(s).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return s;
+    }
+  };
+
+  const imageSrc = (url: string | null) => {
+    if (!url) return null;
+    return url.startsWith('http') ? url : `${API_BASE}${url}`;
+  };
+
+  const paragraphs = useMemo(() => {
+    const text = item?.body?.trim();
+    if (!text) return [];
+    return text
+      .split(/\n\s*\n/g)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }, [item?.body]);
+
+  if (loading) {
+    return (
+      <div className="container-page py-8">
+        <p className="text-gray-500">Loading…</p>
+      </div>
+    );
+  }
+
+  if (error || !item || !slug) {
+    const backHref = slug ? `/o/${slug}/news` : '/news';
+    return (
+      <div className="container-page py-8">
+        <p className="text-red-600">{error ?? 'Not found.'}</p>
+        <Link href={backHref} className="mt-4 inline-block text-blue-600 hover:underline">
+          ← Back to news
+        </Link>
+        <GlobalSponsorsFooter orgSlug={slug} />
+      </div>
+    );
+  }
+
+  return (
+    <article className="container-page py-8 max-w-3xl">
+      <Link
+        href={`/o/${slug}/news`}
+        className="text-sm text-blue-600 hover:underline mb-6 inline-block"
+      >
+        ← Back to news
+      </Link>
+
+      <header className="mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-sm text-gray-500">{formatDate(item.published_at)}</span>
+        </div>
+
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{item.title}</h1>
+      </header>
+
+      {item.image_url && (
+        <div className="rounded-2xl overflow-hidden bg-gray-100 border mb-8">
+          <img
+            src={imageSrc(item.image_url) ?? ''}
+            alt=""
+            className="w-full h-auto object-contain"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
+        </div>
+      )}
+
+      {paragraphs.length > 0 ? (
+        <div className="prose prose-lg max-w-none text-gray-700">
+          {paragraphs.map((p, idx) => (
+            <p key={idx}>
+              <Linkify
+                options={{
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  attributes: {
+                    class: 'text-blue-600 underline hover:text-blue-700',
+                  },
+                }}
+              >
+                {p}
+              </Linkify>
+            </p>
+          ))}
+        </div>
+      ) : item.excerpt ? (
+        <p className="text-lg text-gray-700">{item.excerpt}</p>
+      ) : null}
+
+      <GlobalSponsorsFooter orgSlug={slug} />
+    </article>
+  );
+}

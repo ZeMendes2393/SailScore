@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user, get_current_user_optional  # 👈 opcional + obrigatório
 
 router = APIRouter(prefix="/regattas/{regatta_id}/requests", tags=["requests"])
@@ -72,7 +73,7 @@ def list_requests(
         return q.order_by(models.Request.request_no.asc()).all()
 
     # (resto mantém igual para utilizadores autenticados)
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         my_entries = (
             db.query(models.Entry.id)
             .filter(models.Entry.regatta_id == regatta_id)
@@ -117,7 +118,7 @@ def get_request(
     if not r:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         # bloquear se não for do utilizador
         en = db.query(models.Entry).filter(models.Entry.id == r.initiator_entry_id).first()
         if not en or not (
@@ -147,6 +148,12 @@ def create_request(
             or (en.email or "").lower() == (current_user.email or "").lower()
         ):
             raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # admin/platform_admin: verificar org
+    if current_user.role in ("admin", "platform_admin"):
+        regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+        if regatta:
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     try:
         request_no = _next_request_no(db, regatta_id)
@@ -185,8 +192,11 @@ def patch_request(
     if not r:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    if current_user.role == "admin":
+    if current_user.role in ("admin", "platform_admin"):
         # admin pode editar status e admin_response
+        regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+        if regatta:
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
         allowed = {"status", "admin_response"}
         for k, v in body.model_dump(exclude_unset=True).items():
             if k in allowed:
@@ -220,8 +230,11 @@ def delete_request(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     r = db.query(models.Request).filter_by(id=request_id, regatta_id=regatta_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Request not found")

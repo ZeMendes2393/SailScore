@@ -11,14 +11,15 @@ type Sponsor = {
   link_url: string | null;
 };
 
-/** Sponsors globais: aparecem na homepage, calendar, news (e em todas as regatas via layout). */
-export default function GlobalSponsorsFooter() {
+/** Sponsors globais da organização: aparecem na homepage, calendar, news. */
+export default function GlobalSponsorsFooter({ orgSlug }: { orgSlug?: string | null }) {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/sponsors`, { cache: 'no-store' });
+        const qs = orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : '';
+        const res = await fetch(`${API_BASE}/sponsors${qs}`, { cache: 'no-store' });
         if (res.ok) {
           const data = (await res.json()) as Sponsor[];
           setSponsors(Array.isArray(data) ? data : []);
@@ -27,7 +28,7 @@ export default function GlobalSponsorsFooter() {
         setSponsors([]);
       }
     })();
-  }, []);
+  }, [orgSlug]);
 
   const sponsorsByCategory = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
     const cat = s.category || 'Other';

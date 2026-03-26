@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 from app.routes.results_utils import (
@@ -33,7 +34,7 @@ def delete_result(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
@@ -43,6 +44,9 @@ def delete_result(
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     db.delete(row)
     db.flush()
@@ -58,7 +62,7 @@ def change_result_position(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     row = db.query(models.Result).filter(models.Result.id == result_id).first()
@@ -68,6 +72,9 @@ def change_result_position(
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     # se este code remove do ranking, não faz sentido mover
     if removes_from_ranking(getattr(row, "code", None)):
@@ -134,7 +141,7 @@ def set_result_code(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
@@ -144,6 +151,9 @@ def set_result_code(
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     scoring_map = get_scoring_map(db, int(row.regatta_id), str(race.class_name or ""))
 
@@ -202,7 +212,7 @@ def override_points(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
@@ -212,6 +222,9 @@ def override_points(
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     # não faz sentido override em resultados fora do ranking (DNF/DNC/etc)
     if removes_from_ranking(getattr(row, "code", None)):
@@ -240,7 +253,7 @@ def undo_override_points(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
@@ -250,6 +263,9 @@ def undo_override_points(
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     if not hasattr(row, "points_override"):
         raise HTTPException(status_code=500, detail="Modelo Result não tem points_override")

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session, load_only, joinedload
 
 from app.database import get_db
 from app import models, schemas
-from utils.auth_utils import verify_role
+from app.org_scope import assert_user_can_manage_org_id
+from utils.auth_utils import verify_role, get_current_user
 
 router = APIRouter(prefix="/hearings", tags=["hearings"])
 
@@ -144,7 +145,7 @@ def _render_decision_pdf(snapshot: dict, hearing: models.Hearing) -> str:
 # Endpoints
 # -------------------------
 
-def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
+def create_hearing_for_protest(protest_id: int, db: Session, current_user: models.User):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Protesto não encontrado")
@@ -179,22 +180,34 @@ def create_hearing_for_protest(protest_id: int, db: Session = Depends(get_db)):
     status_code=201,
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def create_for_protest(protest_id: int, db: Session = Depends(get_db)):
+def create_for_protest(
+    protest_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     # evita duplicados: se já existir hearing para este protesto, devolve-o
     exists = db.query(models.Hearing).filter(models.Hearing.protest_id == protest_id).first()
     if exists:
         return {"id": exists.id, "case_number": exists.case_number}
-    return create_hearing_for_protest(protest_id, db)
+    return create_hearing_for_protest(protest_id, db, current_user)
 
 
 @router.patch(
     "/{hearing_id}",
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def update_hearing(hearing_id: int, payload: schemas.HearingPatch, db: Session = Depends(get_db)):
+def update_hearing(
+    hearing_id: int,
+    payload: schemas.HearingPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hearing não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=h.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     patch = payload.model_dump(exclude_unset=True)
 
@@ -376,10 +389,17 @@ def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def regenerate_decision_pdf(hearing_id: int, db: Session = Depends(get_db)):
+def regenerate_decision_pdf(
+    hearing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hearing não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=h.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     if not getattr(h, "decision_snapshot_json", None):
         raise HTTPException(

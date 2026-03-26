@@ -139,17 +139,30 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
     if not contact_email:
         raise HTTPException(status_code=400, detail="Email do timoneiro é obrigatório.")
 
+    regatta_row = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    if not regatta_row:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    org_id = regatta_row.organization_id
+
     base_username = _build_sailor_username_base(entry)
 
-    # Se já existir um utilizador com este username, reutiliza a mesma Sailor Account
-    user = db.query(models.User).filter(models.User.username == base_username).first()
+    # Se já existir um utilizador com este username na mesma organização, reutiliza a mesma Sailor Account
+    user = (
+        db.query(models.User)
+        .filter(models.User.username == base_username, models.User.organization_id == org_id)
+        .first()
+    )
     if not user:
         full_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or None
 
         # Gera username único (em caso de colisão rara com outro atleta)
         username = base_username
         suffix = 1
-        while db.query(models.User.id).filter(models.User.username == username).first():
+        while (
+            db.query(models.User.id)
+            .filter(models.User.username == username, models.User.organization_id == org_id)
+            .first()
+        ):
             suffix += 1
             username = f"{base_username}{suffix}"
 
@@ -157,11 +170,16 @@ def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> 
         local = username.lower()
         internal_email = f"{local}@sailor.local"
         email_suffix = 1
-        while db.query(models.User.id).filter(models.User.email == internal_email).first():
+        while (
+            db.query(models.User.id)
+            .filter(models.User.email == internal_email, models.User.organization_id == org_id)
+            .first()
+        ):
             email_suffix += 1
             internal_email = f"{local}{email_suffix}@sailor.local"
 
         user = models.User(
+            organization_id=org_id,
             name=full_name,
             email=internal_email,
             username=username,
@@ -216,22 +234,41 @@ def _get_or_create_user_for_entry(db: Session, entry: models.Entry) -> models.Us
     contact_email = (entry.email or "").strip().lower()
     if not contact_email:
         raise HTTPException(status_code=400, detail="Entry has no email; cannot create account.")
+    regatta_row = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    if not regatta_row:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    org_id = regatta_row.organization_id
     base_username = _build_sailor_username_base_from_entry(entry)
-    user = db.query(models.User).filter(models.User.username == base_username).first()
+    user = (
+        db.query(models.User)
+        .filter(models.User.username == base_username, models.User.organization_id == org_id)
+        .first()
+    )
     if not user:
-        full_name = f"{(getattr(entry, "first_name") or "").strip()} {(getattr(entry, "last_name") or "").strip()}".strip() or None
+        fn = getattr(entry, "first_name", None) or ""
+        ln = getattr(entry, "last_name", None) or ""
+        full_name = f"{str(fn).strip()} {str(ln).strip()}".strip() or None
         username = base_username
         suffix = 1
-        while db.query(models.User.id).filter(models.User.username == username).first():
+        while (
+            db.query(models.User.id)
+            .filter(models.User.username == username, models.User.organization_id == org_id)
+            .first()
+        ):
             suffix += 1
             username = f"{base_username}{suffix}"
         local = username.lower()
         internal_email = f"{local}@sailor.local"
         email_suffix = 1
-        while db.query(models.User.id).filter(models.User.email == internal_email).first():
+        while (
+            db.query(models.User.id)
+            .filter(models.User.email == internal_email, models.User.organization_id == org_id)
+            .first()
+        ):
             email_suffix += 1
             internal_email = f"{local}{email_suffix}@sailor.local"
         user = models.User(
+            organization_id=org_id,
             name=full_name,
             email=internal_email,
             username=username,
@@ -249,13 +286,20 @@ def _get_or_create_user_for_entry(db: Session, entry: models.Entry) -> models.Us
     return user
 
 
-def _get_global_setting(db: Session, key: str) -> str | None:
-    row = db.query(models.GlobalSetting).filter(models.GlobalSetting.key == key).first()
+def _get_global_setting(db: Session, key: str, organization_id: int) -> str | None:
+    row = (
+        db.query(models.GlobalSetting)
+        .filter(
+            models.GlobalSetting.organization_id == organization_id,
+            models.GlobalSetting.key == key,
+        )
+        .first()
+    )
     return row.value if row and row.value else None
 
 
-def _entry_email_enabled(db: Session) -> bool:
-    v = _get_global_setting(db, "entry_email_enabled")
+def _entry_email_enabled(db: Session, organization_id: int) -> bool:
+    v = _get_global_setting(db, "entry_email_enabled", organization_id)
     if v is None or v.strip() == "":
         return True
     return v.strip().lower() in ("1", "true", "yes")
@@ -264,6 +308,7 @@ def _entry_email_enabled(db: Session) -> bool:
 def _build_entry_confirmation_email(
     db: Session,
     *,
+    organization_id: int,
     sailor_name: str,
     event_name: str,
     class_name: str,
@@ -281,11 +326,11 @@ def _build_entry_confirmation_email(
     )
 
     subject_raw = DEFAULT_ENTRY_EMAIL_SUBJECT
-    payment_instructions = _get_global_setting(db, "entry_email_payment_instructions") or DEFAULT_ENTRY_EMAIL_PAYMENT
-    closing_note = _get_global_setting(db, "entry_email_closing_note") or DEFAULT_ENTRY_EMAIL_CLOSING
-    club = _get_global_setting(db, "club_name") or CLUB_NAME
-    iban = _get_global_setting(db, "entry_fee_transfer_iban") or ""
-    contact = _get_global_setting(db, "contact_email") or REPLY_TO or ""
+    payment_instructions = _get_global_setting(db, "entry_email_payment_instructions", organization_id) or DEFAULT_ENTRY_EMAIL_PAYMENT
+    closing_note = _get_global_setting(db, "entry_email_closing_note", organization_id) or DEFAULT_ENTRY_EMAIL_CLOSING
+    club = _get_global_setting(db, "club_name", organization_id) or CLUB_NAME
+    iban = _get_global_setting(db, "entry_fee_transfer_iban", organization_id) or ""
+    contact = _get_global_setting(db, "contact_email", organization_id) or REPLY_TO or ""
 
     # Short and long placeholder names (replace longer first so e.g. {{event_name}} is not broken by {{event}}).
     placeholders = {
@@ -374,6 +419,7 @@ def _send_combined_entry_email(
     background: BackgroundTasks,
     db: Session,
     *,
+    organization_id: int,
     to_email: str,
     sailor_name: str,
     regatta_name: str,
@@ -387,6 +433,7 @@ def _send_combined_entry_email(
     """Send entry confirmation email using configurable template."""
     subject, text = _build_entry_confirmation_email(
         db,
+        organization_id=organization_id,
         sailor_name=sailor_name,
         event_name=regatta_name,
         class_name=class_name,
@@ -396,8 +443,8 @@ def _send_combined_entry_email(
         username=username,
         temp_password=temp_password,
     )
-    club = _get_global_setting(db, "club_name") or CLUB_NAME
-    reply_to = _get_global_setting(db, "contact_email") or REPLY_TO or None
+    club = _get_global_setting(db, "club_name", organization_id) or CLUB_NAME
+    reply_to = _get_global_setting(db, "contact_email", organization_id) or REPLY_TO or None
 
     background.add_task(
         send_email,
@@ -410,8 +457,8 @@ def _send_combined_entry_email(
     )
 
 
-def _confirmed_entry_email_enabled(db: Session) -> bool:
-    v = _get_global_setting(db, "confirmed_entry_email_enabled")
+def _confirmed_entry_email_enabled(db: Session, organization_id: int) -> bool:
+    v = _get_global_setting(db, "confirmed_entry_email_enabled", organization_id)
     if v is None or v.strip() == "":
         return True
     return v.strip().lower() in ("1", "true", "yes")
@@ -420,6 +467,7 @@ def _confirmed_entry_email_enabled(db: Session) -> bool:
 def _build_confirmed_entry_email(
     db: Session,
     *,
+    organization_id: int,
     sailor_name: str,
     event_name: str,
     class_name: str,
@@ -437,10 +485,10 @@ def _build_confirmed_entry_email(
     )
 
     subject_raw = DEFAULT_CONFIRMED_ENTRY_SUBJECT
-    main_message = _get_global_setting(db, "confirmed_entry_email_main_message") or DEFAULT_CONFIRMED_ENTRY_MESSAGE
-    closing_note = _get_global_setting(db, "confirmed_entry_email_closing_note") or DEFAULT_CONFIRMED_ENTRY_CLOSING
-    club = _get_global_setting(db, "club_name") or CLUB_NAME
-    contact = _get_global_setting(db, "contact_email") or REPLY_TO or ""
+    main_message = _get_global_setting(db, "confirmed_entry_email_main_message", organization_id) or DEFAULT_CONFIRMED_ENTRY_MESSAGE
+    closing_note = _get_global_setting(db, "confirmed_entry_email_closing_note", organization_id) or DEFAULT_CONFIRMED_ENTRY_CLOSING
+    club = _get_global_setting(db, "club_name", organization_id) or CLUB_NAME
+    contact = _get_global_setting(db, "contact_email", organization_id) or REPLY_TO or ""
 
     placeholders = {
         "{{sailor_name}}": sailor_name,
@@ -532,6 +580,10 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             boat_name=entry.boat_name,
             boat_model=entry.boat_model,
             rating=entry.rating,
+            rating_type=getattr(entry, "rating_type", None),
+            orc_low=getattr(entry, "orc_low", None),
+            orc_medium=getattr(entry, "orc_medium", None),
+            orc_high=getattr(entry, "orc_high", None),
             category=entry.category,
             helm_position=getattr(entry, "helm_position", None),
             date_of_birth=entry.date_of_birth,
@@ -565,10 +617,12 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         temp_pwd = getattr(user, "_plaintext_password", None)
         to_email = (entry.email or "").strip() or user.email
 
-        if _entry_email_enabled(db):
+        org_id = regatta.organization_id if regatta else 1
+        if _entry_email_enabled(db, org_id):
             _send_combined_entry_email(
                 background,
                 db,
+                organization_id=org_id,
                 to_email=to_email,
                 sailor_name=sailor_name,
                 regatta_name=regatta_name,
@@ -776,6 +830,7 @@ def _send_confirmed_entry_email(
     """Queue sending of the confirmed entry email (paid+confirmed) with account credentials."""
     regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
     regatta_name = regatta.name if regatta else "Regatta"
+    org_id = regatta.organization_id if regatta else 1
     sailor_name = f"{(getattr(entry, "first_name") or "").strip()} {(getattr(entry, "last_name") or "").strip()}".strip() or (entry.email or "sailor")
     to_email = (entry.email or "").strip()
     if not to_email and entry.user_id:
@@ -785,6 +840,7 @@ def _send_confirmed_entry_email(
         return
     subject, text = _build_confirmed_entry_email(
         db,
+        organization_id=org_id,
         sailor_name=sailor_name,
         event_name=regatta_name,
         class_name=entry.class_name or "",
@@ -794,8 +850,8 @@ def _send_confirmed_entry_email(
         username=username,
         temp_password=temp_password,
     )
-    club = _get_global_setting(db, "club_name") or CLUB_NAME
-    reply_to = _get_global_setting(db, "contact_email") or REPLY_TO or None
+    club = _get_global_setting(db, "club_name", org_id) or CLUB_NAME
+    reply_to = _get_global_setting(db, "contact_email", org_id) or REPLY_TO or None
     background.add_task(
         send_email,
         to_email,
@@ -829,7 +885,9 @@ def send_confirmation_email(
             status_code=400,
             detail="Entry must be paid and confirmed before sending the confirmation email.",
         )
-    if not _confirmed_entry_email_enabled(db):
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    org_id = regatta.organization_id if regatta else 1
+    if not _confirmed_entry_email_enabled(db, org_id):
         raise HTTPException(status_code=400, detail="Confirmed entry email is disabled in Email settings.")
     user = _get_or_create_user_for_entry(db, entry)
     # Generate new temporary password (per championship: overwrites any previous)

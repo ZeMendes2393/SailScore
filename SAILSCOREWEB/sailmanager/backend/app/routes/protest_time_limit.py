@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/ptl", tags=["protest-time-limit"])
@@ -29,7 +30,15 @@ def list_ptl(regatta_id: int, db: Session = Depends(get_db)):
     ]
 
 @router.post("/", dependencies=[Depends(verify_role(["admin"]))])
-def create_ptl(payload: schemas.PTLCreate, db: Session = Depends(get_db)):
+def create_ptl(
+    payload: schemas.PTLCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    regatta = db.query(models.Regatta).filter_by(id=payload.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
     # unicidade
     exists = (
         db.query(models.ProtestTimeLimit.id)
@@ -57,10 +66,18 @@ def create_ptl(payload: schemas.PTLCreate, db: Session = Depends(get_db)):
     return {"ok": True, "id": row.id}
 
 @router.patch("/{row_id}", dependencies=[Depends(verify_role(["admin"]))])
-def patch_ptl(row_id: int, payload: schemas.PTLPatch, db: Session = Depends(get_db)):
+def patch_ptl(
+    row_id: int,
+    payload: schemas.PTLPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
@@ -72,10 +89,17 @@ def patch_ptl(row_id: int, payload: schemas.PTLPatch, db: Session = Depends(get_
     return {"ok": True}
 
 @router.delete("/{row_id}", dependencies=[Depends(verify_role(["admin"]))])
-def delete_ptl(row_id: int, db: Session = Depends(get_db)):
+def delete_ptl(
+    row_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     db.delete(row)
     db.commit()
     return {"ok": True}

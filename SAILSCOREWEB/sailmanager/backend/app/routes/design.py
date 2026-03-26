@@ -1,59 +1,75 @@
 # app/routes/design.py — featured regattas for homepage (when no upcoming)
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
 from app import models, schemas
+from app.default_footer_legal_texts import (
+    DEFAULT_FOOTER_COOKIE_POLICY_TEXT,
+    DEFAULT_FOOTER_PRIVACY_POLICY_TEXT,
+    DEFAULT_FOOTER_TERMS_OF_SERVICE_TEXT,
+)
 from app.database import get_db
+from app.org_scope import assert_user_can_manage_organization, resolve_org
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/design", tags=["design"])
 
-CONFIG_ID = 1
 
-
-def _get_or_create_site_design(db: Session) -> models.SiteDesign:
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+def _get_or_create_site_design(db: Session, org: models.Organization) -> models.SiteDesign:
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == org.id).first()
     if not row:
-        row = models.SiteDesign(id=CONFIG_ID, featured_regatta_ids=[])
+        row = models.SiteDesign(
+            organization_id=org.id,
+            featured_regatta_ids=[],
+            footer_privacy_policy_text=DEFAULT_FOOTER_PRIVACY_POLICY_TEXT,
+            footer_terms_of_service_text=DEFAULT_FOOTER_TERMS_OF_SERVICE_TEXT,
+            footer_cookie_policy_text=DEFAULT_FOOTER_COOKIE_POLICY_TEXT,
+        )
         db.add(row)
         db.commit()
         db.refresh(row)
     return row
 
 
+def _regatta_to_list_read(r: models.Regatta) -> schemas.RegattaListRead:
+    return schemas.RegattaListRead(
+        id=r.id,
+        organization_id=r.organization_id,
+        name=r.name or "",
+        location=r.location or "",
+        start_date=r.start_date or "",
+        end_date=r.end_date or "",
+        online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
+        class_names=[
+            (c.class_name or "")
+            for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))
+        ],
+        listing_logo_url=getattr(r, "listing_logo_url", None),
+    )
+
+
 @router.get("/featured-regattas", response_model=list[schemas.RegattaListRead])
-def get_featured_regattas(db: Session = Depends(get_db)):
-    """Public: returns up to 3 regattas to show on homepage when there are no upcoming ones."""
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+def get_featured_regattas(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
+    """Public: returns up to 3 featured regattas for the homepage. Shown whenever configured; otherwise homepage shows upcoming regattas."""
+    organization = resolve_org(db, org_slug=org)
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     ids = (row.featured_regatta_ids or [])[:3] if row else []
     if not ids:
         return []
     regattas = (
         db.query(models.Regatta)
         .options(joinedload(models.Regatta.classes))
-        .filter(models.Regatta.id.in_(ids))
+        .filter(models.Regatta.id.in_(ids), models.Regatta.organization_id == organization.id)
         .all()
     )
-    # Preserve order of ids
     by_id = {r.id: r for r in regattas}
-    result = []
-    for i in ids:
-        if i in by_id:
-            r = by_id[i]
-            result.append(
-                schemas.RegattaListRead(
-                    id=r.id,
-                    name=r.name,
-                    location=r.location,
-                    start_date=r.start_date,
-                    end_date=r.end_date,
-                    online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
-                    class_names=[c.class_name for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))],
-                    listing_logo_url=getattr(r, "listing_logo_url", None),
-                )
-            )
-    return result
+    return [_regatta_to_list_read(by_id[i]) for i in ids if i in by_id]
 
 
 class FeaturedRegattasUpdate(BaseModel):
@@ -63,22 +79,29 @@ class FeaturedRegattasUpdate(BaseModel):
 @router.put("/featured-regattas")
 def set_featured_regattas(
     body: FeaturedRegattasUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
     ids = body.regatta_ids[:3]
-    row = _get_or_create_site_design(db)
+    row = _get_or_create_site_design(db, organization)
     row.featured_regatta_ids = ids
     db.commit()
     return {"regatta_ids": ids}
 
 
 @router.get("/featured-regattas/ids")
-def get_featured_regatta_ids(db: Session = Depends(get_db)):
+def get_featured_regatta_ids(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
     """Public: returns list of up to 3 regatta IDs (for admin UI to show current selection)."""
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    organization = resolve_org(db, org_slug=org)
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     if not row or not row.featured_regatta_ids:
         return []
     return (row.featured_regatta_ids or [])[:3]
@@ -140,9 +163,13 @@ class FooterDesignUpdate(BaseModel):
 
 
 @router.get("/homepage", response_model=HomepageOut)
-def get_homepage_design(db: Session = Depends(get_db)):
+def get_homepage_design(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
     """Public: returns homepage hero images, hero text and header settings."""
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    organization = resolve_org(db, org_slug=org)
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     if not row:
         return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
     images = (row.home_images or [])[:3]
@@ -156,9 +183,13 @@ def get_homepage_design(db: Session = Depends(get_db)):
 
 
 @router.get("/header", response_model=HeaderOut)
-def get_header_design(db: Session = Depends(get_db)):
+def get_header_design(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
     """Public: returns header club logo and link for the main site."""
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    organization = resolve_org(db, org_slug=org)
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     if not row:
         return HeaderOut(club_logo_url=None, club_logo_link=None)
     return HeaderOut(
@@ -170,12 +201,15 @@ def get_header_design(db: Session = Depends(get_db)):
 @router.put("/homepage", response_model=HomepageOut)
 def set_homepage_design(
     body: HomepageUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
-    row = _get_or_create_site_design(db)
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
+    row = _get_or_create_site_design(db, organization)
     if body.home_images is not None:
         row.home_images = body.home_images[:3]
     if body.hero_title is not None:
@@ -198,14 +232,19 @@ def set_homepage_design(
 
 
 @router.get("/footer", response_model=FooterDesignOut)
-def get_footer_design(db: Session = Depends(get_db)):
+def get_footer_design(
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
+    db: Session = Depends(get_db),
+):
     """Public: returns footer configuration (brand, contacts, legal texts)."""
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.id == CONFIG_ID).first()
+    organization = resolve_org(db, org_slug=org)
+    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     if not row:
-        # Defaults if not configured yet
-        return FooterDesignOut()
+        # Novo site: nome da organização até configurar no Design
+        return FooterDesignOut(footer_site_name=organization.name)
+    site_name = (getattr(row, "footer_site_name", None) or "").strip() or organization.name
     return FooterDesignOut(
-        footer_site_name=getattr(row, "footer_site_name", None),
+        footer_site_name=site_name,
         footer_tagline=getattr(row, "footer_tagline", None),
         footer_contact_email=getattr(row, "footer_contact_email", None),
         footer_phone=getattr(row, "footer_phone", None),
@@ -230,12 +269,15 @@ def get_footer_design(db: Session = Depends(get_db)):
 @router.put("/footer", response_model=FooterDesignOut)
 def set_footer_design(
     body: FooterDesignUpdate,
+    org: Optional[str] = Query(None, description="Slug da organização (default: sailscore)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
-    row = _get_or_create_site_design(db)
+    organization = resolve_org(db, org_slug=org)
+    assert_user_can_manage_organization(current_user, organization)
+    row = _get_or_create_site_design(db, organization)
 
     def _clean(value: str | None) -> str | None:
         if value is None:
@@ -272,4 +314,4 @@ def set_footer_design(
 
     db.commit()
     db.refresh(row)
-    return get_footer_design(db)
+    return get_footer_design(db=db, org=org)

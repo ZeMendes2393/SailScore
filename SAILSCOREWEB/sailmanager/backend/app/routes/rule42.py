@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import verify_role, get_current_user
 
 router = APIRouter(prefix="/rule42", tags=["rule42"])
@@ -164,7 +165,15 @@ def list_rule42_paged(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def create_rule42(payload: schemas.Rule42Create, db: Session = Depends(get_db)):
+def create_rule42(
+    payload: schemas.Rule42Create,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    regatta = db.query(models.Regatta).filter_by(id=payload.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
     rec = models.Rule42Record(**payload.model_dump())
     db.add(rec)
     db.commit()
@@ -180,10 +189,18 @@ def create_rule42(payload: schemas.Rule42Create, db: Session = Depends(get_db)):
     response_model=schemas.Rule42Out,
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def update_rule42(id: int, payload: schemas.Rule42Patch, db: Session = Depends(get_db)):
+def update_rule42(
+    id: int,
+    payload: schemas.Rule42Patch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=rec.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
@@ -202,10 +219,17 @@ def update_rule42(id: int, payload: schemas.Rule42Patch, db: Session = Depends(g
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(verify_role(["admin"]))],
 )
-def delete_rule42(id: int, db: Session = Depends(get_db)):
+def delete_rule42(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
+    regatta = db.query(models.Regatta).filter_by(id=rec.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     db.delete(rec)
     db.commit()
     return

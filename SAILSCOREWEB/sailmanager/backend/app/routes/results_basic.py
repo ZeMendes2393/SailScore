@@ -7,6 +7,7 @@ from typing import List
 
 from app.database import get_db
 from app import models, schemas
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 from app.routes.results_utils import _norm
@@ -20,12 +21,13 @@ def create_result(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     regatta = db.query(models.Regatta).filter(models.Regatta.id == result.regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     race = db.query(models.Race).filter(models.Race.id == result.race_id).first()
     if not race:

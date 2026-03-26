@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/regattas", tags=["discards"])
@@ -36,7 +37,7 @@ class DiscardScheduleOut(BaseModel):
 # Helpers
 # -------------------------
 def _require_admin(current_user: models.User):
-    if getattr(current_user, "role", None) != "admin":
+    if getattr(current_user, "role", None) not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
 
@@ -110,6 +111,11 @@ def upsert_discard_schedule(
 ):
     _require_admin(current_user)
 
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+
     Model, row = _get_settings_row(db, regatta_id, class_name)
     if not row:
         row = Model(regatta_id=regatta_id, class_name=class_name)
@@ -142,6 +148,11 @@ def delete_discard_schedule(
     current_user: models.User = Depends(get_current_user),
 ):
     _require_admin(current_user)
+
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     _, row = _get_settings_row(db, regatta_id, class_name)
     if not row:

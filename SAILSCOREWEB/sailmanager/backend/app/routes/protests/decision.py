@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, load_only
 
 from app.database import get_db
 from app import models, schemas
-from app.models import Protest, Hearing, ProtestAttachment
+from app.models import Protest, Hearing, ProtestAttachment, Regatta
+from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user, verify_role
 from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, normalize_public_url
 from app.services.pdf import generate_decision_pdf  # gerador central
@@ -30,7 +31,15 @@ def _party_label(d: object, role: str) -> str:
 
 
 @router.get("/{protest_id}/decision/template", dependencies=[Depends(verify_role(["admin"]))])
-def decision_template(regatta_id: int, protest_id: int, db: Session = Depends(get_db)):
+def decision_template(
+    regatta_id: int,
+    protest_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin"])),
+):
+    regatta = db.query(Regatta).filter_by(id=regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     # Protest
     p = (
         db.query(models.Protest)
@@ -127,8 +136,11 @@ def save_decision(
     protest_id: int,
     body: schemas.ProtestDecisionIn,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(verify_role(["admin"])),
 ):
+    regatta = db.query(Regatta).filter_by(id=regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
     # Protest
     p = (
         db.query(Protest)
