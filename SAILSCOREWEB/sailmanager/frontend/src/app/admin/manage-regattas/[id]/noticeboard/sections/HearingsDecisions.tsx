@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch, apiDelete, apiPost } from "@/lib/api";
+import { useAdminOrg, withOrg } from "@/lib/useAdminOrg";
 import type { HearingItem, HearingStatus, HearingsList } from "@/types/hearings";
 
 export default function HearingsDecisions({ regattaId }: { regattaId: number }) {
   const router = useRouter();
+  const { orgSlug } = useAdminOrg();
 
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,8 +93,17 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Hearings & Decisions</h2>
-        <div className="flex items-center gap-2">
+        <h2 className="text-xl font-semibold">Protest Decisions/Hearings</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={withOrg(
+              `/dashboard/protests/new?regattaId=${regattaId}`,
+              orgSlug
+            )}
+            className="inline-flex items-center rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            New protest
+          </Link>
           <select
             className="border rounded px-2 py-1"
             value={statusFilter}

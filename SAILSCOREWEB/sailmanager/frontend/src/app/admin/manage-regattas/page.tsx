@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 import AdminSidebar from '@/components/admin/AdminSidebar';
-import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import { useAdminOrg, withOrg, resolveAdminOrgSlugForApi } from '@/lib/useAdminOrg';
 import { apiGet } from '@/lib/api';
 
 interface Regatta {
@@ -22,28 +23,40 @@ export default function ManageRegattasPage() {
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const { token } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const searchParams = useSearchParams();
+
+  const orgForLinks = useMemo(
+    () => orgSlug ?? searchParams.get('org')?.trim() ?? null,
+    [orgSlug, searchParams?.toString()]
+  );
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
     (async () => {
+      const effective = resolveAdminOrgSlugForApi(orgSlug, searchParams);
       try {
-        const data = await apiGet<Regatta[]>(withOrg('/regattas/', orgSlug), token);
-        setRegattas(Array.isArray(data) ? data : []);
+        const data = await apiGet<Regatta[]>(withOrg('/regattas/', effective), token);
+        if (!cancelled) setRegattas(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching regattas:', err);
+        if (!cancelled) setRegattas([]);
       }
     })();
-  }, [token, orgSlug]);
+    return () => {
+      cancelled = true;
+    };
+  }, [token, orgSlug, searchParams?.toString()]);
 
-  const regattaLinkSuffix = orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : '';
-  const backHref = withOrg('/admin', orgSlug);
+  const regattaLinkSuffix = orgForLinks ? `?org=${encodeURIComponent(orgForLinks)}` : '';
+  const backHref = withOrg('/admin', orgForLinks);
 
   return (
     <div className="flex min-h-screen">
       <AdminSidebar />
 
       {/* Main content */}
-      <main className="flex-1 p-10 bg-gray-50">
+      <main className="flex-1 px-4 sm:px-6 py-8 bg-gray-50">
         <div className="mb-4">
           <Link href={backHref} className="text-sm text-blue-600 hover:underline">
             ← Back to Dashboard

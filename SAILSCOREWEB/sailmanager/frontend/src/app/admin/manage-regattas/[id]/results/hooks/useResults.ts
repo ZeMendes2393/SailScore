@@ -794,7 +794,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       });
       if (withoutRating.length > 0) {
         return alert(
-          'Some boats are missing ANC rating. Fill in the ANC rating in the entries before using ANC mode.'
+          'Some boats are missing Simple Rating. Fill in the Simple Rating in the entries before using Simple Rating mode.'
         );
       }
     }

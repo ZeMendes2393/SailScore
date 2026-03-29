@@ -8,6 +8,7 @@ import { useEntry } from '@/lib/hooks/useEntry';
 import { apiGet, apiSend } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { COUNTRIES_UNIQUE } from '@/utils/countries';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 // Tipos para a área de documentos
 type EntryAttachment = {
@@ -27,17 +28,19 @@ type AttachmentsResponse =
   | { attachments: EntryAttachment[]; timezone?: string | null };
 
 export default function Page() {
-  const params = useParams<{ entryId: string }>();
+  const params = useParams<{ id: string; entryId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { token } = useAuth();
+  const { orgSlug } = useAdminOrg();
 
   const entryId = Number(params.entryId);
   const regattaId = useMemo(() => {
+    const fromPath = Number(params.id || '');
+    if (Number.isFinite(fromPath) && fromPath > 0) return fromPath;
     const fromQS = Number(searchParams.get('regattaId') || '');
-    const fallback = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fallback;
-  }, [searchParams]);
+    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : 0;
+  }, [params.id, searchParams]);
 
   // evita chamadas com id inválido
   const safeEntryId = Number.isFinite(entryId) && entryId > 0 ? entryId : 0;
@@ -81,6 +84,7 @@ export default function Page() {
   // ====== FORM LOCAL ======
   const [form, setForm] = useState<any>({});
   const [isDirty, setIsDirty] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     if (entry) {
       setForm(entry);
@@ -143,6 +147,26 @@ export default function Page() {
       }
     } catch (e: any) {
       alert(e?.message ?? 'Failed to save.');
+    }
+  };
+
+  const onDeleteEntry = async () => {
+    if (!entry || !token || deleting) return;
+    const ok = window.confirm(
+      'Delete this entry permanently? This cannot be undone and it will disappear from all lists.'
+    );
+    if (!ok) return;
+    const confirmText = window.prompt('Type DELETE to confirm permanent removal.');
+    if (confirmText !== 'DELETE') return;
+    try {
+      setDeleting(true);
+      await apiSend(`/entries/${entry.id}`, 'DELETE', {}, token);
+      window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+      alert('Entry deleted.');
+      router.push(withOrg(`/admin/manage-regattas/${regattaId}?tab=entry`, orgSlug));
+    } catch (e: any) {
+      alert(e?.message ?? 'Failed to delete entry.');
+      setDeleting(false);
     }
   };
 
@@ -245,8 +269,15 @@ export default function Page() {
     <RequireAuth roles={['admin']}>
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold">Edit entry #{entryId}</h1>
+          <h1 className="text-2xl font-semibold">Edit entry</h1>
           <div className="flex gap-2">
+            <button
+              className="px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-60"
+              onClick={onDeleteEntry}
+              disabled={!entry || loading || deleting}
+            >
+              {deleting ? 'Deleting…' : 'Delete entry'}
+            </button>
             <button
               className="px-3 py-2 rounded border"
               onClick={() => {
@@ -256,7 +287,7 @@ export default function Page() {
                   );
                   if (!ok) return;
                 }
-                router.push(`/admin/manage-regattas/${regattaId}?tab=entry`);
+                router.push(withOrg(`/admin/manage-regattas/${regattaId}?tab=entry`, orgSlug));
               }}
             >
               Back
@@ -431,7 +462,7 @@ export default function Page() {
                       }}
                     >
                       <option value="none">None</option>
-                      <option value="anc">ANC</option>
+                      <option value="anc">Simple Rating</option>
                       <option value="orc">ORC</option>
                     </select>
                   </div>
@@ -439,7 +470,7 @@ export default function Page() {
                     <div className="space-y-2">
                       {(form.rating_type ?? (form.rating != null ? 'anc' : null)) === 'anc' && (
                         <div>
-                          <label className="block text-gray-500 mb-1">ANC rating</label>
+                          <label className="block text-gray-500 mb-1">Simple Rating</label>
                           <input
                             type="number"
                             step="0.0001"

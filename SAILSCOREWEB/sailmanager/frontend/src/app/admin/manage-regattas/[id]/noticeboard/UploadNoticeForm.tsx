@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { NoticeSource } from "@/types/notice";
-import { BASE_URL as API_BASE } from "@/lib/api";
+import type { Notice, NoticeSource } from "@/types/notice";
+import { apiGet, apiUpload } from "@/lib/api";
 
 interface UploadNoticeFormProps {
   regattaId: number;
@@ -22,16 +22,13 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
     const fetchClasses = async () => {
       setError(null);
       try {
-        // keep for potential future use; currently documents always apply to all classes
-        const res = await fetch(`${API_BASE}/regattas/${regattaId}`);
-        if (!res.ok) throw new Error("Failed to load regatta.");
-        await res.json();
+        await apiGet(`/regattas/${regattaId}`);
       } catch (e: any) {
         setError(e?.message || "Failed to load regatta.");
       }
     };
     if (regattaId) fetchClasses();
-  }, [API_BASE, regattaId]);
+  }, [regattaId]);
 
   const canSubmit = useMemo(() => {
     if (!title.trim() || !file) return false;
@@ -63,14 +60,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
       fd.append("applies_to_all", String(true));
       fd.append("file", file);
 
-      const res = await fetch(`${API_BASE}/notices/upload/`, {
-        method: "POST",
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.detail || "Failed to upload document.");
-      }
+      await apiUpload<Notice>("/notices/upload/", fd);
 
       // reset
       setTitle("");
@@ -177,8 +167,6 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
             setTitle("");
             setFile(null);
             setSource("OTHER");
-            setAppliesToAll(true);
-            setSelectedClasses([]);
             setError(null);
             setSuccess(null);
           }}

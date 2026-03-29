@@ -5,6 +5,7 @@ Envia várias inscrições para POST /entries (mesmo endpoint do formulário onl
 Requisitos:
   - API a correr (ex.: uvicorn).
   - Regata com online_entry_open=true.
+- Se online entry limit estiver ativo, não exceder o limite.
   - Cada linha: class_name + boat_country_code + sail_number únicos na regata (regra do servidor).
 
 Uso:

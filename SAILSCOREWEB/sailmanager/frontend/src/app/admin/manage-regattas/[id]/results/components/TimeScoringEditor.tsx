@@ -395,7 +395,7 @@ export default function TimeScoringEditor({
                 onClick={() => onPatchHandicapMethod(raceId, 'anc')}
                 className={`px-3 py-1.5 rounded text-sm ${method === 'anc' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
               >
-                ANC
+                Simple Rating
               </button>
               <button
                 type="button"
@@ -436,7 +436,7 @@ export default function TimeScoringEditor({
 
       {method === 'anc' && entriesWithoutRatingInDraft.length > 0 && (
         <div className="p-3 border border-amber-300 rounded bg-amber-50 text-amber-900 text-sm" role="alert">
-          Some boats are missing ANC rating. Fill in the ANC rating in the entries.
+          Some boats are missing Simple Rating. Fill in the Simple Rating in the entries.
         </div>
       )}
       {method === 'orc' && entriesWithoutRatingInDraft.length > 0 && (

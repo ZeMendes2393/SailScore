@@ -15,11 +15,11 @@ export default function PdfModal({ open, notice, onClose }: Props) {
       <div className="relative bg-white rounded-lg shadow-xl w-[95vw] h-[90vh] max-w-5xl">
         <div className="flex items-center justify-between border-b p-3">
           <div className="font-medium">{notice.title}</div>
-          <button onClick={onClose} className="text-gray-600 hover:text-black">Fechar</button>
+          <button onClick={onClose} className="text-gray-600 hover:text-black">Close</button>
         </div>
         <div className="h-[calc(90vh-48px)]">
           <object data={notice.filepath} type="application/pdf" className="w-full h-full">
-            <p className="p-4">Não foi possível pré-visualizar. <a className="text-blue-600 underline" href={notice.filepath} target="_blank">Abrir no navegador</a>.</p>
+            <p className="p-4">Preview not available. <a className="text-blue-600 underline" href={notice.filepath} target="_blank">Open in browser</a>.</p>
           </object>
         </div>
       </div>

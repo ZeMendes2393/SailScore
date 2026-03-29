@@ -115,8 +115,12 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const waiting = !!data?.waiting_list;
         alert(
-          'Entry submitted successfully! You will receive an email with the Sailor Account username and a temporary password.'
+          waiting
+            ? 'Entry received, but the championship limit was reached. You have been added to the waiting list.'
+            : 'Entry submitted successfully! You will receive an email with the Sailor Account username and a temporary password.'
         );
         setStep(1);
         setFormData({
@@ -131,7 +135,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Backend error:', errorData);
-        alert('Failed to submit entry. Please try again.');
+        alert(errorData?.detail || 'Failed to submit entry. Please try again.');
       }
     } catch (error) {
       console.error('Unexpected error:', error);

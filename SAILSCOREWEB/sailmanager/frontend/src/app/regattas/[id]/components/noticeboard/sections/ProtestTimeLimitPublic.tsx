@@ -25,7 +25,7 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
       const data = await apiGet<Row[]>(`/ptl/${regattaId}`);
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
-      setError(e?.message || 'Erro ao carregar Protest Time Limit.');
+      setError(e?.message || 'Failed to load protest time limits.');
       setRows([]);
     } finally {
       setLoading(false);
@@ -46,7 +46,7 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
           onClick={fetchRows}
           className="text-sm px-3 py-1 border rounded hover:bg-gray-50"
         >
-          Atualizar
+          Refresh
         </button>
       </div>
 
@@ -73,14 +73,14 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-2" colSpan={5}>A carregar…</td>
+                <td className="px-3 py-2" colSpan={5}>Loading…</td>
               </tr>
             )}
 
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="px-3 py-2 text-center text-gray-500" colSpan={5}>
-                  Sem registos.
+                  No records.
                 </td>
               </tr>
             )}

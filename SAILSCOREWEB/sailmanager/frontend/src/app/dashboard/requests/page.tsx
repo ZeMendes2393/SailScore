@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import type { RequestRead } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
@@ -43,7 +44,7 @@ export default function RequestsPage() {
         <h1 className="text-2xl font-semibold">Requests</h1>
         <button
           className="px-4 py-2 rounded bg-blue-600 text-white"
-          onClick={() => router.push(`/dashboard/requests/new?regattaId=${regattaId}`)}
+          onClick={() => router.push('/dashboard/requests/new')}
         >
           New Request
         </button>

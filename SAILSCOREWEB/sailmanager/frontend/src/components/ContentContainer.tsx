@@ -6,7 +6,9 @@ export default function ContentContainer({
   className?: string;
 }) {
   return (
-    <div className={`max-w-screen-2xl mx-auto px-2 lg:px-3 ${className}`}>
+    <div
+      className={`w-full max-w-[min(100%,1920px)] mx-auto px-4 sm:px-6 lg:px-8 ${className}`}
+    >
       {children}
     </div>
   );

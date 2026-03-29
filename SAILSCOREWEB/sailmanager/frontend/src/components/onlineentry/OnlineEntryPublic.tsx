@@ -21,7 +21,12 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
       setLoading(true); setErr(null);
       try {
         const r = await apiGet<RegattaLite>(`/regattas/${regattaId}`);
-        if (!cancel) setReg({ ...r, online_entry_open: r.online_entry_open ?? true });
+        if (!cancel) {
+          setReg({
+            ...r,
+            online_entry_open: r.online_entry_open ?? true,
+          });
+        }
       } catch (e: any) {
         if (!cancel) setErr(e?.message || 'Failed to load regatta.');
       } finally {

@@ -40,7 +40,7 @@ class User(Base):
     username = Column(String, nullable=False, index=True)
     hashed_password = Column(String, nullable=True)
     # platform_admin = gestão global (criar orgs, ver tudo); admin = só da sua organização; regatista = ...
-    role = Column(String)  # "platform_admin" | "admin" | "regatista"
+    role = Column(String)  # "platform_admin" | "admin" | "regatista" | "jury"
     is_active = Column(Boolean, default=True, nullable=False)
     email_verified_at = Column(DateTime, nullable=True)
 
@@ -51,6 +51,11 @@ class User(Base):
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan"
+    )
+    jury_profile = relationship(
+        "RegattaJuryProfile",
+        back_populates="user",
+        uselist=False,
     )
 
 
@@ -83,6 +88,13 @@ class Regatta(Base):
     online_entry_url = Column(String, nullable=True)
     online_entry_open = Column(Boolean, nullable=False, server_default="1")  # default True
 
+    # Online Entry limit (total number of entries allowed for this regatta)
+    online_entry_limit_enabled = Column(Boolean, nullable=False, server_default="0")
+    online_entry_limit = Column(Integer, nullable=True)
+    # Per-class online entry limits:
+    # { "<class_name>": { "enabled": true|false, "limit": number|null } }
+    online_entry_limits_by_class = Column(JSON, nullable=True)
+
     # Regras de descarte
     discard_count = Column(Integer, nullable=False, default=0)
     discard_threshold = Column(Integer, nullable=False, default=4)
@@ -104,6 +116,29 @@ class Regatta(Base):
     # Country (ISO 3166-1 alpha-2, ex: PT, ES) + timezone (IANA, ex: Europe/Lisbon)
     country_code = Column(String(2), nullable=True)
     timezone = Column(String(64), nullable=True)
+
+    jury_profiles = relationship(
+        "RegattaJuryProfile",
+        back_populates="regatta",
+        cascade="all, delete-orphan",
+    )
+
+
+# =========================
+#   REGATTA JURY (profile + login user per regatta)
+# =========================
+class RegattaJuryProfile(Base):
+    __tablename__ = "regatta_jury_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    display_name = Column(String(200), nullable=False)
+    note = Column(String(500), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    regatta = relationship("Regatta", back_populates="jury_profiles")
+    user = relationship("User", back_populates="jury_profile")
 
 
 # =========================
@@ -202,6 +237,9 @@ class Entry(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     paid = Column(Boolean, default=False)
     confirmed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    # When online entry limit is enabled and reached, new submissions are stored here as waiting list
+    waiting_list = Column(Boolean, nullable=False, server_default="0")
 
     regatta = relationship("Regatta", back_populates="entries")
     user = relationship("User", back_populates="entries")
@@ -447,6 +485,8 @@ class Protest(Base):
 
     # iniciador
     initiator_entry_id = Column(Integer, ForeignKey("entries.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Admin-only: quem protesta descrito em texto (sem inscrição)
+    initiator_party_text = Column(Text, nullable=True)
     initiator_represented_by = Column(String, nullable=True)
 
     # Incident (detalhes)

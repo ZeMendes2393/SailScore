@@ -18,6 +18,7 @@ from app.routes import (
     metadata_routes,
     organizations,
     regattas,
+    regatta_jury,
     regatta_sponsors,
     entries,
     notices,
@@ -39,6 +40,7 @@ from app.routes import (
     global_settings as global_settings_routes,
 )
 from app.routes.discards import router as discard_router
+from app.services.email import start_email_outbox_worker, process_email_outbox
 
 from app.routes import requests as requests_routes
 from app.routes import questions as questions_module
@@ -130,6 +132,9 @@ def _ensure_upload_dirs():
     (UPLOADS_DIR / "header").mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
+    # Arrancar fila persistente de emails e fazer uma passagem imediata.
+    start_email_outbox_worker()
+    process_email_outbox()
 
 # Inicializa DB (dev)
 create_database()
@@ -139,6 +144,7 @@ app.include_router(auth.router)
 app.include_router(metadata_routes.router)
 app.include_router(organizations.router)
 app.include_router(regattas.router)
+app.include_router(regatta_jury.router)
 app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(notices.router)

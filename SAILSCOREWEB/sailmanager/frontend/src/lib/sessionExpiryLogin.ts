@@ -53,6 +53,16 @@ function getStoredAdminOrgSlug(): string | null {
   }
 }
 
+/** Após sign-out (especialmente regatista) para não reutilizar org de sessão admin anterior. */
+export function clearStoredAdminOrgSlug(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(ADMIN_ORG_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * URL para onde redirecionar quando a sessão expira (client-side).
  */
@@ -72,6 +82,15 @@ export function buildSessionExpiredLoginUrl(): string {
     let url = `/admin/login?${reason}`;
     if (org) url += `&org=${encodeURIComponent(org)}`;
     return url;
+  }
+
+  // Regatista: /dashboard muitas vezes sem ?regattaId= (ID no token). /login sem regattaId = modo admin.
+  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+    const regattaId = params.get('regattaId');
+    if (regattaId) {
+      return `/login?${reason}&regattaId=${encodeURIComponent(regattaId)}`;
+    }
+    return `/?${reason}`;
   }
 
   let url = `/login?${reason}`;

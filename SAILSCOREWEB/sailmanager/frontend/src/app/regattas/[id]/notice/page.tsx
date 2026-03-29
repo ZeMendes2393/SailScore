@@ -61,8 +61,8 @@ export default function RegattaNoticePage() {
       const s = new Date(start);
       const e = new Date(end);
       const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts);
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('en-GB', opts);
+      return `${s.toLocaleDateString('en-GB', opts)} – ${e.toLocaleDateString('en-GB', opts)}`;
     } catch {
       return `${start} – ${end}`;
     }

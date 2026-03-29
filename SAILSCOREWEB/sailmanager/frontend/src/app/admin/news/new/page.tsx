@@ -73,7 +73,7 @@ export default function NewNewsPage() {
     <div className="flex min-h-screen">
       <AdminSidebar />
 
-      <main className="flex-1 p-10 bg-gray-50 overflow-auto">
+      <main className="flex-1 px-4 sm:px-6 py-8 bg-gray-50 overflow-auto">
         <div className="mb-4">
           <Link href={withOrg('/admin/news', orgSlug)} className="text-sm text-blue-600 hover:underline">
             ← Back to News

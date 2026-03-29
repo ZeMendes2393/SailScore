@@ -19,6 +19,7 @@ type Regatta = {
   poster_url?: string | null;
   home_images?: HomeImage[] | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
+  online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
 };
 
 export default function RegattaEntryPage() {

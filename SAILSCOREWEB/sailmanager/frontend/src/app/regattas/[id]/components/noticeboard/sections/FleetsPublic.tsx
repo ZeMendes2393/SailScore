@@ -59,9 +59,9 @@ export default function FleetsPublic({ regattaId }: Props) {
           setSelectedSetId(list[0].id);
         }
       } catch (e: any) {
-        console.error('Erro a carregar fleets public:', e);
+        console.error('Failed to load published fleets:', e);
         setError(
-          e?.message || 'Não foi possível carregar as fleets publicadas.'
+          e?.message || 'Could not load published fleets.'
         );
       } finally {
         setLoading(false);
@@ -70,7 +70,7 @@ export default function FleetsPublic({ regattaId }: Props) {
   }, [regattaId]);
 
   if (loading && sets.length === 0) {
-    return <p className="text-sm text-gray-600">A carregar fleets…</p>;
+    return <p className="text-sm text-gray-600">Loading fleets…</p>;
   }
 
   if (error && sets.length === 0) {
@@ -84,7 +84,7 @@ export default function FleetsPublic({ regattaId }: Props) {
   if (sets.length === 0) {
     return (
       <p className="text-sm text-gray-600">
-        Ainda não existem fleets publicadas para esta regata.
+        No published fleets for this regatta yet.
       </p>
     );
   }
@@ -110,7 +110,7 @@ export default function FleetsPublic({ regattaId }: Props) {
           ))}
         </select>
         <span className="text-xs text-gray-500">
-          Published at {new Date(current.created_at).toLocaleString()}
+          Published at {new Date(current.created_at).toLocaleString('en-GB')}
         </span>
       </div>
 
@@ -134,7 +134,7 @@ export default function FleetsPublic({ regattaId }: Props) {
               </div>
               {fleet.boats.length === 0 ? (
                 <p className="text-xs text-gray-500">
-                  (Nenhuma embarcação nesta fleet.)
+                  (No boats in this fleet.)
                 </p>
               ) : (
                 <table className="w-full text-xs border border-gray-200">

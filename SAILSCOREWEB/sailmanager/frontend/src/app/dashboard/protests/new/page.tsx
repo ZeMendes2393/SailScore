@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
+import { isAdminRole } from '@/lib/roles';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import useProtestPage, { ProtestType } from './useProtestPage';
 import ProtestorCard from './components/ProtestorCard';
 import RespondentsEditor from './components/RespondentsEditor';
@@ -16,32 +18,47 @@ const TYPES: ProtestType[] = [
   'misconduct_rss69',
 ];
 
-export default function NewProtestPage() {
+const TYPE_LABELS: Record<ProtestType, string> = {
+  protest: 'Protest',
+  redress: 'Redress',
+  reopen: 'Reopen hearing',
+  support_person_report: 'Support person report',
+  misconduct_rss69: 'Misconduct (RRS 69)',
+};
+
+function NewProtestPageContent() {
   const router = useRouter();
-  const qs = useSearchParams();
   const { user, token } = useAuth();
 
-  // 1) Querystring tem prioridade; 2) se regatista, usar current_regatta_id
-  const regattaId = useMemo(() => {
-    const fromQS = Number(qs.get('regattaId') || '');
-    if (Number.isFinite(fromQS) && fromQS > 0) return fromQS;
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    return null;
-  }, [qs, user?.role, user?.current_regatta_id]);
+  const isJury = user?.role === 'jury';
+  const isAdmin = isAdminRole(user?.role);
 
-  // passa o token explicitamente
-  const api = useProtestPage(regattaId, token || undefined);
+  const regattaId = useDashboardRegattaId();
+
+  const api = useProtestPage(regattaId, token || undefined, {
+    forJury: isJury,
+    forAdmin: isAdmin,
+  });
+
+  const backAfterSave = () => {
+    if (isJury) return '/dashboard/protests';
+    if (isAdmin && regattaId) return `/admin/manage-regattas/${regattaId}`;
+    if (regattaId) return '/dashboard/protests';
+    return '/dashboard/protests';
+  };
 
   if (!regattaId) {
     return (
-      <RequireAuth roles={['regatista']}>
+      <RequireAuth roles={['regatista', 'jury', 'admin', 'platform_admin']}>
         <div className="max-w-3xl mx-auto p-4 space-y-4">
           <h1 className="text-2xl font-semibold">New protest</h1>
           <p className="p-4 rounded border bg-amber-50 text-amber-900">
-            Open this screen from the regatta page or use <code>?regattaId=…</code>.
+            {isJury && 'Sign in with your jury account for this regatta.'}
+            {isAdmin && 'Open this page from manage regatta or add ?regattaId=… to the URL.'}
+            {!isJury && !isAdmin && 'Open from the regatta page or use ?regattaId=…'}
           </p>
           <button className="px-3 py-2 rounded border" onClick={() => router.push('/regattas')}>
-            Go to regattas
+            Regattas
           </button>
         </div>
       </RequireAuth>
@@ -49,19 +66,15 @@ export default function NewProtestPage() {
   }
 
   return (
-    <RequireAuth roles={['regatista']}>
+    <RequireAuth roles={['regatista', 'jury', 'admin', 'platform_admin']}>
       <div className="max-w-3xl mx-auto p-4 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">New protest</h1>
-          <button
-            className="px-3 py-2 rounded border"
-            onClick={() => router.push(`/dashboard/protests?regattaId=${regattaId}`)}
-          >
+          <button className="px-3 py-2 rounded border" onClick={() => router.push(backAfterSave())}>
             Back
           </button>
         </div>
 
-        {/* Basic */}
         <section className="bg-white rounded border p-4 space-y-3">
           <h2 className="font-semibold">Basic information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -74,7 +87,7 @@ export default function NewProtestPage() {
               >
                 {TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t.replaceAll('_', ' ')}
+                    {TYPE_LABELS[t]}
                   </option>
                 ))}
               </select>
@@ -95,7 +108,7 @@ export default function NewProtestPage() {
                 className="w-full border rounded px-3 py-2"
                 value={api.raceNumber}
                 onChange={(e) => api.setRaceNumber(e.target.value)}
-                placeholder="ex.: 3"
+                placeholder="e.g. 3"
               />
             </div>
             <div>
@@ -104,30 +117,48 @@ export default function NewProtestPage() {
                 className="w-full border rounded px-3 py-2"
                 value={api.groupName}
                 onChange={(e) => api.setGroupName(e.target.value)}
-                placeholder="ex.: Yellow"
+                placeholder="e.g. Yellow"
               />
             </div>
           </div>
         </section>
 
-        {/* Protestor */}
         <section className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-semibold">Protestor</h2>
-          <ProtestorCard
-            loadingEntries={api.loadingEntries}
-            regattaId={regattaId}
-            myEntries={api.myEntries}
-            initiatorEntryId={api.initiatorEntryId}
-            setInitiatorEntryId={api.setInitiatorEntryId}
-            selectedInitiator={api.selectedInitiator}
-            initiatorRep={api.initiatorRep}
-            setInitiatorRep={api.setInitiatorRep}
-            repLocked={api.repLocked}
-            setRepLocked={api.setRepLocked}
-          />
+          {api.adminInitiatorFreeTextOnly ? (
+            <>
+              <h2 className="font-semibold">Protestor / party</h2>
+              <p className="text-sm text-gray-600">
+                Describe in words who is protesting (no entry selection). This is only available for
+                organization admin.
+              </p>
+              <div>
+                <label className="block text-sm mb-1">Who is protesting</label>
+                <textarea
+                  className="w-full border rounded px-3 py-2"
+                  rows={4}
+                  value={api.initiatorPartyText}
+                  onChange={(e) => api.setInitiatorPartyText(e.target.value)}
+                  placeholder="e.g. Race committee on behalf of the fleet; the organizing authority; a named boat not on the entry list…"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="font-semibold">Protestor (initiating boat)</h2>
+              <ProtestorCard
+                loadingEntries={api.loadingEntries}
+                myEntries={api.myEntries}
+                initiatorEntryId={api.initiatorEntryId}
+                setInitiatorEntryId={api.setInitiatorEntryId}
+                selectedInitiator={api.selectedInitiator}
+                initiatorRep={api.initiatorRep}
+                setInitiatorRep={api.setInitiatorRep}
+                staffMode={isJury}
+              />
+            </>
+          )}
         </section>
 
-        {/* Respondents */}
         <section className="bg-white rounded border p-4 space-y-3">
           <h2 className="font-semibold">Respondents</h2>
           <RespondentsEditor
@@ -141,21 +172,20 @@ export default function NewProtestPage() {
           />
         </section>
 
-        {/* Incident info */}
         <section className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-semibold">Incident information</h2>
+          <h2 className="font-semibold">Incident</h2>
           <div>
-            <label className="block text-sm mb-1">When & where</label>
+            <label className="block text-sm mb-1">When and where</label>
             <textarea
               className="w-full border rounded px-3 py-2"
               rows={2}
               value={api.incidentWhenWhere}
               onChange={(e) => api.setIncidentWhenWhere(e.target.value)}
-              placeholder="ex.: Upwind leg, near mark 1 at ~14:25"
+              placeholder="e.g. Windward leg, near mark 1 ~14:25"
             />
           </div>
           <div>
-            <label className="block text-sm mb-1">Description of incident</label>
+            <label className="block text-sm mb-1">Description</label>
             <textarea
               className="w-full border rounded px-3 py-2"
               rows={4}
@@ -170,32 +200,40 @@ export default function NewProtestPage() {
               rows={2}
               value={api.rulesAlleged}
               onChange={(e) => api.setRulesAlleged(e.target.value)}
-              placeholder="ex.: RRS 10, 11; Appendix P"
+              placeholder="e.g. RRS 10, 11; Appendix P"
             />
           </div>
         </section>
 
-        {/* Submit */}
         {api.error && <div className="text-red-600">{api.error}</div>}
         <div className="flex items-center gap-3">
           <button
             className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
             onClick={async () => {
               const ok = await api.submit();
-              if (ok) router.push(`/dashboard/protests?regattaId=${regattaId}`);
+              if (ok) router.push(backAfterSave());
             }}
             disabled={api.submitting}
           >
             {api.submitting ? 'Submitting…' : 'Submit protest'}
           </button>
-          <button
-            className="px-4 py-2 rounded border"
-            onClick={() => router.push(`/dashboard/protests?regattaId=${regattaId}`)}
-          >
+          <button className="px-4 py-2 rounded border" onClick={() => router.push(backAfterSave())}>
             Cancel
           </button>
         </div>
       </div>
     </RequireAuth>
+  );
+}
+
+export default function NewProtestPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-3xl mx-auto p-6 text-sm text-gray-500">Loading…</div>
+      }
+    >
+      <NewProtestPageContent />
+    </Suspense>
   );
 }

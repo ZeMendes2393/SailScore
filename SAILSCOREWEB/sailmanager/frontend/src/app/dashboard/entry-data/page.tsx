@@ -1,10 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { useMyEntry } from '@/lib/hooks/useMyEntry';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 function V({ children }: { children?: React.ReactNode }) {
@@ -12,16 +11,8 @@ function V({ children }: { children?: React.ReactNode }) {
 }
 
 export default function Page() {
-  const searchParams = useSearchParams();
-  const { user, token } = useAuth();
-
-  // Same rule as Protests to pick the active regatta
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  const { token } = useAuth();
+  const regattaId = useDashboardRegattaId();
 
   const { entry, loading, error, refresh } = useMyEntry(regattaId || null, token || undefined);
 

@@ -198,7 +198,7 @@ export default function OrganizationsPage() {
           </nav>
         </aside>
 
-        <main className="flex-1 p-10 bg-gray-50">
+        <main className="flex-1 px-4 sm:px-6 py-8 bg-gray-50">
           <h1 className="text-3xl font-bold mb-6">Organizations</h1>
           <p className="text-gray-600 mb-6">
             Each organization (club) has its own site at <code className="bg-gray-200 px-1 rounded">/o/[slug]</code> with separate branding, regattas, and settings.

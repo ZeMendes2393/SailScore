@@ -1,23 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import type { ScoringRead } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 export default function ScoringEnquiriesPage() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  const regattaId = useDashboardRegattaId();
 
   const [rows, setRows] = useState<ScoringRead[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,7 +47,7 @@ export default function ScoringEnquiriesPage() {
         <div className="flex items-center gap-2">
           <button
             className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => router.push(`/dashboard/scoring/new?regattaId=${regattaId}`)}
+            onClick={() => router.push('/dashboard/scoring/new')}
           >
             New Scoring Enquiry
           </button>

@@ -36,8 +36,13 @@ function useOrgSlugWithParams(pathname: string | null): string | null {
       const defCal = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim();
       if (defCal) return defCal;
     }
+    /** Alinha com o layout do servidor: ?org= na mesma página (ex.: dashboard com regattaId). */
+    if (pathname?.startsWith('/dashboard')) {
+      const fromQs = searchParams?.get('org')?.trim();
+      if (fromQs) return fromQs;
+    }
     return null;
-  }, [pathname, searchParams, user?.role, (user as { organization_slug?: string })?.organization_slug]);
+  }, [pathname, searchParams?.toString(), user?.role, (user as { organization_slug?: string })?.organization_slug]);
 }
 
 export function useOrgSlugFromPath(): string | null {
@@ -69,8 +74,8 @@ function ClientLayoutInner({
   pathname: string | null;
 }) {
   const orgSlug = useOrgSlugWithParams(pathname);
-  /** Servidor já resolve org em `/`, `/calendar`, `/regattas/:id`; o menu precisa do mesmo slug que o footer. */
-  const orgSlugForHeader = orgSlug ?? serverOrgSlug ?? null;
+  /** Preferir slug do servidor (middleware `x-org-slug`) para igualar SSR, fallback Suspense e 1.º paint do cliente. */
+  const orgSlugForHeader = serverOrgSlug ?? orgSlug ?? null;
 
   useEffect(() => {
     const m = pathname?.match(/^\/o\/([^/]+)/);
@@ -110,7 +115,7 @@ function ClientLayoutInner({
         {useContentContainer ? <ContentContainer>{children}</ContentContainer> : children}
       </main>
       <GlobalFooter
-          orgSlug={orgSlug}
+          orgSlug={serverOrgSlug ?? orgSlug}
           initialFooter={footerDesign}
           serverOrgSlug={serverOrgSlug}
         />
@@ -130,7 +135,7 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const orgSlugFallback = orgSlugFromPathname(pathname) ?? serverOrgSlug;
+  const orgSlugFallback = serverOrgSlug ?? orgSlugFromPathname(pathname);
   const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/);
   const homeRoute = isPublicHomePage(pathname);
   const useContentContainer =

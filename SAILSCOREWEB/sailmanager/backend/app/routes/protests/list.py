@@ -24,27 +24,29 @@ def list_protests(
     current_user=Depends(get_current_user),
     _=Depends(ensure_regatta_scope),
 ):
-    my_entries_subq = (
-        db.query(Entry.id)
-        .filter(Entry.regatta_id == regatta_id, Entry.user_id == current_user.id)
-        .subquery()
-    )
-
     q = db.query(Protest).filter(Protest.regatta_id == regatta_id)
 
-    made_filter = Protest.initiator_entry_id.in_(select(my_entries_subq.c.id))
-    against_filter = exists().where(
-        and_(
-            ProtestParty.protest_id == Protest.id,
-            ProtestParty.entry_id.in_(select(my_entries_subq.c.id)),
+    # Regatista: só protestos em que participa. Admin/júri: toda a regata (ensure_regatta_scope já validou).
+    if current_user.role not in ("admin", "platform_admin", "jury"):
+        my_entries_subq = (
+            db.query(Entry.id)
+            .filter(Entry.regatta_id == regatta_id, Entry.user_id == current_user.id)
+            .subquery()
         )
-    )
-    if scope == "made":
-        q = q.filter(made_filter)
-    elif scope == "against":
-        q = q.filter(against_filter)
-    else:
-        q = q.filter(or_(made_filter, against_filter))
+
+        made_filter = Protest.initiator_entry_id.in_(select(my_entries_subq.c.id))
+        against_filter = exists().where(
+            and_(
+                ProtestParty.protest_id == Protest.id,
+                ProtestParty.entry_id.in_(select(my_entries_subq.c.id)),
+            )
+        )
+        if scope == "made":
+            q = q.filter(made_filter)
+        elif scope == "against":
+            q = q.filter(against_filter)
+        else:
+            q = q.filter(or_(made_filter, against_filter))
 
     if cursor is not None:
         q = q.filter(Protest.id < cursor)
@@ -64,6 +66,7 @@ def list_protests(
                      resp.sail_number.ilike(like),
                      resp.boat_name.ilike(like),
                      Protest.race_number.ilike(like),
+                     Protest.initiator_party_text.ilike(like),
                  )
              )
              .group_by(Protest.id)
@@ -81,6 +84,7 @@ def list_protests(
             sail_no=p.initiator_entry.sail_number if p.initiator_entry else None,
             boat_name=p.initiator_entry.boat_name if p.initiator_entry else None,
             class_name=p.initiator_entry.class_name if p.initiator_entry else None,
+            party_text=getattr(p, "initiator_party_text", None),
         )
 
         respondents: List[ProtestPartySummary] = []

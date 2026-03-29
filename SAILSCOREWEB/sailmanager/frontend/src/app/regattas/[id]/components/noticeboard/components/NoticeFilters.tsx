@@ -50,13 +50,13 @@ export default function NoticeFilters({
       <div className="flex flex-wrap gap-3">
         {/* Classe */}
         <div>
-          <label className="block text-xs font-medium text-gray-600">Classe</label>
+          <label className="block text-xs font-medium text-gray-600">Class</label>
           <select
             onChange={(e) => onClassChange(e.target.value || null)}
             className="border rounded p-2 bg-white"
             defaultValue=""
           >
-            <option value="">Todas</option>
+            <option value="">All</option>
             {classOptions.map((opt) => (
               <option key={opt.key} value={opt.value}>
                 {opt.label}
@@ -75,9 +75,9 @@ export default function NoticeFilters({
             className="border rounded p-2 bg-white"
             defaultValue=""
           >
-            <option value="">Ambos</option>
-            <option value="true">Só ALL</option>
-            <option value="false">Inclui específicas</option>
+            <option value="">Both</option>
+            <option value="true">All classes only</option>
+            <option value="false">Include class-specific</option>
           </select>
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function NoticeFilters({
       <div>
         <input
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Pesquisar por título…"
+          placeholder="Search by title…"
           className="border rounded p-2 w-64"
           type="search"
         />

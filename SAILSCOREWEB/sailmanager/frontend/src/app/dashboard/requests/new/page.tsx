@@ -1,25 +1,19 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
 
 // Podemos reutilizar a tua hook useMyEntry ou chamar /entries?mine=1
 type EntryOption = { id: number; class_name?: string | null; sail_number?: string | null; boat_country_code?: string | null; first_name?: string | null; last_name?: string | null; email?: string | null; regatta_id?: number };
 
 export default function NewRequestPage() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  const regattaId = useDashboardRegattaId();
 
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
   const [entryId, setEntryId] = useState<number | ''>('');
@@ -44,7 +38,7 @@ export default function NewRequestPage() {
   async function submit() {
     if (!regattaId || !token || !entryId || !text.trim()) return;
     await apiPost(`/regattas/${regattaId}/requests`, { initiator_entry_id: Number(entryId), request_text: text.trim() }, token);
-    router.replace(`/dashboard/requests?regattaId=${regattaId}`);
+    router.replace('/dashboard/requests');
   }
 
   if (!regattaId || !token) return <div className="p-4">Initializing…</div>;

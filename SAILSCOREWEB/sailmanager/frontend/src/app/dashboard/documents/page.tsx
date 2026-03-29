@@ -2,8 +2,9 @@
 
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 
 // === API base (sem trailing slash) ===
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -60,14 +61,9 @@ function fmtDate(s?: string | null, timezone?: string | null) {
 }
 
 export default function Page() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
 
-  // regatta ativa (igual à restante app)
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && (user as any)?.current_regatta_id)
-      return (user as any).current_regatta_id as number;
-    return Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-  }, [user?.role, (user as any)?.current_regatta_id]);
+  const regattaId = useDashboardRegattaId();
 
   const [entry, setEntry] = useState<Entry | null>(null);
   const [atts, setAtts] = useState<EntryAttachment[]>([]);

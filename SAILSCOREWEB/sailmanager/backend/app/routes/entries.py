@@ -1,22 +1,24 @@
 # app/routes/entries.py
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, status, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, and_
+from sqlalchemy import or_, func, and_, case, cast, Integer
 from datetime import datetime
 import secrets, os
 import unicodedata
 import re
 from traceback import print_exc
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from app.database import SessionLocal
 from app import models, schemas
 from utils.auth_utils import (
     get_current_user,
+    get_current_user_optional,
     hash_password,
-    get_current_regatta_id,
     get_current_regatta_id_optional as _get_current_regatta_id_optional,
 )
+from app.org_scope import assert_user_can_manage_org_id
+from app.jury_scope import assert_jury_regatta_access
 from app.services.email import send_email  # usa SMTP/LOG conforme .env
 
 router = APIRouter()
@@ -33,6 +35,64 @@ def get_db():
     finally:
         db.close()
 
+
+def _online_entry_limit_context(regatta: models.Regatta, class_name: str) -> Tuple[Optional[str], Optional[int]]:
+    """
+    Mesma regra que create_entry: limite por classe (JSON) ou legado global.
+    Devolve (scope, limit) com scope 'class' | 'global' | None; limit inteiro ou None se não há cap aplicável.
+    """
+    by_class = getattr(regatta, "online_entry_limits_by_class", None) or {}
+    class_limit_cfg = None
+    if isinstance(by_class, dict) and class_name:
+        class_limit_cfg = by_class.get(class_name)
+        if class_limit_cfg is None:
+            target = (class_name or "").strip().lower()
+            for key, value in by_class.items():
+                if str(key).strip().lower() == target:
+                    class_limit_cfg = value
+                    break
+    if isinstance(class_limit_cfg, dict) and bool(class_limit_cfg.get("enabled")):
+        raw_limit = class_limit_cfg.get("limit")
+        if raw_limit is not None:
+            lim = int(raw_limit)
+            if lim >= 0:
+                return ("class", lim)
+    if getattr(regatta, "online_entry_limit_enabled", False) and getattr(regatta, "online_entry_limit", None) is not None:
+        lim = int(regatta.online_entry_limit)
+        if lim >= 0:
+            return ("global", lim)
+    return (None, None)
+
+
+def _count_active_entries_for_limit(
+    db: Session, regatta_id: int, scope: str, class_name: str
+) -> int:
+    q = (
+        db.query(models.Entry)
+        .filter(models.Entry.regatta_id == regatta_id)
+        .filter(models.Entry.waiting_list == False)  # noqa: E712
+    )
+    if scope == "class":
+        q = q.filter(func.lower(func.trim(models.Entry.class_name)) == func.lower((class_name or "").strip()))
+    return q.count()
+
+
+def _entry_list_order():
+    """Ordenação padrão da entry list: classe -> país -> número de vela crescente."""
+    sail_trim = func.trim(models.Entry.sail_number)
+    # Números de vela puramente numéricos primeiro (ordem numérica), depois restantes valores.
+    sail_is_numeric = sail_trim.op("GLOB")("[0-9]*")
+    sail_number_int = cast(sail_trim, Integer)
+    return (
+        func.lower(func.trim(models.Entry.class_name)),
+        func.upper(func.trim(models.Entry.boat_country_code)),
+        case((sail_is_numeric, 0), else_=1),
+        sail_number_int.asc(),
+        func.lower(sail_trim).asc(),
+        func.lower(func.trim(models.Entry.last_name)).asc(),
+        func.lower(func.trim(models.Entry.first_name)).asc(),
+    )
+
 # ---------------- LIST /entries ----------------
 @router.get("", response_model=List[schemas.EntryListRead])   # <— sem barra
 @router.get("/", response_model=List[schemas.EntryListRead])  # <— com barra
@@ -46,36 +106,79 @@ def list_entries(
 ):
     q = db.query(models.Entry)
 
-    # Admin
-    if current_user.role == "admin":
+    # Admin / platform_admin
+    if current_user.role in ("admin", "platform_admin"):
         if regatta_id is not None:
             q = q.filter(models.Entry.regatta_id == regatta_id)
         if mine:
             q = q.filter(models.Entry.user_id == current_user.id)
         if class_name:
             q = q.filter(models.Entry.class_name == class_name)
-        return q.order_by(models.Entry.class_name, models.Entry.sail_number).all()
+        return q.order_by(*_entry_list_order()).all()
 
-    # Regatista
+    if current_user.role == "jury":
+        raise HTTPException(
+            status_code=400,
+            detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.",
+        )
+
+    # Regatista (mine): só regata do token; regatta_id na query não pode contradizer o token
     if mine:
-        rid = regatta_id or current_regatta_id  # query tem prioridade
+        if current_user.role != "regatista":
+            raise HTTPException(status_code=403, detail="Acesso negado")
+        rid = current_regatta_id
+        if regatta_id is not None and rid is not None and int(regatta_id) != int(rid):
+            raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
         if rid is None:
-            return []  # Sem regata ativa → FE mostra aviso
+            return []
+        reg = db.query(models.Regatta).filter(models.Regatta.id == rid).first()
+        if not reg:
+            return []
+        if int(reg.organization_id) != int(current_user.organization_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Sem permissão nesta regata (organização).",
+            )
         q = (
             q.filter(models.Entry.regatta_id == rid)
-             .filter(
-                 or_(
-                     models.Entry.user_id == current_user.id,
-                     func.lower(models.Entry.email) == func.lower(current_user.email),
-                 )
-             )
+            .filter(
+                or_(
+                    models.Entry.user_id == current_user.id,
+                    func.lower(models.Entry.email) == func.lower(current_user.email),
+                )
+            )
         )
         if class_name:
             q = q.filter(models.Entry.class_name == class_name)
-        return q.order_by(models.Entry.class_name, models.Entry.sail_number).all()
+        return q.order_by(*_entry_list_order()).all()
 
     # Regatista a pedir geral
     raise HTTPException(status_code=400, detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.")
+
+# ---------------- COUNT /entries ----------------
+@router.get("/count/by_regatta/{regatta_id}")
+def count_entries_by_regatta(
+    regatta_id: int,
+    class_name: Optional[str] = Query(None, alias="class"),
+    include_waiting: bool = Query(False, description="Se true, devolve também o nº de waiting list."),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
+    if class_name:
+        q = q.filter(func.lower(func.trim(models.Entry.class_name)) == func.lower(func.trim(class_name)))
+
+    active_count = q.filter(models.Entry.waiting_list == False).count()  # noqa: E712
+    if not include_waiting:
+        return {"regatta_id": regatta_id, "class_name": class_name, "active_count": active_count}
+
+    waiting_count = q.filter(models.Entry.waiting_list == True).count()  # noqa: E712
+    return {
+        "regatta_id": regatta_id,
+        "class_name": class_name,
+        "active_count": active_count,
+        "waiting_count": waiting_count,
+        "total_count": active_count + waiting_count,
+    }
 
 # ---------------- helpers ----------------
 def _norm_country_code(v: Optional[str]) -> str:
@@ -555,6 +658,16 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         if regatta.online_entry_open is False:
             raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
 
+        # === LIMITE: waiting list ao invés de recusar ===
+        is_waiting = False
+        scope, lim = _online_entry_limit_context(regatta, (entry.class_name or "").strip())
+        if scope is not None and lim is not None:
+            current_count = _count_active_entries_for_limit(
+                db, entry.regatta_id, scope, entry.class_name or ""
+            )
+            if current_count >= lim:
+                is_waiting = True
+
         user = _ensure_sailor_user_and_profile(db, entry)
 
         # Duplicado = mesmo número de vela + mesmo country code na mesma classe (POR 1 + POR 1 não pode; POR 1 + GBR 1 pode)
@@ -608,6 +721,8 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             user_id=user.id,
             paid=bool(getattr(entry, "paid", False)),
             crew_members=entry.crew_members if getattr(entry, "crew_members", None) else None,
+            created_at=datetime.utcnow(),
+            waiting_list=is_waiting,
         )
         db.add(new_entry); db.commit(); db.refresh(new_entry)
 
@@ -633,7 +748,12 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
                 username=getattr(user, "username", None),
                 temp_password=temp_pwd,
             )
-        return {"message": "Inscrição criada com sucesso", "id": new_entry.id, "user_id": user.id}
+        return {
+            "message": "Inscrição criada com sucesso",
+            "id": new_entry.id,
+            "user_id": user.id,
+            "waiting_list": is_waiting,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -645,12 +765,37 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
 def get_entries_by_regatta(
     regatta_id: int,
     class_name: Optional[str] = Query(None, alias="class"),
-    db: Session = Depends(get_db)
+    include_waiting: bool = Query(False, description="Se true, inclui entries da waiting list."),
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
+    current_regatta_id: Optional[int] = Depends(_get_current_regatta_id_optional),
 ):
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+
+    if current_user is not None:
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, reg.organization_id)
+        elif current_user.role == "jury":
+            assert_jury_regatta_access(db, current_user, regatta_id)
+        elif current_user.role == "regatista":
+            if int(reg.organization_id) != int(current_user.organization_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Sem permissão nesta regata (organização).",
+                )
+            if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
+                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+        else:
+            raise HTTPException(status_code=403, detail="Acesso negado")
+
     q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
     if class_name:
         q = q.filter(models.Entry.class_name == class_name)
-    return q.order_by(models.Entry.class_name, models.Entry.sail_number).all()
+    if not include_waiting:
+        q = q.filter(models.Entry.waiting_list == False)  # noqa: E712
+    return q.order_by(*_entry_list_order()).all()
 
 @router.get("/{entry_id}", response_model=schemas.EntryRead)
 def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
@@ -658,6 +803,24 @@ def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
+
+
+@router.delete("/{entry_id}")
+def delete_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+
+    db.delete(entry)
+    db.commit()
+    return {"message": "Entry deleted permanently.", "id": entry_id}
 
 # ============ PATCH /entries/{entry_id} (admin) ============
 def _norm_str(s: Optional[str]) -> Optional[str]:
@@ -758,6 +921,23 @@ def patch_entry(
                 status_code=400,
                 detail="Não pode confirmar: existe outra inscrição com o mesmo número de vela e país nesta classe. Corrija os números de vela (ou países) antes de confirmar.",
             )
+
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+
+    if "waiting_list" in data:
+        new_wl = data["waiting_list"]
+        eff_class = (data.get("class_name", entry.class_name) or entry.class_name or "").strip()
+        if new_wl is False and bool(getattr(entry, "waiting_list", False)):
+            scope, lim = _online_entry_limit_context(regatta, eff_class)
+            if scope is not None and lim is not None:
+                cnt = _count_active_entries_for_limit(db, entry.regatta_id, scope, eff_class)
+                if cnt >= lim:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Entry list is full (entry limit reached); cannot move this entry off the waiting list.",
+                    )
 
     # ---- aplicar alterações na Entry ----
     for k, v in data.items():

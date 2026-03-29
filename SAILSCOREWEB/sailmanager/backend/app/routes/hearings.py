@@ -43,13 +43,15 @@ def _fmt_time(t) -> Optional[str]:
 
 
 def _fmt_entry(e) -> Optional[str]:
+    """Sail/boat line + class; includes World Sailing country code before sail no. when present."""
     if not e:
         return None
     parts = []
+    cc = (getattr(e, "boat_country_code", None) or "").strip().upper()
     main = (getattr(e, "sail_number", None) or getattr(e, "boat_name", None) or "").strip()
-    cls = (getattr(e, "class_name", None) or "").strip()
     if main:
-        parts.append(main)
+        parts.append(f"{cc} {main}".strip() if cc else main)
+    cls = (getattr(e, "class_name", None) or "").strip()
     if cls:
         parts.append(cls)
     return " · ".join(parts) if parts else None
@@ -57,6 +59,11 @@ def _fmt_entry(e) -> Optional[str]:
 
 def _initiator_str(p) -> str:
     try:
+        if not p:
+            return "—"
+        pt = (getattr(p, "initiator_party_text", None) or "").strip()
+        if pt:
+            return pt
         return _fmt_entry(getattr(p, "initiator_entry", None)) or "—"
     except Exception:
         return "—"

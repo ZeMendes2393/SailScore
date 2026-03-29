@@ -1,28 +1,22 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 import os
-from typing import Optional, List
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Protest, ProtestParty, Entry, ProtestAttachment
+from app.models import Protest, ProtestParty, Entry
 from app import models
 from app.schemas import ProtestCreate
 from utils.auth_utils import get_current_user
 from utils.guards import ensure_regatta_scope
 from app.services.email import send_email
-from app.services.pdf import generate_submitted_pdf  # ✅ gerador central
 
-# helpers comuns
-from .helpers import (
-    PUBLIC_BASE_URL,
-    tiny_valid_pdf_bytes,     # ⚠️ deve aceitar também lista de linhas (List[str])
-    normalize_public_url,
-)
+from .validation import validate_protest_submission
+from .submission import apply_submitted_snapshot_and_pdf
 
 router = APIRouter()
 
@@ -46,21 +40,11 @@ def create_protest(
     current_user=Depends(get_current_user),
     _=Depends(ensure_regatta_scope),
 ):
-    # --- validações ---
-    ini = db.query(Entry).filter(Entry.id == body.initiator_entry_id).first()
-    if not ini or ini.regatta_id != regatta_id:
-        raise HTTPException(status_code=403, detail="Initiator não pertence a esta regata.")
-    if ini.user_id != current_user.id and (ini.email or "").strip().lower() != (current_user.email or "").strip().lower():
-        raise HTTPException(status_code=403, detail="Não és titular desta inscrição (initiator).")
-
-    resp_ids: List[int] = [r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id]
-    if resp_ids:
-        cnt_same = db.query(Entry).filter(Entry.id.in_(resp_ids), Entry.regatta_id == regatta_id).count()
-        if cnt_same != len(resp_ids):
-            raise HTTPException(status_code=422, detail="Há respondentes que não pertencem a esta regata.")
+    ini = validate_protest_submission(db, current_user, regatta_id, body)
 
     # --- cria protesto ---
     incident = getattr(body, "incident", None)
+    party_txt = (body.initiator_party_text or "").strip() or None
     p = Protest(
         regatta_id=regatta_id,
         type=body.type,
@@ -68,6 +52,7 @@ def create_protest(
         race_number=body.race_number,
         group_name=body.group_name,
         initiator_entry_id=body.initiator_entry_id,
+        initiator_party_text=party_txt if body.initiator_entry_id is None else None,
         initiator_represented_by=body.initiator_represented_by,
         status="submitted",
         received_at=datetime.utcnow(),
@@ -91,156 +76,15 @@ def create_protest(
     db.commit()
     db.refresh(p)
 
-    # -------- snapshot enriquecido --------
-    regatta_name = None
-    regatta_venue = None
-    try:
-        from app.models import Regatta
-        reg = db.query(Regatta).filter(Regatta.id == regatta_id).first()
-        if reg:
-            regatta_name = getattr(reg, "name", None)
-            regatta_venue = getattr(reg, "venue", None) or getattr(reg, "location", None)
-    except Exception:
-        pass
-
-    initiator_view = {
-        "entry_id": ini.id if ini else body.initiator_entry_id,
-        "sail_no": getattr(ini, "sail_number", None),
-        "boat_name": getattr(ini, "boat_name", None),
-        "class_name": getattr(ini, "class_name", None),
-        "represented_by": body.initiator_represented_by,
-    }
-
-    respondents_view: List[dict] = []
-    for r in body.respondents:
-        item = {
-            "kind": getattr(r, "kind", "entry") or "entry",
-            "entry_id": getattr(r, "entry_id", None),
-            "free_text": getattr(r, "free_text", None),
-            "represented_by": getattr(r, "represented_by", None),
-            "sail_no": None,
-            "boat_name": None,
-            "class_name": None,
-        }
-        if item["kind"] == "entry" and item["entry_id"]:
-            e = db.query(Entry).filter(Entry.id == item["entry_id"]).first()
-            if e:
-                item.update({
-                    "sail_no": e.sail_number,
-                    "boat_name": e.boat_name,
-                    "class_name": e.class_name,
-                })
-        respondents_view.append(item)
-
-    snapshot = {
-        "regatta_id": regatta_id,
-        "regatta_name": regatta_name,
-        "venue": regatta_venue,  # usa a chave 'venue' para o cabeçalho do PDF
-        "type": body.type,
-        "group_name": body.group_name,
-        "race_date": body.race_date,
-        "race_number": body.race_number,
-        "submitted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "initiator": initiator_view,
-        "respondents": respondents_view,
-        "incident": (
-            body.incident.model_dump()
-            if getattr(body, "incident", None) and hasattr(body.incident, "model_dump")
-            else (
-                {
-                    "when_where": getattr(body, "incident_when_where", None),
-                    "description": getattr(body, "incident_description", None),
-                    "rules_applied": getattr(body, "rules_alleged", None),
-                    "damage_injury": None,
-                }
-                if getattr(body, "incident_when_where", None) or getattr(body, "incident_description", None) or getattr(body, "rules_alleged", None)
-                else None
-            )
-        ),
-    }
-    p.submitted_snapshot_json = snapshot
-
-    # -------- PDF + attachment (submitted) --------
-    try:
-        public_url: Optional[str] = None
-        file_path: Optional[Path] = None
-        written_ok = False
-
-        # 1) serviço oficial
-        try:
-            ret = generate_submitted_pdf(regatta_id, p.id, snapshot)  # (disk_path, public_url)
-            if isinstance(ret, (list, tuple)) and len(ret) >= 2:
-                file_path, public_url = Path(ret[0]) if ret[0] else None, ret[1]
-            else:
-                file_path, public_url = None, ret  # type: ignore[assignment]
-            if file_path and file_path.exists() and file_path.stat().st_size > 0:
-                written_ok = True
-            public_url = normalize_public_url(public_url)
-        except Exception as e:
-            print("[PDF][submitted] serviço falhou, fallback:", e)
-            public_url = None
-            file_path = None
-
-        # 2) fallback informativo (usa dados do snapshot)
-        if not written_ok:
-            uploads_dir = Path("uploads") / "protests" / str(p.regatta_id)
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-            file_path = uploads_dir / f"submitted_{p.id}.pdf"
-
-            # construir conteúdo rico a partir do snapshot
-            init = (snapshot.get("initiator") or {})
-            incident = (snapshot.get("incident") or {})
-            respondents = (snapshot.get("respondents") or [])
-
-            lines = [
-                f"Protest ID: {p.id}",
-                f"Regatta: {snapshot.get('regatta_name') or '—'}",
-                f"Venue: {snapshot.get('venue') or '—'}",
-                f"Type: {snapshot.get('type') or '—'}   Group/Fleet: {snapshot.get('group_name') or '—'}",
-                f"Race Date: {snapshot.get('race_date') or '—'}   Race Number: {snapshot.get('race_number') or '—'}",
-                f"Submitted At: {snapshot.get('submitted_at') or '—'}",
-                "",
-                f"Initiator Sail No: {init.get('sail_no') or '—'}",
-                f"Initiator Boat: {init.get('boat_name') or '—'}   Class: {init.get('class_name') or '—'}",
-                "",
-                "Respondents:" if respondents else "Respondents: —",
-            ]
-            for i, r in enumerate(respondents, 1):
-                lines.append(
-                    f"  - [{i}] Kind: {r.get('kind') or '—'}  Entry: {r.get('entry_id') or '—'}  "
-                    f"Sail/Boat: {(r.get('sail_no') or '—')}/{(r.get('boat_name') or '—')}  "
-                    f"Class: {r.get('class_name') or '—'}"
-                )
-            lines += [
-                "",
-                f"When/Where: {incident.get('when_where') or snapshot.get('incident_when_where') or '—'}",
-                f"Description: {incident.get('description') or snapshot.get('incident_description') or '—'}",
-                f"Rules Alleged: {incident.get('rules_applied') or snapshot.get('rules_alleged') or '—'}",
-            ]
-
-            # tiny_valid_pdf_bytes deve aceitar lista de linhas
-            file_path.write_bytes(tiny_valid_pdf_bytes("Protest — Submission", lines))
-            public_url = f"{PUBLIC_BASE_URL}/uploads/protests/{p.regatta_id}/submitted_{p.id}.pdf"
-
-        # guardar URL público normalizado
-        p.submitted_pdf_url = normalize_public_url(str(public_url))
-
-        db.add(ProtestAttachment(
-            protest_id=p.id,
-            kind="submitted_pdf",
-            filename=os.path.basename(str(public_url)),
-            content_type="application/pdf",
-            size=(file_path.stat().st_size if file_path else 0),
-            url=p.submitted_pdf_url,
-            uploaded_by_user_id=current_user.id,
-        ))
-        db.add(p)
-        db.commit()
-        db.refresh(p)
-
-    except Exception as pdf_err:
-        db.rollback()
-        print(f"[PROTEST_SUBMIT_PDF][protest={p.id}] falhou: {pdf_err}")
+    apply_submitted_snapshot_and_pdf(
+        db,
+        p,
+        body,
+        ini,
+        regatta_id,
+        current_user.id,
+        replace_submitted_pdfs=False,
+    )
 
     # -------- hearing auto --------
     hearing_created = False
@@ -267,6 +111,10 @@ def create_protest(
     except Exception as err:
         db.rollback()
         print(f"[HEARING_AUTOCREATE][regatta={regatta_id} protest={p.id}] falhou: {err}")
+
+    resp_ids: List[int] = [
+        r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id
+    ]
 
     # -------- emails (best-effort) --------
     try:

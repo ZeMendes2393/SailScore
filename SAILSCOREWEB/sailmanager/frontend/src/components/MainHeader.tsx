@@ -29,6 +29,7 @@ export default function MainHeader({
   const [design, setDesign] = useState<HeaderDesign | null>(initialDesign ?? null);
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -57,6 +58,10 @@ export default function MainHeader({
       .then((d) => setDesign(d))
       .catch(() => setDesign(null));
   }, [orgSlug, initialDesign]);
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [design?.club_logo_url]);
 
   const navItems = useMemo(() => {
     if (orgSlug) {
@@ -95,24 +100,31 @@ export default function MainHeader({
 
   const brandFallback = orgDisplayName || 'SailScore';
 
-  // Com orgSlug: só mostrar logo após mount para evitar hydration mismatch (servidor vs cliente)
-  const showLogo = logoUrl && (!orgSlug || mounted);
-  const showExternalLink = logoLink && (!orgSlug || mounted);
+  /** Com design já vindo do layout (SSR), podemos mostrar logo logo — evita logo “invisível” por h-full/altura 0. */
+  const hasInitialLogo = !!(initialDesign?.club_logo_url?.trim());
+  const hasInitialLogoLink = !!(initialDesign?.club_logo_link?.trim());
+  const showLogo =
+    !!logoUrl && (!orgSlug || mounted || hasInitialLogo);
+  const showExternalLink = !!logoLink && (!orgSlug || mounted || hasInitialLogoLink);
 
-  const logoContent = showLogo ? (
-    <img
-      src={logoUrl.startsWith('http') ? logoUrl : `${BASE_URL}${logoUrl}`}
-      alt="Club logo"
-      className="h-full max-h-20 w-auto object-contain drop-shadow-sm"
-      onError={(e) => (e.currentTarget.style.display = 'none')}
-    />
-  ) : (
-    <span className="text-xl font-bold tracking-tight">{brandFallback}</span>
-  );
+  const logoContent =
+    showLogo && !logoFailed ? (
+      <img
+        src={logoUrl!.startsWith('http') ? logoUrl! : `${BASE_URL}${logoUrl}`}
+        alt="Club logo"
+        className="max-h-[6rem] w-auto h-auto object-contain object-left drop-shadow-sm"
+        onError={() => setLogoFailed(true)}
+      />
+    ) : (
+      <span className="text-2xl md:text-3xl font-bold tracking-tight">{brandFallback}</span>
+    );
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-lg backdrop-blur-md">
-      <div className="w-full h-28 flex items-center justify-between px-4 sm:px-6 gap-4">
+    <header
+      className="sticky top-0 z-50 bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-lg backdrop-blur-md"
+      suppressHydrationWarning
+    >
+      <div className="w-full min-h-[8rem] py-3 sm:py-4 flex items-center justify-between px-3 sm:px-4 gap-4 flex-wrap">
         <div className="flex items-center gap-4 shrink-0">
           {showExternalLink ? (
             <Link
@@ -131,7 +143,7 @@ export default function MainHeader({
           {!isLoggedIn && (
             <Link
               href={homeHref}
-              className="text-2xl md:text-3xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
+              className="text-3xl md:text-4xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
               prefetch={false}
             >
               Regattas
@@ -143,10 +155,10 @@ export default function MainHeader({
           {isLoggedIn ? (
             isSailor ? (
               <div className="flex flex-col items-end text-right">
-                <span className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                <span className="text-base font-semibold uppercase tracking-wide text-white/85">
                   Sailor account
                 </span>
-                <span className="text-sm text-white">
+                <span className="text-lg text-white">
                   {user?.email || (user as any)?.username || (user as any)?.name || 'Signed in'}
                 </span>
               </div>
@@ -154,19 +166,19 @@ export default function MainHeader({
               <>
                 <Link
                   href={adminHomeHref}
-                  className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
+                  className="inline-block px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition shadow-sm"
                 >
                   Dashboard
                 </Link>
                 <Link
                   href={adminHomeHref}
-                  className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+                  className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
                 >
                   Admin Account
                 </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
-                  className="inline-block px-4 py-2 rounded-lg hover:bg-white/20 text-white font-medium text-lg transition"
+                  className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
                 >
                   Sign out
                 </button>
@@ -174,12 +186,12 @@ export default function MainHeader({
             )
           ) : (
             <>
-              <nav className="flex items-center gap-2 text-lg font-medium">
+              <nav className="flex items-center gap-2 text-xl font-semibold">
                 {navItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-4 py-2 rounded-lg transition ${
+                    className={`px-5 py-2.5 rounded-xl transition ${
                       isNavActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
                     }`}
                   >
@@ -189,7 +201,7 @@ export default function MainHeader({
               </nav>
               <Link
                 href={orgSlug ? `/admin/login?org=${encodeURIComponent(orgSlug)}` : '/admin/login'}
-                className="inline-block px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium text-lg transition shadow-sm"
+                className="inline-block px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition shadow-sm"
               >
                 Admin Account
               </Link>

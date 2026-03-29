@@ -21,10 +21,12 @@ export interface EntryListEntry {
   category?: string;
   paid?: boolean | null;
   confirmed?: boolean | null;
+  waiting_list?: boolean | null;
   owner_first_name?: string | null;
   owner_last_name?: string | null;
   owner_email?: string | null;
   crew_members?: EntryCrewMember[] | null;
+  created_at?: string | null;
   /** Handicap rating ANC (ex.: 1.01, 0.977) */
   rating?: number | null;
   /** anc | orc | null */

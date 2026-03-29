@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { useRule42, type Rule42Scope } from '@/lib/hooks/useRule42';
 import type { Rule42ListItem } from '@/lib/api';
 import { isAdminRole } from '@/lib/roles';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 
 function Row({ r }: { r: Rule42ListItem }) {
   return (
@@ -25,16 +26,15 @@ function Row({ r }: { r: Rule42ListItem }) {
 }
 
 export default function Page() {
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, token } = useAuth();
+  const regattaId = useDashboardRegattaId();
 
-  // Regatta ativa: igual ao padrão dos Protests
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  useEffect(() => {
+    if (user?.role === 'jury') {
+      router.replace('/dashboard/jury/rule42');
+    }
+  }, [user?.role, router]);
 
   // Estado local (apenas scope)
   const [scope, setScope] = useState<Rule42Scope>(isAdminRole(user?.role) ? 'all' : 'mine');
@@ -46,7 +46,14 @@ export default function Page() {
     token || undefined
   );
 
-  // Proteção enquanto não há regattaId/token
+  if (user?.role === 'jury') {
+    return (
+      <RequireAuth roles={['jury']}>
+        <div className="p-6 text-sm text-gray-600">Opening jury Rule 42…</div>
+      </RequireAuth>
+    );
+  }
+
   if (!regattaId || !token) {
     return (
       <RequireAuth roles={['regatista', 'admin']}>

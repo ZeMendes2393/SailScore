@@ -55,7 +55,7 @@ export default function NoticeBoard({ regattaId }: { regattaId: number }) {
       >
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
-        <Tab value="protests" label="Protest Decisions" />
+        <Tab value="protests" label="Protest Decisions/Hearings" />
         <Tab value="scoring" label="Scoring Enquiries" />
         <Tab value="requests" label="Requests" />
         <Tab value="questions" label="Questions" />

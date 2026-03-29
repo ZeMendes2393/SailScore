@@ -17,15 +17,14 @@ type EntryOption = {
 
 interface Props {
   loadingEntries: boolean;
-  regattaId: number;
   myEntries: EntryOption[];
   initiatorEntryId: number | undefined;
   setInitiatorEntryId: (id: number | undefined) => void;
   selectedInitiator?: EntryOption;
   initiatorRep: string;
   setInitiatorRep: (v: string) => void;
-  repLocked: boolean;
-  setRepLocked: (v: boolean) => void;
+  /** Jury / admin: all entries; “Filed by” is editable (who submits on behalf of the boat). */
+  staffMode?: boolean;
 }
 
 function entryFullName(en?: EntryOption): string {
@@ -36,37 +35,45 @@ function entryFullName(en?: EntryOption): string {
 
 export default function ProtestorCard({
   loadingEntries,
-  regattaId,
   myEntries,
   initiatorEntryId,
   setInitiatorEntryId,
   selectedInitiator,
   initiatorRep,
   setInitiatorRep,
-  repLocked,
-  setRepLocked,
+  staffMode = false,
 }: Props) {
+  const showInitiatorSelect = myEntries.length > 1;
+
   return (
     <div className="space-y-3">
       {loadingEntries && (
-        <div className="text-sm text-gray-500">Loading your data…</div>
+        <div className="text-sm text-gray-500">Loading entries…</div>
       )}
 
       {!loadingEntries && myEntries.length === 0 && (
         <div className="p-3 rounded border bg-amber-50 text-amber-900 text-sm">
-          We couldn&apos;t find an entry for you in this regatta.
-          <br />
-          Check{' '}
-          <a href={`/dashboard/entry-data?regattaId=${regattaId}`} className="underline">
-            Entry data
-          </a>{' '}
-          or ask the organisation to link your entry to your account.
+          {staffMode ? (
+            <>There are no entries in this regatta. A protest needs an initiating boat (entry).</>
+          ) : (
+            <>
+              We couldn&apos;t find an entry for you in this regatta.
+              <br />
+              Check{' '}
+              <a href="/dashboard/entry-data" className="underline">
+                Entry data
+              </a>{' '}
+              or ask the organisation to link your entry to your account.
+            </>
+          )}
         </div>
       )}
 
-      {myEntries.length > 1 && (
+      {showInitiatorSelect && (
         <div className="mb-2">
-          <label className="block text-sm mb-1">Escolher o teu barco</label>
+          <label className="block text-sm mb-1">
+            {staffMode ? 'Protesting boat (entry)' : 'Select your boat'}
+          </label>
           <select
             className="w-full border rounded px-3 py-2"
             value={initiatorEntryId ?? ''}
@@ -106,24 +113,22 @@ export default function ProtestorCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <label className="block text-sm mb-1">Represented by</label>
-          <input
-            className="w-full border rounded px-3 py-2 disabled:bg-gray-100"
-            value={initiatorRep}
-            onChange={(e) => setInitiatorRep(e.target.value)}
-            disabled={repLocked}
-          />
-        </div>
-        <button
-          type="button"
-          className="mt-6 px-3 py-2 border rounded"
-          onClick={() => setRepLocked(!repLocked)}
-          title={repLocked ? 'Edit' : 'Lock'}
-        >
-          {repLocked ? 'Edit' : 'Lock'}
-        </button>
+      <div>
+        <label className="block text-sm mb-1">
+          {staffMode
+            ? 'Filed by (who submits the protest — e.g. Race Office, Jury, your name)'
+            : 'Represented by'}
+        </label>
+        <input
+          className="w-full border rounded px-3 py-2"
+          value={initiatorRep}
+          onChange={(e) => setInitiatorRep(e.target.value)}
+          placeholder={
+            staffMode
+              ? 'e.g. Race Office, Jane Smith (Jury), or your name'
+              : undefined
+          }
+        />
       </div>
     </div>
   );

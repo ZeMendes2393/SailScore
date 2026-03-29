@@ -46,7 +46,7 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
       <div role="tablist" aria-label="Notice board sections" className="flex gap-2 border-b">
         <Tab value="documents" label="Documents" />
         <Tab value="rule42" label="Rule 42" />
-        <Tab value="protest-decisions" label="Protest Decisions" />
+        <Tab value="protest-decisions" label="Protest Decisions/Hearings" />
         <Tab value="protest-time-limit" label="Protest Time Limit" />
         <Tab value="scoring" label="Scoring Enquiries" />
         <Tab value="requests" label="Requests" />

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPost } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
 
 type EntryOption = {
@@ -18,16 +19,9 @@ type EntryOption = {
 };
 
 export default function NewQuestionPage() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-    return Number.isFinite(fromQS) && fromQS > 0 ? fromQS : fromEnv;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  const regattaId = useDashboardRegattaId();
 
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
   const [entryId, setEntryId] = useState<number | ''>('');
@@ -74,7 +68,7 @@ export default function NewQuestionPage() {
         token
       );
 
-      router.replace(`/dashboard/questions?regattaId=${regattaId}`);
+      router.replace('/dashboard/questions');
     } finally {
       setSubmitting(false);
     }

@@ -7,6 +7,7 @@ import { isTokenExpired } from '@/lib/api';
 import { isAdminRole } from '@/lib/roles';
 import {
   buildSessionExpiredLoginUrl,
+  clearStoredAdminOrgSlug,
   persistAdminOrgFromUrl,
   persistAdminOrgFromUser,
 } from '@/lib/sessionExpiryLogin';
@@ -148,18 +149,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = (opts?: { redirectTo?: string }) => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    clearStoredAdminOrgSlug();
+    try {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
+    } catch {
+      /* ignore */
+    }
     setToken(null);
     setUser(null);
 
-    // Para onde redirecionar:
-    if (opts?.redirectTo) {
-      router.replace(opts.redirectTo);
-      return;
-    }
-    // Se estás numa rota /regattas/:id, volta à página dessa regata
-    const match = window.location.pathname.match(/^\/regattas\/(\d+)/);
-    const to = match ? `/regattas/${match[1]}` : '/';
-    router.replace(to);
+    // Navegação completa evita corrida com RequireAuth no /dashboard sem ?regattaId=
+    // (regatista usa current_regatta_id na URL nem sempre) → antes ia para /login = modo admin.
+    const to =
+      opts?.redirectTo ??
+      (() => {
+        const match = window.location.pathname.match(/^\/regattas\/(\d+)/);
+        return match ? `/regattas/${match[1]}` : '/';
+      })();
+    window.location.assign(to);
   };
 
   const switchRegatta = async (regattaId: number) => {

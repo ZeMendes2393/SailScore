@@ -33,6 +33,14 @@ LINE_GAP = 14
 def _now_utc_str() -> str:
     return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
+
+def _sail_with_country_code(country_code: Optional[str], sail_no: Optional[str]) -> str:
+    cc = (country_code or "").strip()
+    sn = (sail_no or "").strip()
+    if not sn and not cc:
+        return "—"
+    return f"{cc} {sn}".strip() if cc else sn
+
 def _wrap_text(text: str, font: str, size: int, max_width: float) -> List[str]:
     """
     Quebra por palavras SEM perder quebras manuais (\n).
@@ -240,7 +248,6 @@ def generate_submitted_pdf(regatta_id: int, protest_id: int, snapshot: dict) -> 
             ("Group/Fleet", str(snapshot.get("group_name") or "—")),
             ("Race Date", str(snapshot.get("race_date") or "—")),
             ("Race Number", str(snapshot.get("race_number") or "—")),
-            ("Initiator Entry ID", str(snapshot.get("initiator_entry_id") or "—")),
             ("Initiator Rep.", str(snapshot.get("initiator_represented_by") or "—")),
             ("Submitted At", str(snapshot.get("submitted_at") or "—")),
         ],
@@ -265,14 +272,16 @@ def generate_submitted_pdf(regatta_id: int, protest_id: int, snapshot: dict) -> 
         for idx, r in enumerate(respondents, 1):
             y = _ensure_space(c, page_w, page_h, y, 28)
             y = _section_title(c, f"Respondent {idx}", page_w, y)
+            sail_boat = (
+                f"{_sail_with_country_code(r.get('boat_country_code'), r.get('sail_no'))} / "
+                f"{r.get('boat_name') or '—'}"
+            )
             y = _kv_rows(
                 c, y, [
-                    ("Kind", str(r.get("kind") or "—")),
                     ("Entry ID", str(r.get("entry_id") or "—")),
-                    ("Sail/Boat", f"{r.get('sail_no') or '—'} / {r.get('boat_name') or '—'}"),
-                    ("Class", str(r.get("class_name") or '—')),
-                    ("Free Text", str(r.get('free_text') or '—')),
-                    ("Represented by", str(r.get('represented_by') or '—')),
+                    ("Sail/Boat", sail_boat),
+                    ("Class", str(r.get("class_name") or "—")),
+                    ("Represented by", str(r.get("represented_by") or "—")),
                 ],
                 page_w,
                 cols=2,

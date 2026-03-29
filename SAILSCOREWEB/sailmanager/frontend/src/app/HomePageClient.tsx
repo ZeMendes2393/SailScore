@@ -281,7 +281,7 @@ export default function HomePageClient({
                 ))}
               </div>
               <div className="mt-8 text-center">
-                <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
+                <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 font-medium hover:underline">
                   View full calendar →
                 </Link>
               </div>
@@ -333,7 +333,7 @@ export default function HomePageClient({
                     ))}
                   </div>
                   <div className="mt-8 text-center">
-                    <Link href="/calendar" className="text-blue-600 font-medium hover:underline">
+                    <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 font-medium hover:underline">
                     View full calendar →
                     </Link>
                   </div>
@@ -341,7 +341,7 @@ export default function HomePageClient({
               ) : (
                 <p className="text-gray-600">
                   No upcoming regattas. Check the{' '}
-                  <Link href="/calendar" className="text-blue-600 hover:underline">
+                  <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 hover:underline">
                     calendar
                   </Link>
                   .

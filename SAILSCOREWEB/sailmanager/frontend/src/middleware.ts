@@ -19,6 +19,13 @@ export function middleware(request: NextRequest) {
   if (orgFromQs) {
     requestHeaders.set('x-org-slug', orgFromQs);
   }
+  /** Dashboard com ?regattaId= — o layout resolve organization_slug via API (mesmo padrão que /regattas/:id). */
+  if (pathname.startsWith('/dashboard')) {
+    const rid = request.nextUrl.searchParams.get('regattaId')?.trim() || '';
+    if (/^\d+$/.test(rid)) {
+      requestHeaders.set('x-dashboard-regatta-id', rid);
+    }
+  }
   return NextResponse.next({
     request: { headers: requestHeaders },
   });

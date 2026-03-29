@@ -1,7 +1,7 @@
 // EntryList.tsx — lista pública de inscrições (mesmas colunas definidas no admin)
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BASE_URL } from '@/lib/api';
 import { getVisibleColumns } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
@@ -33,11 +33,20 @@ export default function EntryList({
     return entries.filter((e) => (e.class_name || '').trim().toLowerCase() === cls);
   }, [entries, selectedClass]);
 
+  const activeEntries = useMemo(
+    () => filteredEntries.filter((e) => !e.waiting_list),
+    [filteredEntries]
+  );
+  const waitingEntries = useMemo(
+    () => filteredEntries.filter((e) => !!e.waiting_list),
+    [filteredEntries]
+  );
+
   useEffect(() => {
     let alive = true;
 
     async function loadPublic(): Promise<EntryListEntry[]> {
-      const url = `${BASE_URL}/entries/by_regatta/${Number(regattaId)}`;
+      const url = `${BASE_URL}/entries/by_regatta/${Number(regattaId)}?include_waiting=1`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) return [];
       const data = await res.json();
@@ -60,46 +69,66 @@ export default function EntryList({
     };
   }, [regattaId]);
 
+  const renderTable = (rows: EntryListEntry[]) => (
+    <table className="w-full table-auto border mt-2 text-sm">
+      <thead className="bg-gray-100 text-left">
+        <tr>
+          {visibleColumnIds.map((id) => {
+            const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+            return (
+              <th
+                key={id}
+                className={`p-2 border ${id === 'paid' || id === 'status' ? 'text-center' : ''}`}
+              >
+                {def?.label ?? id}
+              </th>
+            );
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((entry) => (
+          <tr key={entry.id}>
+            {visibleColumnIds.map((colId) => (
+              <td
+                key={colId}
+                className={`p-2 border ${colId === 'paid' || colId === 'status' ? 'text-center' : ''}`}
+              >
+                <EntryListCell entry={entry} columnId={colId} />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
   return (
     <div>
-      {filteredEntries.length === 0 ? (
-        <p className="text-gray-500">
-          Ainda não há inscrições para esta classe nesta regata.
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <p className="text-sm text-gray-700">
+          Entries: <b>{activeEntries.length}</b>
         </p>
+        {waitingEntries.length > 0 && (
+          <p className="text-sm text-gray-700">
+            Waiting list: <b>{waitingEntries.length}</b>
+          </p>
+        )}
+      </div>
+      {activeEntries.length === 0 && waitingEntries.length === 0 ? (
+        <p className="text-gray-500">There are no entries for this class yet.</p>
       ) : (
-        <table className="w-full table-auto border mt-2 text-sm">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              {visibleColumnIds.map((id) => {
-                const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-                return (
-                  <th
-                    key={id}
-                    className={`p-2 border ${id === 'paid' || id === 'status' ? 'text-center' : ''}`}
-                  >
-                    {def?.label ?? id}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEntries.map((entry) => (
-              <React.Fragment key={entry.id}>
-                <tr>
-                  {visibleColumnIds.map((colId) => (
-                    <td
-                      key={colId}
-                      className={`p-2 border ${colId === 'paid' || colId === 'status' ? 'text-center' : ''}`}
-                    >
-                      <EntryListCell entry={entry} columnId={colId} />
-                    </td>
-                  ))}
-                </tr>
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+        <div className="space-y-6">
+          {activeEntries.length > 0 && renderTable(activeEntries)}
+          {waitingEntries.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                Waiting list ({waitingEntries.length})
+              </h3>
+              {renderTable(waitingEntries)}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

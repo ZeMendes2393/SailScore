@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,7 @@ import RequireAuth from '@/components/RequireAuth';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
+import JuryCredentialsPanel from './JuryCredentialsPanel';
 
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
 type CountryItem = { code: string; name: string };
@@ -22,6 +23,9 @@ interface Regatta {
   start_date: string;
   end_date: string;
   online_entry_open?: boolean;
+  online_entry_limit_enabled?: boolean;
+  online_entry_limit?: number | null;
+  online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
   country_code?: string | null;
   timezone?: string | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
@@ -30,7 +34,15 @@ interface Regatta {
   listing_logo_url?: string | null;
 }
 
-type Tab = 'entry' | 'notice' | 'form' | 'edit' | 'design' | 'sponsors' | 'delete';
+type Tab =
+  | 'entry'
+  | 'notice'
+  | 'form'
+  | 'edit'
+  | 'design'
+  | 'sponsors'
+  | 'jury-credentials'
+  | 'delete';
 
 export default function AdminRegattaPage() {
   const { id } = useParams();
@@ -40,7 +52,7 @@ export default function AdminRegattaPage() {
   const { orgSlug } = useAdminOrg();
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('entry');
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
@@ -159,7 +171,7 @@ export default function AdminRegattaPage() {
     e.preventDefault();
     if (!token) {
       alert('Session missing. Please log in as admin.');
-      router.push('/admin/login');
+      router.push(withOrg('/admin/login', orgSlug));
       return;
     }
     setSaving(true);
@@ -196,7 +208,7 @@ export default function AdminRegattaPage() {
       setAvailableClasses([...editClassesOneDesign.map((c) => c.class_name), ...editClassesHandicap]);
 
       alert('Regatta and classes updated.');
-      setActiveTab(null);
+      setActiveTab('entry');
     } catch (err: any) {
       alert(err?.message || 'Failed to update regatta.');
     } finally {
@@ -264,7 +276,7 @@ export default function AdminRegattaPage() {
     e.preventDefault();
     if (!token) {
       alert('Session missing. Please log in as admin.');
-      router.push('/admin/login');
+      router.push(withOrg('/admin/login', orgSlug));
       return;
     }
     setSaving(true);
@@ -285,7 +297,7 @@ export default function AdminRegattaPage() {
           : prev
       );
       alert('Design saved.');
-      setActiveTab(null);
+      setActiveTab('entry');
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to save design.');
     } finally {
@@ -293,7 +305,7 @@ export default function AdminRegattaPage() {
     }
   };
 
-  const openEditTab = async () => {
+  const loadEditClassesIntoForm = useCallback(async () => {
     try {
       const data = await apiGet<{ class_name: string; class_type?: string; sailors_per_boat?: number }[]>(
         `/regattas/${regattaId}/classes/detailed`
@@ -309,8 +321,34 @@ export default function AdminRegattaPage() {
       setEditClassesOneDesign([]);
       setEditClassesHandicap([]);
     }
+  }, [regattaId]);
+
+  const openEditTab = async () => {
+    await loadEditClassesIntoForm();
     setActiveTab('edit');
   };
+
+  /** Sincronizar com ?tab= na URL (links internos) e abrir secção certa ao colar o link noutro separador. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab')?.trim();
+    const valid: Tab[] = [
+      'entry',
+      'notice',
+      'form',
+      'edit',
+      'design',
+      'sponsors',
+      'jury-credentials',
+      'delete',
+    ];
+    if (!t || !valid.includes(t as Tab)) return;
+    if (t === 'edit') {
+      void loadEditClassesIntoForm().then(() => setActiveTab('edit'));
+      return;
+    }
+    setActiveTab(t as Tab);
+  }, [regattaId, loadEditClassesIntoForm]);
 
   const addEditClassOD = () => {
     const c = newClassNameOD.trim();
@@ -353,7 +391,7 @@ export default function AdminRegattaPage() {
   const handleDelete = async () => {
     if (!token) {
       alert('Session missing. Please log in as admin.');
-      router.push('/admin/login');
+      router.push(withOrg('/admin/login', orgSlug));
       return;
     }
     if (!confirm('Are you sure you want to delete this regatta? This cannot be undone.')) return;
@@ -373,7 +411,7 @@ export default function AdminRegattaPage() {
   async function toggleOnlineEntry(next: boolean) {
     if (!token) {
       alert('Session missing. Please log in as admin.');
-      router.push('/admin/login');
+      router.push(withOrg('/admin/login', orgSlug));
       return;
     }
     // optimistic
@@ -392,7 +430,7 @@ export default function AdminRegattaPage() {
       {!regatta ? (
         <p className="p-8">Loading regatta…</p>
       ) : (
-    <main className="min-h-screen p-8 bg-gray-50">
+    <main className="min-h-screen px-4 sm:px-6 py-8 bg-gray-50">
       {/* Voltar ao dashboard / lista de campeonatos */}
       <div className="mb-4">
         <Link
@@ -446,6 +484,9 @@ export default function AdminRegattaPage() {
         <button onClick={() => setActiveTab('sponsors')} className="hover:underline">
           Sponsors
         </button>
+        <button onClick={() => setActiveTab('jury-credentials')} className="hover:underline">
+          Jury credentials
+        </button>
         <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
           Delete
         </button>
@@ -469,7 +510,11 @@ export default function AdminRegattaPage() {
       )}
 
       {/* Narrow cards (Entry / Notice / Online Entry) */}
-      {activeTab !== 'edit' && activeTab !== 'design' && activeTab !== 'sponsors' && activeTab !== 'delete' && (
+      {activeTab !== 'edit' &&
+        activeTab !== 'design' &&
+        activeTab !== 'sponsors' &&
+        activeTab !== 'jury-credentials' &&
+        activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
           {activeTab === 'entry' && (
             <AdminEntryList
@@ -523,15 +568,15 @@ export default function AdminRegattaPage() {
                   Admins cannot submit entries here — this area only exposes the toggle for consistency.
                 </p>
                 <p className="text-gray-500 mt-3">
-                  <Link href="/admin/email" className="text-blue-600 hover:underline">
+                  <Link href={withOrg('/admin/email', orgSlug)} className="text-blue-600 hover:underline">
                     Configure entry confirmation email →
                   </Link>
                 </p>
               </div>
+
             </div>
           )}
 
-          {!activeTab && <p className="text-gray-600">Choose a section above to see this regatta’s details.</p>}
         </div>
       )}
 
@@ -721,7 +766,7 @@ export default function AdminRegattaPage() {
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
-              <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
+              <button type="button" onClick={() => setActiveTab('entry')} className="px-4 py-2 rounded border">
                 Cancel
               </button>
             </div>
@@ -732,6 +777,11 @@ export default function AdminRegattaPage() {
       {/* SPONSORS */}
       {activeTab === 'sponsors' && (
         <AdminSponsorsManager regattaId={regattaId} />
+      )}
+
+      {/* JURY CREDENTIALS */}
+      {activeTab === 'jury-credentials' && (
+        <JuryCredentialsPanel regattaId={regattaId} />
       )}
 
       {/* DESIGN / LAYOUT */}
@@ -842,7 +892,7 @@ export default function AdminRegattaPage() {
               >
                 {saving ? 'Saving…' : 'Save design'}
               </button>
-              <button type="button" onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
+              <button type="button" onClick={() => setActiveTab('entry')} className="px-4 py-2 rounded border">
                 Cancel
               </button>
             </div>
@@ -866,7 +916,7 @@ export default function AdminRegattaPage() {
             >
               {deleting ? 'Deleting…' : 'Delete permanently'}
             </button>
-            <button onClick={() => setActiveTab(null)} className="px-4 py-2 rounded border">
+            <button onClick={() => setActiveTab('entry')} className="px-4 py-2 rounded border">
               Cancel
             </button>
           </div>

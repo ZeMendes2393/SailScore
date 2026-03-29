@@ -44,11 +44,20 @@ export default async function RootLayout({
       orgSlug = DEFAULT_PUBLIC_ORG_SLUG;
     }
   }
+  /** Dashboard: ?org=slug (middleware envia x-org-slug) — alinha cabeçalho/rodapé com a organização. */
+  if (!orgSlug && pathname.startsWith('/dashboard')) {
+    const fromDashQs = headersList.get('x-org-slug')?.trim() || null;
+    if (fromDashQs) {
+      orgSlug = fromDashQs;
+    }
+  }
   if (!orgSlug) {
     const regattaMatch = pathname.match(/^\/regattas\/(\d+)/);
-    if (regattaMatch) {
+    const dashRegattaId = headersList.get('x-dashboard-regatta-id')?.trim() || '';
+    const regattaIdFromPathOrDashboard = regattaMatch?.[1] ?? (/^\d+$/.test(dashRegattaId) ? dashRegattaId : null);
+    if (regattaIdFromPathOrDashboard) {
       try {
-        const res = await fetch(`${API}/regattas/${regattaMatch[1]}`, { cache: 'no-store' });
+        const res = await fetch(`${API}/regattas/${regattaIdFromPathOrDashboard}`, { cache: 'no-store' });
         if (res.ok) {
           const data = (await res.json()) as { organization_slug?: string | null };
           if (data.organization_slug && typeof data.organization_slug === 'string') {

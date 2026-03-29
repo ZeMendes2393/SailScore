@@ -13,10 +13,14 @@ import {
 import type { EntryListEntry } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
 import { isAdminRole } from '@/lib/roles';
+import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 interface RegattaForEntryList {
   id: number;
   entry_list_columns?: string[] | Record<string, string[]> | null;
+  online_entry_limit_enabled?: boolean;
+  online_entry_limit?: number | null;
+  online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
 }
 
 interface AdminEntryListProps {
@@ -34,15 +38,25 @@ export default function AdminEntryList({
 }: AdminEntryListProps) {
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
+  const { orgSlug } = useAdminOrg();
   const isAdmin = isAdminRole(user?.role);
 
   const [entries, setEntries] = useState<EntryListEntry[]>([]);
   const [savingColumns, setSavingColumns] = useState(false);
+  const [limitDraft, setLimitDraft] = useState('');
+  const [savingLimit, setSavingLimit] = useState(false);
+  const [movingEntryId, setMovingEntryId] = useState<number | null>(null);
 
-  const visibleColumnIds = useMemo(
+  const publicVisibleColumnIds = useMemo(
     () => getVisibleColumnsForClass(regatta?.entry_list_columns, selectedClass),
     [regatta?.entry_list_columns, selectedClass]
   );
+  const adminVisibleColumnIds = useMemo(
+    () => ENTRY_LIST_COLUMNS.map((c) => c.id),
+    []
+  );
+  const isPublicColumnVisible = (columnId: EntryListColumnId) =>
+    publicVisibleColumnIds.includes(columnId);
 
   const filteredEntries = useMemo(() => {
     if (!selectedClass) return entries;
@@ -50,10 +64,56 @@ export default function AdminEntryList({
     return entries.filter((e) => (e.class_name || '').trim().toLowerCase() === cls);
   }, [entries, selectedClass]);
 
+  const activeEntries = useMemo(() => filteredEntries.filter((e) => !e.waiting_list), [filteredEntries]);
+  const waitingEntries = useMemo(() => filteredEntries.filter((e) => !!e.waiting_list), [filteredEntries]);
+
+  const classLimitCfg = useMemo(() => {
+    if (!selectedClass) return { enabled: false, limit: null as number | null };
+    const map = regatta?.online_entry_limits_by_class || {};
+    const direct = map[selectedClass];
+    if (direct) {
+      return { enabled: !!direct.enabled, limit: typeof direct.limit === 'number' ? direct.limit : null };
+    }
+    const selectedKey = selectedClass.trim().toLowerCase();
+    for (const [k, v] of Object.entries(map)) {
+      if (k.trim().toLowerCase() === selectedKey) {
+        return { enabled: !!v?.enabled, limit: typeof v?.limit === 'number' ? v.limit : null };
+      }
+    }
+    return { enabled: false, limit: null as number | null };
+  }, [regatta?.online_entry_limits_by_class, selectedClass]);
+
+  /** Mesma prioridade que o backend: limite por classe desta classe → depois limite global da regata. */
+  const limitScope = useMemo(() => {
+    const perClass =
+      classLimitCfg.enabled &&
+      typeof classLimitCfg.limit === 'number' &&
+      classLimitCfg.limit >= 0;
+    if (perClass) return { kind: 'class' as const, limit: classLimitCfg.limit as number };
+    const globOn = !!regatta?.online_entry_limit_enabled;
+    const globVal = regatta?.online_entry_limit;
+    if (globOn && globVal != null && Number(globVal) >= 0) {
+      return { kind: 'global' as const, limit: Number(globVal) };
+    }
+    return null;
+  }, [classLimitCfg.enabled, classLimitCfg.limit, regatta?.online_entry_limit_enabled, regatta?.online_entry_limit]);
+
+  const showWaitingListActions = !!limitScope && !!selectedClass;
+
+  const entryListAtCapacity = useMemo(() => {
+    if (!limitScope) return false;
+    if (limitScope.kind === 'class') return activeEntries.length >= limitScope.limit;
+    return entries.filter((e) => !e.waiting_list).length >= limitScope.limit;
+  }, [limitScope, activeEntries.length, entries]);
+
+  useEffect(() => {
+    setLimitDraft(classLimitCfg.limit != null ? String(classLimitCfg.limit) : '');
+  }, [classLimitCfg.limit, selectedClass]);
+
   const loadEntries = React.useCallback(async () => {
     try {
       const data = await apiGet<EntryListEntry[]>(
-        `/entries/by_regatta/${Number(regattaId)}`,
+        `/entries/by_regatta/${Number(regattaId)}?include_waiting=1`,
         token ?? undefined
       );
       return Array.isArray(data) ? data : [];
@@ -131,6 +191,9 @@ export default function AdminEntryList({
   };
 
   const rowColors = (e: EntryListEntry) => {
+    if (e.waiting_list) {
+      return { base: 'bg-slate-200 text-gray-900', hover: 'group-hover:bg-slate-300' };
+    }
     const paid = !!e.paid;
     const confirmed = !!e.confirmed;
     if (paid && confirmed) {
@@ -143,7 +206,7 @@ export default function AdminEntryList({
   };
 
   const goToEdit = (entryId: number) => {
-    router.push(`/admin/manage-regattas/${regattaId}/entries/${entryId}?regattaId=${regattaId}`);
+    router.push(withOrg(`/admin/manage-regattas/${regattaId}/entries/${entryId}?regattaId=${regattaId}`, orgSlug));
   };
 
   const maybeSendConfirmedEmail = async (entryId: number, nextPaid: boolean, nextConfirmed: boolean) => {
@@ -197,80 +260,328 @@ export default function AdminEntryList({
     }
   };
 
+  const patchClassLimit = async (next: { enabled?: boolean; limit?: number | null }) => {
+    if (!token || !regatta || !selectedClass) return;
+    const current = regatta.online_entry_limits_by_class || {};
+    const mergedForClass = {
+      ...(current[selectedClass] || {}),
+      ...next,
+    };
+    const payload = {
+      ...current,
+      [selectedClass]: mergedForClass,
+    };
+    const patched = await apiSend<RegattaForEntryList>(
+      `/regattas/${regattaId}`,
+      'PATCH',
+      { online_entry_limits_by_class: payload },
+      token
+    );
+    if (patched) onRegattaUpdate(patched);
+  };
+
+  const toggleClassLimitEnabled = async (nextEnabled: boolean) => {
+    if (!selectedClass) return;
+    setSavingLimit(true);
+    try {
+      await patchClassLimit({
+        enabled: nextEnabled,
+        // Enabling does not apply a new number automatically.
+        // The limit value only becomes active after explicit Save.
+        limit: classLimitCfg.limit,
+      });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update class limit.');
+    } finally {
+      setSavingLimit(false);
+    }
+  };
+
+  const saveClassLimit = async () => {
+    if (!selectedClass) return;
+    const n = Number(limitDraft);
+    if (!limitDraft.trim() || Number.isNaN(n) || n < 0) {
+      alert('Limit must be 0 or a positive number.');
+      return;
+    }
+    setSavingLimit(true);
+    try {
+      await patchClassLimit({ limit: n });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save class limit.');
+    } finally {
+      setSavingLimit(false);
+    }
+  };
+
+  const moveBetweenWaitingAndEntry = async (entryId: number, waiting: boolean) => {
+    if (!token) return;
+    setMovingEntryId(entryId);
+    try {
+      await apiSend(`/entries/${entryId}`, 'PATCH', { waiting_list: waiting }, token);
+      const list = await loadEntries();
+      setEntries(list);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update list placement.');
+    } finally {
+      setMovingEntryId(null);
+    }
+  };
+
   if (!isAdmin) return <p className="text-gray-500">Admin only.</p>;
 
   return (
-    <div className="space-y-4">
-      {/* Seletor de colunas: definido aqui e usado na lista pública */}
-      <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded border">
-        <span className="text-sm font-medium text-gray-700">
-          Visible columns per class{selectedClass ? ` (${selectedClass})` : ''}:
+    <div className="space-y-5">
+      {/* Seletor de colunas: definido aqui e usado apenas na lista pública */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 sm:p-5 bg-gray-50 rounded-lg border border-gray-200">
+        <span className="text-base font-semibold text-gray-800 w-full sm:w-auto">
+          Public entry list columns per class{selectedClass ? ` (${selectedClass})` : ''}:
         </span>
         {!selectedClass && (
-          <span className="text-xs text-amber-700">Seleciona uma classe acima para alterar as colunas.</span>
+          <span className="text-sm text-amber-800 w-full">Seleciona uma classe acima para alterar as colunas.</span>
         )}
+        <span className="text-sm text-gray-600 w-full">
+          Admin view always shows all columns; these options affect only the public entry list.
+        </span>
         {ENTRY_LIST_COLUMNS.map((col) => (
-          <label key={col.id} className="inline-flex items-center gap-1.5 cursor-pointer text-sm">
+          <label key={col.id} className="inline-flex items-center gap-2 cursor-pointer text-base">
             <input
               type="checkbox"
-              checked={visibleColumnIds.includes(col.id)}
+              checked={publicVisibleColumnIds.includes(col.id)}
               onChange={() => toggleColumn(col.id)}
               disabled={savingColumns || !selectedClass}
-              className="rounded border-gray-300"
+              className="rounded border-gray-300 size-4"
             />
             {col.label}
           </label>
         ))}
-        {savingColumns && <span className="text-xs text-gray-500">A guardar…</span>}
+        {savingColumns && <span className="text-sm text-gray-500">A guardar…</span>}
       </div>
 
-      {filteredEntries.length === 0 ? (
-        <p className="text-gray-500">Ainda não há inscrições para esta classe nesta regata.</p>
+      <div className="flex items-center gap-6 flex-wrap text-base text-gray-800">
+        <span>
+          Entries: <b>{activeEntries.length}</b>
+        </span>
+        <span>
+          Waiting list: <b>{waitingEntries.length}</b>
+        </span>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 p-4 sm:p-5 bg-gray-50 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              Class entry limit{selectedClass ? ` (${selectedClass})` : ''}
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              When enabled, extra entries for this class go to waiting list.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-3 cursor-pointer">
+            <span className="text-base font-medium">Enabled</span>
+            <button
+              type="button"
+              disabled={!selectedClass || savingLimit}
+              onClick={() => toggleClassLimitEnabled(!classLimitCfg.enabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                classLimitCfg.enabled ? 'bg-emerald-500' : 'bg-gray-300'
+              }`}
+              aria-pressed={classLimitCfg.enabled ? 'true' : 'false'}
+              aria-label="Toggle class entry limit"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                  classLimitCfg.enabled ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-gray-700">Max entries</span>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            className="border rounded px-3 py-2 w-28"
+            value={limitDraft}
+            disabled={!selectedClass || !classLimitCfg.enabled}
+            onChange={(e) => setLimitDraft(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={!selectedClass || !classLimitCfg.enabled || savingLimit}
+            onClick={saveClassLimit}
+            className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-base font-medium hover:bg-blue-700 disabled:opacity-60"
+          >
+            {savingLimit ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {classLimitCfg.enabled && (
+          <p className="text-sm text-gray-600">
+            The limit is only applied after you click Save.
+          </p>
+        )}
+        {showWaitingListActions && (
+          <p className="text-sm text-gray-700 leading-relaxed">
+            With an active entry limit (per class or regatta-wide), use the Actions column to move sailors between
+            the entry list and the waiting list. Promoting from waiting is blocked when the entry list is full.
+          </p>
+        )}
+      </div>
+
+      {activeEntries.length === 0 && waitingEntries.length === 0 ? (
+        <p className="text-gray-500">There are no entries for this class yet.</p>
       ) : (
-        <table className="w-full table-auto border border-black text-sm">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              {visibleColumnIds.map((id) => {
-                const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-                return (
-                  <th
-                    key={id}
-                    className={`p-2 border border-black ${id === 'paid' || id === 'status' ? 'text-center' : ''}`}
-                  >
-                    {def?.label ?? id}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEntries.map((entry) => {
-              const c = rowColors(entry);
-              const cell = `p-2 border border-black ${c.base} ${c.hover} transition-colors`;
-              return (
-                <tr
-                  key={entry.id}
-                  onClick={() => goToEdit(entry.id)}
-                  className="group cursor-pointer"
-                >
-                  {visibleColumnIds.map((colId) => (
-                    <td
-                      key={colId}
-                      className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''}`}
-                    >
-                      <EntryListCell
-                        entry={entry}
-                        columnId={colId}
-                        onStatusChange={colId === 'status' ? handleStatusChange : undefined}
-                        onPaidChange={colId === 'paid' ? handlePaidChange : undefined}
-                      />
-                    </td>
-                  ))}
+        <div className="space-y-6">
+          {activeEntries.length > 0 && (
+            <table className="w-full table-auto border border-gray-900 text-base leading-snug">
+              <thead className="bg-gray-100 text-left">
+                <tr>
+                  {adminVisibleColumnIds.map((id) => {
+                    const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+                    return (
+                      <th
+                        key={id}
+                        className={`p-3 border border-gray-900 font-semibold ${id === 'paid' || id === 'status' ? 'text-center' : ''} ${
+                          isPublicColumnVisible(id) ? '' : 'bg-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {def?.label ?? id}
+                        {!isPublicColumnVisible(id) && (
+                          <span className="ml-1 block sm:inline text-xs font-normal uppercase tracking-wide">(hidden on public)</span>
+                        )}
+                      </th>
+                    );
+                  })}
+                  {showWaitingListActions && (
+                    <th className="p-3 border border-gray-900 text-center w-[11rem]">Actions</th>
+                  )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {activeEntries.map((entry) => {
+                  const c = rowColors(entry);
+                  const cell = `p-3 border border-gray-900 ${c.base} ${c.hover} transition-colors`;
+                  return (
+                    <tr key={entry.id} onClick={() => goToEdit(entry.id)} className="group cursor-pointer">
+                      {adminVisibleColumnIds.map((colId) => (
+                        <td
+                          key={colId}
+                          className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''} ${
+                            isPublicColumnVisible(colId) ? '' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          <EntryListCell
+                            entry={entry}
+                            columnId={colId}
+                            onStatusChange={colId === 'status' && !entry.waiting_list ? handleStatusChange : undefined}
+                            onPaidChange={colId === 'paid' && !entry.waiting_list ? handlePaidChange : undefined}
+                          />
+                        </td>
+                      ))}
+                      {showWaitingListActions && (
+                        <td
+                          className={`${cell} align-middle text-center`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="text-sm px-3 py-1.5 rounded-md bg-slate-700 text-white font-medium hover:bg-slate-800 disabled:opacity-50"
+                            disabled={movingEntryId === entry.id}
+                            onClick={() => moveBetweenWaitingAndEntry(entry.id, true)}
+                          >
+                            To waiting list
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {waitingEntries.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                Waiting list ({waitingEntries.length})
+              </h3>
+              <table className="w-full table-auto border border-gray-900 text-base leading-snug">
+                <thead className="bg-gray-100 text-left">
+                  <tr>
+                    {adminVisibleColumnIds.map((id) => {
+                      const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+                      return (
+                        <th
+                          key={id}
+                          className={`p-3 border border-gray-900 font-semibold ${id === 'paid' || id === 'status' ? 'text-center' : ''} ${
+                            isPublicColumnVisible(id) ? '' : 'bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {def?.label ?? id}
+                          {!isPublicColumnVisible(id) && (
+                            <span className="ml-1 block sm:inline text-xs font-normal uppercase tracking-wide">(hidden on public)</span>
+                          )}
+                        </th>
+                      );
+                    })}
+                    {showWaitingListActions && (
+                      <th className="p-3 border border-gray-900 text-center w-[11rem]">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {waitingEntries.map((entry) => {
+                    const c = rowColors(entry);
+                    const cell = `p-3 border border-gray-900 ${c.base} ${c.hover} transition-colors`;
+                    const blocked = entryListAtCapacity;
+                    return (
+                      <tr key={entry.id} onClick={() => goToEdit(entry.id)} className="group cursor-pointer">
+                        {adminVisibleColumnIds.map((colId) => (
+                          <td
+                            key={colId}
+                            className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''} ${
+                              isPublicColumnVisible(colId) ? '' : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <EntryListCell
+                              entry={entry}
+                              columnId={colId}
+                              onStatusChange={undefined}
+                              onPaidChange={undefined}
+                            />
+                          </td>
+                        ))}
+                        {showWaitingListActions && (
+                          <td
+                            className={`${cell} align-middle text-center`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="text-sm px-3 py-1.5 rounded-md bg-emerald-700 text-white font-medium hover:bg-emerald-800 disabled:opacity-50"
+                              title={
+                                blocked
+                                  ? 'Entry list is full for this class (or regatta). Free a slot or raise the limit.'
+                                  : undefined
+                              }
+                              disabled={movingEntryId === entry.id || blocked}
+                              onClick={() => moveBetweenWaitingAndEntry(entry.id, false)}
+                            >
+                              To entry list
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

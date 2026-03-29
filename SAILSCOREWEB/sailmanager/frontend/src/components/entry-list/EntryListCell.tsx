@@ -21,6 +21,19 @@ interface EntryListCellProps {
  * Used by both public and admin entry lists.
  */
 export function EntryListCell({ entry, columnId, className = '', onStatusChange, onPaidChange }: EntryListCellProps) {
+  const formatDateTime = (iso?: string | null): string => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   switch (columnId) {
     case 'sail_no':
       return (
@@ -47,6 +60,8 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
     }
     case 'club':
       return <span className={className}>{entry.club?.trim() || '—'}</span>;
+    case 'created_at':
+      return <span className={className}>{formatDateTime(entry.created_at)}</span>;
     case 'paid': {
       const paid = !!entry.paid;
       if (onPaidChange) {
@@ -58,7 +73,7 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
               onPaidChange(entry.id, e.target.value === 'paid');
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`${className} border rounded px-2 py-1 text-sm bg-white`}
+            className={`${className} border rounded-md px-3 py-1.5 text-base bg-white min-h-[2.25rem]`}
             aria-label="Paid"
           >
             <option value="unpaid">Unpaid</option>
@@ -87,7 +102,7 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
               onStatusChange(entry.id, e.target.value === 'confirmed');
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`${className} border rounded px-2 py-1 text-sm bg-white`}
+            className={`${className} border rounded-md px-3 py-1.5 text-base bg-white min-h-[2.25rem]`}
             aria-label="Status"
           >
             <option value="pending">Pending</option>
@@ -116,9 +131,9 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
         if (low || med || high) {
           return (
             <span className={className} title="ORC Low / Medium / High">
-              {low && <span className="block text-xs">L: {low}</span>}
-              {med && <span className="block text-xs">M: {med}</span>}
-              {high && <span className="block text-xs">H: {high}</span>}
+              {low && <span className="block text-sm">L: {low}</span>}
+              {med && <span className="block text-sm">M: {med}</span>}
+              {high && <span className="block text-sm">H: {high}</span>}
             </span>
           );
         }

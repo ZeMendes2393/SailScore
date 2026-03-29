@@ -209,17 +209,17 @@ export default function OverallResultsPage() {
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader regattaId={Number(regattaId)} />
       <div className="container-page py-8">
-      <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <h2 className="text-2xl font-bold"> Classificação Geral</h2>
+      <div className="p-6 max-w-6xl mx-auto text-lg">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
+        <h2 className="text-4xl font-bold tracking-tight"> Classificação Geral</h2>
         <div className="flex flex-wrap items-center gap-2">
           {formattedPublishedAt && (
-            <span className="text-sm bg-slate-100 text-slate-700 px-2 py-1 rounded">
+            <span className="text-lg bg-slate-100 text-slate-700 px-4 py-2 rounded-lg">
               Published at {formattedPublishedAt}
             </span>
           )}
           {regatta && (
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            <span className="text-lg bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
             Descartes: <strong>{regatta.discard_count}</strong>
             {regatta.discard_count > 0 && (
               <> (após <strong>{regatta.discard_threshold}</strong> regatas)</>
@@ -246,7 +246,7 @@ export default function OverallResultsPage() {
             <button
               key={cls}
               onClick={() => setSelectedClass(cls)}
-              className={`px-3 py-1 rounded font-semibold border transition ${
+              className={`px-5 py-2.5 rounded-xl text-lg font-semibold border transition ${
                 selectedClass === cls
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
@@ -261,31 +261,31 @@ export default function OverallResultsPage() {
       {/* Tabela da classe selecionada */}
       {selectedClass && (
         <div className="mt-2">
-          <h3 className="text-lg font-semibold mb-2">Classe: {selectedClass}</h3>
+          <h3 className="text-2xl font-semibold mb-4">Classe: {selectedClass}</h3>
 
           {loadingResults ? (
             <p className="text-gray-500">Loading results…</p>
           ) : results.length === 0 ? (
             <p className="text-gray-500">No published results yet for this class.</p>
           ) : (
-            <table className="table-auto w-full border border-collapse">
+            <table className="table-auto w-full border border-collapse text-lg [&_td]:min-h-[3.25rem] [&_th]:text-lg">
               <thead>
                 <tr className="bg-gray-100">
                   {fixedColumnIds.map((id) => (
-                    <th key={id} className="border px-3 py-2">
+                    <th key={id} className="border px-4 py-4 font-semibold">
                       {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
                     </th>
                   ))}
                   {raceNames.map((name) => (
-                    <th key={name} className="border px-3 py-2">
+                    <th key={name} className="border px-4 py-4 font-semibold">
                       {name}
                     </th>
                   ))}
                   {visibleColumns.includes('total') && (
-                    <th className="border px-3 py-2 font-bold text-right">Total</th>
+                    <th className="border px-4 py-4 font-bold text-right">Total</th>
                   )}
                   {visibleColumns.includes('net') && (
-                    <th className="border px-3 py-2 font-bold text-right">Net</th>
+                    <th className="border px-4 py-4 font-bold text-right">Net</th>
                   )}
                 </tr>
               </thead>
@@ -293,15 +293,15 @@ export default function OverallResultsPage() {
                 {results.map((r, i) => (
                   <tr key={`${r.class_name}-${r.sail_number}-${i}`}>
                     {fixedColumnIds.map((id) => {
-                      if (id === 'place') return <td key={id} className="border px-3 py-2 text-center">{i + 1}</td>
-                      if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{(r as any).finals_fleet ?? '—'}</td>
-                      if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
-                      if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>
-                      if (id === 'skipper') return <td key={id} className="border px-3 py-2">{r.skipper_name}</td>
-                      if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>
-                      if (id === 'model') return <td key={id} className="border px-3 py-2">{(r as any).boat_model ?? '—'}</td>
-                      if (id === 'bow') return <td key={id} className="border px-3 py-2">{(r as any).bow_number ?? '—'}</td>
-                      return <td key={id} className="border px-3 py-2">—</td>
+                      if (id === 'place') return <td key={id} className="border px-4 py-4 text-center">{i + 1}</td>
+                      if (id === 'fleet') return <td key={id} className="border px-4 py-4 text-center">{(r as any).finals_fleet ?? '—'}</td>
+                      if (id === 'sail_no') return <td key={id} className="border px-4 py-4"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
+                      if (id === 'boat') return <td key={id} className="border px-4 py-4">{r.boat_name}</td>
+                      if (id === 'skipper') return <td key={id} className="border px-4 py-4">{r.skipper_name}</td>
+                      if (id === 'class') return <td key={id} className="border px-4 py-4">{r.class_name}</td>
+                      if (id === 'model') return <td key={id} className="border px-4 py-4">{(r as any).boat_model ?? '—'}</td>
+                      if (id === 'bow') return <td key={id} className="border px-4 py-4">{(r as any).bow_number ?? '—'}</td>
+                      return <td key={id} className="border px-4 py-4">—</td>
                     })}
                     {raceNames.map((name) => {
                       const raw = r.per_race?.[name]
@@ -310,7 +310,7 @@ export default function OverallResultsPage() {
                       return (
                         <td
                           key={name}
-                          className={`border px-3 py-2 text-center ${discarded ? 'text-gray-400' : ''}`}
+                          className={`border px-4 py-4 text-center ${discarded ? 'text-gray-400' : ''}`}
                           title={discarded ? 'Discarded' : undefined}
                         >
                           {discarded ? `(${typeof raw === 'number' ? raw : (raw ?? '-')})` : (raw ?? '-')}
@@ -318,10 +318,10 @@ export default function OverallResultsPage() {
                       )
                     })}
                     {visibleColumns.includes('total') && (
-                      <td className="border px-3 py-2 font-semibold text-right">{Number(r.total_points).toFixed(2)}</td>
+                      <td className="border px-4 py-4 font-semibold text-right">{Number(r.total_points).toFixed(2)}</td>
                     )}
                     {visibleColumns.includes('net') && (
-                      <td className="border px-3 py-2 font-extrabold text-right">{Number(r.net_points).toFixed(2)}</td>
+                      <td className="border px-4 py-4 font-extrabold text-right">{Number(r.net_points).toFixed(2)}</td>
                     )}
                   </tr>
                 ))}

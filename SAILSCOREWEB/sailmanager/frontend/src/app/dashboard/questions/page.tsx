@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet } from '@/lib/api';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type QuestionRead = {
@@ -21,18 +22,9 @@ type QuestionRead = {
 };
 
 export default function QuestionsPage() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const regattaId = useMemo(() => {
-    if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id as number;
-    const fromQS = Number(searchParams.get('regattaId') || '');
-    if (Number.isFinite(fromQS) && fromQS > 0) return fromQS;
-    const fromEnv = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '0');
-    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
-    return 7;
-  }, [user?.role, user?.current_regatta_id, searchParams]);
+  const regattaId = useDashboardRegattaId();
 
   const [rows, setRows] = useState<QuestionRead[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +53,7 @@ export default function QuestionsPage() {
         <h1 className="text-2xl font-semibold">Questions</h1>
         <button
           className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
-          onClick={() => router.push(`/dashboard/questions/new?regattaId=${regattaId}`)}
+          onClick={() => router.push('/dashboard/questions/new')}
           disabled={!token}
         >
           New Question

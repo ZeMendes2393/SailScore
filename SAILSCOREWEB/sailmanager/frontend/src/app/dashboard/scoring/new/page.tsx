@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { apiGet, apiPost } from '@/lib/api';
 import type { ScoringCreate } from '@/lib/api';
 import { formatSailNumber } from '@/utils/countries';
@@ -117,7 +118,7 @@ export default function NewScoringPage() {
     try {
       setSubmitting(true);
       await apiPost(`/regattas/${regattaId}/scoring`, payload, token);
-      router.replace(`/dashboard/scoring?regattaId=${regattaId}`);
+      router.replace('/dashboard/scoring');
     } catch (e: any) {
       setErr(e?.message || 'Failed to submit scoring enquiry.');
     } finally {

@@ -8,8 +8,8 @@ export type HearingItem = {
   // agora opcionais (podem vir null ou nem vir)
   case_number?: number | string | null;
   race?: string | null;            // ex.: "5" ou data/descrição
-  initiator?: string | null;       // "123 · ILCA7"
-  respondent?: string | null;      // "456 · ILCA7" ou texto livre
+  initiator?: string | null;       // e.g. "POR 12345 · ILCA7" ou texto livre (admin)
+  respondent?: string | null;      // e.g. "GBR 67890 · ILCA7" ou texto livre
   sch_date?: string | null;        // "YYYY-MM-DD" ou null
   sch_time?: string | null;        // "HH:MM" ou null
   room?: string | null;

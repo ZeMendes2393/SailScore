@@ -44,7 +44,7 @@ export default function LoginPage() {
       if (isAdminRole(user.role)) {
         const slug = (user as { organization_slug?: string | null }).organization_slug?.trim();
         router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
-      } else if (user.role === 'regatista') {
+      } else if (user.role === 'regatista' || user.role === 'jury') {
         const rid = user.current_regatta_id ?? undefined;
         router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
       }
@@ -55,7 +55,7 @@ export default function LoginPage() {
     // - Se já é regatista, pode ser redirecionado logo para o dashboard da regata.
     // - Se a sessão atual é de admin, NÃO fazemos redirect automático,
     //   para permitir que o utilizador troque para a Sailor Account.
-    if (mode === 'sailor' && user.role === 'regatista') {
+    if (mode === 'sailor' && (user.role === 'regatista' || user.role === 'jury')) {
       const rid = user.current_regatta_id ?? qsId ?? undefined;
       router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
     }
@@ -187,11 +187,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
-            type={mode === 'admin' ? 'email' : 'text'}
+            type="text"
             className="w-full border rounded px-3 py-2"
             placeholder={
               mode === 'admin'
-                ? 'Admin email'
+                ? 'Email or username'
                 : 'Sailor username (e.g. JoseMendes115)'
             }
             value={email}

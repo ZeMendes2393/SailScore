@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 HOST = os.getenv("SMTP_HOST")
-PORT = int(os.getenv("SMTP_PORT", "2525"))
+PORT = int(os.getenv("SMTP_PORT", "587"))
 USER = os.getenv("SMTP_USER")
 PASS = os.getenv("SMTP_PASS")
-FROM = os.getenv("SMTP_FROM_EMAIL", "no-reply@mail.sailscore.app")
+FROM = os.getenv("SMTP_FROM_EMAIL", "no-reply@sailscore.online")
 TO   = os.getenv("SMTP_TEST_TO", FROM)  # opcional: define no .env um email teu
 SUBJ = "SMTP smoketest SailScore"
 BODY = "Olá! Este é um teste simples de SMTP."

@@ -284,6 +284,8 @@ export interface ProtestInitiatorSummary {
   sail_no?: string | null;
   boat_name?: string | null;
   class_name?: string | null;
+  /** Org admin protest filed without an entry */
+  party_text?: string | null;
 }
 export interface ProtestListItem {
   id: number;

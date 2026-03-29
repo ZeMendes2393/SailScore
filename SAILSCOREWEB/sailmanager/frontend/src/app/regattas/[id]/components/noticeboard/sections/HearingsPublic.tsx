@@ -27,7 +27,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
       } catch (e: any) {
         if (!cancelled) {
           setRows([]);
-          setError(e?.message || 'Erro a carregar hearings.');
+          setError(e?.message || 'Failed to load hearings.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -41,7 +41,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Hearings & Decisions</h3>
+        <h3 className="text-lg font-semibold">Protest Decisions/Hearings</h3>
         <select
           className="border rounded px-2 py-1"
           value={statusFilter}
@@ -53,7 +53,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
         </select>
       </div>
 
-      {loading && <div className="text-gray-500">A carregar…</div>}
+      {loading && <div className="text-gray-500">Loading…</div>}
       {error && <div className="text-red-600">{error}</div>}
 
       <div className="overflow-x-auto rounded border bg-white">
@@ -76,7 +76,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={10}>
-                  Sem hearings.
+                  No hearings.
                 </td>
               </tr>
             )}

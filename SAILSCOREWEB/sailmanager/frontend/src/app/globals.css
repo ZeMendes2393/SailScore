@@ -15,10 +15,25 @@
   }
 }
 
-/* Base */
+/*
+ * EXPERIMENTO: escala global (rem). Aumentar aqui = maior em quase todo o site.
+ * Reverter: voltar aos valores anteriores (ex.: 17px / 18px / 16px) ou pedir revert.
+ */
 html {
   height: 100%;
-  font-size: 18px; /* AUMENTO GLOBAL DA FONTE (antes era o padrão ~16px) */
+  font-size: 20px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 23px;
+  }
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 18px;
+  }
 }
 
 body {
@@ -34,7 +49,7 @@ body {
 }
 
 /* Helpers */
-.container-page { @apply w-full max-w-6xl mx-auto px-4 sm:px-6; }
+.container-page { @apply w-full max-w-[min(100%,1360px)] mx-auto px-4 sm:px-6; }
 .card { @apply rounded-2xl border bg-white shadow-[0_10px_24px_rgba(0,0,0,.08)]; }
 
 /* 🚨 TESTE: deve aparecer uma caixa vermelha */

@@ -103,6 +103,12 @@ class RegattaBase(BaseModel):
 
     # controlo de inscrições online (visível no GET)
     online_entry_open: bool = True
+    # Limite total de entradas permitidas (opcional). Quando enabled=true, aplica um cap global.
+    online_entry_limit_enabled: bool = False
+    online_entry_limit: Optional[int] = None
+    # Limites por classe:
+    # { "<class_name>": { "enabled": bool, "limit": int|null } }
+    online_entry_limits_by_class: Optional[Dict[str, Dict[str, Any]]] = None
     country_code: Optional[str] = None  # ISO 3166-1 alpha-2, ex: PT, ES
     timezone: Optional[str] = None  # IANA, ex: Europe/Lisbon
 
@@ -155,6 +161,9 @@ class RegattaUpdate(BaseModel):
 
     # PATCH opcional (por classe: Dict[class_name, List[column_id]])
     online_entry_open: Optional[bool] = None
+    online_entry_limit_enabled: Optional[bool] = None
+    online_entry_limit: Optional[int] = None
+    online_entry_limits_by_class: Optional[Dict[str, Dict[str, Any]]] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
 
@@ -281,6 +290,7 @@ class EntryCreate(BaseModel):
 
 class EntryRead(EntryCreate):
     id: int
+    waiting_list: Optional[bool] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -323,6 +333,8 @@ class EntryListRead(BaseModel):
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
     crew_members: Optional[List[Dict[str, Any]]] = None
+    created_at: Optional[datetime] = None
+    waiting_list: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -627,6 +639,7 @@ class ProtestInitiatorSummary(BaseModel):
     sail_no: str | None = None
     boat_name: str | None = None
     class_name: str | None = None
+    party_text: str | None = None  # admin filing without entry
 
 
 class ProtestListItem(BaseModel):
@@ -676,7 +689,8 @@ class ProtestCreate(BaseModel):
     race_date: Optional[str] = None
     race_number: Optional[str] = None
     group_name: Optional[str] = None
-    initiator_entry_id: int
+    initiator_entry_id: Optional[int] = None
+    initiator_party_text: Optional[str] = None
     initiator_represented_by: Optional[str] = None
     respondents: List[ProtestRespondentIn]
     validity: Optional[ProtestValidityIn] = None
@@ -861,6 +875,7 @@ class EntryPatch(BaseModel):
     regatta_id: Optional[int] = None
     paid: Optional[bool] = None
     confirmed: Optional[bool] = None
+    waiting_list: Optional[bool] = None
 
     crew_members: Optional[List[Dict[str, Any]]] = None
 

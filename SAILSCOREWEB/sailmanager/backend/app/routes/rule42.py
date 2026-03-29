@@ -10,9 +10,24 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.org_scope import assert_user_can_manage_org_id
-from utils.auth_utils import verify_role, get_current_user
+from app.jury_scope import assert_jury_regatta_access
+from utils.auth_utils import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/rule42", tags=["rule42"])
+
+
+def _ensure_rule42_write(db: Session, user: models.User, regatta_id: int) -> None:
+    """Admin/org admin ou jury da mesma regata e organização."""
+    if user.role in ("admin", "platform_admin"):
+        regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+        if not regatta:
+            raise HTTPException(status_code=404, detail="Regatta not found")
+        assert_user_can_manage_org_id(user, regatta.organization_id)
+        return
+    if user.role == "jury":
+        assert_jury_regatta_access(db, user, regatta_id)
+        return
+    raise HTTPException(status_code=403, detail="Forbidden")
 
 # ============================================
 # LISTAR (original) — array "cru"
@@ -25,7 +40,10 @@ def list_rule42(
     race: Optional[str] = Query(None),
     group: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
 ):
+    if current_user is not None and current_user.role == "jury":
+        assert_jury_regatta_access(db, current_user, regatta_id)
     q = (
         db.query(models.Rule42Record, models.Entry.boat_country_code)
         .outerjoin(
@@ -80,6 +98,9 @@ def list_rule42_paged(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    if current_user.role == "jury":
+        assert_jury_regatta_access(db, current_user, regatta_id)
+
     # base (LEFT JOIN para tentar ligar à Entry)
     q = (
         db.query(models.Rule42Record, models.Entry)
@@ -163,17 +184,16 @@ def list_rule42_paged(
     "/",
     response_model=schemas.Rule42Out,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def create_rule42(
     payload: schemas.Rule42Create,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     regatta = db.query(models.Regatta).filter_by(id=payload.regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    _ensure_rule42_write(db, current_user, payload.regatta_id)
     rec = models.Rule42Record(**payload.model_dump())
     db.add(rec)
     db.commit()
@@ -187,20 +207,17 @@ def create_rule42(
 @router.patch(
     "/{id}",
     response_model=schemas.Rule42Out,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def update_rule42(
     id: int,
     payload: schemas.Rule42Patch,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
-    regatta = db.query(models.Regatta).filter_by(id=rec.regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    _ensure_rule42_write(db, current_user, rec.regatta_id)
 
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
@@ -217,19 +234,16 @@ def update_rule42(
 @router.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def delete_rule42(
     id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
-    regatta = db.query(models.Regatta).filter_by(id=rec.regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    _ensure_rule42_write(db, current_user, rec.regatta_id)
     db.delete(rec)
     db.commit()
     return

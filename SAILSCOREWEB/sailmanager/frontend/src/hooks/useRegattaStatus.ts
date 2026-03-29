@@ -33,30 +33,13 @@ const DEFAULT_WINDOWS: RegattaWindows = {
   protest: true,
 };
 
-export function useRegattaStatus(explicitRegattaId?: number) {
-  const { user, token } = useAuth();
+export function useRegattaStatus(explicitRegattaId?: number | null) {
+  const { token } = useAuth();
 
-  // Determina o regattaId (aceita snake_case ou camelCase e normaliza para número)
   const regattaId = useMemo(() => {
-    let id: unknown = null;
-
-    // Se for regatista, tenta ir buscar do token (/auth/me)
-    if (user?.role === 'regatista') {
-      id =
-        (user as any)?.current_regatta_id ??
-        (user as any)?.currentRegattaId ??
-        null;
-    }
-
-    // Admin (ou sem valor no token): usa o explícito se vier
-    if (!id && explicitRegattaId) id = explicitRegattaId;
-
-    // Fallback DEV por env
-    if (!id) id = Number(process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID || '1');
-
-    const n = Number(id);
-    return Number.isFinite(n) && n > 0 ? n : 1;
-  }, [user?.role, (user as any)?.current_regatta_id, (user as any)?.currentRegattaId, explicitRegattaId]);
+    const n = Number(explicitRegattaId);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [explicitRegattaId]);
 
   const [data, setData] = useState<RegattaStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +47,15 @@ export function useRegattaStatus(explicitRegattaId?: number) {
 
   useEffect(() => {
     let alive = true;
+    if (regattaId == null) {
+      setLoading(false);
+      setError(null);
+      setData(null);
+      return () => {
+        alive = false;
+      };
+    }
+
     setLoading(true);
     setError(null);
 

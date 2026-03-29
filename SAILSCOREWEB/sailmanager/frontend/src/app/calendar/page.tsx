@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
@@ -27,28 +27,40 @@ function CalendarContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orgFromQuery = searchParams.get('org')?.trim() || null;
-  /** undefined = ainda a resolver (redirect com sessionStorage); null = sem âmbito → API default */
-  const [resolvedOrgSlug, setResolvedOrgSlug] = useState<string | null | undefined>(undefined);
+  const [resolvedOrgSlug, setResolvedOrgSlug] = useState<string | null>(() =>
+    orgFromQuery ?? DEFAULT_PUBLIC_ORG_SLUG ?? null
+  );
+  /** Sem ?org= nem env: ler sessionStorage em useLayoutEffect antes do 1.º paint — evita flash do “site sem org”. */
+  const [storageChecked, setStorageChecked] = useState(
+    () => !!(orgFromQuery || DEFAULT_PUBLIC_ORG_SLUG)
+  );
   const [regattas, setRegattas] = useState<Regatta[]>([]);
 
-  useEffect(() => {
-    let resolved = orgFromQuery ?? DEFAULT_PUBLIC_ORG_SLUG ?? null;
-    if (!resolved) {
-      try {
-        resolved = sessionStorage.getItem(LAST_ORG_KEY)?.trim() || null;
-      } catch {
-        resolved = null;
-      }
-    }
-    if (resolved && !orgFromQuery) {
-      router.replace(`/calendar?org=${encodeURIComponent(resolved)}`, { scroll: false });
+  useLayoutEffect(() => {
+    if (orgFromQuery || DEFAULT_PUBLIC_ORG_SLUG) {
+      setResolvedOrgSlug(orgFromQuery ?? DEFAULT_PUBLIC_ORG_SLUG ?? null);
+      setStorageChecked(true);
       return;
     }
-    setResolvedOrgSlug(resolved);
-  }, [orgFromQuery, router]);
+    try {
+      const fromStore = sessionStorage.getItem(LAST_ORG_KEY)?.trim() || null;
+      setResolvedOrgSlug(fromStore);
+    } catch {
+      setResolvedOrgSlug(null);
+    } finally {
+      setStorageChecked(true);
+    }
+  }, [orgFromQuery]);
 
   useEffect(() => {
-    if (resolvedOrgSlug === undefined) return;
+    if (!storageChecked) return;
+    if (resolvedOrgSlug && !orgFromQuery) {
+      router.replace(`/calendar?org=${encodeURIComponent(resolvedOrgSlug)}`, { scroll: false });
+    }
+  }, [storageChecked, resolvedOrgSlug, orgFromQuery, router]);
+
+  useEffect(() => {
+    if (!storageChecked) return;
     (async () => {
       try {
         const q = resolvedOrgSlug ? `?org=${encodeURIComponent(resolvedOrgSlug)}` : '';
@@ -60,14 +72,32 @@ function CalendarContent() {
         console.error('Failed to fetch regattas:', err);
       }
     })();
-  }, [resolvedOrgSlug]);
+  }, [storageChecked, resolvedOrgSlug]);
 
   const regattaLinkSuffix =
     resolvedOrgSlug != null && resolvedOrgSlug !== ''
       ? `?org=${encodeURIComponent(resolvedOrgSlug)}`
       : '';
 
-  const sponsorsOrg = resolvedOrgSlug === undefined ? null : resolvedOrgSlug;
+  if (!storageChecked) {
+    return (
+      <div className="py-8" aria-busy="true" aria-live="polite">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">Calendar</h1>
+          <p className="text-gray-600 mt-2">Browse regattas by month and year.</p>
+        </div>
+        <div className="max-w-4xl rounded-xl border border-gray-100 bg-white p-8 shadow-sm">
+          <div className="h-8 w-48 animate-pulse rounded bg-gray-200 mb-6" />
+          <div className="grid grid-cols-7 gap-2">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <div key={i} className="aspect-square animate-pulse rounded-md bg-gray-100" />
+            ))}
+          </div>
+          <p className="mt-6 text-sm text-gray-500">A carregar…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
@@ -90,7 +120,7 @@ function CalendarContent() {
         />
       </div>
 
-      <GlobalSponsorsFooter orgSlug={sponsorsOrg} />
+      <GlobalSponsorsFooter orgSlug={resolvedOrgSlug} />
     </div>
   );
 }

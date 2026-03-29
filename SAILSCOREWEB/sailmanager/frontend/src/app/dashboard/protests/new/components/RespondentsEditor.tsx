@@ -153,7 +153,7 @@ export default function RespondentsEditor({
                   disabled={!r.class_name}
                 >
                   <option value="" disabled>
-                    Seleciona…
+                    Select…
                   </option>
                   {(r.class_name ? entriesByClass[(r.class_name || '').trim()] || [] : []).map(
                     (en) => (

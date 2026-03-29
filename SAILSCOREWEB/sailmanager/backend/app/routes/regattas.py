@@ -11,7 +11,12 @@ from app import models, schemas
 from app.metadata.timezones import is_valid_iana_timezone, is_valid_timezone_for_country
 from app.database import get_db
 from app.org_scope import assert_user_can_manage_org_id, resolve_org
-from utils.auth_utils import get_current_user, get_current_user_optional
+from utils.auth_utils import (
+    get_current_user,
+    get_current_user_optional,
+    get_current_regatta_id_optional,
+)
+from app.jury_scope import assert_jury_regatta_access
 
 
 def _validate_regatta_timezone_country(country_code: str | None, timezone_str: str) -> None:
@@ -321,10 +326,32 @@ def _compute_regatta_status(reg: models.Regatta) -> RegattaStatusResponse:
 # ---------- ENDPOINT ----------
 
 @router.get("/{regatta_id}/status", response_model=RegattaStatusResponse)
-def get_regatta_status(regatta_id: int, db: Session = Depends(get_db)):
+def get_regatta_status(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
+    current_regatta_id: Optional[int] = Depends(get_current_regatta_id_optional),
+):
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
+
+    if current_user is not None:
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, reg.organization_id)
+        elif current_user.role == "jury":
+            assert_jury_regatta_access(db, current_user, regatta_id)
+        elif current_user.role == "regatista":
+            if int(reg.organization_id) != int(current_user.organization_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Sem permissão nesta regata (organização).",
+                )
+            if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
+                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+        else:
+            raise HTTPException(status_code=403, detail="Acesso negado")
+
     return _compute_regatta_status(reg)
 
 @router.get("/{regatta_id}/classes/detailed", response_model=List[schemas.RegattaClassRead])

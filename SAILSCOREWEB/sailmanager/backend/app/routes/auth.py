@@ -114,6 +114,19 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
                     detail={"requires_regatta_selection": True, "regattas": my_regattas},
                 )
 
+    elif user.role == "jury":
+        prof = (
+            db.query(models.RegattaJuryProfile)
+            .filter(models.RegattaJuryProfile.user_id == user.id)
+            .first()
+        )
+        if not prof:
+            raise HTTPException(
+                status_code=403,
+                detail="Jury profile is not linked to this account.",
+            )
+        claims["regatta_id"] = int(prof.regatta_id)
+
     token = create_access_token(claims)
     return schemas.Token(access_token=token)
 
@@ -148,6 +161,20 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=403, detail="Account is inactive")
 
     claims: dict = {"sub": user.email, "role": user.role, "oid": user.organization_id}
+
+    if user.role == "jury":
+        prof = (
+            db.query(models.RegattaJuryProfile)
+            .filter(models.RegattaJuryProfile.user_id == user.id)
+            .first()
+        )
+        if not prof:
+            raise HTTPException(
+                status_code=403,
+                detail="Jury profile is not linked to this account.",
+            )
+        claims["regatta_id"] = int(prof.regatta_id)
+
     token = create_access_token(claims)
     return schemas.Token(access_token=token)
 
@@ -297,6 +324,17 @@ def switch_regatta(
 
     if current_user.role in ("admin", "platform_admin"):
         claims["regatta_id"] = int(regatta_id)
+        return schemas.Token(access_token=create_access_token(claims))
+
+    if current_user.role == "jury":
+        prof = (
+            db.query(models.RegattaJuryProfile)
+            .filter(models.RegattaJuryProfile.user_id == current_user.id)
+            .first()
+        )
+        if not prof or int(regatta_id) != int(prof.regatta_id):
+            raise HTTPException(status_code=403, detail="Sem acesso a essa regata")
+        claims["regatta_id"] = int(prof.regatta_id)
         return schemas.Token(access_token=create_access_token(claims))
 
     ok = db.query(models.Entry).filter(
