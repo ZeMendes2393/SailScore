@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiGet, apiPost } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 
 type Row = {
   id: number;
@@ -10,7 +10,6 @@ type Row = {
   fleet: string | null;
   date: string;               // "YYYY-MM-DD"
   time_limit_hm: string;      // "HH:MM"
-  notes: string | null;
 };
 
 // Validação "HH:MM"
@@ -25,25 +24,47 @@ function normalizeHHMM(v: string): string {
   return `${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}`;
 }
 
+function formatDateDMY(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso?.trim() || "");
+  if (!m) return iso;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (!Number.isFinite(dt.getTime())) return iso;
+  return new Intl.DateTimeFormat("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dt);
+}
+
 export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>("ALL");
   const [form, setForm] = useState<{
     class_name: string;
     fleet: string;
     date: string;          // "YYYY-MM-DD"
     time_limit_hm: string; // "HH:MM"
-    notes: string;
   }>({
     class_name: "",
     fleet: "",
     date: new Date().toISOString().slice(0, 10),
     time_limit_hm: "01:00",
-    notes: "",
   });
+
+  const dateOptions = useMemo(() => {
+    const uniq = Array.from(new Set(rows.map((r) => r.date).filter(Boolean)));
+    return uniq.sort((a, b) => b.localeCompare(a));
+  }, [rows]);
+
+  const visibleRows = useMemo(() => {
+    if (selectedDate === "ALL") return rows;
+    return rows.filter((r) => r.date === selectedDate);
+  }, [rows, selectedDate]);
 
   async function fetchRows() {
     setLoading(true);
@@ -79,7 +100,6 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
         fleet: form.fleet?.trim() || null,
         date: form.date,
         time_limit_hm: hhmm,
-        notes: form.notes?.trim() || null,
       });
 
       setForm({
@@ -87,7 +107,6 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
         fleet: "",
         date: new Date().toISOString().slice(0, 10),
         time_limit_hm: "01:00",
-        notes: "",
       });
       fetchRows();
     } catch (e: any) {
@@ -97,17 +116,36 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
     }
   }
 
+  async function removeRow(rowId: number) {
+    if (!confirm("Delete this protest time limit?")) return;
+    try {
+      setDeletingId(rowId);
+      await apiDelete(`/ptl/${rowId}`);
+      await fetchRows();
+    } catch (e: any) {
+      alert(e?.message || "Failed to delete.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Protest Time Limit</h2>
-        <button
-          type="button"
-          onClick={fetchRows}
-          className="inline-flex items-center gap-2 text-sm px-3 py-1.5 border border-gray-200 rounded-md bg-white hover:bg-gray-50 shadow-sm"
+        <select
+          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          title="Filter by hearing date"
         >
-          Update
-        </button>
+          <option value="ALL">ALL</option>
+          {dateOptions.map((d) => (
+            <option key={d} value={d}>
+              {formatDateDMY(d)}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Criar */}
@@ -143,14 +181,6 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
           />
         </div>
 
-        <textarea
-          className="border border-gray-300 rounded-md p-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-          rows={3}
-          placeholder="Notes (optional)"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
-
         <div className="flex flex-wrap gap-2 pt-1">
           <button
             onClick={createRow}
@@ -169,7 +199,6 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
                 fleet: "",
                 date: new Date().toISOString().slice(0, 10),
                 time_limit_hm: "01:00",
-                notes: "",
               })
             }
           >
@@ -195,34 +224,43 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
               <th className="px-3 py-2 text-left font-medium">Fleet</th>
               <th className="px-3 py-2 text-left font-medium">Time Limit (HH:MM)</th>
               <th className="px-3 py-2 text-left font-medium">Date</th>
-              <th className="px-3 py-2 text-left font-medium">Notes</th>
+              <th className="px-3 py-2 text-left font-medium">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-2" colSpan={5}>
+                <td className="px-3 py-2" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             )}
 
-            {!loading && rows.length === 0 && (
+            {!loading && visibleRows.length === 0 && (
               <tr>
-                <td className="px-3 py-2 text-center text-gray-500" colSpan={5}>
+                <td className="px-3 py-2 text-center text-gray-500" colSpan={6}>
                   No records.
                 </td>
               </tr>
             )}
 
-            {rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.id} className="border-t hover:bg-gray-50 transition-colors">
                 <td className="px-3 py-2 text-left">{r.class_name}</td>
                 <td className="px-3 py-2 text-left">{r.fleet || "—"}</td>
                 <td className="px-3 py-2 text-left font-mono">{r.time_limit_hm}</td>
-                <td className="px-3 py-2 text-left">{r.date}</td>
-                <td className="px-3 py-2 text-left">{r.notes || "—"}</td>
+                <td className="px-3 py-2 text-left">{formatDateDMY(r.date)}</td>
+                <td className="px-3 py-2 text-left">
+                  <button
+                    type="button"
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                    onClick={() => removeRow(r.id)}
+                    disabled={deletingId === r.id}
+                  >
+                    {deletingId === r.id ? "Deleting…" : "Delete"}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

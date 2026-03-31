@@ -40,14 +40,12 @@ export interface RespondentRowUI {
   class_name?: string;
   entry_id?: number;
   name_text?: string;
-  represented_by?: string;
 }
 
 export interface ProtestRespondentIn {
   kind: RespondentKindApi;
   entry_id?: number | null;
   free_text?: string | null;
-  represented_by?: string | null;
 }
 export interface ProtestIncidentIn {
   when_where?: string | null;
@@ -83,25 +81,15 @@ function entryFullName(en?: EntryOption): string {
   return full || en.email || en.boat_name || en.sail_number || '';
 }
 
-/** Default label for jury/admin: who files the protest (stored in initiator_represented_by). */
-function staffFilingName(u: { name?: string | null; email?: string | null } | null | undefined): string {
-  if (!u) return '';
-  const n = (u.name || '').trim();
-  if (n) return n;
-  const e = (u.email || '').trim();
-  if (e.includes('@')) return e.split('@')[0] ?? '';
-  return e;
-}
-
 const genId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
 export type UseProtestPageOptions = {
-  /** Júri: carrega todas as inscrições da regata e permite escolher o nome no protesto. */
+  /** Júri: mesmo UI que admin (campo “Who is protesting”, payload com party text). */
   forJury?: boolean;
-  /** Admin (org): igual ao júri para criar protesto em nome de qualquer inscrição. */
+  /** Admin (org): idem. */
   forAdmin?: boolean;
   /** Edição (admin/júri): PATCH em vez de POST. */
   editProtestId?: number | null;
@@ -120,7 +108,6 @@ type ForEditResponse = {
     kind: string;
     entry_id?: number | null;
     free_text?: string | null;
-    represented_by?: string | null;
   }[];
   incident?: {
     when_where?: string | null;
@@ -142,7 +129,6 @@ function mapRespondentsFromApi(
         type: 'boat',
         class_name: en?.class_name?.trim(),
         entry_id: r.entry_id,
-        represented_by: r.represented_by || undefined,
       };
     }
     const ft = (r.free_text || '').trim();
@@ -151,20 +137,18 @@ function mapRespondentsFromApi(
         id,
         type: 'coach',
         name_text: ft.replace(/^coach:\s*/i, '').trim(),
-        represented_by: r.represented_by || undefined,
       };
     }
     const matchType = (Object.keys(RESPONDENT_TYPE_LABEL) as RespondentUiType[]).find(
       (k) => RESPONDENT_TYPE_LABEL[k] === ft
     );
     if (matchType && matchType !== 'boat' && matchType !== 'coach') {
-      return { id, type: matchType, represented_by: r.represented_by || undefined };
+      return { id, type: matchType };
     }
     return {
       id,
       type: 'other',
       name_text: ft || undefined,
-      represented_by: r.represented_by || undefined,
     };
   });
 }
@@ -177,8 +161,8 @@ export default function useProtestPage(
 ) {
   const forJury = Boolean(options?.forJury);
   const forAdmin = Boolean(options?.forAdmin);
-  /** Org admin (not jury): initiator = free text only, no “Filed by”, no entry picker */
-  const adminInitiatorFreeTextOnly = forAdmin && !forJury;
+  /** Admin ou júri: mesmo formulário (campo “Who is protesting”, sem picker de barco). */
+  const adminInitiatorFreeTextOnly = forAdmin || forJury;
   const editProtestId = options?.editProtestId ?? null;
   const { user } = useAuth();
   const userEmail =
@@ -392,19 +376,10 @@ export default function useProtestPage(
 
       if (!cancelled) {
         setMyEntries(mineForThis);
-        const jName = staffFilingName(user);
         if (adminInitiatorFreeTextOnly) {
           setInitiatorEntryId(undefined);
           setInitiatorRep('');
           setInitiatorPartyText('');
-        } else if (forJury) {
-          if (mineForThis.length === 1) {
-            setInitiatorEntryId(mineForThis[0].id);
-            setInitiatorRep(jName);
-          } else {
-            setInitiatorEntryId(undefined);
-            setInitiatorRep(jName);
-          }
         } else if (mineForThis.length === 1) {
           setInitiatorEntryId(mineForThis[0].id);
           setInitiatorRep(entryFullName(mineForThis[0]));
@@ -444,20 +419,15 @@ export default function useProtestPage(
     return () => {
       cancelled = true;
     };
-  }, [regattaId, token, userEmail, forJury, forAdmin, adminInitiatorFreeTextOnly, user, editProtestId]);
+  }, [regattaId, token, userEmail, forJury, forAdmin, adminInitiatorFreeTextOnly, editProtestId]);
 
-  // “Represented by” / “Filed by”: sailor = skipper name; jury = account name until edited (not org admin)
+  // “Represented by” / “Filed by”: sailor = skipper name (regatista)
   useEffect(() => {
     if (editProtestId) return;
     if (adminInitiatorFreeTextOnly) return;
-    if (forJury) {
-      const j = staffFilingName(user);
-      if (j) setInitiatorRep(j);
-      return;
-    }
     const en = myEntries.find((e) => e.id === initiatorEntryId);
     if (en) setInitiatorRep(entryFullName(en));
-  }, [initiatorEntryId, myEntries, forJury, adminInitiatorFreeTextOnly, user, editProtestId]);
+  }, [initiatorEntryId, myEntries, adminInitiatorFreeTextOnly, editProtestId]);
 
   // Pré-preenche 1ª linha com classe do iniciador
   useEffect(() => {
@@ -517,7 +487,6 @@ export default function useProtestPage(
           return {
             kind: 'entry',
             entry_id: r.entry_id!,
-            represented_by: r.represented_by || undefined,
           };
         }
         let label = RESPONDENT_TYPE_LABEL[r.type];
@@ -525,7 +494,6 @@ export default function useProtestPage(
         return {
           kind: 'other',
           free_text: label,
-          represented_by: r.represented_by || undefined,
         };
       });
 

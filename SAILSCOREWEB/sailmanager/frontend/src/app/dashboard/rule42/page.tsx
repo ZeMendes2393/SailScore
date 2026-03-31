@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { useRule42, type Rule42Scope } from '@/lib/hooks/useRule42';
 import type { Rule42ListItem } from '@/lib/api';
 import { isAdminRole } from '@/lib/roles';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
+import { appendDashboardOrgQuery } from '@/lib/dashboardOrgQuery';
 
 function Row({ r }: { r: Rule42ListItem }) {
   return (
@@ -28,13 +30,14 @@ function Row({ r }: { r: Rule42ListItem }) {
 export default function Page() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const { orgSlug } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   useEffect(() => {
     if (user?.role === 'jury') {
-      router.replace('/dashboard/jury/rule42');
+      router.replace(appendDashboardOrgQuery('/dashboard/jury/rule42', orgSlug));
     }
-  }, [user?.role, router]);
+  }, [user?.role, router, orgSlug]);
 
   // Estado local (apenas scope)
   const [scope, setScope] = useState<Rule42Scope>(isAdminRole(user?.role) ? 'all' : 'mine');

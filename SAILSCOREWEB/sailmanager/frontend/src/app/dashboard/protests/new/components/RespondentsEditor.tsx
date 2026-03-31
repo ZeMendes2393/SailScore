@@ -31,8 +31,6 @@ export type RespondentRowUI = {
   entry_id?: number;
   // para type === 'coach' (ou outros "texto")
   name_text?: string;
-  // comum
-  represented_by?: string;
 };
 
 const RESPONDENT_TYPE_LABEL: Record<RespondentUiType, string> = {
@@ -178,15 +176,6 @@ export default function RespondentsEditor({
               />
             </div>
           )}
-
-          <div className="md:col-span-3">
-            <label className="block text-sm mb-1">Represented by (optional)</label>
-            <input
-              className="w-full border rounded px-3 py-2"
-              value={r.represented_by || ''}
-              onChange={(e) => updateRespondent(r.id, { represented_by: e.target.value })}
-            />
-          </div>
 
           <div className="md:col-span-1 text-right">
             <button

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Documents from "./sections/Documents";
 import Rule42 from "./sections/Rule42";
 import HearingsDecisions from "./sections/HearingsDecisions";
@@ -8,6 +9,7 @@ import ProtestTimeLimit from "./sections/ProtestTimeLimit";
 import ScoringEnquiries from "./sections/ScoringEnquiries";
 import Requests from "./sections/Requests";
 import Questions from "./sections/Questions"; // ⬅️ NEW
+import { useAdminOrg, withOrg } from "@/lib/useAdminOrg";
 
 type Section =
   | "documents"
@@ -18,8 +20,27 @@ type Section =
   | "requests"
   | "questions"; // ⬅️ NEW
 
+const NOTICE_SECTIONS: Section[] = [
+  "documents",
+  "rule42",
+  "protest-decisions",
+  "protest-time-limit",
+  "scoring",
+  "requests",
+  "questions",
+];
+
 export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
+  const { orgSlug } = useAdminOrg();
+  const searchParams = useSearchParams();
   const [section, setSection] = useState<Section>("documents");
+
+  useEffect(() => {
+    const raw = searchParams?.get("noticeSection")?.trim();
+    if (raw && (NOTICE_SECTIONS as string[]).includes(raw)) {
+      setSection(raw as Section);
+    }
+  }, [searchParams]);
 
   const Tab = ({ value, label }: { value: Section; label: string }) => (
     <button
@@ -57,7 +78,16 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
       <div className="pt-4">
         {section === "documents" && <Documents regattaId={regattaId} />}
         {section === "rule42" && <Rule42 regattaId={regattaId} />}
-        {section === "protest-decisions" && <HearingsDecisions regattaId={regattaId} />}
+        {section === "protest-decisions" && (
+          <HearingsDecisions
+            regattaId={regattaId}
+            linkWithOrg={(p) => withOrg(p, orgSlug)}
+            newProtestHref={`/dashboard/protests/new?regattaId=${regattaId}`}
+            fillDecisionPath={(pid) =>
+              `/admin/manage-regattas/${regattaId}/decisions/${pid}`
+            }
+          />
+        )}
         {section === "protest-time-limit" && <ProtestTimeLimit regattaId={regattaId} />}
         {section === "scoring" && <ScoringEnquiries regattaId={regattaId} />}
         {section === "requests" && <Requests regattaId={regattaId} />}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
@@ -24,6 +25,7 @@ type QuestionRead = {
 export default function QuestionsPage() {
   const { token } = useAuth();
   const router = useRouter();
+  const { withOrg } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   const [rows, setRows] = useState<QuestionRead[]>([]);

@@ -13,7 +13,7 @@ export default function ScoringEnquiries({ regattaId }: { regattaId: number }) {
   const [error, setErr] = useState<string | null>(null);
 
   // simple filter
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'submitted' | 'under_review' | 'closed'>('all');
 
   // inline edit
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -77,12 +77,10 @@ export default function ScoringEnquiries({ regattaId }: { regattaId: number }) {
             title="Filter by status"
           >
             <option value="all">All</option>
-            <option value="open">Open</option>
+            <option value="submitted">Submitted</option>
+            <option value="under_review">Under review</option>
             <option value="closed">Closed</option>
           </select>
-          <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={fetchRows}>
-            Refresh
-          </button>
         </div>
       </div>
 

@@ -1,10 +1,10 @@
 'use client';
 
-import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import useProtestPage, { ProtestType } from './useProtestPage';
 import ProtestorCard from './components/ProtestorCard';
@@ -34,6 +34,7 @@ function NewProtestPageContent() {
   const isAdmin = isAdminRole(user?.role);
 
   const regattaId = useDashboardRegattaId();
+  const { withOrg } = useDashboardOrg();
 
   const api = useProtestPage(regattaId, token || undefined, {
     forJury: isJury,
@@ -41,10 +42,10 @@ function NewProtestPageContent() {
   });
 
   const backAfterSave = () => {
-    if (isJury) return '/dashboard/protests';
+    if (isJury) return withOrg('/dashboard/protests');
     if (isAdmin && regattaId) return `/admin/manage-regattas/${regattaId}`;
-    if (regattaId) return '/dashboard/protests';
-    return '/dashboard/protests';
+    if (regattaId) return withOrg('/dashboard/protests');
+    return withOrg('/dashboard/protests');
   };
 
   if (!regattaId) {
@@ -127,18 +128,13 @@ function NewProtestPageContent() {
           {api.adminInitiatorFreeTextOnly ? (
             <>
               <h2 className="font-semibold">Protestor / party</h2>
-              <p className="text-sm text-gray-600">
-                Describe in words who is protesting (no entry selection). This is only available for
-                organization admin.
-              </p>
               <div>
                 <label className="block text-sm mb-1">Who is protesting</label>
-                <textarea
-                  className="w-full border rounded px-3 py-2"
-                  rows={4}
+                <input
+                  type="text"
+                  className="w-full max-w-xl border rounded px-3 py-2 text-sm"
                   value={api.initiatorPartyText}
                   onChange={(e) => api.setInitiatorPartyText(e.target.value)}
-                  placeholder="e.g. Race committee on behalf of the fleet; the organizing authority; a named boat not on the entry list…"
                 />
               </div>
             </>
@@ -153,7 +149,6 @@ function NewProtestPageContent() {
                 selectedInitiator={api.selectedInitiator}
                 initiatorRep={api.initiatorRep}
                 setInitiatorRep={api.setInitiatorRep}
-                staffMode={isJury}
               />
             </>
           )}
@@ -227,13 +222,5 @@ function NewProtestPageContent() {
 }
 
 export default function NewProtestPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="max-w-3xl mx-auto p-6 text-sm text-gray-500">Loading…</div>
-      }
-    >
-      <NewProtestPageContent />
-    </Suspense>
-  );
+  return <NewProtestPageContent />;
 }

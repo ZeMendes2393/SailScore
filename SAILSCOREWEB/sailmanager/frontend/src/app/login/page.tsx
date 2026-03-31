@@ -9,7 +9,14 @@ import { isAdminRole } from '@/lib/roles';
 
 type TokenRes = { access_token: string };
 
-type RegattaLite = { id: number; name: string };
+type RegattaLite = { id: number; name: string; organization_slug?: string | null };
+
+function dashboardUrlWithOrg(regattaId: number | string, org: string | null | undefined): string {
+  const p = new URLSearchParams({ regattaId: String(regattaId) });
+  const o = org?.trim();
+  if (o) p.set('org', o);
+  return `/dashboard?${p.toString()}`;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +25,7 @@ export default function LoginPage() {
 
   // se houver ?regattaId= => modo "sailor"; caso contrário => "admin"
   const qsId = parseRegattaId(qs); // number | null
+  const orgFromQs = qs.get('org')?.trim() || null;
   const mode: 'admin' | 'sailor' = qsId ? 'sailor' : 'admin';
 
   const [email, setEmail] = useState('');
@@ -46,7 +54,9 @@ export default function LoginPage() {
         router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
       } else if (user.role === 'regatista' || user.role === 'jury') {
         const rid = user.current_regatta_id ?? undefined;
-        router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
+        router.replace(
+          rid ? dashboardUrlWithOrg(rid, orgFromQs) : orgFromQs ? `/dashboard?org=${encodeURIComponent(orgFromQs)}` : '/dashboard'
+        );
       }
       return;
     }
@@ -57,9 +67,11 @@ export default function LoginPage() {
     //   para permitir que o utilizador troque para a Sailor Account.
     if (mode === 'sailor' && (user.role === 'regatista' || user.role === 'jury')) {
       const rid = user.current_regatta_id ?? qsId ?? undefined;
-      router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
+      router.replace(
+        rid ? dashboardUrlWithOrg(rid, orgFromQs) : orgFromQs ? `/dashboard?org=${encodeURIComponent(orgFromQs)}` : '/dashboard'
+      );
     }
-  }, [user, router, qsId, mode]);
+  }, [user, router, qsId, mode, orgFromQs]);
 
   useEffect(() => {
     const fetchRegattaName = async () => {
@@ -77,6 +89,24 @@ export default function LoginPage() {
 
     fetchRegattaName();
   }, [mode, qsId]);
+
+  /** Sem ?org= na URL: obtém slug da regata e faz replace (refresh mantém branding via ?org=). */
+  useEffect(() => {
+    if (mode !== 'sailor' || !qsId || orgFromQs) return;
+    let cancelled = false;
+    apiGet<RegattaLite>(`/regattas/${qsId}`)
+      .then((r) => {
+        const slug = r?.organization_slug?.trim();
+        if (cancelled || !slug) return;
+        const p = new URLSearchParams(qs.toString());
+        p.set('org', slug);
+        router.replace(`/login?${p.toString()}`);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, qsId, orgFromQs, qs, router]);
 
   const title = useMemo(
     () =>
@@ -107,28 +137,13 @@ export default function LoginPage() {
       // perfil
       const me = await apiGet('/auth/me', access_token);
 
-      // guarda sessão
+      // guarda sessão e redireciona (AuthContext.login; pós-login: postLoginRedirect tem prioridade)
       login(access_token, me as any);
 
-      // redireciono pós-login
       const after = sessionStorage.getItem('postLoginRedirect');
       if (after) {
         router.replace(after);
         sessionStorage.removeItem('postLoginRedirect');
-        return;
-      }
-      if (isAdminRole((me as any).role)) {
-        const orgQs = qs.get('org')?.trim();
-        const orgUser = (me as { organization_slug?: string | null }).organization_slug?.trim();
-        const slug = orgQs || orgUser || null;
-        router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
-      } else {
-        const rid =
-          (me as any).current_regatta_id ??
-          qsId ??
-          process.env.NEXT_PUBLIC_CURRENT_REGATTA_ID ??
-          '';
-        router.replace(rid ? `/dashboard?regattaId=${rid}` : '/dashboard');
       }
     } catch (err: any) {
       let msg = String(err?.message || 'Failed to sign in.');
@@ -148,10 +163,14 @@ export default function LoginPage() {
   };
 
   // barra de “trocar de conta” apenas se já há sessão
-  const relogUrl =
-    mode === 'sailor' && qsId
-      ? `/login?regattaId=${qsId}&force=1`
-      : '/login?force=1';
+  const relogUrl = useMemo(() => {
+    if (mode === 'sailor' && qsId) {
+      const p = new URLSearchParams({ regattaId: String(qsId), force: '1' });
+      if (orgFromQs) p.set('org', orgFromQs);
+      return `/login?${p.toString()}`;
+    }
+    return '/login?force=1';
+  }, [mode, qsId, orgFromQs]);
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center">

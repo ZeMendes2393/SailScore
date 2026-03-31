@@ -2,12 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 type RegattaHeaderProps = {
   regattaId: number;
+  /** Se já vier da página (evita GET extra). */
+  organizationSlug?: string | null;
 };
 
-export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
+export default function RegattaHeader({ regattaId, organizationSlug: organizationSlugProp }: RegattaHeaderProps) {
   const pathname = usePathname();
   const base = `/regattas/${regattaId}`;
   const isHome = pathname === base || pathname === `${base}/`;
@@ -15,6 +21,35 @@ export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
   const isNotice = pathname.includes('/notice');
   const isForm = pathname.includes('/form');
   const isResults = pathname.includes('/results');
+
+  const [organizationSlug, setOrganizationSlug] = useState<string | null>(
+    organizationSlugProp !== undefined ? organizationSlugProp ?? null : null
+  );
+
+  useEffect(() => {
+    if (organizationSlugProp !== undefined) {
+      setOrganizationSlug(organizationSlugProp ?? null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`${API_BASE}/regattas/${regattaId}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { organization_slug?: string | null } | null) => {
+        if (cancelled || !d) return;
+        const s = d.organization_slug?.trim();
+        setOrganizationSlug(s || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [regattaId, organizationSlugProp]);
+
+  const sailorAccountHref = useMemo(() => {
+    const p = new URLSearchParams({ regattaId: String(regattaId) });
+    if (organizationSlug) p.set('org', organizationSlug);
+    return `/login?${p.toString()}`;
+  }, [regattaId, organizationSlug]);
 
   const linkClass = (active: boolean) =>
     `px-4 py-2.5 rounded-xl transition text-base sm:text-lg ${active ? 'bg-white/20' : 'hover:bg-white/10'}`;
@@ -45,7 +80,7 @@ export default function RegattaHeader({ regattaId }: RegattaHeaderProps) {
           </Link>
         </nav>
         <Link
-          href={`/login?regattaId=${regattaId}`}
+          href={sailorAccountHref}
           className="shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
         >
           Sailor account

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import type { ScoringRead } from '@/lib/api';
@@ -11,6 +12,7 @@ import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 export default function ScoringEnquiriesPage() {
   const { token } = useAuth();
   const router = useRouter();
+  const { withOrg } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   const [rows, setRows] = useState<ScoringRead[]>([]);
@@ -44,21 +46,12 @@ export default function ScoringEnquiriesPage() {
     <div className="max-w-5xl mx-auto p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Scoring Enquiries</h1>
-        <div className="flex items-center gap-2">
-          <button
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => router.push('/dashboard/scoring/new')}
-          >
-            New Scoring Enquiry
-          </button>
-          <button
-            className="px-3 py-2 rounded border hover:bg-gray-50"
-            onClick={load}
-            disabled={loading}
-          >
-            Refresh
-          </button>
-        </div>
+        <button
+          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => router.push(withOrg('/dashboard/scoring/new'))}
+        >
+          New Scoring Enquiry
+        </button>
       </div>
 
       <p className="text-sm text-gray-600">

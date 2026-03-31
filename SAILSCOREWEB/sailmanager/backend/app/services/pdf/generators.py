@@ -8,6 +8,7 @@ from reportlab.lib.utils import ImageReader
 from pathlib import Path
 from datetime import datetime
 import os
+import re
 from typing import Iterable, Tuple, Optional, List
 
 # Diretórios e base pública (FastAPI serve /uploads)
@@ -40,6 +41,55 @@ def _sail_with_country_code(country_code: Optional[str], sail_no: Optional[str])
     if not sn and not cc:
         return "—"
     return f"{cc} {sn}".strip() if cc else sn
+
+
+def _kv_cols_for_len(n: int) -> int:
+    if n <= 1:
+        return 1
+    if n <= 2:
+        return 2
+    return 3
+
+
+def build_submitted_pdf_initiator_rows(init_details: dict) -> List[Tuple[str, str]]:
+    """
+    Iniciador: texto livre (org admin / sem entry) vs barco inscrito.
+    """
+    party = (init_details.get("party_text") or "").strip()
+    if party:
+        return [("Initiator (party / role)", party)]
+    sail = _sail_with_country_code(init_details.get("boat_country_code"), init_details.get("sail_no"))
+    return [
+        ("Initiator Sail No", sail),
+        ("Initiator Boat", str(init_details.get("boat_name") or "—")),
+        ("Class", str(init_details.get("class_name") or "—")),
+    ]
+
+
+def build_submitted_pdf_respondent_rows(r: dict) -> List[Tuple[str, str]]:
+    """
+    Respondente: entrada (barco) vs outro (comité, coach com nome, etc.).
+    """
+    kind = (r.get("kind") or "entry").lower()
+    if kind == "entry" and r.get("entry_id"):
+        sail_boat = (
+            f"{_sail_with_country_code(r.get('boat_country_code'), r.get('sail_no'))} / "
+            f"{r.get('boat_name') or '—'}"
+        )
+        return [
+            ("Entry ID", str(r.get("entry_id"))),
+            ("Sail / boat", sail_boat),
+            ("Class", str(r.get("class_name") or "—")),
+        ]
+    ft = (r.get("free_text") or "").strip() or "—"
+    m = re.match(r"(?i)^coach:\s*(.+)$", ft)
+    if m:
+        name = (m.group(1) or "").strip() or "—"
+        return [
+            ("Type", "Coach"),
+            ("Name", name),
+        ]
+    return [("Party / role", ft)]
 
 def _wrap_text(text: str, font: str, size: int, max_width: float) -> List[str]:
     """
@@ -258,33 +308,26 @@ def generate_submitted_pdf(regatta_id: int, protest_id: int, snapshot: dict) -> 
     # PARTES
     y = _section_title(c, "Parties", page_w, y)
     init_details = snapshot.get("initiator") or {}
+    init_rows = build_submitted_pdf_initiator_rows(init_details)
     y = _kv_rows(
-        c, y, [
-            ("Initiator Sail No", str(init_details.get("sail_no") or "—")),
-            ("Initiator Boat", str(init_details.get("boat_name") or "—")),
-            ("Class", str(init_details.get("class_name") or "—")),
-        ],
+        c,
+        y,
+        init_rows,
         page_w,
-        cols=3,
+        cols=_kv_cols_for_len(len(init_rows)),
     )
     respondents = snapshot.get("respondents") or []
     if respondents:
         for idx, r in enumerate(respondents, 1):
             y = _ensure_space(c, page_w, page_h, y, 28)
             y = _section_title(c, f"Respondent {idx}", page_w, y)
-            sail_boat = (
-                f"{_sail_with_country_code(r.get('boat_country_code'), r.get('sail_no'))} / "
-                f"{r.get('boat_name') or '—'}"
-            )
+            resp_rows = build_submitted_pdf_respondent_rows(r)
             y = _kv_rows(
-                c, y, [
-                    ("Entry ID", str(r.get("entry_id") or "—")),
-                    ("Sail/Boat", sail_boat),
-                    ("Class", str(r.get("class_name") or "—")),
-                    ("Represented by", str(r.get("represented_by") or "—")),
-                ],
+                c,
+                y,
+                resp_rows,
                 page_w,
-                cols=2,
+                cols=_kv_cols_for_len(len(resp_rows)),
             )
     else:
         y = _paragraph(c, page_w, page_h, y, "—")

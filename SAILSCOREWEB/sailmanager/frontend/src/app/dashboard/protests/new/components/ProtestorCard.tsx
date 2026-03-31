@@ -3,6 +3,7 @@
 
 import { formatSailNumber } from '@/utils/countries';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import { useDashboardOrgOptional } from '@/context/DashboardOrgContext';
 
 type EntryOption = {
   id: number;
@@ -43,6 +44,10 @@ export default function ProtestorCard({
   setInitiatorRep,
   staffMode = false,
 }: Props) {
+  const dashOrg = useDashboardOrgOptional();
+  const entryDataHref = dashOrg
+    ? dashOrg.withOrg('/dashboard/entry-data')
+    : '/dashboard/entry-data';
   const showInitiatorSelect = myEntries.length > 1;
 
   return (
@@ -60,7 +65,7 @@ export default function ProtestorCard({
               We couldn&apos;t find an entry for you in this regatta.
               <br />
               Check{' '}
-              <a href="/dashboard/entry-data" className="underline">
+              <a href={entryDataHref} className="underline">
                 Entry data
               </a>{' '}
               or ask the organisation to link your entry to your account.

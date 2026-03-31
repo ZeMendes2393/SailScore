@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet, apiPost } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
@@ -13,6 +14,7 @@ type EntryOption = { id: number; class_name?: string | null; sail_number?: strin
 export default function NewRequestPage() {
   const { token } = useAuth();
   const router = useRouter();
+  const { withOrg } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
@@ -38,7 +40,7 @@ export default function NewRequestPage() {
   async function submit() {
     if (!regattaId || !token || !entryId || !text.trim()) return;
     await apiPost(`/regattas/${regattaId}/requests`, { initiator_entry_id: Number(entryId), request_text: text.trim() }, token);
-    router.replace('/dashboard/requests');
+    router.replace(withOrg('/dashboard/requests'));
   }
 
   if (!regattaId || !token) return <div className="p-4">Initializing…</div>;

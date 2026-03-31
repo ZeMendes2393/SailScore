@@ -248,7 +248,6 @@ def generate_submitted_pdf(regatta_id: int, protest_id: int, snapshot: dict) -> 
                     ("Sail/Boat", f"{r.get('sail_no') or '—'} / {r.get('boat_name') or '—'}"),
                     ("Class", str(r.get("class_name") or "—")),
                     ("Free Text", str(r.get("free_text") or "—")),
-                    ("Represented by", str(r.get("represented_by") or "—")),
                 ],
                 page_w,
                 cols=2,

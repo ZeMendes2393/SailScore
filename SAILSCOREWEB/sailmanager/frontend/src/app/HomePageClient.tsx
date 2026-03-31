@@ -245,7 +245,7 @@ export default function HomePageClient({
                 {featuredRegattas.map((r) => (
                   <Link
                     key={r.id}
-                    href={`/regattas/${r.id}`}
+                    href={`/regattas/${r.id}${orgParam(orgSlug)}`}
                     className="group flex gap-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left"
                   >
                     {r.listing_logo_url && logoUrl(r.listing_logo_url) && (
@@ -295,7 +295,7 @@ export default function HomePageClient({
                     {upcomingRegattas.map((r) => (
                       <Link
                         key={r.id}
-                        href={`/regattas/${r.id}`}
+                        href={`/regattas/${r.id}${orgParam(orgSlug)}`}
                         className="group flex gap-4 bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left"
                       >
                         {r.listing_logo_url && logoUrl(r.listing_logo_url) && (

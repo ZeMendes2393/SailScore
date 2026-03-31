@@ -1,10 +1,10 @@
 'use client';
 
-import { Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import useProtestPage, { ProtestType } from '../../new/useProtestPage';
 import ProtestorCard from '../../new/components/ProtestorCard';
@@ -36,6 +36,7 @@ function EditProtestPageContent() {
   const isAdmin = isAdminRole(user?.role);
 
   const regattaId = useDashboardRegattaId();
+  const { withOrg } = useDashboardOrg();
 
   const api = useProtestPage(regattaId, token || undefined, {
     forJury: isJury,
@@ -44,9 +45,9 @@ function EditProtestPageContent() {
   });
 
   const back = () => {
-    if (isJury) router.push('/dashboard/protests');
+    if (isJury) router.push(withOrg('/dashboard/protests'));
     else if (isAdmin && regattaId) router.push(`/admin/manage-regattas/${regattaId}`);
-    else router.push('/dashboard/protests');
+    else router.push(withOrg('/dashboard/protests'));
   };
 
   if (!isJury && !isAdmin) {
@@ -129,17 +130,13 @@ function EditProtestPageContent() {
           {api.adminInitiatorFreeTextOnly ? (
             <>
               <h2 className="font-semibold">Protestor / party</h2>
-              <p className="text-sm text-gray-600">
-                Describe in words who is protesting (organization admin — no entry selection).
-              </p>
               <div>
                 <label className="block text-sm mb-1">Who is protesting</label>
-                <textarea
-                  className="w-full border rounded px-3 py-2"
-                  rows={4}
+                <input
+                  type="text"
+                  className="w-full max-w-xl border rounded px-3 py-2 text-sm"
                   value={api.initiatorPartyText}
                   onChange={(e) => api.setInitiatorPartyText(e.target.value)}
-                  placeholder="Describe the protestor / party…"
                 />
               </div>
             </>
@@ -154,7 +151,6 @@ function EditProtestPageContent() {
                 selectedInitiator={api.selectedInitiator}
                 initiatorRep={api.initiatorRep}
                 setInitiatorRep={api.setInitiatorRep}
-                staffMode
               />
             </>
           )}
@@ -226,13 +222,5 @@ function EditProtestPageContent() {
 }
 
 export default function EditProtestPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="max-w-3xl mx-auto p-6 text-sm text-gray-500">Loading…</div>
-      }
-    >
-      <EditProtestPageContent />
-    </Suspense>
-  );
+  return <EditProtestPageContent />;
 }

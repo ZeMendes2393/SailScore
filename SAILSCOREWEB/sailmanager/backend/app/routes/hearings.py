@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session, load_only, joinedload
 
 from app.database import get_db
 from app import models, schemas
-from app.org_scope import assert_user_can_manage_org_id
-from utils.auth_utils import verify_role, get_current_user
+from app.org_scope import assert_staff_regatta_access
+from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/hearings", tags=["hearings"])
 
@@ -181,17 +181,20 @@ def create_hearing_for_protest(protest_id: int, db: Session, current_user: model
     return {"id": h.id, "case_number": h.case_number}
 
 
-# >>> criar hearing a partir de um protesto (admin) <<<
+# >>> criar hearing a partir de um protesto (admin / júri) <<<
 @router.post(
     "/for-protest/{protest_id}",
     status_code=201,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def create_for_protest(
     protest_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
 ):
+    p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
+    if not p or not getattr(p, "regatta_id", None):
+        raise HTTPException(status_code=404, detail="Protesto não encontrado")
+    assert_staff_regatta_access(db, current_user, int(p.regatta_id))
     # evita duplicados: se já existir hearing para este protesto, devolve-o
     exists = db.query(models.Hearing).filter(models.Hearing.protest_id == protest_id).first()
     if exists:
@@ -201,20 +204,17 @@ def create_for_protest(
 
 @router.patch(
     "/{hearing_id}",
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def update_hearing(
     hearing_id: int,
     payload: schemas.HearingPatch,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
 ):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hearing não encontrado")
-    regatta = db.query(models.Regatta).filter_by(id=h.regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    assert_staff_regatta_access(db, current_user, h.regatta_id)
 
     patch = payload.model_dump(exclude_unset=True)
 
@@ -236,12 +236,16 @@ def update_hearing(
 @router.delete(
     "/{hearing_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
-def delete_hearing(hearing_id: int, db: Session = Depends(get_db)):
+def delete_hearing(
+    hearing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
+):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hearing não encontrado")
+    assert_staff_regatta_access(db, current_user, h.regatta_id)
     db.delete(h)
     db.commit()
     return
@@ -394,24 +398,21 @@ def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
 @router.post(
     "/{hearing_id}/decision/pdf",
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def regenerate_decision_pdf(
     hearing_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
 ):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
         raise HTTPException(status_code=404, detail="Hearing não encontrado")
-    regatta = db.query(models.Regatta).filter_by(id=h.regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    assert_staff_regatta_access(db, current_user, h.regatta_id)
 
     if not getattr(h, "decision_snapshot_json", None):
         raise HTTPException(
             status_code=400,
-            detail="Não há decisão guardada. 'Open decision' e 'Save' primeiro."
+            detail="First fill in the decision and save it — then generate the PDF.",
         )
 
     try:

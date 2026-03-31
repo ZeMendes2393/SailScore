@@ -39,7 +39,6 @@ export interface RespondentRowUI {
   class_name?: string;
   entry_id?: number;
   name_text?: string;
-  represented_by?: string;
 }
 
 // Payload (igual ao backend)
@@ -47,7 +46,6 @@ export interface ProtestRespondentIn {
   kind: RespondentKindApi;      // 'entry' | 'other'
   entry_id?: number | null;     // quando kind='entry'
   free_text?: string | null;    // quando kind='other'
-  represented_by?: string | null;
 }
 export interface ProtestIncidentIn {
   when_where?: string | null;
@@ -99,7 +97,6 @@ export default function useProtestPage(regattaId: number | null, token?: string)
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
   const [initiatorEntryId, setInitiatorEntryId] = useState<number | undefined>(undefined);
   const [initiatorRep, setInitiatorRep] = useState<string>('');
-  const [repLocked, setRepLocked] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(true);
 
   // Dados para “Boat”
@@ -266,7 +263,6 @@ export default function useProtestPage(regattaId: number | null, token?: string)
           return {
             kind: 'entry',
             entry_id: r.entry_id!,
-            represented_by: r.represented_by || undefined,
           };
         }
         let label = RESPONDENT_TYPE_LABEL[r.type];
@@ -274,7 +270,6 @@ export default function useProtestPage(regattaId: number | null, token?: string)
         return {
           kind: 'other',
           free_text: label,
-          represented_by: r.represented_by || undefined,
         };
       });
 
@@ -320,7 +315,6 @@ export default function useProtestPage(regattaId: number | null, token?: string)
     myEntries,
     initiatorEntryId, setInitiatorEntryId,
     initiatorRep, setInitiatorRep,
-    repLocked, setRepLocked,
     loadingEntries,
     selectedInitiator,
 

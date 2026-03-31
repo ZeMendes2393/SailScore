@@ -20,6 +20,7 @@ export default function RequireAuth({
 
   // ⚠️ NUNCA converter "" com Number('')
   const qsId = parseRegattaId(qs); // -> number | null
+  const orgQs = qs.get('org')?.trim();
 
   useEffect(() => {
     // não redirecionar enquanto a sessão está a carregar
@@ -53,7 +54,7 @@ export default function RequireAuth({
         return;
       }
     }
-  }, [loading, user, roles, router, qsId, pathname]);
+  }, [loading, user, roles, router, qsId, orgQs, pathname]);
 
   if (loading || !user) {
     return <div className="p-6 text-gray-500">Checking session…</div>;

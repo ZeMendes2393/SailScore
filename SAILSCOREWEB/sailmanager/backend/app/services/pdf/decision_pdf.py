@@ -88,7 +88,12 @@ def generate_decision_pdf(
     regatta_title: Optional[str] = None,
     venue: Optional[str] = None,
 ) -> Tuple[Path, str]:
-    event = snapshot.get("event") or regatta_title or "Regatta"
+    event = (
+        snapshot.get("event")
+        or snapshot.get("regatta_name")
+        or regatta_title
+        or "Regatta"
+    )
     case_number = snapshot.get("case_number") or "—"
     subtitle = f"Hearing Decision — Case {case_number}"
 

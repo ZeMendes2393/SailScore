@@ -87,14 +87,19 @@ export function buildSessionExpiredLoginUrl(): string {
   // Regatista: /dashboard muitas vezes sem ?regattaId= (ID no token). /login sem regattaId = modo admin.
   if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
     const regattaId = params.get('regattaId');
+    const org = params.get('org')?.trim();
     if (regattaId) {
-      return `/login?${reason}&regattaId=${encodeURIComponent(regattaId)}`;
+      const p = new URLSearchParams({ reason: 'expired', regattaId });
+      if (org) p.set('org', org);
+      return `/login?${p.toString()}`;
     }
     return `/?${reason}`;
   }
 
   let url = `/login?${reason}`;
   const regattaId = params.get('regattaId');
+  const orgLogin = params.get('org')?.trim();
   if (regattaId) url += `&regattaId=${encodeURIComponent(regattaId)}`;
+  if (orgLogin) url += `&org=${encodeURIComponent(orgLogin)}`;
   return url;
 }

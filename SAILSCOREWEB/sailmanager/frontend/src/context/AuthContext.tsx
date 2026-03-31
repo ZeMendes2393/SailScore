@@ -141,8 +141,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const slug = orgFromLoginUrl || orgFromUser || null;
       router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
     } else {
-      if (regattaId) router.replace(`/dashboard?regattaId=${regattaId}`);
-      else router.replace('/dashboard');
+      const org = params.get('org')?.trim();
+      if (regattaId) {
+        const p = new URLSearchParams({ regattaId });
+        if (org) p.set('org', org);
+        router.replace(`/dashboard?${p.toString()}`);
+      } else {
+        router.replace(org ? `/dashboard?org=${encodeURIComponent(org)}` : '/dashboard');
+      }
     }
   };
 

@@ -2,6 +2,7 @@
 
 import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import FeatureCard from '@/components/FeatureCard';
 import { useRegattaStatus } from '@/hooks/useRegattaStatus';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
@@ -41,6 +42,7 @@ const dashboardShell = 'mx-auto w-full max-w-[min(100%,90rem)] px-4 sm:px-6 lg:p
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const { withOrg } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   const { data, loading } = useRegattaStatus(regattaId);
@@ -76,14 +78,14 @@ export default function DashboardPage() {
             <FeatureCard
               title="Rule 42"
               description="Registar e gerir penalidades Rule 42 nesta regata."
-              href="/dashboard/jury/rule42"
+              href={withOrg('/dashboard/jury/rule42')}
               enabled
               cta="Abrir Rule 42"
             />
             <FeatureCard
               title="Protests"
               description="View all protests and create one on behalf of an entry."
-              href="/dashboard/protests"
+              href={withOrg('/dashboard/protests')}
               enabled
               cta="Open protests"
             />
@@ -138,14 +140,14 @@ export default function DashboardPage() {
           <FeatureCard
             title="Entry data"
             description="Review your entry details and download receipts."
-            href="/dashboard/entry-data"
+            href={withOrg('/dashboard/entry-data')}
             enabled={Boolean(status?.windows?.entryData)}
             cta="Go to Entry Data"
           />
           <FeatureCard
             title="Documents"
             description="Documents and proofs associated with your entry."
-            href="/dashboard/documents"
+            href={withOrg('/dashboard/documents')}
             enabled={Boolean(status?.windows?.documents)}
             cta="Go to Documents"
           />
@@ -153,7 +155,7 @@ export default function DashboardPage() {
           <FeatureCard
             title="Rule 42"
             description="Check on-the-water penalties (Rule 42)."
-            href="/dashboard/rule42"
+            href={withOrg('/dashboard/rule42')}
             enabled={Boolean(status?.windows?.rule42)}
             cta="Go to Rule 42"
           />
@@ -161,7 +163,7 @@ export default function DashboardPage() {
           <FeatureCard
             title="Scoring Enquiries"
             description="Submit and track scoring questions to the Race Committee."
-            href="/dashboard/scoring"
+            href={withOrg('/dashboard/scoring')}
             enabled={Boolean((status as any)?.windows?.scoringEnquiry ?? status?.windows?.scoreReview)}
             cta="Go to Scoring Enquiries"
           />
@@ -169,7 +171,7 @@ export default function DashboardPage() {
           <FeatureCard
             title="Questions"
             description="Ask questions to the organization and see answers."
-            href="/dashboard/questions"
+            href={withOrg('/dashboard/questions')}
             enabled={
               (status?.windows?.questions ?? status?.windows?.requests ?? true) as boolean
             }
@@ -179,7 +181,7 @@ export default function DashboardPage() {
           <FeatureCard
             title="Requests"
             description="Send requests to the Race Committee and track responses."
-            href="/dashboard/requests"
+            href={withOrg('/dashboard/requests')}
             enabled={Boolean(status?.windows?.requests)}
             cta="Go to Requests"
           />
@@ -187,7 +189,7 @@ export default function DashboardPage() {
           <FeatureCard
             title="Protests"
             description="Submit and track protests (protestor, protestee, or witness)."
-            href="/dashboard/protests"
+            href={withOrg('/dashboard/protests')}
             enabled={Boolean(status?.windows?.protest)}
             cta="Go to Protests"
           />

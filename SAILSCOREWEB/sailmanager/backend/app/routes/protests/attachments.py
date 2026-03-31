@@ -39,7 +39,7 @@ def list_attachments(
         for a in rows
     ]
 
-@router.post("/{protest_id}/attachments", dependencies=[Depends(verify_role(["admin"]))])
+@router.post("/{protest_id}/attachments", dependencies=[Depends(verify_role(["admin", "jury"]))])
 def upload_attachment(
     regatta_id: int,
     protest_id: int,

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session, load_only
 
 from app.database import get_db
 from app import models, schemas
-from app.models import Protest, Hearing, ProtestAttachment, Regatta
-from app.org_scope import assert_user_can_manage_org_id
+from app.models import Protest, Hearing, ProtestAttachment
+from app.org_scope import assert_staff_regatta_access
 from utils.auth_utils import get_current_user, verify_role
 from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, normalize_public_url
 from app.services.pdf import generate_decision_pdf  # gerador central
@@ -30,16 +30,14 @@ def _party_label(d: object, role: str) -> str:
     return f"{role}: {body}"
 
 
-@router.get("/{protest_id}/decision/template", dependencies=[Depends(verify_role(["admin"]))])
+@router.get("/{protest_id}/decision/template")
 def decision_template(
     regatta_id: int,
     protest_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
 ):
-    regatta = db.query(Regatta).filter_by(id=regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    assert_staff_regatta_access(db, current_user, regatta_id)
     # Protest
     p = (
         db.query(models.Protest)
@@ -130,17 +128,15 @@ def decision_template(
     return {"template": tpl}
 
 
-@router.post("/{protest_id}/decision", dependencies=[Depends(verify_role(["admin"]))])
+@router.post("/{protest_id}/decision")
 def save_decision(
     regatta_id: int,
     protest_id: int,
     body: schemas.ProtestDecisionIn,
     db: Session = Depends(get_db),
-    current_user=Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(verify_role(["admin", "jury"])),
 ):
-    regatta = db.query(Regatta).filter_by(id=regatta_id).first()
-    if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    assert_staff_regatta_access(db, current_user, regatta_id)
     # Protest
     p = (
         db.query(Protest)
@@ -266,7 +262,9 @@ def save_decision(
         disk_path, public_url = generate_decision_pdf(
             regatta_id=regatta_id,
             protest_id=protest_id,
-            decision=decision_doc,
+            snapshot=decision_doc,
+            regatta_title=decision_doc.get("regatta_name"),
+            venue=decision_doc.get("venue"),
         )
         file_path = Path(disk_path)
         if file_path.exists() and file_path.stat().st_size > 0:

@@ -6,6 +6,25 @@ from sqlalchemy.orm import Session
 
 from app import models
 
+
+def assert_staff_regatta_access(db: Session, user: models.User, regatta_id: int) -> None:
+    """
+    Admin/platform_admin: a regata tem de pertencer à organização gerida.
+    Jury: perfil de júri para esta regata (RegattaJuryProfile).
+    """
+    from app.jury_scope import assert_jury_regatta_access
+
+    if user.role == "jury":
+        assert_jury_regatta_access(db, user, regatta_id)
+        return
+    if user.role in ("admin", "platform_admin"):
+        regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+        if not regatta:
+            raise HTTPException(status_code=404, detail="Regatta not found")
+        assert_user_can_manage_org_id(user, regatta.organization_id)
+        return
+    raise HTTPException(status_code=403, detail="Sem permissão para esta regata.")
+
 DEFAULT_ORG_SLUG = "sailscore"
 
 

@@ -44,17 +44,21 @@ export default async function RootLayout({
       orgSlug = DEFAULT_PUBLIC_ORG_SLUG;
     }
   }
-  /** Dashboard: ?org=slug (middleware envia x-org-slug) — alinha cabeçalho/rodapé com a organização. */
-  if (!orgSlug && pathname.startsWith('/dashboard')) {
-    const fromDashQs = headersList.get('x-org-slug')?.trim() || null;
-    if (fromDashQs) {
-      orgSlug = fromDashQs;
+  /** Dashboard / login: ?org=slug (middleware envia x-org-slug) — alinha cabeçalho/rodapé com a organização. */
+  if (!orgSlug && (pathname.startsWith('/dashboard') || pathname.startsWith('/login'))) {
+    const fromQs = headersList.get('x-org-slug')?.trim() || null;
+    if (fromQs) {
+      orgSlug = fromQs;
     }
   }
   if (!orgSlug) {
     const regattaMatch = pathname.match(/^\/regattas\/(\d+)/);
     const dashRegattaId = headersList.get('x-dashboard-regatta-id')?.trim() || '';
-    const regattaIdFromPathOrDashboard = regattaMatch?.[1] ?? (/^\d+$/.test(dashRegattaId) ? dashRegattaId : null);
+    const loginRegattaId = headersList.get('x-login-regatta-id')?.trim() || '';
+    const regattaIdFromPathOrDashboard =
+      regattaMatch?.[1] ??
+      (/^\d+$/.test(dashRegattaId) ? dashRegattaId : null) ??
+      (/^\d+$/.test(loginRegattaId) ? loginRegattaId : null);
     if (regattaIdFromPathOrDashboard) {
       try {
         const res = await fetch(`${API}/regattas/${regattaIdFromPathOrDashboard}`, { cache: 'no-store' });

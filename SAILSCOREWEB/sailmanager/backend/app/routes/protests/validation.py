@@ -20,20 +20,20 @@ def validate_protest_submission(
     body: ProtestCreate,
 ) -> Optional[Entry]:
     """
-    Devolve Entry do iniciador, ou None se for protesto só de admin com texto livre
+    Devolve Entry do iniciador, ou None se for protesto de staff (admin/júri) só com texto livre
     (sem inscrição de iniciador).
     """
     entry_id = body.initiator_entry_id
     party_text = (body.initiator_party_text or "").strip()
 
-    # Júri / regatista: iniciador tem de ser inscrição
-    if current_user.role in ("jury", "regatista"):
+    # Regatista: iniciador tem de ser inscrição
+    if current_user.role == "regatista":
         if entry_id is None:
             raise HTTPException(status_code=422, detail="initiator_entry_id is required.")
 
-    # --- Admin / platform_admin: iniciador só texto (sem entry) ---
+    # --- Admin / platform_admin / júri: iniciador só texto (sem entry) ---
     if entry_id is None:
-        if current_user.role not in ("admin", "platform_admin"):
+        if current_user.role not in ("admin", "platform_admin", "jury"):
             raise HTTPException(status_code=422, detail="initiator_entry_id is required.")
         if not party_text:
             raise HTTPException(
@@ -43,7 +43,10 @@ def validate_protest_submission(
         regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
         if not regatta:
             raise HTTPException(status_code=404, detail="Regatta not found")
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role == "jury":
+            assert_jury_regatta_access(db, current_user, regatta_id)
+        else:
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
         resp_ids: List[int] = [
             r.entry_id for r in body.respondents if getattr(r, "kind", "entry") == "entry" and r.entry_id
         ]

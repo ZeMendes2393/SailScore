@@ -11,16 +11,12 @@ from sqlalchemy.orm import Session
 from app.models import Protest, ProtestAttachment, Entry, Regatta
 from app.schemas import ProtestCreate
 from app.services.pdf import generate_submitted_pdf
+from app.services.pdf.generators import (
+    build_submitted_pdf_initiator_rows,
+    build_submitted_pdf_respondent_rows,
+)
 
 from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, normalize_public_url
-
-
-def _sail_with_country_code(country_code: Optional[str], sail_no: Optional[str]) -> str:
-    cc = (country_code or "").strip()
-    sn = (sail_no or "").strip()
-    if not sn and not cc:
-        return "—"
-    return f"{cc} {sn}".strip() if cc else sn
 
 
 def apply_submitted_snapshot_and_pdf(
@@ -157,19 +153,19 @@ def apply_submitted_snapshot_and_pdf(
                 f"Race Date: {snapshot.get('race_date') or '—'}   Race Number: {snapshot.get('race_number') or '—'}",
                 f"Submitted At: {snapshot.get('submitted_at') or '—'}",
                 "",
-                f"Initiator (text): {init.get('party_text') or '—'}",
-                f"Initiator Sail No: {_sail_with_country_code(init.get('boat_country_code'), init.get('sail_no'))}",
-                f"Initiator Boat: {init.get('boat_name') or '—'}   Class: {init.get('class_name') or '—'}",
-                "",
-                "Respondents:" if respondents else "Respondents: —",
+                "Initiator:",
             ]
-            for i, r in enumerate(respondents, 1):
-                sail_disp = _sail_with_country_code(r.get("boat_country_code"), r.get("sail_no"))
-                lines.append(
-                    f"  - [{i}] Entry: {r.get('entry_id') or '—'}  "
-                    f"Sail/Boat: {sail_disp}/{(r.get('boat_name') or '—')}  "
-                    f"Class: {r.get('class_name') or '—'}"
-                )
+            for label, val in build_submitted_pdf_initiator_rows(init):
+                lines.append(f"  {label}: {val}")
+            lines.append("")
+            if respondents:
+                lines.append("Respondents:")
+                for i, r in enumerate(respondents, 1):
+                    lines.append(f"  [{i}]")
+                    for label, val in build_submitted_pdf_respondent_rows(r):
+                        lines.append(f"    {label}: {val}")
+            else:
+                lines.append("Respondents: —")
             lines += [
                 "",
                 f"When/Where: {inc_s.get('when_where') or snapshot.get('incident_when_where') or '—'}",

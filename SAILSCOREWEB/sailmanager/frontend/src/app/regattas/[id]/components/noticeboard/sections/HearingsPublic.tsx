@@ -64,8 +64,8 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
               <th className="p-2">Race</th>
               <th className="p-2">Initiator</th>
               <th className="p-2">Respondent</th>
-              <th className="p-2">Date</th>
-              <th className="p-2">Time</th>
+              <th className="p-2">Hearing date</th>
+              <th className="p-2">Hearing time</th>
               <th className="p-2">Room</th>
               <th className="p-2">Status</th>
               <th className="p-2">Decision</th>

@@ -26,6 +26,13 @@ export function middleware(request: NextRequest) {
       requestHeaders.set('x-dashboard-regatta-id', rid);
     }
   }
+  /** Login sailor: ?regattaId= — SSR do layout obtém branding da org (como /regattas/:id). */
+  if (pathname === '/login' || pathname.startsWith('/login')) {
+    const loginRid = request.nextUrl.searchParams.get('regattaId')?.trim() || '';
+    if (/^\d+$/.test(loginRid)) {
+      requestHeaders.set('x-login-regatta-id', loginRid);
+    }
+  }
   return NextResponse.next({
     request: { headers: requestHeaders },
   });

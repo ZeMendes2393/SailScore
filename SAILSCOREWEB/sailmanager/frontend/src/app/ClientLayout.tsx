@@ -36,8 +36,8 @@ function useOrgSlugWithParams(pathname: string | null): string | null {
       const defCal = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim();
       if (defCal) return defCal;
     }
-    /** Alinha com o layout do servidor: ?org= na mesma página (ex.: dashboard com regattaId). */
-    if (pathname?.startsWith('/dashboard')) {
+    /** Alinha com o layout do servidor: ?org= (dashboard, login sailor, etc.). */
+    if (pathname?.startsWith('/dashboard') || pathname?.startsWith('/login')) {
       const fromQs = searchParams?.get('org')?.trim();
       if (fromQs) return fromQs;
     }

@@ -3,13 +3,51 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPatch, apiDelete, apiPost } from "@/lib/api";
-import { useAdminOrg, withOrg } from "@/lib/useAdminOrg";
+import { apiGet, apiPatch, apiDelete } from "@/lib/api";
 import type { HearingItem, HearingStatus, HearingsList } from "@/types/hearings";
 
-export default function HearingsDecisions({ regattaId }: { regattaId: number }) {
+/** `sch_date` vem como YYYY-MM-DD; mostrar dia–mês–ano (pt-PT), não ordem US tipo 03/24/2026. */
+function formatHearingDate(iso: string | null | undefined): string {
+  if (!iso || typeof iso !== "string") return "—";
+  const t = iso.trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    if (!Number.isFinite(dt.getTime())) return "—";
+    return new Intl.DateTimeFormat("pt-PT", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(dt);
+  }
+  const dt = new Date(t);
+  if (!Number.isFinite(dt.getTime())) return t || "—";
+  return new Intl.DateTimeFormat("pt-PT", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(dt);
+}
+
+export type HearingsDecisionsProps = {
+  regattaId: number;
+  /** e.g. admin `(p) => withOrg(p, orgSlug)` ou dashboard `withOrg` do contexto */
+  linkWithOrg: (path: string) => string;
+  newProtestHref: string;
+  /** URL do formulário de decisão (admin: …/decisions/:id; dashboard: …/protests/:id/decision) */
+  fillDecisionPath: (protestId: number) => string;
+};
+
+export default function HearingsDecisions({
+  regattaId,
+  linkWithOrg,
+  newProtestHref,
+  fillDecisionPath,
+}: HearingsDecisionsProps) {
   const router = useRouter();
-  const { orgSlug } = useAdminOrg();
 
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,25 +119,13 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
     }
   }
 
-  async function regeneratePdf(id: number) {
-    try {
-      await apiPost(`/hearings/${id}/decision/pdf`, {}); // BE sobrescreve o mesmo ficheiro
-      await fetchRows(); // refresh para apanhar decision_pdf_url/decision_at
-    } catch (e: any) {
-      alert(e?.message || "Failed to generate PDF");
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Protest Decisions/Hearings</h2>
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={withOrg(
-              `/dashboard/protests/new?regattaId=${regattaId}`,
-              orgSlug
-            )}
+            href={linkWithOrg(newProtestHref)}
             className="inline-flex items-center rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
           >
             New protest
@@ -129,8 +155,8 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
               <th className="p-2">Race</th>
               <th className="p-2">Initiator</th>
               <th className="p-2">Respondent</th>
-              <th className="p-2">Date</th>
-              <th className="p-2">Time</th>
+              <th className="p-2">Hearing date</th>
+              <th className="p-2">Hearing time</th>
               <th className="p-2">Room</th>
               <th className="p-2">Status</th>
               <th className="p-2">Decision</th>
@@ -173,7 +199,7 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                         onChange={(e) => setPatch({ ...patch, sch_date: e.target.value })}
                       />
                     ) : (
-                      r.sch_date || "—"
+                      formatHearingDate(r.sch_date)
                     )}
                   </td>
 
@@ -250,57 +276,27 @@ export default function HearingsDecisions({ regattaId }: { regattaId: number }) 
                       )}
 
                       {r.decision_pdf_url ? (
-                        <>
-                          <a
-                            href={`${r.decision_pdf_url}?v=${Date.now()}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                            title="Decision PDF"
-                          >
-                            Decision PDF
-                          </a>
-                          <button
-                            className="px-2 py-1 border rounded hover:bg-gray-50"
-                            onClick={() =>
-                              router.push(
-                                `/admin/manage-regattas/${regattaId}/decision/${r.protest_id}`
-                              )
-                            }
-                            title="Open decision editor"
-                          >
-                            Open decision
-                          </button>
-                          <button
-                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
-                            onClick={() => regeneratePdf(r.id)}
-                            title="Regenerate decision PDF"
-                          >
-                            Regenerate PDF
-                          </button>
-                        </>
+                        <a
+                          href={`${r.decision_pdf_url}?v=${Date.now()}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                          title="Decision PDF"
+                        >
+                          Decision PDF
+                        </a>
                       ) : (
-                        <>
-                          <button
-                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
-                            onClick={() =>
-                              router.push(
-                                `/admin/manage-regattas/${regattaId}/decisions/${r.protest_id}`
-                              )
-                            }
-                            title="Fill decision and generate PDF"
-                          >
-                            Fill decision
-                          </button>
-                          <button
-                            className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
-                            onClick={() => regeneratePdf(r.id)}
-                            title="Generate decision PDF"
-                          >
-                            Generate PDF
-                          </button>
-                        </>
+                        <span className="text-gray-400">Decision PDF —</span>
                       )}
+                      <button
+                        className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
+                        onClick={() =>
+                          router.push(linkWithOrg(fillDecisionPath(r.protest_id)))
+                        }
+                        title="Fill or update decision and generate PDF"
+                      >
+                        Fill decision
+                      </button>
                     </div>
                   </td>
 

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet, apiPost } from '@/lib/api';
 import type { ScoringCreate } from '@/lib/api';
 import { formatSailNumber } from '@/utils/countries';
@@ -31,6 +31,7 @@ export default function NewScoringPage() {
   const { user, token } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { withOrg } = useDashboardOrg();
 
   const regattaId = useMemo(() => {
     if (user?.role === 'regatista' && user?.current_regatta_id) return user.current_regatta_id;
@@ -75,7 +76,7 @@ export default function NewScoringPage() {
         }
         if (!cancelled) {
           setMyEntries(mine);
-          if (mine.length === 1) setInitiatorEntryId(mine[0].id);
+          if (mine.length > 0) setInitiatorEntryId(mine[0].id);
         }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Failed to load your entries.');
@@ -118,7 +119,7 @@ export default function NewScoringPage() {
     try {
       setSubmitting(true);
       await apiPost(`/regattas/${regattaId}/scoring`, payload, token);
-      router.replace('/dashboard/scoring');
+      router.replace(withOrg('/dashboard/scoring'));
     } catch (e: any) {
       setErr(e?.message || 'Failed to submit scoring enquiry.');
     } finally {
@@ -140,18 +141,9 @@ export default function NewScoringPage() {
       <section className="bg-white border rounded p-4 space-y-3">
         <div>
           <label className="block text-sm mb-1">Your boat (entry)</label>
-          <select
-            className="w-full border rounded px-3 py-2"
-            value={initiatorEntryId}
-            onChange={(e) => setInitiatorEntryId(e.target.value ? Number(e.target.value) : '')}
-            disabled={loadingEntries || myEntries.length <= 1}
-          >
-            {/* If the user only has one entry, we show it and keep the select disabled */}
-            <option value="">{myEntries.length > 1 ? '— Select —' : '—'}</option>
-            {myEntries.map((e) => (
-              <option key={e.id} value={e.id}>{entryLabel(e)}</option>
-            ))}
-          </select>
+          <div className="w-full border rounded px-3 py-2 bg-gray-50">
+            {selectedEntry ? entryLabel(selectedEntry) : '—'}
+          </div>
           {loadingEntries && <div className="text-gray-500 text-sm mt-1">Loading your entries…</div>}
         </div>
 
@@ -172,7 +164,7 @@ export default function NewScoringPage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Race number (optional)</label>
+          <label className="block text-sm mb-1">Race number</label>
           <input
             className="w-full border rounded px-3 py-2"
             value={raceNumber}

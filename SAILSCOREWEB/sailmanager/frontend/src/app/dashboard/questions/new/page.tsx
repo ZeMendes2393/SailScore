@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet, apiPost } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
@@ -21,6 +22,7 @@ type EntryOption = {
 export default function NewQuestionPage() {
   const { token } = useAuth();
   const router = useRouter();
+  const { withOrg } = useDashboardOrg();
   const regattaId = useDashboardRegattaId();
 
   const [myEntries, setMyEntries] = useState<EntryOption[]>([]);
@@ -68,7 +70,7 @@ export default function NewQuestionPage() {
         token
       );
 
-      router.replace('/dashboard/questions');
+      router.replace(withOrg('/dashboard/questions'));
     } finally {
       setSubmitting(false);
     }

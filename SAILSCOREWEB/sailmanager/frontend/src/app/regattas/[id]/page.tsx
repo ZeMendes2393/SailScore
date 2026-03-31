@@ -148,7 +148,7 @@ export default function RegattaHomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <RegattaHeader regattaId={regattaId} />
+      <RegattaHeader regattaId={regattaId} organizationSlug={regatta?.organization_slug} />
 
       {/* Hero: carousel de até 3 imagens, rotação automática, focal point personalizado */}
       <section
