@@ -904,6 +904,7 @@ class ScoringCreate(BaseModel):
 class ScoringRead(ScoringCreate):
     id: int
     regatta_id: int
+    boat_country_code: Optional[str] = None
     status: ScoringStatusLiteral
     admin_note: Optional[str] = None
     decision_pdf_path: Optional[str] = None

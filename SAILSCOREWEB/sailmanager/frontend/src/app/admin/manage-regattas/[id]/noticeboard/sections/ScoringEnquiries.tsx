@@ -89,7 +89,7 @@ export default function ScoringEnquiries({ regattaId }: { regattaId: number }) {
           <thead className="bg-gray-50">
             <tr>
               <th className="p-2 w-16">#</th>
-              <th className="p-2 w-32">Sail No.</th>
+              <th className="p-2 w-32">Sail number</th>
               <th className="p-2 w-40">Class</th>
               <th className="p-2 w-40">Race</th>
               <th className="p-2">Requested change</th>
@@ -159,7 +159,7 @@ function FragmentRow({
       {/* main row */}
       <tr className="border-t align-top">
         <td className="p-2">{r.id}</td>
-        <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
+        <td className="p-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
         <td className="p-2">{r.race_number || '—'}</td>
         <td className="p-2">{r.requested_change || '—'}</td>

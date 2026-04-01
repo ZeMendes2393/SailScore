@@ -355,6 +355,7 @@ export interface ScoringCreate {
 export interface ScoringRead extends ScoringCreate {
   id: number;
   regatta_id: number;
+  boat_country_code?: string | null;
   status: ScoringStatus;
   admin_note?: string | null;
   decision_pdf_path?: string | null;

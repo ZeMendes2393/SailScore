@@ -24,7 +24,9 @@ export default function Requests({ regattaId }: { regattaId: number }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all'|'open'|'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'submitted' | 'under_review' | 'closed'>('all');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [patch, setPatch] = useState<Partial<RequestRead>>({});
 
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
@@ -45,8 +47,10 @@ export default function Requests({ regattaId }: { regattaId: number }) {
   }
   useEffect(() => { fetchRows(); }, [listPath]);
 
-  async function save(id: number, patch: Partial<RequestRead>) {
+  async function save(id: number) {
     await apiPatch(`/regattas/${regattaId}/requests/${id}`, patch);
+    setEditingId(null);
+    setPatch({});
     await fetchRows();
   }
   async function remove(id: number) {
@@ -62,10 +66,10 @@ export default function Requests({ regattaId }: { regattaId: number }) {
         <div className="flex gap-2">
           <select className="border rounded px-2 py-1" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as any)}>
             <option value="all">All</option>
-            <option value="open">Open</option>
+            <option value="submitted">Submitted</option>
+            <option value="under_review">Under review</option>
             <option value="closed">Closed</option>
           </select>
-          <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={fetchRows}>Refresh</button>
         </div>
       </div>
 
@@ -73,7 +77,6 @@ export default function Requests({ regattaId }: { regattaId: number }) {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="p-2 w-10"></th>
               <th className="p-2">#</th>
               <th className="p-2">Sail No.</th>
               <th className="p-2">Class</th>
@@ -81,6 +84,7 @@ export default function Requests({ regattaId }: { regattaId: number }) {
               <th className="p-2">Status</th>
               <th className="p-2 w-[28rem]">Response</th>
               <th className="p-2 text-right">Actions</th>
+              <th className="p-2 w-24 text-right">More info</th>
             </tr>
           </thead>
           <tbody>
@@ -88,8 +92,18 @@ export default function Requests({ regattaId }: { regattaId: number }) {
             {!loading && rows.length === 0 && (<tr><td className="p-6 text-center text-gray-500" colSpan={8}>No requests.</td></tr>)}
 
             {rows.map(r => (
-              <RequestRow key={r.id} r={r} onSave={save} onRemove={remove}
-                onToggle={() => setRows(prev => prev.map(x => x.id===r.id ? ({...x, _expanded: !x._expanded}) : x))} />
+              <RequestRow
+                key={r.id}
+                r={r}
+                isEd={editingId === r.id}
+                patch={patch}
+                onSave={() => save(r.id)}
+                onRemove={() => remove(r.id)}
+                onStartEdit={() => { setEditingId(r.id); setPatch({}); }}
+                onCancelEdit={() => { setEditingId(null); setPatch({}); }}
+                onChangePatch={(p) => setPatch(prev => ({ ...prev, ...p }))}
+                onToggle={() => setRows(prev => prev.map(x => x.id===r.id ? ({...x, _expanded: !x._expanded}) : x))}
+              />
             ))}
           </tbody>
         </table>
@@ -102,28 +116,28 @@ export default function Requests({ regattaId }: { regattaId: number }) {
 
 function RequestRow({
   r,
+  isEd,
+  patch,
   onSave,
   onRemove,
+  onStartEdit,
+  onCancelEdit,
+  onChangePatch,
   onToggle,
 }: {
   r: Row;
-  onSave: (id: number, patch: Partial<RequestRead>) => Promise<void>;
-  onRemove: (id: number) => Promise<void>;
+  isEd: boolean;
+  patch: Partial<RequestRead>;
+  onSave: () => Promise<void>;
+  onRemove: () => Promise<void>;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onChangePatch: (p: Partial<RequestRead>) => void;
   onToggle: () => void;
 }) {
-  const [status, setStatus] = useState<RequestRead['status']>(r.status);
-  const [resp, setResp] = useState<string>(r.admin_response || '');
-
-  useEffect(() => { setStatus(r.status); setResp(r.admin_response || ''); }, [r.id]); // reset when row changes
-
   return (
     <>
       <tr className="border-t align-top">
-        <td className="p-2 align-middle">
-          <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={onToggle} title={r._expanded ? 'Hide details' : 'More info'}>
-            {r._expanded ? '−' : '+'}
-          </button>
-        </td>
         <td className="p-2">{r.request_no}</td>
         <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
@@ -131,26 +145,57 @@ function RequestRow({
           <div className="whitespace-pre-wrap break-words">{r.request_text}</div>
         </td>
         <td className="p-2">
-          <select className="border rounded p-1" value={status} onChange={(e)=>setStatus(e.target.value as any)}>
-            <option value="submitted">submitted</option>
-            <option value="under_review">under_review</option>
-            <option value="closed">closed</option>
-          </select>
+          {isEd ? (
+            <select
+              className="border rounded p-1"
+              value={(patch.status ?? r.status) as any}
+              onChange={(e)=>onChangePatch({ status: e.target.value as any })}
+            >
+              <option value="submitted">submitted</option>
+              <option value="under_review">under_review</option>
+              <option value="closed">closed</option>
+            </select>
+          ) : (
+            r.status
+          )}
         </td>
         <td className="p-2">
-          <textarea
-            rows={2}
-            className="border rounded p-2 w-full resize-none whitespace-pre-wrap break-words"
-            value={resp}
-            onChange={(e)=>setResp(e.target.value)}
-            placeholder="Admin response…"
-          />
+          {isEd ? (
+            <textarea
+              rows={2}
+              className="border rounded p-2 w-full resize-none whitespace-pre-wrap break-words"
+              value={patch.admin_response ?? r.admin_response ?? ''}
+              onChange={(e)=>onChangePatch({ admin_response: e.target.value })}
+              placeholder="Admin response…"
+            />
+          ) : (
+            <div className="whitespace-pre-wrap break-words">
+              {r.admin_response?.trim() || <span className="text-gray-400">—</span>}
+            </div>
+          )}
         </td>
         <td className="p-2 text-right">
-          <div className="inline-flex gap-3">
-            <button className="text-blue-600 hover:underline" onClick={()=>onSave(r.id, { status, admin_response: resp })}>Save</button>
-            <button className="text-red-600 hover:underline" onClick={()=>onRemove(r.id)}>Delete</button>
-          </div>
+          {!isEd ? (
+            <div className="inline-flex gap-3">
+              <button className="text-blue-600 hover:underline" onClick={onStartEdit}>Edit</button>
+              <button className="text-red-600 hover:underline" onClick={onRemove}>Delete</button>
+            </div>
+          ) : (
+            <div className="inline-flex gap-3">
+              <button className="text-blue-600 hover:underline" onClick={onSave}>Save</button>
+              <button className="text-gray-600 hover:underline" onClick={onCancelEdit}>Cancel</button>
+            </div>
+          )}
+        </td>
+        <td className="p-2 text-right align-middle">
+          <button
+            className="px-2 py-1 border rounded hover:bg-gray-50"
+            onClick={onToggle}
+            title={r._expanded ? 'Hide details' : 'More info'}
+            aria-label={r._expanded ? 'Hide details' : 'More info'}
+          >
+            {r._expanded ? '−' : '+'}
+          </button>
         </td>
       </tr>
 

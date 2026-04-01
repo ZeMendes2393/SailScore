@@ -11,6 +11,16 @@ from utils.auth_utils import get_current_user, get_current_user_optional
 router = APIRouter(prefix="/regattas/{regatta_id}/scoring", tags=["scoring"])
 
 
+def _serialize_scoring(db: Session, item: models.ScoringEnquiry) -> dict:
+    data = schemas.ScoringRead.model_validate(item).model_dump()
+    cc = None
+    if getattr(item, "initiator_entry_id", None):
+        entry = db.query(models.Entry).filter(models.Entry.id == item.initiator_entry_id).first()
+        cc = getattr(entry, "boat_country_code", None) if entry else None
+    data["boat_country_code"] = cc
+    return data
+
+
 def _is_entry_mine(entry: models.Entry, user: models.User) -> bool:
     if not entry:
         return False
@@ -66,7 +76,7 @@ def create_scoring(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return _serialize_scoring(db, item)
 
 
 @router.get("", response_model=List[schemas.ScoringRead])
@@ -112,7 +122,8 @@ def list_scoring(
                 func.lower(func.coalesce(cast(models.ScoringEnquiry.requested_score, String), "")).like(s),
                 func.lower(func.coalesce(models.ScoringEnquiry.response, "")).like(s),
             ))
-        return q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+        items = q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+        return [_serialize_scoring(db, it) for it in items]
 
     # Admin
     if current_user.role == "admin":
@@ -130,7 +141,8 @@ def list_scoring(
                 func.lower(func.coalesce(cast(models.ScoringEnquiry.requested_score, String), "")).like(s),
                 func.lower(func.coalesce(models.ScoringEnquiry.response, "")).like(s),
             ))
-        return q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+        items = q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+        return [_serialize_scoring(db, it) for it in items]
 
     # Authenticated non-admin → restrict to user's entries
     my_entries_ids = [
@@ -161,7 +173,8 @@ def list_scoring(
             func.lower(func.coalesce(cast(models.ScoringEnquiry.requested_score, String), "")).like(s),
             func.lower(func.coalesce(models.ScoringEnquiry.response, "")).like(s),
         ))
-    return q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+    items = q.order_by(models.ScoringEnquiry.created_at.desc()).all()
+    return [_serialize_scoring(db, it) for it in items]
 
 
 @router.get("/{enquiry_id}", response_model=schemas.ScoringRead)
@@ -180,14 +193,14 @@ def get_scoring(
 
     # Visitor can view any item when public pages are used
     if current_user is None:
-        return item
+        return _serialize_scoring(db, item)
 
     # Authenticated non-admin must own the entry; admin can view all
     if current_user.role != "admin":
         entry = db.query(models.Entry).filter(models.Entry.id == item.initiator_entry_id).first()
         if not _is_entry_mine(entry, current_user):
             raise HTTPException(status_code=403, detail="Not allowed")
-    return item
+    return _serialize_scoring(db, item)
 
 
 @router.patch("/{enquiry_id}", response_model=schemas.ScoringRead)
@@ -213,4 +226,4 @@ def patch_scoring(
 
     db.commit()
     db.refresh(item)
-    return item
+    return _serialize_scoring(db, item)

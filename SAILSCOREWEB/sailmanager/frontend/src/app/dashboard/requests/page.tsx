@@ -62,6 +62,7 @@ export default function RequestsPage() {
               <th className="p-2">Class</th>
               <th className="p-2">Request</th>
               <th className="p-2">Status</th>
+              <th className="p-2 w-[28rem]">Response</th>
               <th className="p-2">Created</th>
             </tr>
           </thead>
@@ -75,11 +76,16 @@ export default function RequestsPage() {
                   <div className="whitespace-pre-wrap break-words">{r.request_text}</div>
                 </td>
                 <td className="p-2">{r.status}</td>
+                <td className="p-2 max-w-[28rem]">
+                  <div className="whitespace-pre-wrap break-words">
+                    {r.admin_response?.trim() || <span className="text-gray-400">—</span>}
+                  </div>
+                </td>
                 <td className="p-2">{new Date(r.created_at).toLocaleString('en-GB')}</td>
               </tr>
             ))}
             {!rows.length && !loading && (
-              <tr><td className="p-6 text-center text-gray-500" colSpan={6}>No requests yet.</td></tr>
+              <tr><td className="p-6 text-center text-gray-500" colSpan={7}>No requests yet.</td></tr>
             )}
           </tbody>
         </table>

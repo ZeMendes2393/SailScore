@@ -45,20 +45,25 @@ def _next_request_no(db: Session, regatta_id: int) -> int:
 @router.get("", response_model=List[schemas.RequestRead])
 def list_requests(
     regatta_id: int,
-    status_q: Optional[str] = Query("all", description="all | open | closed"),
+    status_q: Optional[str] = Query("all", description="all | submitted | under_review | closed"),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Optional[models.User] = Depends(get_current_user_optional),
 ):
     q = db.query(models.Request).filter(models.Request.regatta_id == regatta_id)
 
-    # Público (sem token ou token inválido) → agora pode ver TODOS, respeitando status_q
-    if current_user is None:
+    def _apply_status_filter(q_in):
         if status_q and status_q != "all":
             if status_q == "open":
-                q = q.filter(models.Request.status.in_(("submitted", "under_review")))
-            elif status_q == "closed":
-                q = q.filter(models.Request.status == "closed")
+                # compatibilidade com clientes antigos
+                return q_in.filter(models.Request.status.in_(("submitted", "under_review")))
+            if status_q in ("submitted", "under_review", "closed"):
+                return q_in.filter(models.Request.status == status_q)
+        return q_in
+
+    # Público (sem token ou token inválido) → agora pode ver TODOS, respeitando status_q
+    if current_user is None:
+        q = _apply_status_filter(q)
         if search:
             s = f"%{search.strip().lower()}%"
             q = q.filter(
@@ -86,11 +91,7 @@ def list_requests(
         )
         q = q.filter(models.Request.initiator_entry_id.in_(my_entries.subquery()))
 
-    if status_q and status_q != "all":
-        if status_q == "open":
-            q = q.filter(models.Request.status.in_(("submitted", "under_review")))
-        elif status_q == "closed":
-            q = q.filter(models.Request.status == "closed")
+    q = _apply_status_filter(q)
 
     if search:
         s = f"%{search.strip().lower()}%"

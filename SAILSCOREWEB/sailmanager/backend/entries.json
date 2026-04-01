@@ -2,380 +2,228 @@
   {
     "regatta_id": 13,
     "class_name": "J70",
-    "boat_country_code": "POR",
-    "sail_number": "J70033",
-    "boat_name": "Atlantic Storm",
+    "boat_country_code": "GBR",
+    "sail_number": "J70043",
+    "boat_name": "Blue Horizon",
     "helm_position": "Skipper",
-    "first_name": "Tiago",
-    "last_name": "Ferreira",
-    "email": "helm.j70033@test.local",
-    "club": "CN Porto",
+    "first_name": "Oliver",
+    "last_name": "Turner",
+    "email": "jose.mendes2691@gmail.com",
+    "club": "Royal Thames YC",
     "crew_members": [
       {
         "position": "Crew",
-        "first_name": "Ana",
-        "last_name": "Costa",
-        "email": "crew1.j70033@test.local"
+        "first_name": "Amelia",
+        "last_name": "Clark",
+        "email": "crew1.j70043@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Rui",
-        "last_name": "Silva",
-        "email": "crew2.j70033@test.local"
+        "first_name": "George",
+        "last_name": "Hall",
+        "email": "crew2.j70043@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Marta",
-        "last_name": "Pereira",
-        "email": "crew3.j70033@test.local"
+        "first_name": "Grace",
+        "last_name": "Allen",
+        "email": "crew3.j70043@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Joao",
-        "last_name": "Santos",
-        "email": "crew4.j70033@test.local"
+        "first_name": "Henry",
+        "last_name": "Young",
+        "email": "crew4.j70043@test.local"
       }
     ]
   },
   {
     "regatta_id": 13,
     "class_name": "J70",
-    "boat_country_code": "ESP",
-    "sail_number": "J70034",
-    "boat_name": "Costa Brava",
+    "boat_country_code": "DEN",
+    "sail_number": "J70044",
+    "boat_name": "Nordic Flash",
     "helm_position": "Skipper",
-    "first_name": "Javier",
-    "last_name": "Ruiz",
-    "email": "helm.j70034@test.local",
-    "club": "RCN Barcelona",
+    "first_name": "Mikkel",
+    "last_name": "Nielsen",
+    "email": "jose.mendes2691@gmail.com",
+    "club": "Copenhagen YC",
     "crew_members": [
       {
         "position": "Crew",
-        "first_name": "Lucia",
-        "last_name": "Martinez",
-        "email": "crew1.j70034@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Carlos",
-        "last_name": "Lopez",
-        "email": "crew2.j70034@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Elena",
-        "last_name": "Garcia",
-        "email": "crew3.j70034@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Pablo",
-        "last_name": "Sanchez",
-        "email": "crew4.j70034@test.local"
-      }
-    ]
-  },
-  {
-    "regatta_id": 13,
-    "class_name": "J70",
-    "boat_country_code": "ITA",
-    "sail_number": "J70035",
-    "boat_name": "Azzurra",
-    "helm_position": "Skipper",
-    "first_name": "Davide",
-    "last_name": "Bianchi",
-    "email": "helm.j70035@test.local",
-    "club": "YC Italiano",
-    "crew_members": [
-      {
-        "position": "Crew",
-        "first_name": "Giulia",
-        "last_name": "Ferrari",
-        "email": "crew1.j70035@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Matteo",
-        "last_name": "Ricci",
-        "email": "crew2.j70035@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Chiara",
-        "last_name": "Romano",
-        "email": "crew3.j70035@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Lorenzo",
-        "last_name": "Galli",
-        "email": "crew4.j70035@test.local"
-      }
-    ]
-  },
-  {
-    "regatta_id": 13,
-    "class_name": "J70",
-    "boat_country_code": "FRA",
-    "sail_number": "J70036",
-    "boat_name": "Vent du Sud",
-    "helm_position": "Skipper",
-    "first_name": "Antoine",
-    "last_name": "Moreau",
-    "email": "helm.j70036@test.local",
-    "club": "YC Marseille",
-    "crew_members": [
-      {
-        "position": "Crew",
-        "first_name": "Camille",
-        "last_name": "Petit",
-        "email": "crew1.j70036@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Hugo",
-        "last_name": "Laurent",
-        "email": "crew2.j70036@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Emma",
-        "last_name": "Girard",
-        "email": "crew3.j70036@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Leo",
-        "last_name": "Roux",
-        "email": "crew4.j70036@test.local"
-      }
-    ]
-  },
-  {
-    "regatta_id": 13,
-    "class_name": "J70",
-    "boat_country_code": "GER",
-    "sail_number": "J70037",
-    "boat_name": "Baltic Wind",
-    "helm_position": "Skipper",
-    "first_name": "Tobias",
-    "last_name": "Wagner",
-    "email": "helm.j70037@test.local",
-    "club": "Hamburg YC",
-    "crew_members": [
-      {
-        "position": "Crew",
-        "first_name": "Lena",
-        "last_name": "Hartmann",
-        "email": "crew1.j70037@test.local"
+        "first_name": "Freja",
+        "last_name": "Larsen",
+        "email": "crew1.j70044@test.local"
       },
       {
         "position": "Crew",
         "first_name": "Jonas",
-        "last_name": "Fischer",
-        "email": "crew2.j70037@test.local"
+        "last_name": "Madsen",
+        "email": "crew2.j70044@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Mia",
-        "last_name": "Krause",
-        "email": "crew3.j70037@test.local"
+        "first_name": "Clara",
+        "last_name": "Jensen",
+        "email": "crew3.j70044@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Niklas",
-        "last_name": "Wolf",
-        "email": "crew4.j70037@test.local"
+        "first_name": "Emil",
+        "last_name": "Christensen",
+        "email": "crew4.j70044@test.local"
       }
     ]
   },
   {
     "regatta_id": 13,
     "class_name": "J70",
-    "boat_country_code": "USA",
-    "sail_number": "J70038",
-    "boat_name": "Pacific Star",
+    "boat_country_code": "SWE",
+    "sail_number": "J70045",
+    "boat_name": "Stockholm Breeze",
     "helm_position": "Skipper",
-    "first_name": "Ethan",
-    "last_name": "Cooper",
-    "email": "helm.j70038@test.local",
-    "club": "San Diego YC",
+    "first_name": "Erik",
+    "last_name": "Lindberg",
+    "email": "jose.mendes2691@gmail.com",
+    "club": "Royal Swedish YC",
     "crew_members": [
       {
         "position": "Crew",
-        "first_name": "Olivia",
-        "last_name": "Brooks",
-        "email": "crew1.j70038@test.local"
+        "first_name": "Elsa",
+        "last_name": "Nyberg",
+        "email": "crew1.j70045@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Liam",
-        "last_name": "Reed",
-        "email": "crew2.j70038@test.local"
+        "first_name": "Viktor",
+        "last_name": "Svensson",
+        "email": "crew2.j70045@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Chloe",
-        "last_name": "Morgan",
-        "email": "crew3.j70038@test.local"
+        "first_name": "Maja",
+        "last_name": "Holm",
+        "email": "crew3.j70045@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Mason",
-        "last_name": "Perry",
-        "email": "crew4.j70038@test.local"
+        "first_name": "Axel",
+        "last_name": "Berg",
+        "email": "crew4.j70045@test.local"
       }
     ]
   },
   {
     "regatta_id": 13,
     "class_name": "J70",
-    "boat_country_code": "CAN",
-    "sail_number": "J70039",
-    "boat_name": "Northern Current",
+    "boat_country_code": "NOR",
+    "sail_number": "J70046",
+    "boat_name": "Arctic Pulse",
     "helm_position": "Skipper",
-    "first_name": "Connor",
-    "last_name": "Mitchell",
-    "email": "helm.j70039@test.local",
-    "club": "Toronto YC",
+    "first_name": "Lars",
+    "last_name": "Olsen",
+    "email": "jgsms2@iscte-iul.pt",
+    "club": "Oslo Seilforening",
     "crew_members": [
       {
         "position": "Crew",
-        "first_name": "Sophie",
-        "last_name": "Turner",
-        "email": "crew1.j70039@test.local"
+        "first_name": "Ingrid",
+        "last_name": "Hansen",
+        "email": "crew1.j70046@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Logan",
-        "last_name": "Parker",
-        "email": "crew2.j70039@test.local"
+        "first_name": "Magnus",
+        "last_name": "Johansen",
+        "email": "crew2.j70046@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Ava",
-        "last_name": "Bennett",
-        "email": "crew3.j70039@test.local"
+        "first_name": "Sofie",
+        "last_name": "Lie",
+        "email": "crew3.j70046@test.local"
+      },
+      {
+        "position": "Crew",
+        "first_name": "Andreas",
+        "last_name": "Nilsen",
+        "email": "crew4.j70046@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 13,
+    "class_name": "J70",
+    "boat_country_code": "BEL",
+    "sail_number": "J70047",
+    "boat_name": "North Sea Fox",
+    "helm_position": "Skipper",
+    "first_name": "Louis",
+    "last_name": "Dubois",
+    "email": "jose.mendes220972@gmail.com",
+    "club": "Royal North Sea YC",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Emma",
+        "last_name": "Peeters",
+        "email": "crew1.j70047@test.local"
       },
       {
         "position": "Crew",
         "first_name": "Noah",
-        "last_name": "Cook",
-        "email": "crew4.j70039@test.local"
+        "last_name": "Willems",
+        "email": "crew2.j70047@test.local"
+      },
+      {
+        "position": "Crew",
+        "first_name": "Lina",
+        "last_name": "Maes",
+        "email": "crew3.j70047@test.local"
+      },
+      {
+        "position": "Crew",
+        "first_name": "Jules",
+        "last_name": "Vermeulen",
+        "email": "crew4.j70047@test.local"
       }
     ]
   },
   {
     "regatta_id": 13,
     "class_name": "J70",
-    "boat_country_code": "NED",
-    "sail_number": "J70040",
-    "boat_name": "Dutch Spirit",
+    "boat_country_code": "BRA",
+    "sail_number": "J70048",
+    "boat_name": "Rio Motion",
     "helm_position": "Skipper",
-    "first_name": "Thijs",
-    "last_name": "Jansen",
-    "email": "helm.j70040@test.local",
-    "club": "Rotterdam Sailing Club",
+    "first_name": "Lucas",
+    "last_name": "Ferraz",
+    "email": "jose.mendes2691@gmail.com",
+    "club": "Iate Clube Rio",
     "crew_members": [
       {
         "position": "Crew",
-        "first_name": "Eva",
-        "last_name": "De Jong",
-        "email": "crew1.j70040@test.local"
+        "first_name": "Marina",
+        "last_name": "Souza",
+        "email": "crew1.j70048@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Daan",
-        "last_name": "Van Leeuwen",
-        "email": "crew2.j70040@test.local"
+        "first_name": "Pedro",
+        "last_name": "Lima",
+        "email": "crew2.j70048@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Sanne",
-        "last_name": "Bakker",
-        "email": "crew3.j70040@test.local"
+        "first_name": "Beatriz",
+        "last_name": "Rocha",
+        "email": "crew3.j70048@test.local"
       },
       {
         "position": "Crew",
-        "first_name": "Milan",
-        "last_name": "De Vries",
-        "email": "crew4.j70040@test.local"
-      }
-    ]
-  },
-  {
-    "regatta_id": 13,
-    "class_name": "J70",
-    "boat_country_code": "SUI",
-    "sail_number": "J70041",
-    "boat_name": "Lake Arrow",
-    "helm_position": "Skipper",
-    "first_name": "Nico",
-    "last_name": "Huber",
-    "email": "helm.j70041@test.local",
-    "club": "Geneva Sailing Club",
-    "crew_members": [
-      {
-        "position": "Crew",
-        "first_name": "Mia",
-        "last_name": "Keller",
-        "email": "crew1.j70041@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Luca",
-        "last_name": "Steiner",
-        "email": "crew2.j70041@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Lea",
-        "last_name": "Frei",
-        "email": "crew3.j70041@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Noah",
-        "last_name": "Baumann",
-        "email": "crew4.j70041@test.local"
-      }
-    ]
-  },
-  {
-    "regatta_id": 13,
-    "class_name": "J70",
-    "boat_country_code": "AUS",
-    "sail_number": "J70042",
-    "boat_name": "Southern Wave",
-    "helm_position": "Skipper",
-    "first_name": "Mitchell",
-    "last_name": "Harris",
-    "email": "helm.j70042@test.local",
-    "club": "Sydney Yacht Club",
-    "crew_members": [
-      {
-        "position": "Crew",
-        "first_name": "Ella",
-        "last_name": "Murphy",
-        "email": "crew1.j70042@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Jack",
-        "last_name": "Taylor",
-        "email": "crew2.j70042@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Ruby",
-        "last_name": "White",
-        "email": "crew3.j70042@test.local"
-      },
-      {
-        "position": "Crew",
-        "first_name": "Cooper",
-        "last_name": "Scott",
-        "email": "crew4.j70042@test.local"
+        "first_name": "Gustavo",
+        "last_name": "Melo",
+        "email": "crew4.j70048@test.local"
       }
     ]
   }

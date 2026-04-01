@@ -139,7 +139,7 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <FeatureCard
             title="Entry data"
-            description="Review your entry details and download receipts."
+            description="Review your entry details."
             href={withOrg('/dashboard/entry-data')}
             enabled={Boolean(status?.windows?.entryData)}
             cta="Go to Entry Data"
