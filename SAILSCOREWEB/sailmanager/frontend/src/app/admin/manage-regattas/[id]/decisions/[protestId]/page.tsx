@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAdminOrg, withOrg } from "@/lib/useAdminOrg";
+import { useAuth } from "@/context/AuthContext";
 
 type TemplateOut = { template: any };
 type DecisionOut = {
@@ -16,9 +17,12 @@ type DecisionOut = {
 export default function DecisionFormPage() {
   const router = useRouter();
   const { orgSlug } = useAdminOrg();
+  const { user } = useAuth();
   const { id, protestId } = useParams<{ id: string; protestId: string }>();
   const regattaId = Number(id);
   const pid = Number(protestId);
+  const manageRegattaBasePath =
+    user?.role === "scorer" ? "/scorer/manage-regattas" : "/admin/manage-regattas";
 
   const [loading, setLoading] = useState(true);
   const [tpl, setTpl] = useState<any | null>(null);
@@ -107,7 +111,7 @@ export default function DecisionFormPage() {
   function navigateBackToNoticeBoard() {
     router.push(
       withOrg(
-        `/admin/manage-regattas/${regattaId}?tab=notice&noticeSection=protest-decisions`,
+        `${manageRegattaBasePath}/${regattaId}?tab=notice&noticeSection=protest-decisions`,
         orgSlug
       )
     );

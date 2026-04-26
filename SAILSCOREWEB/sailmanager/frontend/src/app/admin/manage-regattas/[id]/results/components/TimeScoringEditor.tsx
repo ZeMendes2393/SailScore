@@ -13,7 +13,14 @@ type HandicapDraftRow = {
   elapsedTime: string;
   correctedTime: string;
   code?: string | null;
-  notes?: string | null;
+};
+
+type PendingHandicapEntry = {
+  finishTime: string;
+  finishDay: number | '';
+  elapsedTime: string;
+  correctedTime: string;
+  code: string;
 };
 
 export type HandicapMethod = 'manual' | 'anc' | 'orc';
@@ -37,7 +44,6 @@ interface Props {
     value: string | number
   ) => void;
   onUpdateCode: (entryId: number, code: string | null) => void;
-  onUpdateNotes: (entryId: number, notes: string) => void;
   onSave: () => void;
 }
 
@@ -108,15 +114,20 @@ function secondsToTime(totalSeconds: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-/** Dado start (day + time em segundos), elapsed em segundos → finish_day e finish_time. */
+/** Dado start e elapsed, calcula finish_time e "days after start". */
 function computeFinishFromStartAndElapsed(
   startDay: number,
   startTimeSec: number,
   elapsedSec: number
 ): { finishDay: number; finishTime: string } {
-  const totalSec = startTimeSec + elapsedSec;
-  const finishDay = startDay + Math.floor(totalSec / 86400);
-  const finishTimeSec = totalSec % 86400;
+  const safeElapsed = Math.max(0, Math.round(elapsedSec));
+  const finishTimeSec = (startTimeSec + (safeElapsed % 86400)) % 86400;
+  const baseDiff =
+    finishTimeSec >= startTimeSec
+      ? finishTimeSec - startTimeSec
+      : finishTimeSec + 86400 - startTimeSec;
+  const extraDaysSec = Math.max(0, safeElapsed - baseDiff);
+  const finishDay = startDay + Math.floor(extraDaysSec / 86400);
   return { finishDay, finishTime: secondsToTime(finishTimeSec) };
 }
 
@@ -138,16 +149,23 @@ function parseElapsedToSeconds(str: string): number {
   return Math.max(0, h * 3600 + m * 60 + s);
 }
 
-/** Dado start (day + time), finish (day + time em sec) → elapsed em segundos, depois formato HH:MM:SS. */
+/** Dado start + finish + days after start, calcula elapsed:
+ *  - se finish < start no dia base => conta overnight
+ *  - cada +1 em days after start soma +24h ao elapsed
+ */
 function computeElapsedFromStartAndFinish(
   startDay: number,
   startTimeSec: number,
   finishDay: number,
   finishTimeSec: number
 ): string {
-  const finishTotalSec = (finishDay - startDay) * 86400 + finishTimeSec;
-  const elapsedSec = finishTotalSec - startTimeSec;
-  return formatElapsed(Math.max(0, elapsedSec));
+  const safeDaysAfter = Math.max(0, finishDay - startDay);
+  const baseDiff =
+    finishTimeSec >= startTimeSec
+      ? finishTimeSec - startTimeSec
+      : finishTimeSec + 86400 - startTimeSec;
+  const elapsedSec = baseDiff + safeDaysAfter * 86400;
+  return formatElapsed(elapsedSec);
 }
 
 /** ANC: corrected time = round(rating × elapsed_seconds), formato HH:MM:SS. Rating ~ 1 (ex.: 1.01, 0.977). */
@@ -263,6 +281,13 @@ function getEffectiveRating(entry: Entry | undefined, method: HandicapMethod, or
   return null;
 }
 
+function hasAllOrcRatings(entry: Entry | undefined): boolean {
+  if (!entry) return false;
+  const e = entry as Entry & { orc_low?: number; orc_medium?: number; orc_high?: number };
+  const isValid = (v: unknown) => typeof v === 'number' && !Number.isNaN(v);
+  return isValid(e.orc_low) && isValid(e.orc_medium) && isValid(e.orc_high);
+}
+
 export default function TimeScoringEditor({
   draft,
   eligibleEntries,
@@ -278,7 +303,6 @@ export default function TimeScoringEditor({
   onRemoveEntry,
   onUpdateField,
   onUpdateCode,
-  onUpdateNotes,
   onSave,
 }: Props) {
   const [filter, setFilter] = useState('');
@@ -330,6 +354,130 @@ export default function TimeScoringEditor({
     );
   }, [availableToAdd, filter]);
 
+  const [pendingByEntryId, setPendingByEntryId] = useState<Record<number, PendingHandicapEntry>>({});
+
+  const getPending = useCallback(
+    (entryId: number): PendingHandicapEntry =>
+      pendingByEntryId[entryId] ?? {
+        finishTime: '',
+        finishDay: 0,
+        elapsedTime: '',
+        correctedTime: '',
+        code: '',
+      },
+    [pendingByEntryId]
+  );
+
+  const setPendingField = useCallback(
+    (entryId: number, field: keyof PendingHandicapEntry, value: string | number) => {
+      setPendingByEntryId((prev) => ({
+        ...prev,
+        [entryId]: {
+          ...(prev[entryId] ?? {
+            finishTime: '',
+            finishDay: 0,
+            elapsedTime: '',
+            correctedTime: '',
+            code: '',
+          }),
+          [field]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  const clearPending = useCallback((entryId: number) => {
+    setPendingByEntryId((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
+  }, []);
+
+  const addPreparedEntry = useCallback(
+    (entry: Entry) => {
+      const hasAnyMissingRequiredRating =
+        (method === 'anc' || method === 'orc') &&
+        eligibleEntries.some((e) =>
+          method === 'orc' ? !hasAllOrcRatings(e) : getEffectiveRating(e, 'anc', orcRatingMode) == null
+        );
+      if (hasAnyMissingRequiredRating) {
+        const modeLabel =
+          method === 'anc'
+            ? 'Simple Rating'
+            : 'all ORC ratings (low, medium, high)';
+        alert(`Scoring is locked: some entries are missing ${modeLabel}. Please complete all ratings first.`);
+        return;
+      }
+
+      const p = getPending(entry.id);
+      const rating = getEffectiveRating(entry, method, orcRatingMode);
+
+      let finishDay = typeof p.finishDay === 'number' ? Math.max(0, p.finishDay) : 0;
+      let finishTime = (p.finishTime || '').trim();
+      let elapsedTime = (p.elapsedTime || '').trim();
+      let correctedTime = (p.correctedTime || '').trim();
+
+      if (raceStartTime) {
+        const startSec = timeStringToSeconds(raceStartTime);
+        if (finishTime && !elapsedTime) {
+          elapsedTime = computeElapsedFromStartAndFinish(
+            START_DAY,
+            startSec,
+            finishDay,
+            timeStringToSeconds(finishTime)
+          );
+        } else if (elapsedTime && !finishTime) {
+          const computed = computeFinishFromStartAndElapsed(
+            START_DAY,
+            startSec,
+            parseElapsedToSeconds(elapsedTime)
+          );
+          finishDay = computed.finishDay;
+          finishTime = computed.finishTime;
+        }
+      }
+
+      if ((method === 'anc' || method === 'orc') && rating != null && elapsedTime && !correctedTime) {
+        correctedTime = ancCorrectedFromElapsed(elapsedTime, rating);
+      }
+
+      if (method === 'anc' || method === 'orc') {
+        if (!elapsedTime || parseTimeToSeconds(elapsedTime) == null) {
+          alert('You can only add this entry after filling a valid Elapsed Time (HH:MM:SS).');
+          return;
+        }
+        if (rating == null) {
+          alert('This entry is missing rating for the selected handicap method.');
+          return;
+        }
+      } else if (!correctedTime || parseTimeToSeconds(correctedTime) == null) {
+        alert('You can only add this entry after filling a valid Corrected Time (HH:MM:SS).');
+        return;
+      }
+
+      onAddEntry(entry.id);
+      onUpdateField(entry.id, 'finishDay', finishDay);
+      onUpdateField(entry.id, 'finishTime', finishTime);
+      onUpdateField(entry.id, 'elapsedTime', elapsedTime);
+      onUpdateField(entry.id, 'correctedTime', correctedTime);
+      onUpdateCode(entry.id, p.code ? p.code.toUpperCase() : null);
+      clearPending(entry.id);
+    },
+    [
+      clearPending,
+      eligibleEntries,
+      getPending,
+      method,
+      onAddEntry,
+      onUpdateCode,
+      onUpdateField,
+      orcRatingMode,
+      raceStartTime,
+    ]
+  );
+
   const codeOptions = useMemo(() => {
     const custom = Object.keys(scoringCodes || {})
       .map((c) => c.toUpperCase())
@@ -356,32 +504,32 @@ export default function TimeScoringEditor({
       .sort((a, b) => a.preview.position - b.preview.position);
   }, [draft, entriesById, rankingPreview]);
 
-  const entriesWithoutRatingInDraft = useMemo(() => {
+  const entriesMissingRequiredRating = useMemo(() => {
     if (method === 'anc') {
-      return draft.filter((r) => getEffectiveRating(entriesById.get(r.entryId), 'anc', orcRatingMode) == null);
+      return eligibleEntries.filter((e) => getEffectiveRating(e, 'anc', orcRatingMode) == null);
     }
     if (method === 'orc') {
-      return draft.filter((r) => getEffectiveRating(entriesById.get(r.entryId), 'orc', orcRatingMode) == null);
+      return eligibleEntries.filter((e) => !hasAllOrcRatings(e));
     }
     return [];
-  }, [draft, entriesById, method, orcRatingMode]);
+  }, [eligibleEntries, method, orcRatingMode]);
+  const scoringLockedByMissingRating =
+    (method === 'anc' || method === 'orc') && entriesMissingRequiredRating.length > 0;
 
   return (
     <div className="space-y-4">
       <div className="text-sm text-gray-700">
         <p className="mb-1">
-          <strong>Time Scoring (Handicap)</strong> — insere tempos em HH:MM:SS.
+          <strong>Time Scoring (Handicap)</strong> — insert times in HH:MM:SS format.
         </p>
-        <p className="text-xs text-gray-500">
-          A posição, delta e pontos são calculados automaticamente a partir do Corrected Time.
-        </p>
+        
       </div>
 
       {raceId != null && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded bg-gray-50">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium">Método de score:</span>
+              <span className="text-sm font-medium">Scoring Method:</span>
               <div className="flex gap-2">
               <button
                 type="button"
@@ -404,6 +552,7 @@ export default function TimeScoringEditor({
               >
                 ORC
               </button>
+              </div>
             </div>
             <a
               href={`${BASE_URL}/results/races/${raceId}/results/pdf`}
@@ -434,66 +583,18 @@ export default function TimeScoringEditor({
         </>
       )}
 
-      {method === 'anc' && entriesWithoutRatingInDraft.length > 0 && (
-        <div className="p-3 border border-amber-300 rounded bg-amber-50 text-amber-900 text-sm" role="alert">
-          Some boats are missing Simple Rating. Fill in the Simple Rating in the entries.
+      {method === 'anc' && entriesMissingRequiredRating.length > 0 && (
+        <div className="p-3 border border-red-300 rounded bg-red-50 text-red-900 text-sm" role="alert">
+          Scoring is locked. Some entries are missing Simple Rating (
+          {entriesMissingRequiredRating.length}). Fill in all Simple Ratings in Entries before scoring.
         </div>
       )}
-      {method === 'orc' && entriesWithoutRatingInDraft.length > 0 && (
-        <div className="p-3 border border-amber-300 rounded bg-amber-50 text-amber-900 text-sm" role="alert">
-          Some boats are missing ORC rating ({orcRatingMode}). Fill in the ORC {orcRatingMode} in the entries.
+      {method === 'orc' && entriesMissingRequiredRating.length > 0 && (
+        <div className="p-3 border border-red-300 rounded bg-red-50 text-red-900 text-sm" role="alert">
+          Scoring is locked. Some entries are missing ORC ratings ({entriesMissingRequiredRating.length}).
+          Fill in all three ORC fields (low, medium, high) for every entry before scoring.
         </div>
       )}
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold">
-            Eligible entries for this race ({eligibleEntries.length})
-          </h4>
-          <input
-            type="text"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search by sail / name / club"
-            className="border rounded px-3 py-1.5 text-sm w-64"
-            aria-label="Search available entries"
-          />
-        </div>
-
-        {filteredAvailable.length === 0 ? (
-          <p className="text-xs text-gray-500">No entries match the filter.</p>
-        ) : (
-          <ul className="space-y-1 max-h-56 overflow-auto pr-1 flex flex-col items-start">
-            {filteredAvailable.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center gap-3 p-2 border rounded bg-white hover:bg-gray-50 w-fit max-w-full"
-              >
-                <button
-                  onClick={() => onAddEntry(entry.id)}
-                  className="shrink-0 px-3 py-1.5 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition"
-                >
-                  Add
-                </button>
-                <span className="truncate max-w-md">
-                  <SailNumberDisplay
-                    countryCode={(entry as any).boat_country_code}
-                    sailNumber={entry.sail_number}
-                  />
-                  {' — '}
-                  {entry.first_name} {entry.last_name}
-                  {entry.club ? <span className="text-gray-500"> ({entry.club})</span> : null}
-                  {getEffectiveRating(entry, method, orcRatingMode) != null ? (
-                    <span className="ml-2 text-xs text-gray-600">
-                      rating: {getEffectiveRating(entry, method, orcRatingMode)}
-                    </span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {raceId != null && (
         <div className="flex flex-wrap items-center gap-4 p-3 border rounded bg-gray-50">
@@ -520,6 +621,179 @@ export default function TimeScoringEditor({
       )}
 
       <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">
+            Eligible entries for this race ({eligibleEntries.length})
+          </h4>
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search by sail / name / club"
+            className="border rounded px-3 py-1.5 text-sm w-64"
+            aria-label="Search available entries"
+          />
+        </div>
+
+        {filteredAvailable.length === 0 ? (
+          <p className="text-xs text-gray-500">No entries match the filter.</p>
+        ) : (
+          <div className="max-h-64 overflow-auto border rounded">
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-100 sticky top-0 z-10">
+                <tr>
+                  <th className="border px-2 py-2 text-left">Sail / Skipper</th>
+                  <th className="border px-2 py-2 text-center">Rating</th>
+                  <th className="border px-2 py-2 text-center">Days after start</th>
+                  <th className="border px-2 py-2 text-center">Finish Time</th>
+                  <th className="border px-2 py-2 text-center">Elapsed</th>
+                  <th className="border px-2 py-2 text-center">Corrected</th>
+                  <th className="border px-2 py-2 text-center">Add</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAvailable.map((entry, idx) => {
+                  const p = getPending(entry.id);
+                  const rating = getEffectiveRating(entry, method, orcRatingMode);
+                  const bg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                  const elapsedInput = (p.elapsedTime || '').trim();
+                  const correctedInput = (p.correctedTime || '').trim();
+                  const canAdd =
+                    (method === 'anc' || method === 'orc')
+                      ? !scoringLockedByMissingRating &&
+                        !!elapsedInput &&
+                        parseTimeToSeconds(elapsedInput) != null &&
+                        rating != null
+                      : !!correctedInput && parseTimeToSeconds(correctedInput) != null;
+                  return (
+                    <tr key={entry.id} className={bg}>
+                      <td className="border px-2 py-1">
+                        <SailNumberDisplay
+                          countryCode={(entry as any).boat_country_code}
+                          sailNumber={entry.sail_number}
+                        />
+                        {' — '}
+                        {entry.first_name} {entry.last_name}
+                        {entry.club ? <span className="text-gray-500"> ({entry.club})</span> : null}
+                      </td>
+                      <td className="border px-2 py-1 text-center">{rating ?? '—'}</td>
+                      <td className="border px-1 py-1 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          className="w-12 border rounded px-1 py-0.5 text-center text-sm"
+                          value={p.finishDay === '' ? '' : p.finishDay}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const nextFinishDay = raw === '' ? '' : Math.max(0, Number(raw) || 0);
+                            setPendingField(entry.id, 'finishDay', nextFinishDay);
+                            if (raceStartTime && p.finishTime) {
+                              const elapsedStr = computeElapsedFromStartAndFinish(
+                                START_DAY,
+                                timeStringToSeconds(raceStartTime),
+                                typeof nextFinishDay === 'number' ? nextFinishDay : 0,
+                                timeStringToSeconds(p.finishTime)
+                              );
+                              setPendingField(entry.id, 'elapsedTime', elapsedStr);
+                              if ((method === 'anc' || method === 'orc') && rating != null) {
+                                setPendingField(entry.id, 'correctedTime', ancCorrectedFromElapsed(elapsedStr, rating));
+                              }
+                            }
+                          }}
+                        />
+                      </td>
+                      <td className="border px-1 py-1 text-center">
+                        <TimeInput
+                          value={p.finishTime}
+                          onChange={(v) => {
+                            setPendingField(entry.id, 'finishTime', v);
+                            if (raceStartTime && v) {
+                              const elapsedStr = computeElapsedFromStartAndFinish(
+                                START_DAY,
+                                timeStringToSeconds(raceStartTime),
+                                typeof p.finishDay === 'number' ? p.finishDay : 0,
+                                timeStringToSeconds(v)
+                              );
+                              setPendingField(entry.id, 'elapsedTime', elapsedStr);
+                              if ((method === 'anc' || method === 'orc') && rating != null) {
+                                setPendingField(entry.id, 'correctedTime', ancCorrectedFromElapsed(elapsedStr, rating));
+                              }
+                            }
+                          }}
+                          className="w-24 border rounded px-1 py-0.5 text-center text-sm"
+                          placeholder="HH:MM:SS"
+                        />
+                      </td>
+                      <td className="border px-1 py-1 text-center">
+                        <TimeInput
+                          value={p.elapsedTime}
+                          onChange={(v) => {
+                            setPendingField(entry.id, 'elapsedTime', v);
+                            if (raceStartTime && v) {
+                              const elapsedSec = parseElapsedToSeconds(v);
+                              const computed = computeFinishFromStartAndElapsed(
+                                START_DAY,
+                                timeStringToSeconds(raceStartTime),
+                                elapsedSec
+                              );
+                              setPendingField(entry.id, 'finishDay', computed.finishDay);
+                              setPendingField(entry.id, 'finishTime', computed.finishTime);
+                            }
+                            if (method === 'anc' || method === 'orc') {
+                              if (rating != null && v && parseTimeToSeconds(v) != null) {
+                                setPendingField(entry.id, 'correctedTime', ancCorrectedFromElapsed(v, rating));
+                              } else {
+                                setPendingField(entry.id, 'correctedTime', '');
+                              }
+                            }
+                          }}
+                          className="w-24 border rounded px-1 py-0.5 text-center text-sm"
+                          placeholder="HH:MM:SS"
+                        />
+                      </td>
+                      <td className="border px-1 py-1 text-center">
+                        {(method === 'anc' || method === 'orc') ? (
+                          <span className="text-sm text-gray-800">{p.correctedTime || '—'}</span>
+                        ) : (
+                          <TimeInput
+                            value={p.correctedTime}
+                            onChange={(v) => setPendingField(entry.id, 'correctedTime', v)}
+                            className="w-24 border rounded px-1 py-0.5 text-center text-sm"
+                            placeholder="HH:MM:SS"
+                          />
+                        )}
+                      </td>
+                      <td className="border px-2 py-1 text-center">
+                        <button
+                          type="button"
+                          onClick={() => addPreparedEntry(entry)}
+                          disabled={!canAdd}
+                          title={
+                            canAdd
+                              ? 'Add entry to the time table'
+                              : (method === 'anc' || method === 'orc')
+                                ? (scoringLockedByMissingRating
+                                    ? 'Scoring locked: complete all ratings first'
+                                    : rating == null
+                                    ? 'Missing rating for this entry'
+                                    : 'Set a valid Elapsed Time first (HH:MM:SS)')
+                                : 'Set a valid Corrected Time first (HH:MM:SS)'
+                          }
+                          className="px-3 py-1.5 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Add
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
         <h4 className="text-sm font-semibold">
           Time table ({draft.length}) — ranking preview
         </h4>
@@ -538,14 +812,13 @@ export default function TimeScoringEditor({
                   <th className="border px-2 py-2 text-left">Skipper</th>
                   <th className="border px-2 py-2 text-center">Rating</th>
                   <th className="border px-2 py-2 text-center">Start time</th>
-                  <th className="border px-2 py-2 text-center">Finish Day</th>
+                  <th className="border px-2 py-2 text-center">Days after start</th>
                   <th className="border px-2 py-2 text-center">Finish Time</th>
                   <th className="border px-2 py-2 text-center">Elapsed</th>
                   <th className="border px-2 py-2 text-center">Corrected</th>
                   <th className="border px-2 py-2 text-center">Delta</th>
                   <th className="border px-2 py-2 text-center">Points</th>
                   <th className="border px-2 py-2 text-center">Code</th>
-                  <th className="border px-2 py-2 text-left">Notes</th>
                   <th className="border px-2 py-2 text-center">Ações</th>
                 </tr>
               </thead>
@@ -663,7 +936,7 @@ export default function TimeScoringEditor({
                         <TimeInput
                           value={row.elapsedTime}
                           onChange={(v) => {
-                            const isComplete = (v || '').replace(/\D/g, '').length >= 6;
+                            const isComplete = /^\d{1,2}:[0-5]\d:[0-5]\d$/.test((v || '').trim());
                             if (!isComplete) return;
                             onUpdateField(row.entryId, 'elapsedTime', v);
                             if (raceStartTime && raceId != null) {
@@ -683,7 +956,7 @@ export default function TimeScoringEditor({
                             }
                           }}
                           onBlurWithValue={(v) => {
-                            if ((v || '').replace(/\D/g, '').length >= 6) return;
+                            if (/^\d{1,2}:[0-5]\d:[0-5]\d$/.test((v || '').trim())) return;
                             onUpdateField(row.entryId, 'elapsedTime', v);
                             if (raceStartTime && raceId != null) {
                               const startSec = timeStringToSeconds(raceStartTime);
@@ -735,15 +1008,6 @@ export default function TimeScoringEditor({
                           ))}
                         </select>
                       </td>
-                      <td className="border px-1 py-1">
-                        <input
-                          type="text"
-                          value={row.notes ?? ''}
-                          onChange={(e) => onUpdateNotes(row.entryId, e.target.value)}
-                          className="w-40 border rounded px-1 py-0.5"
-                          placeholder="Notes (optional)"
-                        />
-                      </td>
                       <td className="border px-1 py-1 text-center">
                         <button
                           type="button"
@@ -766,7 +1030,9 @@ export default function TimeScoringEditor({
             <button
               type="button"
               onClick={onSave}
-              className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 text-sm"
+              disabled={scoringLockedByMissingRating}
+              title={scoringLockedByMissingRating ? 'Scoring locked: complete all ratings first' : ''}
+              className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save Handicap results
             </button>

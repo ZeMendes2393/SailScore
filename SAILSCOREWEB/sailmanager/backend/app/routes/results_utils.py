@@ -1,7 +1,7 @@
 # app/routes/results_utils.py
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import List, Optional, Dict, Any, Tuple, Union, Set
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -42,6 +42,16 @@ def _norm_sn(sn: Optional[str]) -> Optional[str]:
     return raw.upper() if raw else None
 
 
+def _fleet_assignment_key(sn_norm: Optional[str], boat_country_code: Optional[str]) -> Tuple[str, str]:
+    """
+    Desambigua dois barcos com o mesmo nº de vela na mesma classe (ex. CRO 12 vs outro 12).
+    Tem de bater com a chave usada nas FleetAssignments / Result.boat_country_code.
+    """
+    sn = (_norm_sn(sn_norm) if sn_norm else "") or ""
+    cc = (boat_country_code or "").strip().upper()
+    return (sn, cc)
+
+
 # =========================================================
 # Handicap / Time Scoring helpers
 # =========================================================
@@ -50,7 +60,15 @@ def _parse_time_to_seconds(s: Optional[str]) -> Optional[float]:
     """Parse HH:MM:SS or H:MM:SS to total seconds. Returns None if invalid."""
     if not s or not isinstance(s, str):
         return None
-    parts = (s or "").strip().split(":")
+    # normalizar caracteres invisíveis (copiar/colar CSV/UI pode introduzir \u200b/\ufeff/\xa0)
+    normalized = (
+        (s or "")
+        .replace("\u200b", "")
+        .replace("\ufeff", "")
+        .replace("\xa0", " ")
+        .strip()
+    )
+    parts = normalized.split(":")
     if len(parts) == 3:
         try:
             h, m, sec = int(parts[0]), int(parts[1]), float(parts[2])
@@ -158,6 +176,7 @@ def is_non_discardable(code: Optional[str]) -> bool:
 class ResultUpsert(BaseModel):
     regatta_id: int
     sail_number: str
+    boat_country_code: Optional[str] = None
     boat_name: Optional[str] = None
     helm_name: Optional[str] = None
     position: int = Field(ge=1)
@@ -167,6 +186,7 @@ class ResultUpsert(BaseModel):
 class SingleResultCreate(BaseModel):
     regatta_id: int
     sail_number: str
+    boat_country_code: Optional[str] = None
     boat_name: Optional[str] = None
     helm_name: Optional[str] = None
 
@@ -228,14 +248,14 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
     """
     devolve:
       total_count: int
-      sn_to_fleet_id: dict[str, int]
+      sn_to_fleet_id: dict[(sail_norm, country_norm), fleet_id] — evita colisão mesmo nº vela
       fleet_counts: dict[int, int]
       eligible_entries: list[tuple(entry_id, sail_number, boat_name, skipper_name, fleet_id|None)]
     """
     regatta_id = int(race.regatta_id)
     class_name = str(race.class_name or "")
 
-    sn_to_fleet_id: Dict[str, int] = {}
+    sn_to_fleet_id: Dict[Tuple[str, str], int] = {}
     fleet_counts: Dict[int, int] = {}
     # (entry_id, sail_number_norm, boat_name, skipper_name, fleet_id|None, boat_country_code|None, rating|None)
     eligible_entries: List[
@@ -273,15 +293,16 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             if not sn_norm:
                 continue
 
+            fkey = _fleet_assignment_key(sn_norm, boat_country_code)
             fid = int(fleet_id) if fleet_id is not None else None
             if fid is not None:
-                sn_to_fleet_id[sn_norm] = fid
+                sn_to_fleet_id[fkey] = fid
                 fleet_counts[fid] = fleet_counts.get(fid, 0) + 1
 
             skipper = f"{fn or ''} {ln or ''}".strip() or None
             eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, fid, boat_country_code, rating))
 
-        total_count = len({sn for (_, sn, *_rest) in eligible_entries})
+        total_count = len({t[0] for t in eligible_entries})
 
     else:
         rows = (
@@ -310,7 +331,7 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
             skipper = f"{fn or ''} {ln or ''}".strip() or None
             eligible_entries.append((int(entry_id), sn_norm, boat_name, skipper, None, boat_country_code, rating))
 
-        total_count = len({sn for (_, sn, *_rest) in eligible_entries})
+        total_count = len({t[0] for t in eligible_entries})
 
     return {
         "total_count": int(total_count),
@@ -320,7 +341,11 @@ def _build_competitor_context_for_race(db: Session, race: models.Race) -> Dict[s
     }
 
 
-def _auto_n_plus_one_points(ctx: Dict[str, Any], sail_number_norm: str) -> float:
+def _auto_n_plus_one_points(
+    ctx: Dict[str, Any],
+    sail_number_norm: str,
+    boat_country_code: Optional[str] = None,
+) -> float:
     """
     N+1 para códigos auto (DNC, DNF, OCS, UFD, etc.).
     - Com fleets: N = nº de sailors nessa fleet (pode variar por fleet).
@@ -328,11 +353,16 @@ def _auto_n_plus_one_points(ctx: Dict[str, Any], sail_number_norm: str) -> float
     sail_number_norm pode ser "" se não houver; nesse caso usa total_count.
     """
     total = int(ctx["total_count"])
-    sn_to_fid: Dict[str, int] = ctx["sn_to_fleet_id"]
+    sn_to_fid: Dict[Tuple[str, str], int] = ctx["sn_to_fleet_id"]
     fleet_counts: Dict[int, int] = ctx["fleet_counts"]
 
     if sail_number_norm:
-        fid = sn_to_fid.get(sail_number_norm)
+        fk = _fleet_assignment_key(sail_number_norm, boat_country_code)
+        fid = sn_to_fid.get(fk)
+        if fid is None:
+            same_sn = [k for k in sn_to_fid if k[0] == fk[0]]
+            if len(same_sn) == 1:
+                fid = sn_to_fid.get(same_sn[0])
         if fid is not None and fid in fleet_counts:
             return float(int(fleet_counts[fid]) + 1)
 
@@ -369,6 +399,7 @@ def compute_points_for_code(
     manual_points: Optional[float],
     scoring_map: Dict[str, float],
     ctx: Optional[Dict[str, Any]] = None,
+    boat_country_code: Optional[str] = None,
 ) -> float:
     c = _norm(code)
     if not c:
@@ -379,7 +410,7 @@ def compute_points_for_code(
 
     if c in AUTO_N_PLUS_ONE_CODES:
         sn_norm = _norm_sn(sail_number) or ""
-        return _auto_n_plus_one_points(ctx, sn_norm)
+        return _auto_n_plus_one_points(ctx, sn_norm, boat_country_code)
 
     if c in ADJUSTABLE_CODES:
         if c == "RDG":
@@ -405,11 +436,15 @@ def ensure_missing_results_as_dnc(
     ctx = _build_competitor_context_for_race(db, race)
 
     existing_rows = (
-        db.query(models.Result.sail_number)
+        db.query(models.Result.sail_number, models.Result.boat_country_code)
         .filter(models.Result.race_id == int(race.id))
         .all()
     )
-    existing = {_norm_sn(sn) for (sn,) in existing_rows if _norm_sn(sn)}
+    existing: Set[Tuple[str, str]] = set()
+    for sn_raw, cc_raw in existing_rows:
+        snn = _norm_sn(sn_raw)
+        if snn:
+            existing.add(_fleet_assignment_key(snn, cc_raw))
 
     max_pos = (
         db.query(models.Result.position)
@@ -420,32 +455,29 @@ def ensure_missing_results_as_dnc(
     next_pos = int(max_pos[0]) + 1 if max_pos and max_pos[0] is not None else 1
 
     created = 0
-    fleetSails = set()
-
-    if str(selectedFleetId) != "all":
-        fleetSails = {
-            e.sail_number for e in db.query(models.Entry)
-            .join(models.FleetAssignment, models.Entry.id == models.FleetAssignment.entry_id)
-            .join(models.Fleet, models.FleetAssignment.fleet_id == models.Fleet.id)
-            .filter(models.Fleet.id == int(selectedFleetId))
-        }
+    sel_fleet_id: Optional[int] = (
+        int(selectedFleetId) if str(selectedFleetId) != "all" else None
+    )
 
     for (
-        _entry_id,
+        entry_id,
         sn_norm,
         boat_name,
         skipper_name,
-        _fid,
+        fid,
         boat_country_code,
         rating,
     ) in ctx["eligible_entries"]:
-        if sn_norm in existing:
+        fkey = _fleet_assignment_key(sn_norm, boat_country_code)
+        if fkey in existing:
             continue
 
-        if str(selectedFleetId) != "all" and sn_norm not in fleetSails:
-            continue
+        if sel_fleet_id is not None:
+            efid = int(fid) if fid is not None else None
+            if efid != sel_fleet_id:
+                continue
 
-        pts = _auto_n_plus_one_points(ctx, sn_norm)
+        pts = _auto_n_plus_one_points(ctx, sn_norm, boat_country_code)
 
         row = models.Result(
             regatta_id=int(race.regatta_id),
@@ -476,29 +508,74 @@ def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
     ranked = [r for r in rows if not removes_from_ranking(r.code)]
     unranked = [r for r in rows if removes_from_ranking(r.code)]
 
-    ranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
-
     pos = 1
-    for r in ranked:
-        r.position = pos
-        c = _norm(getattr(r, "code", None))
+    if is_handicap:
+        # Handicap: manter empates por corrected_time com low-point (média dos pontos empatados).
+        ranked.sort(
+            key=lambda r: (
+                _parse_time_to_seconds(getattr(r, "corrected_time", None)) is None,
+                _parse_time_to_seconds(getattr(r, "corrected_time", None))
+                if _parse_time_to_seconds(getattr(r, "corrected_time", None)) is not None
+                else float("inf"),
+                int(r.id),
+            )
+        )
 
-        # ✅ 1) Se tiver points_override, MANDA (não muda code)
-        po = getattr(r, "points_override", None)
-        if po is not None:
-            r.points = float(po)
+        i = 0
+        n_ranked = len(ranked)
+        while i < n_ranked:
+            base_ct = _parse_time_to_seconds(getattr(ranked[i], "corrected_time", None))
+            tie_count = 1
+            while i + tie_count < n_ranked:
+                nxt_ct = _parse_time_to_seconds(getattr(ranked[i + tie_count], "corrected_time", None))
+                if nxt_ct != base_ct:
+                    break
+                tie_count += 1
 
-        # ✅ 2) Caso normal (sem override)
-        else:
-            if not c:
-                r.points = float(pos)
-            elif c in ADJUSTABLE_CODES:
-                # RDG/SCP/ZPF/DPI já guardam em r.points
-                r.points = float(r.points)
+            pts_avg = sum(pos + k for k in range(tie_count)) / tie_count
+
+            for k in range(tie_count):
+                r = ranked[i + k]
+                r.position = pos
+                c = _norm(getattr(r, "code", None))
+                po = getattr(r, "points_override", None)
+
+                if po is not None:
+                    r.points = float(po)
+                else:
+                    if not c:
+                        r.points = float(pts_avg)
+                    elif c in ADJUSTABLE_CODES:
+                        # RDG/SCP/ZPF/DPI já guardam em r.points
+                        r.points = float(r.points)
+                    else:
+                        r.points = float(scoring_map.get(c, r.points))
+
+            pos += tie_count
+            i += tie_count
+    else:
+        ranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
+
+        for r in ranked:
+            r.position = pos
+            c = _norm(getattr(r, "code", None))
+
+            # ✅ 1) Se tiver points_override, MANDA (não muda code)
+            po = getattr(r, "points_override", None)
+            if po is not None:
+                r.points = float(po)
+
+            # ✅ 2) Caso normal (sem override)
             else:
-                r.points = float(scoring_map.get(c, r.points))
+                if not c:
+                    r.points = float(pos)
+                elif c in ADJUSTABLE_CODES:
+                    # RDG/SCP/ZPF/DPI já guardam em r.points
+                    r.points = float(r.points)
+                else:
+                    r.points = float(scoring_map.get(c, r.points))
 
-        pos += 1
+            pos += 1
 
     unranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
     for r in unranked:
@@ -508,7 +585,13 @@ def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
             # Para códigos auto N+1 (DNC, DNF, DNS, etc.), usar sempre N+1,
             # tanto em One Design como em Handicap.
             sn_norm = _norm_sn(r.sail_number) or ""
-            r.points = float(_auto_n_plus_one_points(ctx, sn_norm))
+            r.points = float(
+                _auto_n_plus_one_points(
+                    ctx,
+                    sn_norm,
+                    getattr(r, "boat_country_code", None),
+                )
+            )
         else:
             r.points = float(scoring_map.get(c, r.points))
         # unranked não deve ter override a “mandar” na prática, mas se tiver, ignora
@@ -527,7 +610,7 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
         )
         .first()
     )
-    is_handicap = regatta_class and (regatta_class.class_type or "").lower() == "handicap"
+    is_handicap = bool(regatta_class and (regatta_class.class_type or "").lower() == "handicap")
 
     rows = (
         db.query(models.Result)
@@ -538,13 +621,31 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
     if not rows:
         return
 
+    # Fallback robusto: em dados legados, a classe pode não estar marcada como handicap
+    # mas as linhas já trazem campos de tempo.
+    if not is_handicap:
+        has_time_fields = any(
+            bool(getattr(r, "corrected_time", None) or getattr(r, "elapsed_time", None) or getattr(r, "finish_time", None))
+            for r in rows
+        )
+        if has_time_fields:
+            is_handicap = True
+
+    # Com fleet set: pontos e posições são independentes por frota (cada uma 1,2,3…).
     if getattr(race, "fleet_set_id", None):
         sn_to_fid = ctx["sn_to_fleet_id"]
         by_fleet: Dict[Optional[int], List[models.Result]] = {}
 
         for r in rows:
-            sn = _norm_sn(r.sail_number)
-            fid = sn_to_fid.get(sn) if sn else None
+            fk = _fleet_assignment_key(
+                _norm_sn(r.sail_number),
+                getattr(r, "boat_country_code", None),
+            )
+            fid = sn_to_fid.get(fk) if fk[0] else None
+            if fid is None and fk[0]:
+                same_sn = [k for k in sn_to_fid if k[0] == fk[0]]
+                if len(same_sn) == 1:
+                    fid = sn_to_fid.get(same_sn[0])
             by_fleet.setdefault(fid, []).append(r)
 
         for _fid, group in by_fleet.items():

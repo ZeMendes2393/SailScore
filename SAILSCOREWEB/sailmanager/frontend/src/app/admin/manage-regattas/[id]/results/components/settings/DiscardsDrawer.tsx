@@ -20,6 +20,7 @@ type DiscardPlanOut = {
   label?: string | null;
   schedule: number[];
 };
+const DEFAULT_DISCARD_SCHEDULE = '0,0,0,1,1,1,1,1,1,1,1,1,1';
 
 function parseSchedule(input: string) {
   const tokens = input
@@ -49,7 +50,7 @@ function parseSchedule(input: string) {
 function discardCountFromSchedule(schedule: number[], nRaces: number) {
   if (!schedule.length || nRaces <= 0) return 0;
   if (nRaces <= schedule.length) return schedule[nRaces - 1] ?? 0;
-  return schedule[schedule.length - 1] ?? 0; // opção A
+  return schedule[schedule.length - 1] ?? 0;
 }
 
 export default function DiscardsDrawer({
@@ -67,41 +68,35 @@ export default function DiscardsDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [isActive, setIsActive] = useState(true);
-  const [label, setLabel] = useState<string>('');
-  const [scheduleText, setScheduleText] = useState<string>('');
+  const [scheduleText, setScheduleText] = useState<string>(DEFAULT_DISCARD_SCHEDULE);
 
   useEffect(() => {
     setSelectedClass(class_name);
   }, [class_name]);
 
-  // carregar classes
+  // load classes
   useEffect(() => {
     (async () => {
       try {
-        console.log('Fetching classes for regatta:', regattaId);  // Log para depuração
         const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         const data: string[] = await res.json();
-        console.log('Classes received:', data);  // Log para verificar a resposta
         setClasses(data || []);
       } catch (error) {
-        console.error('Error fetching classes:', error);  // Log para erros de fetch
+        console.error('Error fetching classes:', error);
       }
     })();
   }, [regattaId, token]);
 
-  // carregar plano (schedule)
+  // load plan (schedule)
   useEffect(() => {
     if (!selectedClass) return;
     setLoading(true);
-  console.log(`${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`);
 
     (async () => {
       try {
-        console.log(`Fetching discard plan for ${selectedClass} in regatta ${regattaId}`);  // Log para depuração
         const res = await fetch(
           `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
           {
@@ -110,16 +105,11 @@ export default function DiscardsDrawer({
           }
         );
         const data: DiscardPlanOut = await res.json();
-        console.log('Discard plan received:', data);  // Log para verificar a resposta
-
-        setIsActive(!!data.is_active);
-        setLabel(data.label ?? '');
-        setScheduleText((data.schedule ?? []).join(','));
+        const next = (data.schedule ?? []).join(',').trim();
+        setScheduleText(next || DEFAULT_DISCARD_SCHEDULE);
       } catch (error) {
-        console.error('Error fetching discard plan:', error);  // Log para erros de fetch
-        setIsActive(false);
-        setLabel('');
-        setScheduleText('');
+        console.error('Error fetching discard plan:', error);
+        setScheduleText(DEFAULT_DISCARD_SCHEDULE);
       } finally {
         setLoading(false);
       }
@@ -139,18 +129,17 @@ export default function DiscardsDrawer({
   const save = async () => {
     if (!selectedClass) return;
 
-    if (isActive && parsed.schedule.length === 0) {
-      alert('O schedule está vazio. Mete algo tipo: 0,0,0,1,1,1');
+    if (parsed.schedule.length === 0) {
+      alert('Schedule is empty. Use something like: 0,0,0,1,1,1');
       return;
     }
     if (parsed.invalid.length) {
-      alert(`Há valores inválidos no schedule: ${parsed.invalid.join(', ')}`);
+      alert(`Invalid values in schedule: ${parsed.invalid.join(', ')}`);
       return;
     }
 
     setSaving(true);
     try {
-      console.log('Sending discard plan to save...');  // Log para depuração
       const res = await fetch(
         `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
         {
@@ -161,65 +150,37 @@ export default function DiscardsDrawer({
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            is_active: isActive,
-            label: label || null,
+            is_active: true,
+            label: null,
             schedule: parsed.schedule,
           }),
         }
       );
       if (!res.ok) throw new Error(await res.text().catch(() => ''));
-      alert('Discard schedule guardado.');
+      alert('Discard schedule saved.');
     } catch (e: any) {
-      console.error('Error saving discard plan:', e);  // Log para erros de envio
-      alert(e?.message || 'Falha ao guardar discard schedule.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removePlan = async () => {
-    if (!selectedClass) return;
-    if (!confirm('Eliminar discard schedule desta classe?')) return;
-
-    setSaving(true);
-    try {
-      console.log('Removing discard plan...');  // Log para depuração
-      const res = await fetch(
-        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        }
-      );
-      if (!res.ok) throw new Error(await res.text().catch(() => ''));
-      setIsActive(false);
-      setLabel('');
-      setScheduleText('');
-      alert('Discard schedule removido.');
-    } catch (e: any) {
-      console.error('Error removing discard plan:', e);  // Log para erros de remoção
-      alert(e?.message || 'Falha ao remover discard schedule.');
+      console.error('Error saving discard plan:', e);
+      alert(e?.message || 'Failed to save discard schedule.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
       <div className="absolute right-0 top-0 h-full w-full max-w-[560px] bg-white shadow-xl p-5 overflow-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Discards (Standard)</h3>
           <button onClick={onClose} className="px-3 py-1 rounded border hover:bg-gray-50">
-            Fechar
+          Close
           </button>
         </div>
 
-        {/* Classe */}
+        {/* Class */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Classe</label>
+          <label className="block text-sm font-medium mb-1">Class</label>
 
           {lockClassSelect ? (
             <div className="border rounded px-3 py-2 bg-gray-50 text-sm">{selectedClass}</div>
@@ -239,27 +200,9 @@ export default function DiscardsDrawer({
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-600">A carregar…</p>
+          <p className="text-sm text-gray-600">Loading…</p>
         ) : (
           <>
-            {/* Ativo + label */}
-            <div className="mb-5 space-y-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                Ativo
-              </label>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Label (opcional)</label>
-                <input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  className="border rounded px-3 py-2 w-full"
-                  placeholder="ex: Standard Nationals 2026"
-                />
-              </div>
-            </div>
-
             {/* Schedule */}
             <div className="mb-6">
               <label className="block text-sm font-medium mb-1">Schedule</label>
@@ -267,27 +210,28 @@ export default function DiscardsDrawer({
                 value={scheduleText}
                 onChange={(e) => setScheduleText(e.target.value)}
                 className="border rounded px-3 py-2 w-full"
-                placeholder="ex: 0,0,0,1,1,1,2,2,2"
+                placeholder="e.g. 0,0,0,1,1,1,2,2,2"
               />
 
-              <div className="mt-2 text-xs text-gray-600 border rounded p-2 bg-gray-50">
+              <div className="mt-2 text-sm text-gray-600 border rounded p-2 bg-gray-50">
                 <div>
                   <span className="font-medium">Preview:</span>{' '}
                   {parsed.schedule.length ? parsed.schedule.join(',') : '—'}
                 </div>
                 <div className="mt-1">
-                  <span className="font-medium">Corridas na classe:</span> {nRaces} →{' '}
-                  <span className="font-medium">Descartes agora:</span> {isActive ? currentD : 0}
+                  <span className="font-medium">Races in class:</span> {nRaces} →{' '}
+                  <span className="font-medium">Discards now:</span> {currentD}
                 </div>
                 {!!parsed.invalid.length && (
                   <div className="mt-1 text-red-600">
-                    Inválidos: {parsed.invalid.join(', ')}
+                    Invalid: {parsed.invalid.join(', ')}
                   </div>
                 )}
               </div>
 
-              <p className="text-xs text-gray-500 mt-2">
-                Regra: schedule[N-1] dá os descartes para N corridas. Se N for maior do que a lista, mantém o último valor.
+              <p className="text-sm text-gray-500 mt-2">
+                Rule: schedule defines discards for N races. If N is greater than the list length,
+                the last value is reused.
               </p>
             </div>
 
@@ -298,15 +242,7 @@ export default function DiscardsDrawer({
                 disabled={!selectedClass || saving}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-4 py-2 rounded"
               >
-                {saving ? 'A guardar…' : 'Guardar'}
-              </button>
-
-              <button
-                onClick={removePlan}
-                disabled={!selectedClass || saving}
-                className="px-3 py-2 rounded border hover:bg-red-50 text-red-600"
-              >
-                Apagar plano
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </>

@@ -2,25 +2,35 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-/** Formata "045015" -> "04:50:15". Aceita string HH:MM:SS ou só dígitos. */
-export function formatTimeDisplay(raw: string): string {
-  const digits = (raw || '').replace(/\D/g, '').slice(0, 6);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`;
+/** Formata dígitos para tempo, suportando hora com 2 ou 3 dígitos. */
+export function formatTimeDisplay(raw: string, hourDigits = 2): string {
+  const safeHourDigits = Math.max(1, Math.floor(hourDigits));
+  const maxDigits = safeHourDigits + 4;
+  const digits = (raw || '').replace(/\D/g, '').slice(0, maxDigits);
+  if (digits.length <= safeHourDigits) return digits;
+  if (digits.length <= safeHourDigits + 2) {
+    return `${digits.slice(0, safeHourDigits)}:${digits.slice(safeHourDigits)}`;
+  }
+  return `${digits.slice(0, safeHourDigits)}:${digits.slice(safeHourDigits, safeHourDigits + 2)}:${digits.slice(safeHourDigits + 2, safeHourDigits + 4)}`;
 }
 
-/** De "04:50:15" ou "045015" extrai só os dígitos (até 6). */
-export function timeToDigits(value: string): string {
-  return (value || '').replace(/\D/g, '').slice(0, 6);
+/** Extrai só os dígitos (até hora+MM+SS). */
+export function timeToDigits(value: string, hourDigits = 2): string {
+  const safeHourDigits = Math.max(1, Math.floor(hourDigits));
+  const maxDigits = safeHourDigits + 4;
+  return (value || '').replace(/\D/g, '').slice(0, maxDigits);
 }
 
-/** De dígitos "045015" produz "04:50:15" (sempre HH:MM:SS se tiver 6 dígitos). */
-export function digitsToTime(digits: string): string {
-  const d = digits.slice(0, 6);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}:${d.slice(2)}`;
-  return `${d.slice(0, 2)}:${d.slice(2, 4)}:${d.slice(4, 6)}`;
+/** De dígitos produz tempo no formato H..H:MM:SS (parcial enquanto digita). */
+export function digitsToTime(digits: string, hourDigits = 2): string {
+  const safeHourDigits = Math.max(1, Math.floor(hourDigits));
+  const maxDigits = safeHourDigits + 4;
+  const d = digits.slice(0, maxDigits);
+  if (d.length <= safeHourDigits) return d;
+  if (d.length <= safeHourDigits + 2) {
+    return `${d.slice(0, safeHourDigits)}:${d.slice(safeHourDigits)}`;
+  }
+  return `${d.slice(0, safeHourDigits)}:${d.slice(safeHourDigits, safeHourDigits + 2)}:${d.slice(safeHourDigits + 2, safeHourDigits + 4)}`;
 }
 
 interface TimeInputProps {
@@ -30,48 +40,51 @@ interface TimeInputProps {
   /** Chamado no blur com o valor final (HH:MM:SS). Útil para commit só ao sair do campo. */
   onBlurWithValue?: (value: string) => void;
   placeholder?: string;
+  /** 2 para HH:MM:SS (default), 3 para HHH:MM:SS. */
+  hourDigits?: number;
   className?: string;
   id?: string;
   'aria-label'?: string;
 }
 
 /**
- * Input de tempo HH:MM:SS. O utilizador pode escrever só números (ex.: 045015)
- * e o campo formata automaticamente para 04:50:15 (avança para minutos após 2 dígitos,
- * para segundos após 4).
+ * Input de tempo HH:MM:SS (ou HHH:MM:SS com hourDigits=3).
+ * O utilizador pode escrever só números e o campo formata automaticamente.
  */
 export function TimeInput({
   value,
   onChange,
   onBlur: onBlurProp,
   onBlurWithValue,
-  placeholder = 'HH:MM:SS',
+  placeholder,
+  hourDigits = 2,
   className = '',
   id,
   'aria-label': ariaLabel,
 }: TimeInputProps) {
-  const digits = timeToDigits(value);
-  const display = formatTimeDisplay(digits);
+  const finalPlaceholder = placeholder ?? (hourDigits === 3 ? 'HHH:MM:SS' : 'HH:MM:SS');
+  const digits = timeToDigits(value, hourDigits);
+  const display = formatTimeDisplay(digits, hourDigits);
 
   const [local, setLocal] = useState(display);
   const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     if (!focused) {
-      const d = timeToDigits(value);
-      setLocal(formatTimeDisplay(d));
+      const d = timeToDigits(value, hourDigits);
+      setLocal(formatTimeDisplay(d, hourDigits));
     }
-  }, [value, focused]);
+  }, [value, focused, hourDigits]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      const newDigits = raw.replace(/\D/g, '').slice(0, 6);
-      setLocal(formatTimeDisplay(newDigits));
-      const out = digitsToTime(newDigits);
+      const newDigits = timeToDigits(raw, hourDigits);
+      setLocal(formatTimeDisplay(newDigits, hourDigits));
+      const out = digitsToTime(newDigits, hourDigits);
       onChange(out);
     },
-    [onChange]
+    [onChange, hourDigits]
   );
 
   const handleFocus = useCallback(() => {
@@ -81,24 +94,24 @@ export function TimeInput({
 
   const handleBlur = useCallback(() => {
     setFocused(false);
-    const d = timeToDigits(local);
-    const formatted = digitsToTime(d);
-    setLocal(formatTimeDisplay(d));
+    const d = timeToDigits(local, hourDigits);
+    const formatted = digitsToTime(d, hourDigits);
+    setLocal(formatTimeDisplay(d, hourDigits));
     onBlurWithValue?.(formatted);
     onBlurProp?.();
-  }, [local, onBlurProp, onBlurWithValue]);
+  }, [local, onBlurProp, onBlurWithValue, hourDigits]);
 
   return (
     <input
       type="text"
       inputMode="numeric"
       pattern="[0-9:]*"
-      maxLength={8}
-      value={focused ? local : formatTimeDisplay(timeToDigits(value))}
+      maxLength={hourDigits + 6}
+      value={focused ? local : formatTimeDisplay(timeToDigits(value, hourDigits), hourDigits)}
       onChange={handleChange}
       onFocus={handleFocus}
       onBlur={handleBlur}
-      placeholder={placeholder}
+      placeholder={finalPlaceholder}
       className={className}
       id={id}
       aria-label={ariaLabel}

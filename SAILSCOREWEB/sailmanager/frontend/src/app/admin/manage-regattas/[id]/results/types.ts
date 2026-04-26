@@ -31,6 +31,10 @@ export interface Entry {
   orc_low?: number | null;
   orc_medium?: number | null;
   orc_high?: number | null;
+  crew_members?: Array<{
+    first_name?: string | null;
+    last_name?: string | null;
+  }> | null;
 }
 
 export interface ApiResult {
@@ -53,7 +57,6 @@ export interface ApiResult {
   elapsed_time?: string | null;
   corrected_time?: string | null;
   delta?: string | null;
-  notes?: string | null;
 }
 
 export interface DraftResult {

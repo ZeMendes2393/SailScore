@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Body, status, UploadFile, File, Form
 from fastapi.responses import Response
@@ -36,6 +36,69 @@ from app.routes.results_utils import (
 router = APIRouter()
 
 
+def _norm_cc(v: Optional[str]) -> Optional[str]:
+    raw = (v or "").strip().upper()
+    return raw or None
+
+
+def _find_entry_for_result_identity(
+    db: Session,
+    *,
+    regatta_id: int,
+    class_name: str,
+    sail_number_norm: Optional[str],
+    boat_country_code: Optional[str],
+    require_country_when_ambiguous: bool = True,
+) -> Optional[models.Entry]:
+    """
+    Resolve Entry por sail_number + boat_country_code.
+    Se houver colisão por sail_number e o country não vier, força 400 para evitar associações erradas.
+    """
+    if not sail_number_norm:
+        return None
+
+    base_q = (
+        db.query(models.Entry)
+        .filter(
+            models.Entry.regatta_id == regatta_id,
+            models.Entry.class_name == class_name,
+            func.lower(models.Entry.sail_number) == sail_number_norm.lower(),
+        )
+    )
+
+    cc_norm = _norm_cc(boat_country_code)
+    if cc_norm:
+        return (
+            base_q.filter(func.upper(func.trim(models.Entry.boat_country_code)) == cc_norm)
+            .first()
+        )
+
+    matches = base_q.all()
+    if len(matches) > 1 and require_country_when_ambiguous:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"boat_country_code is required for sail_number '{sail_number_norm}' "
+                "because more than one entry has the same sail number."
+            ),
+        )
+    return matches[0] if matches else None
+
+
+def _build_result_identity_filter(
+    identities: set[Tuple[str, str]],
+):
+    clauses = []
+    for sn, cc in identities:
+        clauses.append(
+            and_(
+                models.Result.sail_number == sn,
+                func.upper(func.trim(models.Result.boat_country_code)) == cc,
+            )
+        )
+    return or_(*clauses) if clauses else None
+
+
 @router.get("/races/{race_id}/results", response_model=List[schemas.ResultRead])
 def get_results_for_race(race_id: int, db: Session = Depends(get_db)):
     return (
@@ -54,11 +117,11 @@ def upsert_single_result(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)
@@ -67,35 +130,53 @@ def upsert_single_result(
         db.query(models.Result)
         .filter(
             models.Result.race_id == race_id,
-            models.Result.sail_number == payload.sail_number,
+            models.Result.sail_number == (_norm_sn(payload.sail_number) or payload.sail_number),
         )
-        .first()
     )
 
+    payload_cc = _norm_cc(getattr(payload, "boat_country_code", None))
+    if payload_cc:
+        existing = existing.filter(
+            func.upper(func.trim(models.Result.boat_country_code)) == payload_cc
+        )
+        existing = existing.first()
+    else:
+        existing_rows = existing.all()
+        if len(existing_rows) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"boat_country_code is required for sail_number '{payload.sail_number}' "
+                    "because this race already has multiple results with that sail number."
+                ),
+            )
+        existing = existing_rows[0] if existing_rows else None
+
+    entry = _find_entry_for_result_identity(
+        db,
+        regatta_id=payload.regatta_id,
+        class_name=str(race.class_name or ""),
+        sail_number_norm=_norm_sn(payload.sail_number),
+        boat_country_code=payload_cc,
+    )
     if existing:
         existing.boat_name = payload.boat_name
         existing.skipper_name = payload.helm_name
         existing.position = int(payload.position)
         existing.points = float(payload.points)
         existing.class_name = race.class_name
+        if payload_cc:
+            existing.boat_country_code = payload_cc
+        elif entry is not None:
+            existing.boat_country_code = _norm_cc(getattr(entry, "boat_country_code", None))
         db.flush()
         normalize_race_results(db, race)
         db.commit()
         db.refresh(existing)
         return existing
 
-    # Look up boat_country_code from entry
     sn_norm = _norm_sn(payload.sail_number) or payload.sail_number
-    entry = (
-        db.query(models.Entry)
-        .filter(
-            models.Entry.regatta_id == payload.regatta_id,
-            models.Entry.class_name == race.class_name,
-            func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
-        )
-        .first()
-    ) if sn_norm else None
-    boat_cc = getattr(entry, "boat_country_code", None) if entry else None
+    boat_cc = payload_cc or (_norm_cc(getattr(entry, "boat_country_code", None)) if entry else None)
 
     new_r = models.Result(
         regatta_id=payload.regatta_id,
@@ -141,24 +222,38 @@ def add_single_result(
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
-    if payload.sail_number:
-        exists = (
-            db.query(models.Result)
-            .filter(
-                and_(
-                    models.Result.race_id == race_id,
-                    models.Result.sail_number == _norm_sn(payload.sail_number),
-                )
-            )
-            .first()
-        )
-        if exists:
-            raise HTTPException(409, "Este barco já tem resultado nesta corrida")
-
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
 
     code = _norm(payload.code)
     desired_pos = int(payload.desired_position)
+
+    sn_res = _norm_sn(payload.sail_number) or payload.sail_number
+    payload_cc = _norm_cc(getattr(payload, "boat_country_code", None))
+    entry_res = _find_entry_for_result_identity(
+        db,
+        regatta_id=payload.regatta_id,
+        class_name=str(race.class_name or ""),
+        sail_number_norm=_norm_sn(sn_res),
+        boat_country_code=payload_cc,
+    )
+
+    if payload.sail_number:
+        cc_filter = payload_cc or _norm_cc(getattr(entry_res, "boat_country_code", None))
+        q = db.query(models.Result).filter(
+            models.Result.race_id == race_id,
+            models.Result.sail_number == sn_res,
+        )
+        if cc_filter:
+            q = q.filter(
+                func.upper(func.trim(models.Result.boat_country_code)) == cc_filter
+            )
+        else:
+            q = q.filter(
+                (models.Result.boat_country_code == None)
+                | (func.trim(models.Result.boat_country_code) == "")
+            )
+        if q.first():
+            raise HTTPException(409, "Este barco já tem resultado nesta corrida")
 
     # calcular points
     if code:
@@ -170,6 +265,7 @@ def add_single_result(
                 code=code,
                 manual_points=payload.points,
                 scoring_map=scoring_map,
+                boat_country_code=payload_cc or getattr(entry_res, "boat_country_code", None),
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -198,17 +294,7 @@ def add_single_result(
         )
         pos = desired_pos
 
-    sn_res = _norm_sn(payload.sail_number) or payload.sail_number
-    entry_res = (
-        db.query(models.Entry)
-        .filter(
-            models.Entry.regatta_id == payload.regatta_id,
-            models.Entry.class_name == race.class_name,
-            func.lower(models.Entry.sail_number) == (sn_res or "").lower(),
-        )
-        .first()
-    ) if sn_res else None
-    boat_cc_res = getattr(entry_res, "boat_country_code", None) if entry_res else None
+    boat_cc_res = payload_cc or (_norm_cc(getattr(entry_res, "boat_country_code", None)) if entry_res else None)
 
     new_res = models.Result(
         regatta_id=payload.regatta_id,
@@ -374,12 +460,24 @@ def create_results_for_race(
     # A corrida tem fleet_set associado?
     has_fleets = bool(getattr(race, "fleet_set_id", None))
 
-    # Normalizar sails do payload (para deletes parciais em caso de fleet)
-    payload_sails: set[str] = set()
+    # Normalizar identidades do payload (sail+country) para deletes parciais em caso de fleet
+    payload_identities: set[Tuple[str, str]] = set()
     for r in results:
         sn = _norm_sn(r.sail_number)
-        if sn:
-            payload_sails.add(sn)
+        if not sn:
+            continue
+        cc = _norm_cc(getattr(r, "boat_country_code", None))
+        if not cc:
+            entry_r = _find_entry_for_result_identity(
+                db,
+                regatta_id=r.regatta_id,
+                class_name=str(race.class_name or ""),
+                sail_number_norm=sn,
+                boat_country_code=None,
+            )
+            cc = _norm_cc(getattr(entry_r, "boat_country_code", None)) if entry_r else None
+        if cc:
+            payload_identities.add((sn, cc))
 
     # -------------------------------------------------
     # 1) RESCORE: apagar o que já existe no scope certo
@@ -393,11 +491,13 @@ def create_results_for_race(
         # corrida com fleets E fleet_id específico:
         # não temos coluna fleet_id na tabela results,
         # por isso apagamos apenas pelos sails que vêm no payload
-        if payload_sails:
-            db.query(models.Result).filter(
-                models.Result.race_id == race_id,
-                models.Result.sail_number.in_(payload_sails),
-            ).delete(synchronize_session=False)
+        if payload_identities:
+            identity_filter = _build_result_identity_filter(payload_identities)
+            if identity_filter is not None:
+                db.query(models.Result).filter(
+                    models.Result.race_id == race_id,
+                    identity_filter,
+                ).delete(synchronize_session=False)
 
     db.flush()
 
@@ -428,18 +528,21 @@ def create_results_for_race(
 
         code = _norm(getattr(r, "code", None))
 
-        boat_cc = getattr(r, "boat_country_code", None)
+        boat_cc = _norm_cc(getattr(r, "boat_country_code", None))
+        entry_r = _find_entry_for_result_identity(
+            db,
+            regatta_id=r.regatta_id,
+            class_name=str(race.class_name or ""),
+            sail_number_norm=sn_norm,
+            boat_country_code=boat_cc,
+        )
+        if not boat_cc and entry_r is not None:
+            boat_cc = _norm_cc(getattr(entry_r, "boat_country_code", None))
         if not boat_cc:
-            entry_r = (
-                db.query(models.Entry)
-                .filter(
-                    models.Entry.regatta_id == r.regatta_id,
-                    models.Entry.class_name == race.class_name,
-                    func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
-                )
-                .first()
+            raise HTTPException(
+                status_code=400,
+                detail=f"boat_country_code is required for sail_number '{sn_norm}'.",
             )
-            boat_cc = getattr(entry_r, "boat_country_code", None) if entry_r else None
 
         if not is_handicap:
             # One Design: usar position e points do payload
@@ -452,6 +555,7 @@ def create_results_for_race(
                         code=code,
                         manual_points=float(r.points) if r.points is not None else None,
                         scoring_map=scoring_map,
+                        boat_country_code=boat_cc,
                     )
                 else:
                     pts = float(r.position if r.points is None else r.points)
@@ -483,21 +587,25 @@ def create_results_for_race(
         for r, (pos, delta_str, pts) in zip(results, rankings):
             sn_norm = _norm_sn(r.sail_number)
             # snapshot de dados da Entry (country code + rating)
-            entry_r = (
-                db.query(models.Entry)
-                .filter(
-                    models.Entry.regatta_id == r.regatta_id,
-                    models.Entry.class_name == race.class_name,
-                    func.lower(models.Entry.sail_number) == (sn_norm or "").lower(),
-                )
-                .first()
+            boat_cc = _norm_cc(getattr(r, "boat_country_code", None))
+            entry_r = _find_entry_for_result_identity(
+                db,
+                regatta_id=r.regatta_id,
+                class_name=str(race.class_name or ""),
+                sail_number_norm=sn_norm,
+                boat_country_code=boat_cc,
             ) if sn_norm else None
 
-            boat_cc = getattr(r, "boat_country_code", None)
             if not boat_cc and entry_r is not None:
-                boat_cc = getattr(entry_r, "boat_country_code", None)
+                boat_cc = _norm_cc(getattr(entry_r, "boat_country_code", None))
+            if not boat_cc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"boat_country_code is required for sail_number '{sn_norm}'.",
+                )
 
-            rating_val = getattr(entry_r, "rating", None) if entry_r is not None else None
+            provided_rating = getattr(r, "rating", None)
+            rating_val = provided_rating if provided_rating is not None else (getattr(entry_r, "rating", None) if entry_r is not None else None)
             finish_day_val = getattr(r, "finish_day", None)
             if finish_day_val is not None and not isinstance(finish_day_val, int):
                 try:
@@ -521,7 +629,6 @@ def create_results_for_race(
                 elapsed_time=(getattr(r, "elapsed_time", None) or "").strip() or None,
                 corrected_time=(getattr(r, "corrected_time", None) or "").strip() or None,
                 delta=delta_str,
-                notes=(getattr(r, "notes", None) or "").strip() or None,
             )
             db.add(row)
 
@@ -561,13 +668,47 @@ def _race_is_one_design(db: Session, race: models.Race) -> bool:
     return regatta_class is not None and (regatta_class.class_type or "").lower() != "handicap"
 
 
+def _race_handicap_csv_columns(race: models.Race) -> list[str]:
+    method = (getattr(race, "handicap_method", None) or "manual").strip().lower()
+    cols = [
+        "sail_number",
+        "boat_country_code",
+        "finish_day",
+        "finish_time",
+        "elapsed_time",
+        "corrected_time",
+        "code",
+    ]
+    if method in ("anc", "orc"):
+        cols.append("rating")
+    return cols
+
+
+def _effective_entry_rating_for_race(entry: models.Entry | None, race: models.Race) -> float | None:
+    if entry is None:
+        return None
+    method = (getattr(race, "handicap_method", None) or "manual").strip().lower()
+    if method == "anc":
+        val = getattr(entry, "rating", None)
+    elif method == "orc":
+        mode = (getattr(race, "orc_rating_mode", None) or "medium").strip().lower()
+        field_map = {"low": "orc_low", "medium": "orc_medium", "high": "orc_high"}
+        val = getattr(entry, field_map.get(mode, "orc_medium"), None)
+    else:
+        return None
+    try:
+        return float(val) if val is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 @router.get("/races/{race_id}/export/csv")
 def export_race_results_csv(
     race_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Export this race results as CSV (one design only). Header: sail_number,points,code."""
+    """Export this race results as CSV (one design or handicap)."""
     if current_user.role not in ("admin", "platform_admin"):
         raise HTTPException(status_code=403, detail="Acesso negado")
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
@@ -576,11 +717,6 @@ def export_race_results_csv(
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)
-    if not _race_is_one_design(db, race):
-        raise HTTPException(
-            status_code=400,
-            detail="Export CSV está disponível apenas para corridas One Design.",
-        )
     rows = (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
@@ -589,12 +725,35 @@ def export_race_results_csv(
     )
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["sail_number", "points", "code"])
-    for r in rows:
-        pts = r.points_override if r.points_override is not None else (r.points or 0)
-        writer.writerow([r.sail_number or "", str(pts), (r.code or "").strip() or ""])
+    if _race_is_one_design(db, race):
+        writer.writerow(["sail_number", "boat_country_code", "points", "code"])
+        for r in rows:
+            pts = r.points_override if r.points_override is not None else (r.points or 0)
+            writer.writerow(
+                [
+                    r.sail_number or "",
+                    (r.boat_country_code or "").strip().upper(),
+                    str(pts),
+                    (r.code or "").strip() or "",
+                ]
+            )
+    else:
+        cols = _race_handicap_csv_columns(race)
+        writer.writerow(cols)
+        for r in rows:
+            row_map = {
+                "sail_number": r.sail_number or "",
+                "boat_country_code": (r.boat_country_code or "").strip().upper(),
+                "finish_day": "" if r.finish_day is None else str(r.finish_day),
+                "finish_time": r.finish_time or "",
+                "elapsed_time": r.elapsed_time or "",
+                "corrected_time": r.corrected_time or "",
+                "code": (r.code or "").strip() or "",
+                "rating": "" if r.rating is None else str(r.rating),
+            }
+            writer.writerow([row_map.get(c, "") for c in cols])
     content = buf.getvalue()
-    filename = f"one_design_race_{race_id}.csv"
+    filename = f"race_{race_id}_results.csv"
     return Response(
         content=content.encode("utf-8"),
         media_type="text/csv",
@@ -603,64 +762,191 @@ def export_race_results_csv(
 
 
 def _parse_one_design_csv(content: bytes) -> tuple:
-    """Parse CSV with header sail_number,points,code. Returns (rows, errors)."""
+    """Parse CSV with header sail_number,boat_country_code,points,code. Returns (rows, errors)."""
     errors = []
     rows = []
     try:
         text = content.decode("utf-8-sig").strip()
     except Exception as e:
-        errors.append(f"Ficheiro não é UTF-8: {e}")
+        errors.append(f"File is not valid UTF-8: {e}")
         return rows, errors
     if not text:
-        errors.append("Ficheiro vazio.")
+        errors.append("File is empty.")
         return rows, errors
     reader = csv.reader(io.StringIO(text))
     header = next(reader, None)
     if not header:
-        errors.append("Cabeçalho em falta.")
+        errors.append("Missing header row.")
         return rows, errors
     norm_header = [h.strip().lower() for h in header]
-    idx_sn = idx_pts = idx_code = -1
+    idx_sn = idx_cc = idx_pts = idx_code = -1
     for i, h in enumerate(norm_header):
         if h == "sail_number":
             idx_sn = i
+        elif h == "boat_country_code":
+            idx_cc = i
         elif h == "points":
             idx_pts = i
         elif h == "code":
             idx_code = i
     if idx_sn < 0:
-        errors.append("Coluna obrigatória 'sail_number' em falta.")
+        errors.append("Missing required column 'sail_number'.")
+        return rows, errors
+    if idx_cc < 0:
+        errors.append("Missing required column 'boat_country_code'.")
         return rows, errors
     if idx_pts < 0 and idx_code < 0:
-        errors.append("É obrigatório ter 'points' ou 'code' (ou ambos).")
+        errors.append("At least one of 'points' or 'code' is required.")
         return rows, errors
-    seen_sails = set()
+    seen_keys = set()
     for row_num, row in enumerate(reader, start=2):
-        max_idx = max(idx_sn, idx_pts if idx_pts >= 0 else 0, idx_code if idx_code >= 0 else 0)
+        max_idx = max(idx_sn, idx_cc, idx_pts if idx_pts >= 0 else 0, idx_code if idx_code >= 0 else 0)
         if len(row) <= max_idx:
-            errors.append(f"Linha {row_num}: campos em falta.")
+            errors.append(f"Line {row_num}: missing fields.")
             continue
         sn = (row[idx_sn] or "").strip()
+        cc = (row[idx_cc] or "").strip().upper()
         if not sn:
-            errors.append(f"Linha {row_num}: sail_number obrigatório.")
+            errors.append(f"Line {row_num}: 'sail_number' is required.")
+            continue
+        if not cc:
+            errors.append(f"Line {row_num}: 'boat_country_code' is required.")
             continue
         sn_upper = sn.upper()
-        if sn_upper in seen_sails:
-            errors.append(f"Linha {row_num}: sail_number duplicado '{sn}'.")
+        key = (sn_upper, cc)
+        if key in seen_keys:
+            errors.append(f"Line {row_num}: duplicate pair '{cc} {sn_upper}'.")
             continue
-        seen_sails.add(sn_upper)
+        seen_keys.add(key)
         pts_val = (row[idx_pts] or "").strip() if idx_pts >= 0 else ""
         code_val = (row[idx_code] or "").strip() if idx_code >= 0 else ""
         if not pts_val and not code_val:
-            errors.append(f"Linha {row_num}: é obrigatório preencher 'points' ou 'code'.")
+            errors.append(f"Line {row_num}: fill at least one of 'points' or 'code'.")
             continue
         if pts_val:
             try:
                 float(pts_val)
             except ValueError:
-                errors.append(f"Linha {row_num}: 'points' deve ser numérico.")
+                errors.append(f"Line {row_num}: 'points' must be numeric.")
                 continue
-        rows.append({"sail_number": sn_upper, "points": pts_val, "code": code_val.upper() if code_val else None})
+        rows.append(
+            {
+                "sail_number": sn_upper,
+                "boat_country_code": cc,
+                "points": pts_val,
+                "code": code_val.upper() if code_val else None,
+            }
+        )
+    return rows, errors
+
+
+def _parse_handicap_csv(content: bytes, columns: list[str]) -> tuple[list[dict], list[str]]:
+    """Parse handicap CSV and validate format according to selected handicap mode columns."""
+    errors: list[str] = []
+    rows: list[dict] = []
+    try:
+        text = content.decode("utf-8-sig").strip()
+    except Exception as e:
+        errors.append(f"File is not valid UTF-8: {e}")
+        return rows, errors
+    if not text:
+        errors.append("File is empty.")
+        return rows, errors
+
+    reader = csv.reader(io.StringIO(text))
+    header = next(reader, None)
+    if not header:
+        errors.append("Missing header row.")
+        return rows, errors
+
+    norm_header = [h.strip().lower() for h in header]
+    idx_by_col: dict[str, int] = {}
+    optional_cols = {"rating"}
+    for c in columns:
+        try:
+            idx_by_col[c] = norm_header.index(c)
+        except ValueError:
+            if c in optional_cols:
+                continue
+            errors.append(f"Missing required column '{c}'.")
+    if errors:
+        return rows, errors
+
+    seen_keys: set[tuple[str, str]] = set()
+    for row_num, row in enumerate(reader, start=2):
+        max_idx = max(idx_by_col.values())
+        if len(row) <= max_idx:
+            errors.append(f"Line {row_num}: missing fields.")
+            continue
+
+        row_has_error = False
+        data = {c: (row[idx_by_col[c]] or "").strip() for c in columns if c in idx_by_col}
+        sn = (data.get("sail_number") or "").upper()
+        cc = (data.get("boat_country_code") or "").upper()
+
+        if not sn:
+            errors.append(f"Line {row_num}: 'sail_number' is required.")
+            row_has_error = True
+        if not cc:
+            errors.append(f"Line {row_num}: 'boat_country_code' is required.")
+            row_has_error = True
+        if row_has_error:
+            continue
+
+        key = (sn, cc)
+        if key in seen_keys:
+            errors.append(f"Line {row_num}: duplicate pair '{cc} {sn}'.")
+            continue
+        seen_keys.add(key)
+
+        corrected = (data.get("corrected_time") or "").strip()
+        if not corrected:
+            errors.append(f"Line {row_num}: 'corrected_time' is required.")
+            continue
+        if _parse_time_to_seconds(corrected) is None:
+            errors.append(f"Line {row_num}: 'corrected_time' must be HH:MM:SS.")
+            continue
+
+        for tcol in ("finish_time", "elapsed_time"):
+            tv = (data.get(tcol) or "").strip()
+            if tv and _parse_time_to_seconds(tv) is None:
+                errors.append(f"Line {row_num}: '{tcol}' must be HH:MM:SS.")
+                row_has_error = True
+
+        finish_day_raw = (data.get("finish_day") or "").strip()
+        if finish_day_raw:
+            try:
+                if int(finish_day_raw) < 0:
+                    raise ValueError()
+            except ValueError:
+                errors.append(f"Line {row_num}: 'finish_day' must be an integer >= 0.")
+                row_has_error = True
+
+        rating_raw = (data.get("rating") or "").strip()
+        if "rating" in idx_by_col:
+            if rating_raw:
+                try:
+                    float(rating_raw)
+                except ValueError:
+                    errors.append(f"Line {row_num}: 'rating' must be numeric.")
+                    row_has_error = True
+
+        if row_has_error:
+            continue
+
+        rows.append(
+            {
+                "sail_number": sn,
+                "boat_country_code": cc,
+                "finish_day": finish_day_raw,
+                "finish_time": (data.get("finish_time") or "").strip(),
+                "elapsed_time": (data.get("elapsed_time") or "").strip(),
+                "corrected_time": corrected,
+                "code": ((data.get("code") or "").strip().upper() or None),
+                "rating": float(rating_raw) if rating_raw else None,
+            }
+        )
+
     return rows, errors
 
 
@@ -679,29 +965,31 @@ def import_race_results_csv(
     With confirm: applies import (upsert by sail_number); optional clear_existing.
     """
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
     if not file:
-        raise HTTPException(status_code=400, detail="Ficheiro em falta.")
+        raise HTTPException(status_code=400, detail="Missing file.")
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)
-    if not _race_is_one_design(db, race):
-        raise HTTPException(
-            status_code=400,
-            detail="Import CSV está disponível apenas para corridas One Design.",
-        )
     content = file.file.read()
     file.file.close()
-    rows, parse_errors = _parse_one_design_csv(content)
+    is_one_design = _race_is_one_design(db, race)
+    if is_one_design:
+        rows, parse_errors = _parse_one_design_csv(content)
+        expected_columns = ["sail_number", "boat_country_code", "points", "code"]
+    else:
+        expected_columns = _race_handicap_csv_columns(race)
+        rows, parse_errors = _parse_handicap_csv(content, expected_columns)
     if parse_errors:
         return {
             "ok": False,
             "preview": [],
             "errors": parse_errors,
             "unmatched": [],
+            "columns": expected_columns,
         }
     entries = (
         db.query(models.Entry)
@@ -711,91 +999,189 @@ def import_race_results_csv(
         )
         .all()
     )
-    valid_sails = {_norm_sn(e.sail_number) or "" for e in entries if getattr(e, "sail_number", None)}
-    entry_by_sail = {}
+    valid_keys = set()
+    entry_by_key = {}
     for e in entries:
         sn = _norm_sn(getattr(e, "sail_number", None))
+        cc = (getattr(e, "boat_country_code", None) or "").strip().upper()
         if sn:
-            entry_by_sail[sn] = e
-    unmatched = [r["sail_number"] for r in rows if r["sail_number"] not in valid_sails]
-    preview = [{"sail_number": r["sail_number"], "points": r["points"], "code": r["code"]} for r in rows[:15]]
+            key = (sn, cc)
+            valid_keys.add(key)
+            entry_by_key[key] = e
+    unmatched = [f'{r["boat_country_code"]} {r["sail_number"]}' for r in rows if (r["sail_number"], r["boat_country_code"]) not in valid_keys]
+    missing_rating_pairs: list[str] = []
+    if not is_one_design:
+        method = (getattr(race, "handicap_method", None) or "manual").strip().lower()
+        if method in ("anc", "orc"):
+            for r in rows:
+                if r.get("rating") is not None:
+                    continue
+                sn = r["sail_number"]
+                cc = r["boat_country_code"]
+                entry = entry_by_key.get((sn, cc))
+                if _effective_entry_rating_for_race(entry, race) is None:
+                    missing_rating_pairs.append(f"{cc} {sn}")
+    if is_one_design:
+        preview = [
+            {
+                "sail_number": r["sail_number"],
+                "boat_country_code": r["boat_country_code"],
+                "points": r["points"],
+                "code": r["code"],
+            }
+            for r in rows[:15]
+        ]
+    else:
+        preview = [{c: r.get(c, "") for c in expected_columns} for r in rows[:15]]
 
     if not confirm:
-        err_msg = [f"sail_number(s) não encontrados na lista de inscrições: {', '.join(unmatched)}"] if unmatched else []
+        err_msg: list[str] = []
+        if unmatched:
+            err_msg.append(f"Entry not found for sail/country pair(s): {', '.join(unmatched)}")
+        if missing_rating_pairs:
+            mode = (getattr(race, "handicap_method", None) or "manual").strip().lower()
+            if mode == "orc":
+                err_msg.append(
+                    "Missing rating for ORC mode for sail/country pair(s): "
+                    + ", ".join(missing_rating_pairs)
+                )
+            else:
+                err_msg.append(
+                    "Missing rating for Simple Rating mode for sail/country pair(s): "
+                    + ", ".join(missing_rating_pairs)
+                )
         return {
-            "ok": len(unmatched) == 0,
+            "ok": len(unmatched) == 0 and len(missing_rating_pairs) == 0,
             "preview": preview,
             "errors": err_msg,
             "unmatched": unmatched,
+            "columns": expected_columns,
         }
 
     if unmatched:
         raise HTTPException(
             status_code=400,
-            detail=f"Impossível importar: sail_number(s) não encontrados na lista de inscrições: {', '.join(unmatched)}",
+            detail=f"Import failed: entry not found for sail/country pair(s): {', '.join(unmatched)}",
+        )
+    if missing_rating_pairs:
+        mode = (getattr(race, "handicap_method", None) or "manual").strip().lower()
+        mode_label = "ORC" if mode == "orc" else "Simple Rating"
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Import failed: missing rating for {mode_label} mode for sail/country pair(s): "
+                f"{', '.join(missing_rating_pairs)}"
+            ),
         )
 
-    scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
-    if clear_existing:
-        db.query(models.Result).filter(models.Result.race_id == race_id).delete(synchronize_session=False)
-        db.flush()
+    if is_one_design:
+        scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
+        if clear_existing:
+            db.query(models.Result).filter(models.Result.race_id == race_id).delete(synchronize_session=False)
+            db.flush()
 
-    for i, r in enumerate(rows):
-        sn = r["sail_number"]
-        pts_str = r["points"]
-        code = _norm(r["code"]) if r["code"] else None
-        if code:
-            try:
-                pts_val = compute_points_for_code(
-                    db=db,
-                    race=race,
-                    sail_number=sn,
-                    code=code,
-                    manual_points=float(pts_str) if pts_str else None,
-                    scoring_map=scoring_map,
+        for i, r in enumerate(rows):
+            sn = r["sail_number"]
+            cc = r["boat_country_code"]
+            pts_str = r["points"]
+            code = _norm(r["code"]) if r["code"] else None
+            entry = entry_by_key.get((sn, cc))
+            boat_cc = cc
+            if code:
+                try:
+                    pts_val = compute_points_for_code(
+                        db=db,
+                        race=race,
+                        sail_number=sn,
+                        code=code,
+                        manual_points=float(pts_str) if pts_str else None,
+                        scoring_map=scoring_map,
+                        boat_country_code=boat_cc if boat_cc else None,
+                    )
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=f"Line {i + 2}: {e}")
+            else:
+                pts_val = float(pts_str)
+            boat_name = getattr(entry, "boat_name", None) if entry else None
+            helm_name = (
+                f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip()
+                if entry else ""
+            )
+            existing = (
+                db.query(models.Result)
+                .filter(
+                    models.Result.race_id == race_id,
+                    models.Result.sail_number == sn,
+                    models.Result.boat_country_code == cc,
                 )
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=f"Linha {i + 2}: {e}")
-        else:
-            pts_val = float(pts_str)
-        entry = entry_by_sail.get(sn)
-        boat_cc = getattr(entry, "boat_country_code", None) if entry else None
-        boat_name = getattr(entry, "boat_name", None) if entry else None
-        helm_name = (
-            f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip()
-            if entry else ""
-        )
-        existing = (
-            db.query(models.Result)
-            .filter(
-                models.Result.race_id == race_id,
-                models.Result.sail_number == sn,
+                .first()
             )
-            .first()
-        )
-        if existing:
-            existing.points = float(pts_val)
-            existing.code = code
-            existing.points_override = float(pts_val) if code else None
-        else:
-            new_res = models.Result(
-                regatta_id=race.regatta_id,
-                race_id=race_id,
-                sail_number=sn,
-                boat_country_code=boat_cc,
-                boat_name=boat_name,
-                class_name=race.class_name,
-                skipper_name=helm_name or None,
-                position=i + 1,
-                points=float(pts_val),
-                code=code,
-                points_override=float(pts_val) if code else None,
-            )
-            db.add(new_res)
+            if existing:
+                existing.points = float(pts_val)
+                existing.code = code
+                existing.points_override = float(pts_val) if code else None
+            else:
+                new_res = models.Result(
+                    regatta_id=race.regatta_id,
+                    race_id=race_id,
+                    sail_number=sn,
+                    boat_country_code=boat_cc,
+                    boat_name=boat_name,
+                    class_name=race.class_name,
+                    skipper_name=helm_name or None,
+                    position=i + 1,
+                    points=float(pts_val),
+                    code=code,
+                    points_override=float(pts_val) if code else None,
+                )
+                db.add(new_res)
 
-    db.flush()
-    normalize_race_results(db, race)
-    db.commit()
+        db.flush()
+        normalize_race_results(db, race)
+        db.commit()
+    else:
+        payload: list[schemas.ResultCreate] = []
+        for r in rows:
+            sn = r["sail_number"]
+            cc = r["boat_country_code"]
+            entry = entry_by_key.get((sn, cc))
+            rating_val = r.get("rating")
+            if rating_val is None:
+                rating_val = _effective_entry_rating_for_race(entry, race)
+            boat_name = getattr(entry, "boat_name", None) if entry else None
+            helm_name = (
+                f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip()
+                if entry
+                else ""
+            )
+            finish_day_val = r.get("finish_day")
+            finish_day_num = int(finish_day_val) if str(finish_day_val).strip() != "" else None
+            payload.append(
+                schemas.ResultCreate(
+                    regatta_id=race.regatta_id,
+                    race_id=race_id,
+                    sail_number=sn,
+                    boat_country_code=cc,
+                    boat_name=boat_name,
+                    helm_name=helm_name or None,
+                    position=None,
+                    points=None,
+                    code=r.get("code"),
+                    finish_time=r.get("finish_time") or None,
+                    finish_day=finish_day_num,
+                    elapsed_time=r.get("elapsed_time") or None,
+                    corrected_time=r.get("corrected_time") or None,
+                    rating=rating_val,
+                )
+            )
+
+        create_results_for_race(
+            race_id=race_id,
+            results=payload,
+            db=db,
+            current_user=current_user,
+            fleet_id="all",
+        )
 
     updated = (
         db.query(models.Result)
@@ -807,4 +1193,5 @@ def import_race_results_csv(
         "ok": True,
         "applied": len(rows),
         "results": [schemas.ResultRead.model_validate(r) for r in updated],
+        "columns": expected_columns,
     }

@@ -1,12 +1,30 @@
 import { buildSessionExpiredLoginUrl } from '@/lib/sessionExpiryLogin';
 
-// Base da API (sem trailing slash)
+/** Base URL fixa (env/build); prefere `getApiBaseUrl()` no browser em dev. */
 export const BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 ).replace(/\/$/, '');
 
+/**
+ * Resolve a URL da API em tempo de execução.
+ * Em dev: se não houver env e a página estiver em localhost ou 127.0.0.1,
+ * usa o mesmo hostname que o browser — evita misturar localhost com 127.0.0.1
+ * (pedidos falham ou o Chrome mostra erro tipo CORS quando não há resposta HTTP).
+ */
+export function getApiBaseUrl(): string {
+  const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (env) return env;
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:8000`;
+    }
+  }
+  return BASE_URL;
+}
+
 const buildUrl = (path: string) =>
-  `${BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  `${getApiBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
 
 type HeadersDict = Record<string, string>;
 

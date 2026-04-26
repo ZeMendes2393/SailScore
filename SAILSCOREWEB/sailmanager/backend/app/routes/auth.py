@@ -114,7 +114,7 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
                     detail={"requires_regatta_selection": True, "regattas": my_regattas},
                 )
 
-    elif user.role == "jury":
+    elif user.role in ("jury", "scorer"):
         prof = (
             db.query(models.RegattaJuryProfile)
             .filter(models.RegattaJuryProfile.user_id == user.id)
@@ -123,7 +123,29 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
         if not prof:
             raise HTTPException(
                 status_code=403,
-                detail="Jury profile is not linked to this account.",
+                detail="Staff profile is not linked to this account.",
+            )
+        if user.role == "scorer":
+            if not org_slug:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Scorer login requires organization slug (org).",
+                )
+            org_from_slug = resolve_org(db, org_slug=org_slug)
+            if int(org_from_slug.id) != int(user.organization_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Scorer account does not belong to this organization.",
+                )
+        if user.role == "scorer" and body.regatta_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Scorer login requires regatta_id (use regatta sailor login).",
+            )
+        if body.regatta_id is not None and int(body.regatta_id) != int(prof.regatta_id):
+            raise HTTPException(
+                status_code=403,
+                detail="This staff account is not linked to that regatta.",
             )
         claims["regatta_id"] = int(prof.regatta_id)
 
@@ -162,7 +184,7 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     claims: dict = {"sub": user.email, "role": user.role, "oid": user.organization_id}
 
-    if user.role == "jury":
+    if user.role in ("jury", "scorer"):
         prof = (
             db.query(models.RegattaJuryProfile)
             .filter(models.RegattaJuryProfile.user_id == user.id)
@@ -171,7 +193,7 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         if not prof:
             raise HTTPException(
                 status_code=403,
-                detail="Jury profile is not linked to this account.",
+                detail="Staff profile is not linked to this account.",
             )
         claims["regatta_id"] = int(prof.regatta_id)
 
@@ -326,7 +348,7 @@ def switch_regatta(
         claims["regatta_id"] = int(regatta_id)
         return schemas.Token(access_token=create_access_token(claims))
 
-    if current_user.role == "jury":
+    if current_user.role in ("jury", "scorer"):
         prof = (
             db.query(models.RegattaJuryProfile)
             .filter(models.RegattaJuryProfile.user_id == current_user.id)

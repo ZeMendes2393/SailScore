@@ -40,6 +40,9 @@ export default function AdminEntryList({
   const { user, token, loading: authLoading } = useAuth();
   const { orgSlug } = useAdminOrg();
   const isAdmin = isAdminRole(user?.role);
+  const isScorer = user?.role === 'scorer';
+  const canManageEntryList = isAdmin || isScorer;
+  const manageRegattaBasePath = isScorer ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const [entries, setEntries] = useState<EntryListEntry[]>([]);
   const [savingColumns, setSavingColumns] = useState(false);
@@ -206,7 +209,9 @@ export default function AdminEntryList({
   };
 
   const goToEdit = (entryId: number) => {
-    router.push(withOrg(`/admin/manage-regattas/${regattaId}/entries/${entryId}?regattaId=${regattaId}`, orgSlug));
+    router.push(
+      withOrg(`${manageRegattaBasePath}/${regattaId}/entries/${entryId}?regattaId=${regattaId}`, orgSlug)
+    );
   };
 
   const maybeSendConfirmedEmail = async (entryId: number, nextPaid: boolean, nextConfirmed: boolean) => {
@@ -328,7 +333,7 @@ export default function AdminEntryList({
     }
   };
 
-  if (!isAdmin) return <p className="text-gray-500">Admin only.</p>;
+  if (!canManageEntryList) return <p className="text-gray-500">Access restricted.</p>;
 
   return (
     <div className="space-y-5">

@@ -17,7 +17,7 @@ export default function AddSingleForm({
       <div className="flex gap-2 items-center">
         <input
           type="text"
-          placeholder="Sail no. (e.g. POR123)"
+          placeholder="Sail no. (e.g. 123)"
           value={singleSail}
           onChange={(e) => setSingleSail(e.target.value)}
           className="border rounded px-3 py-2 w-60"

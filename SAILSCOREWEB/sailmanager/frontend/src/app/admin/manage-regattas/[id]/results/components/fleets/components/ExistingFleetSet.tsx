@@ -5,6 +5,7 @@ import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 type Props = {
   selectedSet: FleetSet;
+  classType: string;
   localTitle: string;
   setLocalTitle: (v: string) => void;
 
@@ -14,7 +15,7 @@ type Props = {
 
   racesInSelectedSet: RaceLite[];
   racesAvailable: RaceLite[];
-  updateFleetSetRaces: (id: number, raceIds: number[]) => Promise<void>;
+  updateFleetSetRaces: (id: number, raceIds: number[], force?: boolean) => Promise<void>;
 
   deleteFleetSet: (setId: number, force?: boolean) => Promise<void>;
 
@@ -23,6 +24,7 @@ type Props = {
 
 export default function ExistingFleetSet({
   selectedSet,
+  classType,
   localTitle,
   setLocalTitle,
   publishSet,
@@ -35,11 +37,13 @@ export default function ExistingFleetSet({
   assignments,
 }: Props) {
   const missingTitle = !localTitle.trim();
+  const isHandicap = classType === 'handicap';
+  const displayTitle = selectedSet.public_title?.trim() || localTitle.trim();
 
   return (
     <div className="mt-4 border rounded-xl p-4 space-y-4 bg-white shadow">
       <h3 className="text-lg font-semibold">
-        {selectedSet.label} ({selectedSet.phase})
+        {displayTitle ? `${displayTitle} (${selectedSet.phase})` : `(${selectedSet.phase})`}
       </h3>
 
       {/* TITLE + ACTIONS */}
@@ -132,7 +136,7 @@ export default function ExistingFleetSet({
                     await deleteFleetSet(selectedSet.id, true);
                   }
                 } else {
-                  console.error('Erro ao apagar FleetSet:', err);
+                  console.error('Error deleting Fleet Set:', err);
                   alert('Error deleting Fleet Set.');
                 }
               }
@@ -169,10 +173,16 @@ export default function ExistingFleetSet({
                 <button
                   className="ml-1 text-red-600 hover:text-red-800"
                   onClick={async () => {
+                    const ok = window.confirm(
+                      `Are you sure you want to remove "${r.name}" from this Fleet Set?\n\n` +
+                        'This race already may have results associated with this Fleet Set. ' +
+                        'Results will remain in the race, but it will no longer be linked here.'
+                    );
+                    if (!ok) return;
                     const newIds = racesInSelectedSet
                       .filter((x) => x.id !== r.id)
                       .map((x) => x.id);
-                    await updateFleetSetRaces(selectedSet.id, newIds);
+                    await updateFleetSetRaces(selectedSet.id, newIds, true);
                   }}
                 >
                   ×
@@ -214,10 +224,9 @@ export default function ExistingFleetSet({
             <thead className="bg-gray-100">
               <tr>
                 <th className="border px-2 py-1">Fleet</th>
-                <th className="border px-2 py-1">#</th>
                 <th className="border px-2 py-1">Sail</th>
                 <th className="border px-2 py-1">Boat</th>
-                <th className="border px-2 py-1">Helm</th>
+                <th className="border px-2 py-1">{isHandicap ? 'Helm' : 'Crew / Helm'}</th>
               </tr>
             </thead>
 
@@ -228,10 +237,18 @@ export default function ExistingFleetSet({
                     {selectedSet.fleets.find((f) => f.id === a.fleet_id)?.name ??
                       '-'}
                   </td>
-                  <td className="border px-2 py-1">{i + 1}</td>
-                  <td className="border px-2 py-1"><SailNumberDisplay countryCode={(a as any).boat_country_code} sailNumber={a.sail_number} /></td>
+                  <td className="border px-2 py-1">
+                    <SailNumberDisplay
+                      countryCode={a.boat_country_code}
+                      sailNumber={a.sail_number}
+                    />
+                  </td>
                   <td className="border px-2 py-1">{a.boat_name}</td>
-                  <td className="border px-2 py-1">{a.helm_name}</td>
+                  <td className="border px-2 py-1">
+                    {isHandicap
+                      ? (a.helm_name ?? '')
+                      : (a.crew_names.length > 0 ? a.crew_names.join(', ') : (a.helm_name ?? ''))}
+                  </td>
                 </tr>
               ))}
             </tbody>

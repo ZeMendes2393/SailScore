@@ -25,6 +25,8 @@ export default function Questions({ regattaId }: { regattaId: number }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all'|'open'|'answered'|'closed'>('all');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [patch, setPatch] = useState<Partial<QuestionRead>>({});
 
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
@@ -45,8 +47,10 @@ export default function Questions({ regattaId }: { regattaId: number }) {
   }
   useEffect(() => { fetchRows(); }, [listPath]);
 
-  async function save(id: number, patch: Partial<QuestionRead>) {
+  async function save(id: number) {
     await apiPatch(`/regattas/${regattaId}/questions/${id}`, patch);
+    setEditingId(null);
+    setPatch({});
     await fetchRows();
   }
 
@@ -61,7 +65,6 @@ export default function Questions({ regattaId }: { regattaId: number }) {
             <option value="answered">Answered</option>
             <option value="closed">Closed</option>
           </select>
-          <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={fetchRows}>Refresh</button>
         </div>
       </div>
 
@@ -69,7 +72,6 @@ export default function Questions({ regattaId }: { regattaId: number }) {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="p-2 w-10"></th>
               <th className="p-2">#</th>
               <th className="p-2">Sail No.</th>
               <th className="p-2">Class</th>
@@ -77,6 +79,7 @@ export default function Questions({ regattaId }: { regattaId: number }) {
               <th className="p-2">Status</th>
               <th className="p-2 w-[28rem]">Admin Answer</th>
               <th className="p-2 text-right">Actions</th>
+              <th className="p-2 w-24 text-right">More info</th>
             </tr>
           </thead>
           <tbody>
@@ -87,7 +90,12 @@ export default function Questions({ regattaId }: { regattaId: number }) {
               <QuestionRow
                 key={r.id}
                 r={r}
-                onSave={save}
+                isEd={editingId === r.id}
+                patch={patch}
+                onSave={() => save(r.id)}
+                onStartEdit={() => { setEditingId(r.id); setPatch({}); }}
+                onCancelEdit={() => { setEditingId(null); setPatch({}); }}
+                onChangePatch={(p) => setPatch(prev => ({ ...prev, ...p }))}
                 onToggle={() => setRows(prev => prev.map(x => x.id===r.id ? ({...x, _expanded: !x._expanded}) : x))}
               />
             ))}
@@ -102,26 +110,26 @@ export default function Questions({ regattaId }: { regattaId: number }) {
 
 function QuestionRow({
   r,
+  isEd,
+  patch,
   onSave,
+  onStartEdit,
+  onCancelEdit,
+  onChangePatch,
   onToggle,
 }: {
   r: Row;
-  onSave: (id: number, patch: Partial<QuestionRead>) => Promise<void>;
+  isEd: boolean;
+  patch: Partial<QuestionRead>;
+  onSave: () => Promise<void>;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onChangePatch: (p: Partial<QuestionRead>) => void;
   onToggle: () => void;
 }) {
-  const [status, setStatus] = useState<QuestionRead['status']>(r.status);
-  const [resp, setResp] = useState<string>(r.answer_text || '');
-
-  useEffect(() => { setStatus(r.status); setResp(r.answer_text || ''); }, [r.id]);
-
   return (
     <>
       <tr className="border-t align-top">
-        <td className="p-2 align-middle">
-          <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={onToggle} title={r._expanded ? 'Hide details' : 'More info'}>
-            {r._expanded ? '−' : '+'}
-          </button>
-        </td>
         <td className="p-2">Q#{r.seq_no}</td>
         <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
         <td className="p-2">{r.class_name || '—'}</td>
@@ -130,28 +138,56 @@ function QuestionRow({
           <div className="whitespace-pre-wrap break-words">{r.body}</div>
         </td>
         <td className="p-2">
-          <select className="border rounded p-1" value={status} onChange={(e)=>setStatus(e.target.value as any)}>
-            <option value="open">open</option>
-            <option value="answered">answered</option>
-            <option value="closed">closed</option>
-          </select>
+          {isEd ? (
+            <select
+              className="border rounded p-1"
+              value={(patch.status ?? r.status) as any}
+              onChange={(e)=>onChangePatch({ status: e.target.value as any })}
+            >
+              <option value="open">open</option>
+              <option value="answered">answered</option>
+              <option value="closed">closed</option>
+            </select>
+          ) : (
+            r.status
+          )}
         </td>
         <td className="p-2">
-          <textarea
-            rows={2}
-            className="border rounded p-2 w-full resize-none whitespace-pre-wrap break-words"
-            value={resp}
-            onChange={(e)=>setResp(e.target.value)}
-            placeholder="Admin answer…"
-          />
+          {isEd ? (
+            <textarea
+              rows={2}
+              className="border rounded p-2 w-full resize-none whitespace-pre-wrap break-words"
+              value={patch.answer_text ?? r.answer_text ?? ''}
+              onChange={(e)=>onChangePatch({ answer_text: e.target.value })}
+              placeholder="Admin answer…"
+            />
+          ) : (
+            <div className="whitespace-pre-wrap break-words">
+              {r.answer_text?.trim() || <span className="text-gray-400">—</span>}
+            </div>
+          )}
         </td>
         <td className="p-2 text-right">
-          <div className="inline-flex gap-3">
-            <button className="text-blue-600 hover:underline"
-              onClick={()=>onSave(r.id, { status, answer_text: resp })}>
-              Save
-            </button>
-          </div>
+          {!isEd ? (
+            <div className="inline-flex gap-3">
+              <button className="text-blue-600 hover:underline" onClick={onStartEdit}>Edit</button>
+            </div>
+          ) : (
+            <div className="inline-flex gap-3">
+              <button className="text-blue-600 hover:underline" onClick={onSave}>Save</button>
+              <button className="text-gray-600 hover:underline" onClick={onCancelEdit}>Cancel</button>
+            </div>
+          )}
+        </td>
+        <td className="p-2 text-right align-middle">
+          <button
+            className="px-2 py-1 border rounded hover:bg-gray-50"
+            onClick={onToggle}
+            title={r._expanded ? 'Hide details' : 'More info'}
+            aria-label={r._expanded ? 'Hide details' : 'More info'}
+          >
+            {r._expanded ? '−' : '+'}
+          </button>
         </td>
       </tr>
 

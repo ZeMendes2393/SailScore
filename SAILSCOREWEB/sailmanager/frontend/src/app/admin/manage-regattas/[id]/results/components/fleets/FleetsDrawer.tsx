@@ -19,7 +19,7 @@ export default function FleetsDrawer({
         <div className="p-4 border-b flex items-center gap-3">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button className="ml-auto px-3 py-1 rounded border hover:bg-gray-50" onClick={onClose}>
-            Fechar
+            Close
           </button>
         </div>
         <div className="flex-1 overflow-auto p-4">{children as ReactNode}</div>

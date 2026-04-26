@@ -2,33 +2,32 @@
 
 import type { FleetSet, Assignment } from '../../hooks/useFleets';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import { compareBySailThenCountry } from '@/lib/sailNumberSort';
 
 type Props = {
   selectedSet: FleetSet;
   assignments: Assignment[];
 };
 
-function parseSailNumber(s: string | null | undefined): number {
-  if (!s) return Number.POSITIVE_INFINITY;
-  const m = String(s).match(/\d+/);
-  return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
-}
-
 export default function FleetAssignmentsTable({
   selectedSet,
   assignments,
 }: Props) {
+  const fleetOrder = new Map<number, number>(
+    selectedSet.fleets.map((f) => [f.id, f.order_index ?? 0])
+  );
+  const orderOf = (fleetId: number) => fleetOrder.get(fleetId) ?? 9999;
+
   const sorted = [...assignments].sort((a, b) => {
-    const na = parseSailNumber(a.sail_number);
-    const nb = parseSailNumber(b.sail_number);
-    if (na !== nb) return na - nb;
-    return (a.helm_name ?? '').localeCompare(b.helm_name ?? '');
+    const fo = orderOf(a.fleet_id) - orderOf(b.fleet_id);
+    if (fo !== 0) return fo;
+    return compareBySailThenCountry(a, b);
   });
 
   return (
     <div className="space-y-2">
       <h4 className="font-semibold">
-        Assignments — {selectedSet.label || '(sem label)'}
+        Assignments — {selectedSet.label || '(no label)'}
       </h4>
       <div className="text-sm text-gray-600">
         Total: {sorted.length}

@@ -1,17 +1,32 @@
 # app/services/fleets.py
 import random
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from sqlalchemy.orm import Session
 
 from app.models import FleetSet, Fleet, FleetAssignment, Race, Result, Entry
-from app.routes.results_overall import get_overall_results
+from app.routes.results_overall import get_overall_results_data, _sn_norm
 
 FLEET_COLORS_QUALI = {
     2: ["Yellow", "Blue"],
     3: ["Yellow", "Blue", "Red"],
     4: ["Yellow", "Blue", "Red", "Green"],
 }
+
+
+def _cc_norm(v: str | None) -> str:
+    return (v or "").strip().upper()
+
+
+def _overall_entry_key(class_name: str, row: dict) -> Tuple[str, str, str]:
+    """
+    Mesma lógica de identidade do overall: classe + vela + country.
+    Necessário quando há mais do que um barco com o mesmo sail_number na classe.
+    """
+    cls = str(class_name or row.get("class_name") or "")
+    sn = _sn_norm(row.get("sail_number"))
+    cc = _cc_norm(row.get("boat_country_code"))
+    return (cls, sn, cc)
 
 
 def list_confirmed_entries(
@@ -41,29 +56,52 @@ def compute_overall_ranking(
     para garantir consistência entre aquilo que o utilizador vê e o que
     é usado para reshuffle / finals.
     """
-    overall = get_overall_results(regatta_id, class_name=class_name, db=db)
+    overall_payload = get_overall_results_data(regatta_id, class_name, False, db)
+    # Endpoint devolve {"rows": [...], "races_meta": ..., ...}; iterar o dict dá só as keys.
+    if isinstance(overall_payload, dict):
+        overall = overall_payload.get("rows") or []
+    else:
+        overall = overall_payload or []
 
-    # map sail_number -> entry_id
-    sn_to_entry: Dict[str, int] = dict(
-        db.query(Entry.sail_number, Entry.id).filter(
+    # map (classe, vela, country) -> entry_id — igual ao agrupamento em results_overall
+    entry_by_key: Dict[Tuple[str, str, str], int] = {}
+    for e in (
+        db.query(Entry)
+        .filter(
             Entry.regatta_id == regatta_id,
             Entry.class_name == class_name,
         )
-    )
+        .all()
+    ):
+        cls = str(e.class_name or "")
+        snn = _sn_norm(e.sail_number)
+        ccn = _cc_norm(getattr(e, "boat_country_code", None))
+        if not snn:
+            continue
+        entry_by_key[(cls, snn, ccn)] = int(e.id)
 
     ranking_ids: List[int] = []
+    seen_entry: set[int] = set()
     debug_lines: List[str] = []
 
     for idx, row in enumerate(overall, start=1):
-        sn = row["sail_number"]
-        eid = sn_to_entry.get(sn)
+        if not isinstance(row, dict):
+            continue
+        key = _overall_entry_key(class_name, row)
+        _, snn, ccn = key
+        if not snn:
+            continue
+        eid = entry_by_key.get(key)
         if eid is None:
             # pode haver resultados sem entry correspondente (ex: barco extra)
             continue
+        if eid in seen_entry:
+            continue
+        seen_entry.add(eid)
         ranking_ids.append(eid)
+        net = float(row.get("net_points") or 0.0)
         debug_lines.append(
-            f"#{idx}: entry_id={eid} sail={sn} helm={row['skipper_name']} "
-            f"total={row['net_points']:.2f}"
+            f"#{idx}: entry_id={eid} sail={ccn} {snn} total={net:.2f}"
         )
 
     print("=== [FLEETS DEBUG] Ranking usado para reshuffle (from /results/overall) ===")

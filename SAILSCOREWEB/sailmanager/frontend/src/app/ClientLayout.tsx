@@ -23,10 +23,13 @@ function useOrgSlugWithParams(pathname: string | null): string | null {
   return useMemo(() => {
     const fromPath = orgSlugFromPathname(pathname);
     if (fromPath) return fromPath;
-    if (pathname?.startsWith('/admin')) {
+    if (pathname?.startsWith('/admin') || pathname?.startsWith('/scorer')) {
       const fromQs = searchParams?.get('org')?.trim();
       if (fromQs) return fromQs;
-      if (user?.role === 'admin' && (user as { organization_slug?: string }).organization_slug) {
+      if (
+        (user?.role === 'admin' || user?.role === 'scorer') &&
+        (user as { organization_slug?: string }).organization_slug
+      ) {
         return (user as { organization_slug: string }).organization_slug;
       }
     }
@@ -93,6 +96,7 @@ function ClientLayoutInner({
   const useContentContainer =
     !homeRoute &&
     !pathname?.match(/^\/admin(\/|$)/) &&
+    !pathname?.match(/^\/scorer(\/|$)/) &&
     !pathname?.match(/^\/login(\/|$)/) &&
     !pathname?.match(/^\/register(\/|$)/) &&
     !pathname?.match(/^\/dashboard(\/|$)/) &&
@@ -141,6 +145,7 @@ export default function ClientLayout({
   const useContentContainer =
     !homeRoute &&
     !pathname?.match(/^\/admin(\/|$)/) &&
+    !pathname?.match(/^\/scorer(\/|$)/) &&
     !pathname?.match(/^\/login(\/|$)/) &&
     !pathname?.match(/^\/register(\/|$)/) &&
     !pathname?.match(/^\/dashboard(\/|$)/) &&

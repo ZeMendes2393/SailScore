@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
@@ -48,8 +48,12 @@ export default function AdminRegattaPage() {
   const { id } = useParams();
   const regattaId = parseInt(id as string);
   const router = useRouter();
+  const pathname = usePathname();
   const { token, user } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const isScorer = user?.role === 'scorer';
+  const manageRegattaBasePath = isScorer ? '/scorer/manage-regattas' : '/admin/manage-regattas';
+  const scorerAllowedTabs: Tab[] = ['entry', 'notice', 'form'];
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('entry');
@@ -132,6 +136,32 @@ export default function AdminRegattaPage() {
       fetchClasses();
     }
   }, [regattaId]);
+
+  useEffect(() => {
+    if (!isScorer) return;
+    const scorerRegattaId = user?.current_regatta_id;
+    if (!scorerRegattaId) return;
+    if (scorerRegattaId !== regattaId) {
+      router.replace(withOrg(`/scorer/manage-regattas/${scorerRegattaId}`, orgSlug));
+      return;
+    }
+    if ((pathname || '').startsWith('/admin/manage-regattas/')) {
+      router.replace(withOrg(`/scorer/manage-regattas/${regattaId}`, orgSlug));
+    }
+  }, [isScorer, user?.current_regatta_id, regattaId, router, orgSlug, pathname]);
+
+  useEffect(() => {
+    if (!isScorer) return;
+    if (
+      activeTab === 'edit' ||
+      activeTab === 'design' ||
+      activeTab === 'sponsors' ||
+      activeTab === 'jury-credentials' ||
+      activeTab === 'delete'
+    ) {
+      setActiveTab('entry');
+    }
+  }, [isScorer, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'entry' && !selectedClass && availableClasses.length > 0) {
@@ -332,7 +362,7 @@ export default function AdminRegattaPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const t = new URLSearchParams(window.location.search).get('tab')?.trim();
-    const valid: Tab[] = [
+    const allValid: Tab[] = [
       'entry',
       'notice',
       'form',
@@ -342,13 +372,15 @@ export default function AdminRegattaPage() {
       'jury-credentials',
       'delete',
     ];
+    const valid = isScorer ? scorerAllowedTabs : allValid;
     if (!t || !valid.includes(t as Tab)) return;
     if (t === 'edit') {
+      if (isScorer) return;
       void loadEditClassesIntoForm().then(() => setActiveTab('edit'));
       return;
     }
     setActiveTab(t as Tab);
-  }, [regattaId, loadEditClassesIntoForm]);
+  }, [regattaId, loadEditClassesIntoForm, isScorer]);
 
   const addEditClassOD = () => {
     const c = newClassNameOD.trim();
@@ -426,20 +458,22 @@ export default function AdminRegattaPage() {
   }
 
   return (
-    <RequireAuth roles={['admin']}>
+    <RequireAuth roles={['admin', 'scorer']}>
       {!regatta ? (
         <p className="p-8">Loading regatta…</p>
       ) : (
     <main className="min-h-screen px-4 sm:px-6 py-8 bg-gray-50">
       {/* Voltar ao dashboard / lista de campeonatos */}
-      <div className="mb-4">
-        <Link
-          href={withOrg('/admin/manage-regattas', orgSlug)}
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
-        >
-          ← Back to regattas list
-        </Link>
-      </div>
+      {!isScorer && (
+        <div className="mb-4">
+          <Link
+            href={withOrg('/admin/manage-regattas', orgSlug)}
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+          >
+            ← Back to regattas list
+          </Link>
+        </div>
+      )}
 
       {/* Header */}
       <div className="bg-white shadow rounded p-6 mb-6">
@@ -450,7 +484,13 @@ export default function AdminRegattaPage() {
               {regatta.location} | {regatta.start_date} – {regatta.end_date}
             </p>
           </div>
-          <div className="text-xs text-gray-500">{user?.email ? <>Admin: <b>{user.email}</b></> : null}</div>
+          <div className="text-xs text-gray-500">
+            {user?.email ? (
+              <>
+                {isScorer ? 'Scorer' : 'Admin'}: <b>{user.email}</b>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -468,28 +508,34 @@ export default function AdminRegattaPage() {
 
         {/* Results agora é navegação para Overall */}
         <button
-          onClick={() => router.push(withOrg(`/admin/manage-regattas/${regattaId}/overall`, orgSlug))}
+          onClick={() => router.push(withOrg(`${manageRegattaBasePath}/${regattaId}/overall`, orgSlug))}
           className="hover:underline"
         >
           Results
         </button>
 
-        <span className="mx-2 text-gray-300">|</span>
-        <button onClick={openEditTab} className="hover:underline">
-          Edit
-        </button>
-        <button onClick={() => setActiveTab('design')} className="hover:underline">
-          Design
-        </button>
-        <button onClick={() => setActiveTab('sponsors')} className="hover:underline">
-          Sponsors
-        </button>
-        <button onClick={() => setActiveTab('jury-credentials')} className="hover:underline">
-          Jury credentials
-        </button>
-        <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
-          Delete
-        </button>
+        {!isScorer && (
+          <>
+            <span className="mx-2 text-gray-300">|</span>
+            <button onClick={openEditTab} className="hover:underline">
+              Edit
+            </button>
+            <button onClick={() => setActiveTab('design')} className="hover:underline">
+              Design
+            </button>
+            <button onClick={() => setActiveTab('sponsors')} className="hover:underline">
+              Sponsors
+            </button>
+            <button onClick={() => setActiveTab('jury-credentials')} className="hover:underline">
+              Jury / Scorer credentials
+            </button>
+          </>
+        )}
+        {!isScorer && (
+          <button onClick={() => setActiveTab('delete')} className="hover:underline text-red-600">
+            Delete
+          </button>
+        )}
       </div>
 
       {/* Class selector (Entry List only) */}
@@ -529,7 +575,7 @@ export default function AdminRegattaPage() {
 
           {activeTab === 'form' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center flex-wrap gap-4">
                 <div>
                   <h2 className="text-lg font-semibold">Online Entry</h2>
                   <p className="text-sm text-gray-500">Control whether sailors can submit new online entries.</p>
@@ -565,7 +611,7 @@ export default function AdminRegattaPage() {
                   )}
                 </p>
                 <p className="text-gray-500 mt-2">
-                  Admins cannot submit entries here — this area only exposes the toggle for consistency.
+                  Admins cannot submit entries here.
                 </p>
                 <p className="text-gray-500 mt-3">
                   <Link href={withOrg('/admin/email', orgSlug)} className="text-blue-600 hover:underline">

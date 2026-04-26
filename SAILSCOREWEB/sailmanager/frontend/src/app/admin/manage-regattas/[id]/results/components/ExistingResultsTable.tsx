@@ -1,16 +1,31 @@
 // src/app/admin/manage-regattas/[id]/results/components/ExistingResultsTable.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ApiResult } from '../types';
-import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import type { Entry } from '../types';
+import HandicapResultsTable from './existing-results/HandicapResultsTable';
+import OneDesignResultsTable from './existing-results/OneDesignResultsTable';
+import {
+  ADJUSTABLE_CODES,
+  AUTO_N_PLUS_ONE,
+  AUTO_N_PLUS_ONE_DISCARDABLE,
+  AUTO_N_PLUS_ONE_NON_DISCARDABLE,
+  formatDelta,
+  getEffectiveHandicapRating,
+  isAutoNPlusOne,
+  parseTimeToSeconds,
+  type OrcRatingMode,
+} from './existing-results/shared';
 
-interface Props {
+interface ExistingResultsTableProps {
   results?: ApiResult[];
+  entries?: Entry[];
+  /** Quando a corrida tem fleet set: nome da frota por entry (para mostrar que posição/pontos são por frota). */
+  fleetNameByEntryId?: ReadonlyMap<number, string>;
   loading: boolean;
   onMove: (rowId: number, delta: -1 | 1) => void;
   onEditPos: (rowId: number, newPos: number) => void;
-  onSaveOrder: () => void;
   onDelete: (rowId: number) => void;
 
   scoringCodes?: Record<string, number>;
@@ -22,43 +37,167 @@ interface Props {
 
   // Quando true, mostra layout expandido para Handicap (tempo)
   isHandicapClass?: boolean;
+  onUpdateHandicapResult?: (
+    rowId: number,
+    data: {
+      finish_day: number | null;
+      finish_time: string | null;
+      elapsed_time: string | null;
+      corrected_time: string | null;
+    }
+  ) => void | Promise<void>;
+  raceStartTime?: string | null;
+  handicapMethod?: string | null;
+  orcRatingMode?: 'low' | 'medium' | 'high' | string | null;
 }
-
-// --- Sets fixos do sistema ---
-const AUTO_N_PLUS_ONE_DISCARDABLE = ['DNC', 'DNF', 'DNS', 'OCS', 'UFD', 'BFD', 'DSQ', 'RET', 'NSC'] as const;
-const AUTO_N_PLUS_ONE_NON_DISCARDABLE = ['DNE', 'DGM'] as const;
-
-const AUTO_N_PLUS_ONE = new Set<string>([
-  ...AUTO_N_PLUS_ONE_DISCARDABLE,
-  ...AUTO_N_PLUS_ONE_NON_DISCARDABLE,
-]);
-
-const ADJUSTABLE_CODES = ['RDG', 'SCP', 'ZPF', 'DPI'] as const;
-
-const isAdjustable = (c: string | null | undefined) =>
-  !!c && (ADJUSTABLE_CODES as readonly string[]).includes(c);
-
-const isAutoNPlusOne = (c: string | null | undefined) => !!c && AUTO_N_PLUS_ONE.has(String(c).toUpperCase());
 
 export default function ExistingResultsTable({
   results,
+  entries = [],
+  fleetNameByEntryId,
   loading,
-  onMove,
   onEditPos,
-  onSaveOrder,
-  onDelete,
   scoringCodes,
   onMarkCode,
   onOverridePoints,
   isHandicapClass = false,
-}: Props) {
+  onUpdateHandicapResult,
+  raceStartTime = '',
+  handicapMethod = 'manual',
+  orcRatingMode = 'medium',
+}: ExistingResultsTableProps) {
+  const normalizedEntries = useMemo(
+    () => (Array.isArray(entries) ? entries : []),
+    [entries]
+  );
+  const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase();
+  const boatKeyFromParts = (
+    sailNumber?: string | null,
+    boatCountryCode?: string | null,
+    boatName?: string | null,
+    className?: string | null
+  ) =>
+    `${normalizeText(sailNumber)}|${normalizeText(boatCountryCode)}|${normalizeText(
+      boatName
+    )}|${normalizeText(className)}`;
+  const boatLooseKeyFromParts = (
+    sailNumber?: string | null,
+    boatCountryCode?: string | null,
+    className?: string | null
+  ) => `${normalizeText(sailNumber)}|${normalizeText(boatCountryCode)}|${normalizeText(className)}`;
+  const sailClassKeyFromParts = (sailNumber?: string | null, className?: string | null) =>
+    `${normalizeText(sailNumber)}|${normalizeText(className)}`;
+  const crewByBoatKey = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const e of normalizedEntries) {
+      const helmName = `${(e.first_name ?? '').trim()} ${(e.last_name ?? '').trim()}`.trim();
+      const crewNames = Array.isArray(e.crew_members)
+        ? e.crew_members
+            .map((m) => `${(m?.first_name ?? '').trim()} ${(m?.last_name ?? '').trim()}`.trim())
+            .filter(Boolean)
+        : [];
+      const allBoatNames = [helmName, ...crewNames].filter(Boolean);
+      if (allBoatNames.length === 0) continue;
+      const keys = [
+        boatKeyFromParts(e.sail_number, e.boat_country_code, e.boat_name, e.class_name),
+        boatLooseKeyFromParts(e.sail_number, e.boat_country_code, e.class_name),
+        sailClassKeyFromParts(e.sail_number, e.class_name),
+      ];
+      for (const key of keys) {
+        if (!key.replace(/\|/g, '')) continue;
+        const existing = map.get(key) ?? [];
+        for (const personName of allBoatNames) {
+          if (!existing.some((n) => n.toUpperCase() === personName.toUpperCase())) {
+            existing.push(personName);
+          }
+        }
+        map.set(key, existing);
+      }
+    }
+    return map;
+  }, [normalizedEntries]);
+  const resolveCrew = (row: ApiResult) => {
+    const keys = [
+      boatKeyFromParts(row.sail_number, row.boat_country_code, row.boat_name, row.class_name),
+      boatLooseKeyFromParts(row.sail_number, row.boat_country_code, row.class_name),
+      sailClassKeyFromParts(row.sail_number, row.class_name),
+    ];
+    const names = keys.map((k) => crewByBoatKey.get(k) ?? []).find((arr) => arr.length > 0) ?? [];
+    if (names.length > 0) return names.join(', ');
+    return row.skipper_name || '—';
+  };
+
+  const entryByKeys = useMemo(() => {
+    const map = new Map<string, Entry>();
+    for (const e of normalizedEntries) {
+      const keys = [
+        boatKeyFromParts(e.sail_number, e.boat_country_code, e.boat_name, e.class_name),
+        boatLooseKeyFromParts(e.sail_number, e.boat_country_code, e.class_name),
+        sailClassKeyFromParts(e.sail_number, e.class_name),
+      ];
+      for (const k of keys) {
+        if (!k.replace(/\|/g, '')) continue;
+        if (!map.has(k)) map.set(k, e);
+      }
+    }
+    return map;
+  }, [normalizedEntries]);
+
+  const resolveEntryForResult = useCallback(
+    (row: ApiResult): Entry | undefined => {
+      const keys = [
+        boatKeyFromParts(row.sail_number, row.boat_country_code, row.boat_name, row.class_name),
+        boatLooseKeyFromParts(row.sail_number, row.boat_country_code, row.class_name),
+        sailClassKeyFromParts(row.sail_number, row.class_name),
+      ];
+      for (const k of keys) {
+        const e = entryByKeys.get(k);
+        if (e) return e;
+      }
+      return undefined;
+    },
+    [entryByKeys]
+  );
+
+  const fleetLabelForRow = useCallback(
+    (row: ApiResult): string | null => {
+      if (!fleetNameByEntryId?.size) return null;
+      const entry = resolveEntryForResult(row);
+      if (!entry) return null;
+      return fleetNameByEntryId.get(entry.id) ?? null;
+    },
+    [fleetNameByEntryId, resolveEntryForResult]
+  );
+
+  const getEffectiveRatingForRow = useCallback(
+    (row: ApiResult): number | null => {
+      const method = (handicapMethod || 'manual').toLowerCase();
+      const entry = resolveEntryForResult(row);
+      const raw = (orcRatingMode ?? 'medium').toString().toLowerCase();
+      const orcMode = (raw === 'low' || raw === 'high' ? raw : 'medium') as OrcRatingMode;
+      const fromEntry = getEffectiveHandicapRating(entry, method, orcMode);
+      if (fromEntry != null) return fromEntry;
+      const r = row.rating;
+      return typeof r === 'number' && !Number.isNaN(r) ? r : null;
+    },
+    [resolveEntryForResult, handicapMethod, orcRatingMode]
+  );
+
   const safeResults = Array.isArray(results) ? results : [];
   const customMap = scoringCodes ?? {};
 
-  const sorted = useMemo(
-    () => safeResults.slice().sort((a, b) => a.position - b.position),
-    [safeResults]
-  );
+  const sorted = useMemo(() => {
+    const base = safeResults.slice();
+    if (!fleetNameByEntryId?.size) {
+      return base.sort((a, b) => a.position - b.position);
+    }
+    return base.sort((a, b) => {
+      const fa = fleetLabelForRow(a) ?? '\uFFFF';
+      const fb = fleetLabelForRow(b) ?? '\uFFFF';
+      if (fa !== fb) return fa.localeCompare(fb);
+      return a.position - b.position;
+    });
+  }, [safeResults, fleetNameByEntryId, fleetLabelForRow]);
 
   const codeGroups = useMemo(() => {
     const custom = Object.keys(customMap)
@@ -126,6 +265,104 @@ export default function ExistingResultsTable({
   // Override points UI
   const [pointsOpen, setPointsOpen] = useState<Record<number, boolean>>({});
   const [pointsValue, setPointsValue] = useState<Record<number, string>>({});
+  const [handicapEdits, setHandicapEdits] = useState<
+    Record<
+      number,
+      {
+        finish_day: string;
+        finish_time: string;
+        elapsed_time: string;
+        corrected_time: string;
+      }
+    >
+  >({});
+
+  const getHandicapEdit = (row: ApiResult) =>
+    handicapEdits[row.id] ?? {
+      finish_day: row.finish_day == null ? '' : String(row.finish_day),
+      finish_time: row.finish_time ?? '',
+      elapsed_time: row.elapsed_time ?? '',
+      corrected_time: row.corrected_time ?? '',
+    };
+
+  const setHandicapEditField = (
+    rowId: number,
+    field: 'finish_day' | 'finish_time' | 'elapsed_time' | 'corrected_time',
+    value: string
+  ) => {
+    setHandicapEdits((prev) => ({
+      ...prev,
+      [rowId]: {
+        ...(prev[rowId] ?? {
+          finish_day: '',
+          finish_time: '',
+          elapsed_time: '',
+          corrected_time: '',
+        }),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handicapRankingPreviewById = useMemo(() => {
+    if (!isHandicapClass || sorted.length === 0) return new Map<number, { position: number; delta: string; points: number }>();
+
+    const rankedRows = sorted
+      .map((row) => {
+        const he = handicapEdits[row.id];
+        const corrected = (he?.corrected_time ?? row.corrected_time ?? '').trim();
+        const code = (row.code ?? '').toUpperCase();
+        return { id: row.id, corrected, code };
+      })
+      .filter((r) => !isAutoNPlusOne(r.code));
+
+    const nonRanked = sorted
+      .map((row) => ({ id: row.id, code: (row.code ?? '').toUpperCase() }))
+      .filter((r) => isAutoNPlusOne(r.code));
+
+    const items = rankedRows.map((r) => ({
+      id: r.id,
+      ct: parseTimeToSeconds(r.corrected),
+    }));
+
+    items.sort((a, b) => {
+      const aNone = a.ct == null;
+      const bNone = b.ct == null;
+      if (aNone !== bNone) return aNone ? 1 : -1;
+      if (a.ct == null || b.ct == null) return 0;
+      return a.ct - b.ct;
+    });
+
+    const out = new Map<number, { position: number; delta: string; points: number }>();
+    let bestCt: number | null = null;
+    for (const it of items) {
+      if (it.ct != null) {
+        bestCt = it.ct;
+        break;
+      }
+    }
+
+    let pos = 1;
+    let i = 0;
+    while (i < items.length) {
+      const baseCt = items[i].ct;
+      let tieCount = 1;
+      while (i + tieCount < items.length && items[i + tieCount].ct === baseCt) tieCount += 1;
+      const ptsAvg = Array.from({ length: tieCount }, (_, k) => pos + k).reduce((a, v) => a + v, 0) / tieCount;
+      const deltaStr = bestCt == null || baseCt == null ? '—' : formatDelta(baseCt - bestCt);
+      for (let k = 0; k < tieCount; k += 1) {
+        out.set(items[i + k].id, { position: pos, delta: deltaStr, points: ptsAvg });
+      }
+      pos += tieCount;
+      i += tieCount;
+    }
+
+    const nPlusOne = sorted.length + 1;
+    for (const r of nonRanked) {
+      out.set(r.id, { position: nPlusOne, delta: '—', points: nPlusOne });
+    }
+    return out;
+  }, [isHandicapClass, sorted, handicapEdits]);
 
   const openPoints = (row: ApiResult) => {
     setPointsOpen((p) => ({ ...p, [row.id]: true }));
@@ -151,632 +388,65 @@ export default function ExistingResultsTable({
   if (loading) return <p className="p-4 text-gray-500">Loading…</p>;
   if (sorted.length === 0) return <p className="p-4 text-gray-500">No saved results for this race.</p>;
 
-  // ===========================
-  // Layout específico Handicap
-  // ===========================
   if (isHandicapClass) {
     return (
-      <>
-        <table className="min-w-full text-xs">
-          <thead className="bg-gray-100 sticky top-0 z-10">
-            <tr>
-              <th className="border px-2 py-2 text-center">Pos</th>
-              <th className="border px-2 py-2 text-left">Sail No</th>
-              <th className="border px-2 py-2 text-left">Boat / Sponsor</th>
-              <th className="border px-2 py-2 text-left">Skipper</th>
-              <th className="border px-2 py-2 text-center">Rating</th>
-              <th className="border px-2 py-2 text-center">Finish Time</th>
-              <th className="border px-2 py-2 text-center">Elapsed</th>
-              <th className="border px-2 py-2 text-center">Corrected</th>
-              <th className="border px-2 py-2 text-center">Delta</th>
-              <th className="border px-2 py-2 text-center">Points</th>
-              <th className="border px-2 py-2 text-center">Code</th>
-              <th className="border px-2 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((row, idx) => {
-              const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-              const codeUpper = row.code ? row.code.toUpperCase() : null;
-
-              const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
-
-              const ptsIsOpen = !!pointsOpen[row.id];
-              const rawPtsVal = pointsValue[row.id] ?? '';
-
-              const hasOverride = row.points_override != null;
-
-              const lockedByCode = isAutoNPlusOne(codeUpper);
-
-              return (
-                <tr key={row.id} className={rowBg}>
-                  <td className="border px-2 py-2 text-center font-semibold">{row.position}</td>
-
-                  <td className="border px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      <SailNumberDisplay
-                        countryCode={row.boat_country_code}
-                        sailNumber={row.sail_number}
-                      />
-                    </div>
-                  </td>
-
-                  <td className="border px-2 py-2">
-                    <span className="text-sm text-gray-800">{row.boat_name || '—'}</span>
-                  </td>
-
-                  <td className="border px-2 py-2">{row.skipper_name}</td>
-
-                  <td className="border px-2 py-2 text-center">
-                    {typeof row.rating === 'number' ? row.rating : '—'}
-                  </td>
-
-                  <td className="border px-2 py-2 text-center">
-                    {row.finish_time || ''}
-                  </td>
-
-                  <td className="border px-2 py-2 text-center">
-                    {row.elapsed_time || ''}
-                  </td>
-
-                  <td className="border px-2 py-2 text-center">
-                    {row.corrected_time || ''}
-                  </td>
-
-                  <td className="border px-2 py-2 text-center">
-                    {row.delta || (row.code ? '—' : '')}
-                  </td>
-
-                  <td className="border px-2 py-2 text-center">
-                    <span className="text-sm">
-                      {row.points}
-                      {hasOverride ? (
-                        <span className="ml-1 text-[10px] text-yellow-700">
-                          (OVR: {row.points_override})
-                        </span>
-                      ) : null}
-                    </span>
-                  </td>
-
-                  <td className="border px-2 py-2">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <select
-                          className="border rounded px-2 py-1"
-                          value={row.code ?? ''}
-                          disabled={loading}
-                          onChange={(ev) => {
-                            const raw = (ev.target.value || '').trim();
-                            const next = raw ? raw.toUpperCase() : null;
-
-                            clearPending(row.id);
-
-                            if (!next) {
-                              onMarkCode(row.id, null, null);
-                              return;
-                            }
-
-                            if (isAdjustable(next)) {
-                              setPendingCode((p) => ({ ...p, [row.id]: next }));
-                              setPendingPoints((p) => ({
-                                ...p,
-                                [row.id]: row.points != null ? String(row.points) : '',
-                              }));
-                              return;
-                            }
-
-                            onMarkCode(row.id, next, null);
-                          }}
-                          aria-label="Código de pontuação"
-                        >
-                          <option value="">(nenhum)</option>
-
-                          <optgroup label="Auto (N+1) — discardable">
-                            {codeGroups.autoDiscardable.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </optgroup>
-
-                          <optgroup label="Auto (N+1) — NÃO discardable">
-                            {codeGroups.autoNonDiscardable.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </optgroup>
-
-                          <optgroup label="Ajustável (pede valor)">
-                            {codeGroups.adjustable.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </optgroup>
-
-                          {codeGroups.custom.length > 0 && (
-                            <optgroup label="Custom (fixos)">
-                              {codeGroups.custom.map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                      </div>
-
-                      {showAdjustBox && (
-                        <div className="flex items-center gap-2 bg-gray-50 border rounded p-2">
-                          <span className="text-xs text-gray-600 w-20">{pendingCode[row.id]}</span>
-
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            className="border rounded px-2 py-1 w-32"
-                            value={pendingPoints[row.id] ?? ''}
-                            placeholder="ex: 4.5"
-                            onChange={(e) =>
-                              setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))
-                            }
-                          />
-
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700"
-                            onClick={() => {
-                              const code = pendingCode[row.id];
-                              const rawPts = (pendingPoints[row.id] ?? '').trim();
-                              const pts = Number(rawPts);
-
-                              if (!Number.isFinite(pts)) {
-                                alert('Invalid value (points).');
-                                return;
-                              }
-
-                              onMarkCode(row.id, code, pts);
-                              clearPending(row.id);
-                            }}
-                          >
-                            Apply
-                          </button>
-
-                          <button
-                            type="button"
-                            className="ml-auto px-2 py-1 rounded border text-xs hover:bg-gray-100"
-                            onClick={() => clearPending(row.id)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="border px-2 py-2 text-right">
-                    <div className="inline-flex gap-2 items-center">
-                      {/* Override points + Undo */}
-                      {!ptsIsOpen ? (
-                        <button
-                          disabled={loading || lockedByCode}
-                          onClick={() => openPoints(row)}
-                          className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
-                          title="Manually set points without changing positions"
-                        >
-                          {hasOverride ? 'Edit override' : 'Override points'}
-                        </button>
-                      ) : (
-                        <div className="inline-flex items-center gap-1">
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            className="w-20 border rounded px-2 py-1 text-center text-xs"
-                            value={rawPtsVal}
-                            onChange={(e) =>
-                              setPointsValue((p) => ({ ...p, [row.id]: e.target.value }))
-                            }
-                          />
-
-                          <button
-                            type="button"
-                            disabled={loading}
-                            className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
-                            onClick={() => {
-                              const raw = (rawPtsVal ?? '').trim();
-                              const pts = Number(raw);
-                              if (!Number.isFinite(pts) || pts < 0) {
-                                alert('Invalid value (points).');
-                                return;
-                              }
-                              onOverridePoints(row.id, pts);
-                              closePoints(row.id);
-                            }}
-                          >
-                            Apply
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={loading}
-                            className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                            onClick={() => {
-                              onOverridePoints(row.id, null);
-                              closePoints(row.id);
-                            }}
-                            title="Remove override and go back to normal scoring"
-                          >
-                            Undo
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={loading}
-                            className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                            onClick={() => closePoints(row.id)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-
-                      <button
-                        disabled={loading}
-                        onClick={() => {
-                          if (
-                            confirm(
-                              'Delete this result? Following positions and overall scoring will be adjusted.'
-                            )
-                          )
-                            onDelete(row.id);
-                        }}
-                        className="px-2 py-1 rounded border hover:bg-red-50 text-red-600 disabled:opacity-50"
-                        title="Delete"
-                      >
-                        🗑
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </>
+      <HandicapResultsTable
+        sorted={sorted}
+        loading={loading}
+        showFleetColumn={!!fleetNameByEntryId?.size}
+        fleetLabelForRow={fleetLabelForRow}
+        raceStartTime={raceStartTime ?? ''}
+        handicapMethod={handicapMethod ?? 'manual'}
+        codeGroups={codeGroups}
+        pendingCode={pendingCode}
+        pendingPoints={pendingPoints}
+        pointsOpen={pointsOpen}
+        pointsValue={pointsValue}
+        handicapRankingPreviewById={handicapRankingPreviewById}
+        clearPending={clearPending}
+        openPoints={openPoints}
+        closePoints={closePoints}
+        setPointsValue={setPointsValue}
+        setPendingCode={setPendingCode}
+        setPendingPoints={setPendingPoints}
+        resolveCrew={resolveCrew}
+        getHandicapEdit={getHandicapEdit}
+        setHandicapEditField={setHandicapEditField}
+        onMarkCode={onMarkCode}
+        onOverridePoints={onOverridePoints}
+        onUpdateHandicapResult={onUpdateHandicapResult}
+        resolveEffectiveRating={getEffectiveRatingForRow}
+      />
     );
   }
 
   return (
-    <>
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-100 sticky top-0 z-10">
-          <tr>
-            <th className="border px-2 py-2 text-left">Sail</th>
-            <th className="border px-2 py-2 text-left">Skipper</th>
-            <th className="border px-2 py-2 text-center">Position</th>
-            <th className="border px-2 py-2 text-left">Code</th>
-            <th className="border px-2 py-2 text-right">Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {sorted.map((row, idx) => {
-            const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-            const codeUpper = row.code ? row.code.toUpperCase() : null;
-
-            const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
-
-            const maxPos = sorted.length;
-            const isChangeOpen = !!changeToOpen[row.id];
-            const rawVal = changeToValue[row.id] ?? '';
-
-            const ptsIsOpen = !!pointsOpen[row.id];
-            const rawPtsVal = pointsValue[row.id] ?? '';
-
-            const hasOverride = row.points_override != null;
-
-            // ✅ só bloqueia ações quando é N+1 (DNC/DNF/...)
-            const lockedByCode = isAutoNPlusOne(codeUpper);
-
-            return (
-              <tr key={row.id} className={rowBg}>
-                <td className="border px-2 py-2">
-                  <div className="flex items-center gap-2">
-                    <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
-
-                    {/* badge do code (se existir) */}
-                    {row.code ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700" title="Code + value">
-                        {formatCodeWithValue(row)}
-                      </span>
-                    ) : null}
-
-                    {/* ✅ badge de override */}
-                    {hasOverride ? (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-900 border border-yellow-200"
-                        title="Pontos com override"
-                      >
-                        OVR
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-
-                <td className="border px-2 py-2">{row.skipper_name}</td>
-
-                <td className="border px-2 py-2 text-center">
-                  <input
-                    type="number"
-                    min={1}
-                    className="w-24 border rounded px-2 py-1 text-center"
-                    value={row.position}
-                    disabled
-                    readOnly
-                  />
-                </td>
-
-                <td className="border px-2 py-2">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="border rounded px-2 py-1"
-                        value={row.code ?? ''}
-                        disabled={loading}
-                        onChange={(ev) => {
-                          const raw = (ev.target.value || '').trim();
-                          const next = raw ? raw.toUpperCase() : null;
-
-                          clearPending(row.id);
-
-                          // (opcional) se mudares code, podes querer limpar override
-                          // onOverridePoints(row.id, null);
-
-                          if (!next) {
-                            onMarkCode(row.id, null, null);
-                            return;
-                          }
-
-                          if (isAdjustable(next)) {
-                            setPendingCode((p) => ({ ...p, [row.id]: next }));
-                            setPendingPoints((p) => ({
-                              ...p,
-                              [row.id]: row.points != null ? String(row.points) : '',
-                            }));
-                            return;
-                          }
-
-                          onMarkCode(row.id, next, null);
-                        }}
-                        aria-label="Código de pontuação"
-                      >
-                        <option value="">(nenhum)</option>
-
-                        <optgroup label="Auto (N+1) — discardable">
-                          {codeGroups.autoDiscardable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-
-                        <optgroup label="Auto (N+1) — NÃO discardable">
-                          {codeGroups.autoNonDiscardable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-
-                        <optgroup label="Ajustável (pede valor)">
-                          {codeGroups.adjustable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-
-                        {codeGroups.custom.length > 0 && (
-                          <optgroup label="Custom (fixos)">
-                            {codeGroups.custom.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </select>
-
-                      <span className="text-xs text-gray-500">
-                        points: <b>{row.points}</b>
-                        {hasOverride ? <span className="ml-1">(override: {row.points_override})</span> : null}
-                      </span>
-                    </div>
-
-                    {showAdjustBox && (
-                      <div className="flex items-center gap-2 bg-gray-50 border rounded p-2">
-                        <span className="text-xs text-gray-600 w-20">{pendingCode[row.id]}</span>
-
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          className="border rounded px-2 py-1 w-32"
-                          value={pendingPoints[row.id] ?? ''}
-                          placeholder="ex: 4.5"
-                          onChange={(e) => setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))}
-                        />
-
-                        <button
-                          type="button"
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700"
-                          onClick={() => {
-                            const code = pendingCode[row.id];
-                            const rawPts = (pendingPoints[row.id] ?? '').trim();
-                            const pts = Number(rawPts);
-
-                            if (!Number.isFinite(pts)) {
-                              alert('Invalid value (points).');
-                              return;
-                            }
-
-                            onMarkCode(row.id, code, pts);
-                            clearPending(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-
-                        <button
-                          type="button"
-                          className="ml-auto px-2 py-1 rounded border text-xs hover:bg-gray-100"
-                          onClick={() => clearPending(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </td>
-
-                <td className="border px-2 py-2 text-right">
-                  <div className="inline-flex gap-2 items-center">
-                    {/* Change to */}
-                    {!isChangeOpen ? (
-                      <button
-                        disabled={loading || lockedByCode}
-                        onClick={() => openChangeTo(row.id, row.position)}
-                        className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
-                        title="Move this result to a specific position"
-                      >
-                        Change to
-                      </button>
-                    ) : (
-                      <div className="inline-flex items-center gap-1">
-                        <input
-                          type="number"
-                          min={1}
-                          max={maxPos}
-                          className="w-16 border rounded px-2 py-1 text-center text-xs"
-                          value={rawVal}
-                          onChange={(e) => setChangeToValue((p) => ({ ...p, [row.id]: e.target.value }))}
-                        />
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => {
-                            const v = Math.max(1, Math.min(maxPos, Number(rawVal) || 1));
-                            onEditPos(row.id, v);
-                            closeChangeTo(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => closeChangeTo(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Override points + Undo */}
-                    {!ptsIsOpen ? (
-                      <button
-                        disabled={loading || lockedByCode}
-                        onClick={() => openPoints(row)}
-                        className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
-                        title="Manually set points without changing positions"
-                      >
-                        {hasOverride ? 'Edit override' : 'Override points'}
-                      </button>
-                    ) : (
-                      <div className="inline-flex items-center gap-1">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          className="w-20 border rounded px-2 py-1 text-center text-xs"
-                          value={rawPtsVal}
-                          onChange={(e) => setPointsValue((p) => ({ ...p, [row.id]: e.target.value }))}
-                        />
-
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => {
-                            const raw = (rawPtsVal ?? '').trim();
-                            const pts = Number(raw);
-                            if (!Number.isFinite(pts) || pts < 0) {
-                              alert('Invalid value (points).');
-                              return;
-                            }
-                            onOverridePoints(row.id, pts);
-                            closePoints(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-
-                        {/* ✅ UNDO: limpar override */}
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => {
-                            onOverridePoints(row.id, null);
-                            closePoints(row.id);
-                          }}
-                          title="Remove override and go back to normal scoring"
-                        >
-                          Undo
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => closePoints(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    <button
-                      disabled={loading}
-                      onClick={() => {
-                        if (confirm('Delete this result? Following positions will be adjusted.')) onDelete(row.id);
-                      }}
-                      className="px-2 py-1 rounded border hover:bg-red-50 text-red-600 disabled:opacity-50"
-                      title="Delete"
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      <div className="sticky bottom-0 bg-white/80 backdrop-blur border-t p-2 text-right">
-        <button
-          disabled={loading}
-          onClick={onSaveOrder}
-          className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded disabled:opacity-50"
-        >
-          Save order
-        </button>
-      </div>
-    </>
+    <OneDesignResultsTable
+      sorted={sorted}
+      loading={loading}
+      showFleetColumn={!!fleetNameByEntryId?.size}
+      fleetLabelForRow={fleetLabelForRow}
+      codeGroups={codeGroups}
+      pendingCode={pendingCode}
+      pendingPoints={pendingPoints}
+      changeToOpen={changeToOpen}
+      changeToValue={changeToValue}
+      pointsOpen={pointsOpen}
+      pointsValue={pointsValue}
+      resolveCrew={resolveCrew}
+      formatCodeWithValue={formatCodeWithValue}
+      clearPending={clearPending}
+      openChangeTo={openChangeTo}
+      closeChangeTo={closeChangeTo}
+      openPoints={openPoints}
+      closePoints={closePoints}
+      setPendingCode={setPendingCode}
+      setPendingPoints={setPendingPoints}
+      setChangeToValue={setChangeToValue}
+      setPointsValue={setPointsValue}
+      onMarkCode={onMarkCode}
+      onEditPos={onEditPos}
+      onOverridePoints={onOverridePoints}
+    />
   );
 }

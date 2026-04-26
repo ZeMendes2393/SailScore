@@ -12,6 +12,7 @@ import CreateFinals from './components/CreateFinals';
 import CreateMedalRace from './components/CreateMedalRace';
 
 import type { OverallRow } from './types';
+import { compareBySailThenCountry } from '@/lib/sailNumberSort';
 
 type FleetManagerProps = {
   overall: OverallRow[]; // ✅ já vem filtrado pela classe no parent
@@ -24,6 +25,7 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
   // ---------------- HOOK ----------------
   const {
     classes,
+    classTypeByName,
     selectedClass,
     setSelectedClass,
     sets,
@@ -53,12 +55,10 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
   const [localTitle, setLocalTitle] = useState('');
 
   // ---------------- QUALIFYING ----------------
-  const [qLabel, setQLabel] = useState('Qual D1');
   const [qNum, setQNum] = useState<2 | 3 | 4>(2);
   const [qRaceIds, setQRaceIds] = useState<number[]>([]);
 
   // ---------------- RESHUFFLE ----------------
-  const [rLabel, setRLabel] = useState('Qual D2');
   const [rNum, setRNum] = useState<2 | 3 | 4>(2);
   const [rRaceIds, setRRaceIds] = useState<number[]>([]);
 
@@ -88,14 +88,17 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
 
   // ---------------- ORDER ASSIGNMENTS ----------------
   const sortedAssignments = useMemo(() => {
-    return assignments
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.sail_number?.match(/\d+/)?.[0] ?? 999999) -
-          Number(b.sail_number?.match(/\d+/)?.[0] ?? 999999)
-      );
-  }, [assignments]);
+    const fleetOrder = new Map<number, number>(
+      (selectedSet?.fleets ?? []).map((f) => [f.id, f.order_index ?? 0])
+    );
+    const orderOf = (fleetId: number) => fleetOrder.get(fleetId) ?? 9999;
+
+    return assignments.slice().sort((a, b) => {
+      const fo = orderOf(a.fleet_id) - orderOf(b.fleet_id);
+      if (fo !== 0) return fo;
+      return compareBySailThenCountry(a, b);
+    });
+  }, [assignments, selectedSet]);
 
   // ---------------- RENDER ----------------
   return (
@@ -107,15 +110,17 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
       )}
 
       {/* CLASS SELECTION */}
-      <SelectClassBar
-        classes={classes}
-        selectedClass={selectedClass}
-        setSelectedClass={setSelectedClass}
-        clearSelections={() => {
-          setSelectedSetId(null);
-          setModeCreate('');
-        }}
-      />
+      {modeCreate !== 'qualifying' && modeCreate !== 'reshuffle' && (
+        <SelectClassBar
+          classes={classes}
+          selectedClass={selectedClass}
+          setSelectedClass={setSelectedClass}
+          clearSelections={() => {
+            setSelectedSetId(null);
+            setModeCreate('');
+          }}
+        />
+      )}
 
       {/* Aviso se não há ranking */}
       {selectedClass && modeCreate !== '' && classOverall.length === 0 && (
@@ -169,6 +174,7 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
             {selectedSet ? (
               <ExistingFleetSet
                 selectedSet={selectedSet}
+                classType={(classTypeByName[selectedSet.class_name] || 'one_design').toLowerCase()}
                 localTitle={localTitle}
                 setLocalTitle={setLocalTitle}
                 publishSet={publishSet}
@@ -234,8 +240,9 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
 
           {modeCreate === 'qualifying' && (
             <CreateQualifying
-              qLabel={qLabel}
-              setQLabel={setQLabel}
+              classes={classes}
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
               qNum={qNum}
               setQNum={setQNum}
               qRaceIds={qRaceIds}
@@ -247,8 +254,9 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
 
           {modeCreate === 'reshuffle' && (
             <CreateReshuffle
-              rLabel={rLabel}
-              setRLabel={setRLabel}
+              classes={classes}
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
               rNum={rNum}
               setRNum={setRNum}
               rRaceIds={rRaceIds}

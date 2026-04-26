@@ -1,10 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+import re
+
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import FleetSet, FleetAssignment, Entry
 
 router = APIRouter(prefix="/public", tags=["public-fleets"])
+
+
+def _boat_sort_key(entry: Entry) -> tuple:
+    sn = (entry.sail_number or "").strip()
+    m = re.search(r"\d+", sn)
+    num = int(m.group(0)) if m else 10**9
+    cc = (getattr(entry, "boat_country_code", None) or "").strip().upper()
+    return (num, cc, sn.lower())
+
 
 @router.get("/regattas/{regatta_id}/fleets")
 def public_fleet_sets(regatta_id: int, db: Session = Depends(get_db)):
@@ -28,6 +39,7 @@ def public_fleet_sets(regatta_id: int, db: Session = Depends(get_db)):
                 .filter(FleetAssignment.fleet_id == f.id)
                 .all()
             )
+            assignments.sort(key=lambda row: _boat_sort_key(row[1]))
 
             boats = [
                 {

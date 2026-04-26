@@ -56,3 +56,14 @@ body {
 .test-bg { 
   @apply bg-red-500 text-white p-4 text-center font-bold rounded-lg mt-4;
 }
+
+/* Keep login input text size consistent after refresh/autofill */
+input.login-input,
+input.login-input::placeholder,
+input.login-input:-webkit-autofill,
+input.login-input:-webkit-autofill:hover,
+input.login-input:-webkit-autofill:focus {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+  -webkit-text-fill-color: rgb(15 23 42) !important;
+}

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { BASE_URL } from '@/lib/api';
 
-type PreviewRow = { sail_number: string; points: string; code: string | null };
+type PreviewRow = Record<string, string | number | null | undefined>;
 
 interface ImportRaceCsvModalProps {
   raceId: number;
@@ -31,6 +31,7 @@ export default function ImportRaceCsvModal({
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
+  const [previewColumns, setPreviewColumns] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [unmatched, setUnmatched] = useState<string[]>([]);
   const [validationOk, setValidationOk] = useState<boolean | null>(null);
@@ -38,10 +39,20 @@ export default function ImportRaceCsvModal({
 
   const url = `${BASE_URL}/results/races/${raceId}/import/csv`;
 
-  const validateFile = async () => {
-    if (!file || !token) return;
+  const validateFile = async (): Promise<boolean> => {
+    if (!file) {
+      setValidationOk(false);
+      setErrors(['Choose a CSV file first.']);
+      return false;
+    }
+    if (!token) {
+      setValidationOk(false);
+      setErrors(['Admin session missing. Please log in again.']);
+      return false;
+    }
     setLoading(true);
     setPreview([]);
+    setPreviewColumns([]);
     setErrors([]);
     setUnmatched([]);
     setValidationOk(null);
@@ -57,19 +68,28 @@ export default function ImportRaceCsvModal({
       });
       const data = await res.json().catch(() => ({}));
       setPreview(Array.isArray(data.preview) ? data.preview : []);
+      setPreviewColumns(Array.isArray(data.columns) ? data.columns : []);
       setErrors(Array.isArray(data.errors) ? data.errors : []);
       setUnmatched(Array.isArray(data.unmatched) ? data.unmatched : []);
-      setValidationOk(data.ok === true && (data.errors?.length ?? 0) === 0);
+      const ok = data.ok === true && (data.errors?.length ?? 0) === 0;
+      setValidationOk(ok);
+      return ok;
     } catch (e: any) {
-      setErrors([e?.message || 'Erro ao validar ficheiro.']);
+      setErrors([e?.message || 'Error validating file.']);
       setValidationOk(false);
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
   const handleConfirm = async () => {
-    if (!file || !token || !validationOk) return;
+    if (!file || !token) return;
+    let canProceed = validationOk === true;
+    if (!canProceed) {
+      canProceed = await validateFile();
+    }
+    if (!canProceed) return;
     setConfirming(true);
     try {
       const form = new FormData();
@@ -88,11 +108,19 @@ export default function ImportRaceCsvModal({
       onSuccess();
       onClose();
     } catch (e: any) {
-      setErrors((prev) => [...prev, e?.message || 'Erro ao importar.']);
+      setErrors((prev) => [...prev, e?.message || 'Import failed.']);
     } finally {
       setConfirming(false);
     }
   };
+
+  const confirmDisabledReason = !file
+    ? 'Select a CSV file first.'
+    : validationOk === null
+    ? 'Click Confirm import to auto-validate and import.'
+    : validationOk === false
+    ? 'Fix validation errors before importing.'
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="import-csv-title">
@@ -103,7 +131,7 @@ export default function ImportRaceCsvModal({
         </h2>
         <div className="p-4 space-y-4 overflow-auto">
           <p className="text-sm text-gray-600">
-            Header: <code className="bg-gray-100 px-1 rounded">sail_number,points,code</code>. One design only.
+            CSV columns depend on race scoring mode. Export this race first to get the exact template.
           </p>
           <div>
             <input
@@ -115,6 +143,7 @@ export default function ImportRaceCsvModal({
                 const f = e.target.files?.[0];
                 setFile(f || null);
                 setPreview([]);
+                setPreviewColumns([]);
                 setErrors([]);
                 setUnmatched([]);
                 setValidationOk(null);
@@ -136,7 +165,7 @@ export default function ImportRaceCsvModal({
               disabled={loading}
               className="px-4 py-2 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 text-sm"
             >
-              {loading ? 'A validar…' : 'Validar e pré-visualizar'}
+              {loading ? 'Validating...' : 'Validate and preview'}
             </button>
           )}
           {errors.length > 0 && (
@@ -150,27 +179,31 @@ export default function ImportRaceCsvModal({
           )}
           {unmatched.length > 0 && (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm">
-              sail_number(s) não encontrados na lista de inscrições: {unmatched.join(', ')}
+              Sail/country pair(s) not found in the entry list: {unmatched.join(', ')}
             </div>
           )}
           {preview.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-1">Pré-visualização (primeiras linhas)</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-1">Preview (first rows)</h3>
               <div className="border rounded overflow-auto max-h-40">
                 <table className="min-w-full text-xs">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border px-2 py-1 text-left">sail_number</th>
-                      <th className="border px-2 py-1 text-left">points</th>
-                      <th className="border px-2 py-1 text-left">code</th>
+                      {(previewColumns.length ? previewColumns : Object.keys(preview[0] || {})).map((col) => (
+                        <th key={col} className="border px-2 py-1 text-left">
+                          {col}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((row, i) => (
                       <tr key={i}>
-                        <td className="border px-2 py-1">{row.sail_number}</td>
-                        <td className="border px-2 py-1">{row.points}</td>
-                        <td className="border px-2 py-1">{row.code ?? ''}</td>
+                        {(previewColumns.length ? previewColumns : Object.keys(preview[0] || {})).map((col) => (
+                          <td key={col} className="border px-2 py-1">
+                            {String(row[col] ?? '')}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -185,15 +218,16 @@ export default function ImportRaceCsvModal({
             onClick={onClose}
             className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
           >
-            Cancelar
+            Cancel
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!validationOk || confirming}
+            disabled={!file || loading || confirming}
+            title={confirmDisabledReason ?? undefined}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {confirming ? 'A importar…' : 'Confirmar import'}
+            {confirming ? 'Importing...' : 'Confirm import'}
           </button>
         </div>
       </div>

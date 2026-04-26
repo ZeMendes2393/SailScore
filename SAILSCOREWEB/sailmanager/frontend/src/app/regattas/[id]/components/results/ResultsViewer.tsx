@@ -46,6 +46,18 @@ interface OverallResult {
   boat_model?: string | null
   bow_number?: string | number | null
 }
+type RegattaEntryLite = {
+  first_name?: string | null
+  last_name?: string | null
+  sail_number?: string | null
+  boat_country_code?: string | null
+  boat_name?: string | null
+  class_name?: string | null
+  crew_members?: Array<{
+    first_name?: string | null
+    last_name?: string | null
+  }> | null
+}
 
 const FLEET_COLOR_CLASSES: Record<string, string> = {
   Yellow: 'bg-yellow-300',
@@ -71,6 +83,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   const [loading, setLoading] = useState(true)
   const [resultsOverallColumns, setResultsOverallColumns] = useState<string[] | Record<string, string[]> | null>(null)
   const [selectedRaceForTimes, setSelectedRaceForTimes] = useState<string | null>(null)
+  const [entriesByBoatKey, setEntriesByBoatKey] = useState<Map<string, string[]>>(new Map())
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -120,6 +133,56 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     fetchOverallResults()
   }, [regattaId, selectedClass])
 
+  useEffect(() => {
+    if (!selectedClass) {
+      setEntriesByBoatKey(new Map())
+      return
+    }
+    const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase()
+    const boatKey = (e: RegattaEntryLite) =>
+      `${normalizeText(e.sail_number)}|${normalizeText(e.boat_country_code)}|${normalizeText(
+        e.boat_name
+      )}|${normalizeText(e.class_name)}`
+    const boatLooseKey = (e: RegattaEntryLite) =>
+      `${normalizeText(e.sail_number)}|${normalizeText(e.boat_country_code)}|${normalizeText(
+        e.class_name
+      )}`
+    const sailClassKey = (e: RegattaEntryLite) =>
+      `${normalizeText(e.sail_number)}|${normalizeText(e.class_name)}`
+    const fetchEntries = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/entries/by_regatta/${regattaId}?include_waiting=1`)
+        const data: RegattaEntryLite[] = await res.json()
+        const next = new Map<string, string[]>()
+        for (const entry of Array.isArray(data) ? data : []) {
+          if ((entry.class_name ?? '').trim() !== selectedClass) continue
+          const helmName = `${(entry.first_name ?? '').trim()} ${(entry.last_name ?? '').trim()}`.trim()
+          const crewNames = Array.isArray(entry.crew_members)
+            ? entry.crew_members
+                .map((m) => `${(m?.first_name ?? '').trim()} ${(m?.last_name ?? '').trim()}`.trim())
+                .filter(Boolean)
+            : []
+          const allBoatNames = [helmName, ...crewNames].filter(Boolean)
+          if (allBoatNames.length === 0) continue
+          const keys = [boatKey(entry), boatLooseKey(entry), sailClassKey(entry)]
+          for (const key of keys) {
+            const names = next.get(key) ?? []
+            for (const personName of allBoatNames) {
+              if (!names.some((n) => n.toUpperCase() === personName.toUpperCase())) {
+                names.push(personName)
+              }
+            }
+            next.set(key, names)
+          }
+        }
+        setEntriesByBoatKey(next)
+      } catch {
+        setEntriesByBoatKey(new Map())
+      }
+    }
+    fetchEntries()
+  }, [regattaId, selectedClass])
+
   const visibleColumns: ResultsOverallColumnId[] = useMemo(
     () => getVisibleResultsOverallColumnsForClass(resultsOverallColumns, selectedClass),
     [resultsOverallColumns, selectedClass]
@@ -143,6 +206,25 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   }, [publishedAt])
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
+  const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase()
+  const boatKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.boat_country_code)}|${normalizeText(
+      r.boat_name
+    )}|${normalizeText(r.class_name)}`
+  const boatLooseKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.boat_country_code)}|${normalizeText(
+      r.class_name
+    )}`
+  const sailClassKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.class_name)}`
+  const getCrewForResult = (r: OverallResult) => {
+    const crew =
+      entriesByBoatKey.get(boatKeyFromResult(r)) ??
+      entriesByBoatKey.get(boatLooseKeyFromResult(r)) ??
+      entriesByBoatKey.get(sailClassKeyFromResult(r))
+    if (crew && crew.length > 0) return crew.join(', ')
+    return r.skipper_name || '—'
+  }
 
   if (loading) return <p className="text-gray-500">Loading results…</p>
   if (results.length === 0) return <p className="text-gray-500">No published results yet for this class.</p>
@@ -226,7 +308,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                 if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{r.finals_fleet ?? '—'}</td>
                 if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                 if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>
-                if (id === 'skipper') return <td key={id} className="border px-3 py-2">{r.skipper_name}</td>
+                if (id === 'skipper') return <td key={id} className="border px-3 py-2">{getCrewForResult(r)}</td>
                 if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>
                 if (id === 'model') return <td key={id} className="border px-3 py-2">{r.boat_model ?? '—'}</td>
                 if (id === 'bow') return <td key={id} className="border px-3 py-2">{r.bow_number ?? '—'}</td>

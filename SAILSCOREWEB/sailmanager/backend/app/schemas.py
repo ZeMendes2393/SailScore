@@ -405,19 +405,29 @@ class ResultCreate(BaseModel):
     regatta_id: int
     race_id: int
     sail_number: Optional[str] = None
-    boat_country_code: Optional[str] = None
+    boat_country_code: str
     boat_name: Optional[str] = None
     boat_class: Optional[str] = None
     helm_name: Optional[str] = None
     position: Optional[int] = None
     points: Optional[float] = None
     code: Optional[str] = None
+    rating: Optional[float] = None
     # Handicap / Time Scoring
     finish_time: Optional[str] = None
     finish_day: Optional[int] = None
     elapsed_time: Optional[str] = None
     corrected_time: Optional[str] = None
-    notes: Optional[str] = None
+
+    @field_validator("boat_country_code")
+    @classmethod
+    def result_boat_country_code_non_empty(cls, v: str) -> str:
+        if v is None:
+            raise ValueError("boat_country_code is required.")
+        s = (v or "").strip().upper()
+        if not s:
+            raise ValueError("boat_country_code is required.")
+        return s
 
 
 class ResultRead(BaseModel):
@@ -440,7 +450,6 @@ class ResultRead(BaseModel):
     elapsed_time: Optional[str] = None
     corrected_time: Optional[str] = None
     delta: Optional[str] = None
-    notes: Optional[str] = None
 
 
 

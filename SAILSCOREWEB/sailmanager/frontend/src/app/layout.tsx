@@ -30,7 +30,7 @@ export default async function RootLayout({
   // /o/[slug]/... ou /admin?org=slug → carregar design da org para evitar flash do site default
   const orgMatch = pathname.match(/^\/o\/([^/]+)/);
   let orgSlug = orgMatch?.[1] ?? null;
-  if (!orgSlug && pathname.startsWith('/admin')) {
+  if (!orgSlug && (pathname.startsWith('/admin') || pathname.startsWith('/scorer'))) {
     orgSlug = headersList.get('x-org-slug')?.trim() || null;
   }
   if (!orgSlug && pathname === '/' && DEFAULT_PUBLIC_ORG_SLUG) {
@@ -53,10 +53,14 @@ export default async function RootLayout({
   }
   if (!orgSlug) {
     const regattaMatch = pathname.match(/^\/regattas\/(\d+)/);
+    const adminManageRegattaMatch = pathname.match(/^\/admin\/manage-regattas\/(\d+)/);
+    const scorerManageRegattaMatch = pathname.match(/^\/scorer\/manage-regattas\/(\d+)/);
     const dashRegattaId = headersList.get('x-dashboard-regatta-id')?.trim() || '';
     const loginRegattaId = headersList.get('x-login-regatta-id')?.trim() || '';
     const regattaIdFromPathOrDashboard =
       regattaMatch?.[1] ??
+      adminManageRegattaMatch?.[1] ??
+      scorerManageRegattaMatch?.[1] ??
       (/^\d+$/.test(dashRegattaId) ? dashRegattaId : null) ??
       (/^\d+$/.test(loginRegattaId) ? loginRegattaId : null);
     if (regattaIdFromPathOrDashboard) {

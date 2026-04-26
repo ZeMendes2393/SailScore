@@ -18,6 +18,7 @@ from app.routes.results_utils import (
     compute_points_for_code,
     removes_from_ranking,
     normalize_race_results,
+    _parse_time_to_seconds,
 )
 
 router = APIRouter()
@@ -26,6 +27,18 @@ router = APIRouter()
 # ✅ Body para override de pontos (clean)
 class OverridePointsPatch(BaseModel):
     points: float = Field(ge=0)
+
+
+class HandicapFieldsPatch(BaseModel):
+    finish_day: int | None = None
+    finish_time: str | None = None
+    elapsed_time: str | None = None
+    corrected_time: str | None = None
+
+
+def _norm_time_or_none(v: str | None) -> str | None:
+    s = (v or "").strip()
+    return s or None
 
 
 @router.delete("/{result_id}", status_code=204)
@@ -183,6 +196,7 @@ def set_result_code(
             code=code,
             manual_points=body.points,
             scoring_map=scoring_map,
+            boat_country_code=getattr(row, "boat_country_code", None),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -196,6 +210,60 @@ def set_result_code(
 
     if removes_from_ranking(code):
         row.position = 10**9
+
+    db.flush()
+    normalize_race_results(db, race)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.patch("/{result_id}/handicap-fields", response_model=schemas.ResultRead)
+def patch_handicap_fields(
+    result_id: int,
+    body: HandicapFieldsPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role not in ("admin", "platform_admin"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    row = db.query(models.Result).filter_by(id=result_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+
+    race = db.query(models.Race).filter_by(id=row.race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+    regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
+    if regatta:
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+
+    finish_day = body.finish_day
+    if finish_day is not None and int(finish_day) < 0:
+        raise HTTPException(status_code=400, detail="finish_day must be >= 0")
+
+    finish_time = _norm_time_or_none(body.finish_time)
+    elapsed_time = _norm_time_or_none(body.elapsed_time)
+    corrected_time = _norm_time_or_none(body.corrected_time)
+
+    if finish_time and _parse_time_to_seconds(finish_time) is None:
+        raise HTTPException(status_code=400, detail="finish_time must be HH:MM:SS")
+    if elapsed_time and _parse_time_to_seconds(elapsed_time) is None:
+        raise HTTPException(status_code=400, detail="elapsed_time must be HH:MM:SS")
+    if corrected_time and _parse_time_to_seconds(corrected_time) is None:
+        raise HTTPException(status_code=400, detail="corrected_time must be HH:MM:SS")
+
+    if not removes_from_ranking(getattr(row, "code", None)) and not corrected_time:
+        raise HTTPException(
+            status_code=400,
+            detail="corrected_time is required for ranked results",
+        )
+
+    row.finish_day = finish_day
+    row.finish_time = finish_time
+    row.elapsed_time = elapsed_time
+    row.corrected_time = corrected_time
 
     db.flush()
     normalize_race_results(db, race)

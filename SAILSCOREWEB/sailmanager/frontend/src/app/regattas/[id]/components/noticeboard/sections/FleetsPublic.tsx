@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import { compareBySailThenCountry } from '@/lib/sailNumberSort';
 
 type PublishedBoat = {
   sail_number: string | null;
@@ -146,7 +147,10 @@ export default function FleetsPublic({ regattaId }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {fleet.boats.map((b, i) => (
+                    {fleet.boats
+                      .slice()
+                      .sort(compareBySailThenCountry)
+                      .map((b, i) => (
                       <tr key={`${fleet.id}-${i}`}>
                         <td className="border px-2 py-1">
                           <SailNumberDisplay countryCode={(b as any).boat_country_code} sailNumber={b.sail_number} />

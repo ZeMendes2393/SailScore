@@ -29,7 +29,7 @@ export const RESULTS_OVERALL_COLUMNS: ResultsOverallColumnDef[] = [
   { id: 'fleet', label: 'Fleet' },
   { id: 'sail_no', label: 'Sail #' },
   { id: 'boat', label: 'Boat' },
-  { id: 'skipper', label: 'Skipper' },
+  { id: 'skipper', label: 'Crew' },
   { id: 'class', label: 'Class' },
   { id: 'model', label: 'Model' },
   { id: 'bow', label: 'Bow' },

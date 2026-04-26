@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPostJson } from '@/lib/api';
 import { parseRegattaId } from '@/utils/parseRegattaId';
 import { isAdminRole } from '@/lib/roles';
+import { getStoredSailorOrgSlugForLogin } from '@/lib/sessionExpiryLogin';
 
 type TokenRes = { access_token: string };
 
@@ -57,6 +58,17 @@ export default function LoginPage() {
         router.replace(
           rid ? dashboardUrlWithOrg(rid, orgFromQs) : orgFromQs ? `/dashboard?org=${encodeURIComponent(orgFromQs)}` : '/dashboard'
         );
+      } else if (user.role === 'scorer') {
+        const scorerRegattaId = user.current_regatta_id ?? undefined;
+        if (scorerRegattaId) {
+          router.replace(
+            orgFromQs
+              ? `/scorer/manage-regattas/${scorerRegattaId}?org=${encodeURIComponent(orgFromQs)}`
+              : `/scorer/manage-regattas/${scorerRegattaId}`
+          );
+        } else {
+          router.replace(orgFromQs ? `/dashboard/scorer?org=${encodeURIComponent(orgFromQs)}` : '/dashboard/scorer');
+        }
       }
       return;
     }
@@ -70,6 +82,17 @@ export default function LoginPage() {
       router.replace(
         rid ? dashboardUrlWithOrg(rid, orgFromQs) : orgFromQs ? `/dashboard?org=${encodeURIComponent(orgFromQs)}` : '/dashboard'
       );
+    } else if (mode === 'sailor' && user.role === 'scorer') {
+      const scorerRegattaId = user.current_regatta_id ?? qsId ?? undefined;
+      if (scorerRegattaId) {
+        router.replace(
+          orgFromQs
+            ? `/scorer/manage-regattas/${scorerRegattaId}?org=${encodeURIComponent(orgFromQs)}`
+            : `/scorer/manage-regattas/${scorerRegattaId}`
+        );
+      } else {
+        router.replace(orgFromQs ? `/dashboard/scorer?org=${encodeURIComponent(orgFromQs)}` : '/dashboard/scorer');
+      }
     }
   }, [user, router, qsId, mode, orgFromQs]);
 
@@ -89,6 +112,23 @@ export default function LoginPage() {
 
     fetchRegattaName();
   }, [mode, qsId]);
+
+  /** Expiração em scorer/sailor sem ?org=: recoloca org para manter branding de header/footer. */
+  useEffect(() => {
+    if (orgFromQs) return;
+    const reason = qs.get('reason')?.trim();
+    const after = typeof window !== 'undefined' ? sessionStorage.getItem('postLoginRedirect') || '' : '';
+    const isSailorExpiredFlow =
+      Boolean(qsId) ||
+      (reason === 'expired' &&
+        (after.startsWith('/dashboard') || after.startsWith('/scorer')));
+    if (!isSailorExpiredFlow) return;
+    const storedOrg = getStoredSailorOrgSlugForLogin();
+    if (!storedOrg) return;
+    const p = new URLSearchParams(qs.toString());
+    p.set('org', storedOrg);
+    router.replace(`/login?${p.toString()}`);
+  }, [orgFromQs, qs, qsId, router]);
 
   /** Sem ?org= na URL: obtém slug da regata e faz replace (refresh mantém branding via ?org=). */
   useEffect(() => {
@@ -130,6 +170,7 @@ export default function LoginPage() {
       if (mode === 'sailor') {
         if (!qsId) throw new Error('Invalid regatta in URL.');
         body.regatta_id = qsId;
+        if (orgFromQs) body.org = orgFromQs;
       }
 
       const { access_token } = await apiPostJson<TokenRes>('/auth/login', body);
@@ -173,18 +214,23 @@ export default function LoginPage() {
   }, [mode, qsId, orgFromQs]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="w-full max-w-md bg-white rounded border p-6">
-        <h1 className="text-xl font-semibold mb-4">{title}</h1>
+    <div className="min-h-[72vh] flex items-center justify-center px-4 py-10 bg-gradient-to-b from-slate-50 to-slate-100">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-sm p-7 sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-1">{title}</h1>
+        <p className="text-sm text-slate-500 mb-6">
+          Enter your credentials to continue.
+        </p>
 
         {/* Só mostra erro de regata quando realmente estamos em modo sailor sem regattaId */}
         {mode === 'sailor' && !qsId && (
-          <div className="mb-3 text-sm text-red-600">Invalid regatta in URL.</div>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Invalid regatta in URL.
+          </div>
         )}
 
         {user && (
-          <div className="mb-4 flex items-center justify-between gap-3 text-sm">
-            <span className="text-gray-600">
+          <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-600">
               Current session:{' '}
               <b>
                 {user.role === 'regatista' && (user as any).username
@@ -195,43 +241,55 @@ export default function LoginPage() {
             </span>
             <button
               onClick={() => logout({ redirectTo: relogUrl })}
-              className="px-3 py-1 rounded border hover:bg-gray-50"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-white transition-colors"
             >
               Sign in with another account
             </button>
           </div>
         )}
 
-        {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            className="w-full border rounded px-3 py-2"
-            placeholder={
-              mode === 'admin'
-                ? 'Email or username'
-                : 'Sailor username (e.g. JoseMendes115)'
-            }
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="username"
-            disabled={loading || (mode === 'sailor' && !qsId)}
-          />
-          <input
-            type="password"
-            className="w-full border rounded px-3 py-2"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            disabled={loading || (mode === 'sailor' && !qsId)}
-          />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <label className="block space-y-1.5">
+            <span className="text-lg font-medium text-slate-700">
+              {mode === 'admin' ? 'Email or username' : 'Sailor/Staff username'}
+            </span>
+            <input
+              type="text"
+              className="login-input w-full border border-slate-300 rounded-lg px-3 py-2.5 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+              placeholder={
+                mode === 'admin'
+                  ? 'Email or username'
+                  : 'e.g. JoseMendes115'
+              }
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+              disabled={loading || (mode === 'sailor' && !qsId)}
+            />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-lg font-medium text-slate-700">Password</span>
+            <input
+              type="password"
+              className="login-input w-full border border-slate-300 rounded-lg px-3 py-2.5 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              disabled={loading || (mode === 'sailor' && !qsId)}
+            />
+          </label>
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white rounded py-2 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white rounded-lg py-2.5 font-medium shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
             disabled={
               loading || (mode === 'sailor' && !qsId) || email.trim() === '' || password.trim() === ''
             }

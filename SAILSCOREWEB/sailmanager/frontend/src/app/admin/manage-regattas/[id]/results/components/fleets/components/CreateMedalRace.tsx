@@ -83,9 +83,7 @@ export default function CreateMedalRace({
       </div>
 
       <div>
-        <div className="text-sm mb-2">
-          (Optional) Link races to this Medal Race:
-        </div>
+        <div className="text-sm mb-2">Link races to this Medal Race:</div>
 
         {racesAvailable.length === 0 ? (
           <div className="text-xs text-gray-500">

@@ -18,7 +18,7 @@ const CODE_TO_ALPHA2: Record<string, string> = {
   JPN: 'JP', JOR: 'JO', KAZ: 'KZ', KEN: 'KE', PRK: 'KP', KOR: 'KR', KOS: 'XK', KUW: 'KW',
   KGZ: 'KG', LAT: 'LV', LIB: 'LB', LBA: 'LY', LIE: 'LI', LTU: 'LT', LUX: 'LU', MAC: 'MO',
   MAD: 'MG', MAS: 'MY', MLT: 'MT', MRI: 'MU', MEX: 'MX', MDA: 'MD', MON: 'MC', MNE: 'ME',
-  MNT: 'MS', MAR: 'MA', MOZ: 'MZ', MYA: 'MM', NAM: 'NA', NED: 'NL', AHO: 'CW', NZL: 'NZ',
+  MNT: 'MS', MAR: 'MA', MOZ: 'MZ', MYA: 'MM', NAM: 'NA', NED: 'NL', NLD: 'NL', AHO: 'CW', NZL: 'NZ',
   NCA: 'NI', NGR: 'NG', MKD: 'MK', NOR: 'NO', OMA: 'OM', PAK: 'PK', PLE: 'PS', PAN: 'PA',
   PNG: 'PG', PAR: 'PY', PER: 'PE', PHI: 'PH', POL: 'PL', POR: 'PT', PUR: 'PR', QAT: 'QA',
   ROU: 'RO', RUS: 'RU', SAM: 'WS', SMR: 'SM', KSA: 'SA', SEN: 'SN', SRB: 'RS', SEY: 'SC',

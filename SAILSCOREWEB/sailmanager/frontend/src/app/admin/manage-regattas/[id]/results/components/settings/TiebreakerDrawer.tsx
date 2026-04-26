@@ -10,7 +10,7 @@ const MEDAL_RACE_TIEBREAKER = `In the Medal Race, the tie-breaker system is appl
 
 • If two boats are tied, the boat with the better result in the Medal Race will be ranked higher.
 
-• If both boats have the same position in the Medal Race, the tie is broken by the total points from previous races.`;
+• If both boats have the same position in the Medal Race,for example DNC the tie is broken by the previous races.`;
 
 export default function TiebreakerDrawer({ onClose }: Props) {
   return (
@@ -21,7 +21,7 @@ export default function TiebreakerDrawer({ onClose }: Props) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold">Tiebreaker</h3>
           <button onClick={onClose} className="text-base px-3 py-1.5 rounded border hover:bg-gray-50">
-            Fechar
+            Close
           </button>
         </div>
 

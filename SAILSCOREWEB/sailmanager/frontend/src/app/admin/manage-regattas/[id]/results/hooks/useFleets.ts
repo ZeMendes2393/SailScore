@@ -44,17 +44,29 @@ type EntryLite = {
   id: number;
   class_name: string;
   sail_number?: string | null;
+  boat_country_code?: string | null;
   boat_name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  crew_members?: Array<{
+    first_name?: string | null;
+    last_name?: string | null;
+  }> | null;
 };
 
 export type Assignment = {
   entry_id: number;
   fleet_id: number;
   sail_number: string | null;
+  boat_country_code: string | null;
   boat_name: string | null;
   helm_name: string | null;
+  crew_names: string[];
+};
+
+type ClassDetailed = {
+  class_name: string;
+  class_type?: 'one_design' | 'handicap' | string;
 };
 
 type FleetsResponse = {
@@ -89,6 +101,7 @@ export function useFleets() {
 
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [classTypeByName, setClassTypeByName] = useState<Record<string, string>>({});
 
   const [sets, setSets] = useState<FleetSet[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
@@ -139,13 +152,21 @@ export function useFleets() {
       setError(null);
 
       try {
-        const [entries, rcs] = await Promise.all([
+        const [entries, rcs, classDetails] = await Promise.all([
           apiGet<EntryLite[]>(`/entries/by_regatta/${regattaId}`),
           apiGet<RaceLite[]>(`/races/by_regatta/${regattaId}`),
+          apiGet<ClassDetailed[]>(`/regattas/${regattaId}/classes/detailed`),
         ]);
 
         setEntryList(entries);
         setRaces(rcs);
+        const nextClassTypeByName: Record<string, string> = {};
+        for (const item of classDetails ?? []) {
+          const key = (item.class_name || '').trim();
+          if (!key) continue;
+          nextClassTypeByName[key] = (item.class_type || 'one_design').toLowerCase();
+        }
+        setClassTypeByName(nextClassTypeByName);
 
         const cls = collectClasses(entries);
         setClasses(cls);
@@ -229,10 +250,16 @@ export function useFleets() {
             entry_id: a.entry_id,
             fleet_id: a.fleet_id,
             sail_number: entry?.sail_number ?? null,
+            boat_country_code: entry?.boat_country_code ?? null,
             boat_name: entry?.boat_name ?? null,
             helm_name: entry
               ? `${entry.first_name ?? ''} ${entry.last_name ?? ''}`.trim()
               : null,
+            crew_names: Array.isArray(entry?.crew_members)
+              ? entry!.crew_members!
+                  .map((m) => `${m?.first_name ?? ''} ${m?.last_name ?? ''}`.trim())
+                  .filter(Boolean)
+              : [],
           };
         });
 
@@ -298,13 +325,14 @@ export function useFleets() {
   // ----------------- ACTIONS -----------------
   //
   const createQualifying = useCallback(
-    async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
+    async (num_fleets: 2 | 3 | 4, race_ids: number[]) => {
       if (!regattaId || !selectedClass) throw new Error('No class selected.');
 
       const fs = await apiSend<FleetSet>(
         `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/qualifying`,
         'POST',
-        { label, num_fleets, race_ids }
+        { label: 'Qual D1', num_fleets, race_ids },
+        token ?? undefined
       );
 
       await refreshSetsAndRaces();
@@ -316,17 +344,18 @@ export function useFleets() {
 
       return fs;
     },
-    [regattaId, selectedClass, refreshSetsAndRaces]
+    [regattaId, selectedClass, refreshSetsAndRaces, token]
   );
 
   const reshuffle = useCallback(
-    async (label: string, num_fleets: 2 | 3 | 4, race_ids: number[]) => {
+    async (num_fleets: 2 | 3 | 4, race_ids: number[]) => {
       if (!regattaId || !selectedClass) throw new Error('No class selected.');
 
       const fs = await apiSend<FleetSet>(
         `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/reshuffle`,
         'POST',
-        { label, num_fleets, race_ids }
+        { label: 'Qual D2', num_fleets, race_ids },
+        token ?? undefined
       );
 
       await refreshSetsAndRaces();
@@ -338,7 +367,7 @@ export function useFleets() {
 
       return fs;
     },
-    [regattaId, selectedClass, refreshSetsAndRaces]
+    [regattaId, selectedClass, refreshSetsAndRaces, token]
   );
 
   const startFinals = useCallback(
@@ -371,12 +400,12 @@ export function useFleets() {
   );
 
   const updateFleetSetRaces = useCallback(
-    async (setId: number, raceIds: number[]) => {
+    async (setId: number, raceIds: number[], force = false) => {
       if (!regattaId || !selectedClass) return;
 
       try {
         await apiSend(
-          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${setId}/races`,
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/fleet-sets/${setId}/races?force=${force ? 'true' : 'false'}`,
           'PUT',
           { race_ids: raceIds }
         );
@@ -484,6 +513,7 @@ export function useFleets() {
   //
   return {
     classes,
+    classTypeByName,
     selectedClass,
     setSelectedClass,
 

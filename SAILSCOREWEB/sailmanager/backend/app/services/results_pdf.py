@@ -399,6 +399,8 @@ def _overall_cell_text(row: dict[str, Any], col_id: str, row_index: int) -> str:
 def _race_cell_text(result: Any, col_id: str, row_index: int) -> str:
     if col_id == "place":
         return str(getattr(result, "position", row_index + 1))
+    if col_id == "fleet":
+        return str(getattr(result, "fleet_name", "") or "—")
     if col_id == "sail_no":
         sail_no = str(getattr(result, "sail_number", "") or "")
         code = (getattr(result, "boat_country_code", "") or "")[:3]
@@ -407,6 +409,12 @@ def _race_cell_text(result: Any, col_id: str, row_index: int) -> str:
         return str(getattr(result, "boat_name", "") or "—")
     if col_id == "skipper":
         return str(getattr(result, "skipper_name", "") or "—")
+    if col_id == "class":
+        return str(getattr(result, "class_name", "") or "—")
+    if col_id == "model":
+        return str(getattr(result, "boat_model", "") or "—")
+    if col_id == "bow":
+        return str(getattr(result, "bow_number", "") or "—")
     if col_id == "rating":
         return _safe_float_str(getattr(result, "rating", None), decimals=3)
     if col_id == "finish_time":
@@ -420,6 +428,10 @@ def _race_cell_text(result: Any, col_id: str, row_index: int) -> str:
     if col_id == "code":
         return str(getattr(result, "code", "") or "—")
     if col_id == "points":
+        return _format_points(getattr(result, "points", None))
+    if col_id == "total":
+        return _format_points(getattr(result, "points", None))
+    if col_id == "net":
         return _format_points(getattr(result, "points", None))
     return "—"
 
@@ -1100,26 +1112,42 @@ def build_race_results_pdf(
         y -= 5 * mm
     y -= 5 * mm
 
-    headers = [
-        "place",
-        "sail_no",
-        "boat",
-        "skipper",
-        "rating",
-        "finish_time",
-        "elapsed_time",
-        "corrected_time",
-        "delta",
-        "code",
-        "points",
-    ]
+    fixed_cols = _visible_columns(
+        getattr(regatta, "results_overall_columns", None),
+        class_name,
+    )
+    headers: list[str] = []
+    for col in fixed_cols:
+        if col in ("total", "net"):
+            if "points" not in headers:
+                headers.append("points")
+            continue
+        headers.append(col)
+
+    # Para races de handicap, manter colunas de tempo/cálculo.
+    # Detetamos isto pelos campos presentes nas linhas de resultado.
+    has_time_scoring_data = any(
+        bool(getattr(r, "finish_time", None) or getattr(r, "elapsed_time", None) or getattr(r, "corrected_time", None))
+        for r in (results or [])
+    )
+    if has_time_scoring_data:
+        for extra in ["rating", "finish_time", "elapsed_time", "corrected_time", "delta", "code", "points"]:
+            if extra not in headers:
+                headers.append(extra)
+
+    if not headers:
+        headers = ["place", "sail_no", "boat", "skipper", "points"]
 
     global COLUMN_LABELS
     race_header_labels = {
         "place": "#",
+        "fleet": "Fleet",
         "sail_no": "Sail #",
         "boat": "Boat",
         "skipper": "Skipper",
+        "class": "Class",
+        "model": "Model",
+        "bow": "Bow",
         "rating": "Rating",
         "finish_time": "Finish",
         "elapsed_time": "Elapsed",
@@ -1137,25 +1165,17 @@ def build_race_results_pdf(
 
     race_rows_for_widths = []
     for idx, r in enumerate(results[:25]):
-        race_rows_for_widths.append({
-            "place": _race_cell_text(r, "place", idx),
-            "sail_no": _race_cell_text(r, "sail_no", idx),
-            "boat": _race_cell_text(r, "boat", idx),
-            "skipper": _race_cell_text(r, "skipper", idx),
-            "rating": _race_cell_text(r, "rating", idx),
-            "finish_time": _race_cell_text(r, "finish_time", idx),
-            "elapsed_time": _race_cell_text(r, "elapsed_time", idx),
-            "corrected_time": _race_cell_text(r, "corrected_time", idx),
-            "delta": _race_cell_text(r, "delta", idx),
-            "code": _race_cell_text(r, "code", idx),
-            "points": _race_cell_text(r, "points", idx),
-        })
+        race_rows_for_widths.append({h: _race_cell_text(r, h, idx) for h in headers})
 
     race_weights = {
         "place": 0.70,
+        "fleet": 0.90,
         "sail_no": 1.25,
         "boat": 1.45,
         "skipper": 1.55,
+        "class": 1.00,
+        "model": 1.00,
+        "bow": 0.80,
         "rating": 0.95,
         "finish_time": 1.00,
         "elapsed_time": 1.05,
@@ -1166,9 +1186,13 @@ def build_race_results_pdf(
     }
     race_growth = {
         "place": 1.0,
+        "fleet": 1.10,
         "sail_no": 1.20,
         "boat": 1.45,
         "skipper": 1.45,
+        "class": 1.20,
+        "model": 1.20,
+        "bow": 1.0,
         "rating": 1.0,
         "finish_time": 1.05,
         "elapsed_time": 1.05,

@@ -11,11 +11,13 @@ export type JuryProfile = {
   note: string | null;
   has_credentials: boolean;
   username?: string | null;
+  credentials_role?: 'jury' | 'scorer' | null;
 };
 
 type JuryCredentialsOut = {
   username: string;
   password: string;
+  role: 'jury' | 'scorer';
   message?: string;
 };
 
@@ -33,6 +35,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
   const [displayName, setDisplayName] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [credentialsRole, setCredentialsRole] = useState<'jury' | 'scorer'>('jury');
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
@@ -69,7 +72,11 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
     try {
       const res = await apiPost<JuryProfileCreateResult>(
         `/regattas/${regattaId}/jury-profiles`,
-        { display_name: name, note: note.trim() || null },
+        {
+          display_name: name,
+          note: note.trim() || null,
+          credentials_role: credentialsRole,
+        },
         token
       );
       setDisplayName('');
@@ -104,7 +111,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
       const out = await apiSend<JuryCredentialsOut>(
         `/regattas/${regattaId}/jury-profiles/${id}/credentials`,
         'POST',
-        {},
+        { credentials_role: credentialsRole },
         token
       );
       setDetailsProfile(null);
@@ -151,7 +158,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
   return (
     <div className="p-6 bg-white rounded shadow max-w-4xl space-y-8" data-regatta-id={regattaId}>
       <div>
-        <h2 className="text-xl font-semibold mb-2">Jury credentials</h2>
+        <h2 className="text-xl font-semibold mb-2">Jury / Scorer credentials</h2>
         <p className="text-sm text-gray-600">
           Adding a profile <strong>automatically creates login credentials</strong> (username and password). Use{' '}
           <strong>See account details</strong> to view the username anytime; the password is only shown when created
@@ -164,7 +171,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
       </div>
 
       <form onSubmit={handleAdd} className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">Add jury profile</h3>
+        <h3 className="text-sm font-semibold text-gray-800">Add staff profile</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block text-sm">
             <span className="text-gray-700">Name *</span>
@@ -187,13 +194,24 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
               maxLength={500}
             />
           </label>
+          <label className="block text-sm md:col-span-2">
+            <span className="text-gray-700">Credentials role</span>
+            <select
+              className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white"
+              value={credentialsRole}
+              onChange={(e) => setCredentialsRole(e.target.value as 'jury' | 'scorer')}
+            >
+              <option value="jury">Jury</option>
+              <option value="scorer">Scorer</option>
+            </select>
+          </label>
         </div>
         <button
           type="submit"
           disabled={saving || !displayName.trim()}
           className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Add profile'}
+          {saving ? 'Saving…' : `Add profile (${credentialsRole})`}
         </button>
       </form>
 
@@ -215,6 +233,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                   <th className="p-3 font-medium">Name</th>
                   <th className="p-3 font-medium">Note</th>
                   <th className="p-3 font-medium">Username</th>
+                  <th className="p-3 font-medium">Role</th>
                   <th className="p-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -250,6 +269,15 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                         <span className="break-all">{r.username}</span>
                       ) : (
                         <span className="text-amber-700">Pending</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-xs">
+                      {r.credentials_role ? (
+                        <span className="inline-flex rounded bg-gray-100 px-2 py-1 font-medium uppercase">
+                          {r.credentials_role}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="p-3 text-right whitespace-nowrap">
@@ -327,7 +355,9 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
       {credModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
-            <h4 className="text-lg font-semibold">Jury login credentials</h4>
+            <h4 className="text-lg font-semibold">
+              {credModal.role === 'scorer' ? 'Scorer login credentials' : 'Jury login credentials'}
+            </h4>
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
               {credModal.message || 'Copy and share now. The password cannot be retrieved later.'}
             </p>
@@ -365,7 +395,7 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
             </dl>
             <p className="text-xs text-gray-500">
               The password is stored securely and cannot be shown here. Use{' '}
-              <strong>Regenerate password</strong> on the row to create a new password and share it with the jury
+              <strong>Regenerate password</strong> on the row to create a new password and share it with the staff
               member.
             </p>
             <div className="flex gap-2">

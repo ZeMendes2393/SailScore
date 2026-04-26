@@ -3,8 +3,9 @@
 import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 
 type Props = {
-  rLabel: string;
-  setRLabel: (v: string) => void;
+  classes: string[];
+  selectedClass: string | null;
+  setSelectedClass: (c: string | null) => void;
 
   rNum: 2 | 3 | 4;
   setRNum: (v: 2 | 3 | 4) => void;
@@ -13,16 +14,13 @@ type Props = {
   setRRaceIds: (v: number[]) => void;
 
   racesAvailable: RaceLite[];
-  reshuffle: (
-    label: string,
-    num_fleets: 2 | 3 | 4,
-    race_ids: number[]
-  ) => Promise<FleetSet>;
+  reshuffle: (num_fleets: 2 | 3 | 4, race_ids: number[]) => Promise<FleetSet>;
 };
 
 export default function CreateReshuffle({
-  rLabel,
-  setRLabel,
+  classes,
+  selectedClass,
+  setSelectedClass,
   rNum,
   setRNum,
   rRaceIds,
@@ -42,12 +40,18 @@ export default function CreateReshuffle({
 
       <div className="grid sm:grid-cols-3 gap-3">
         <label className="flex flex-col text-sm">
-          Name
-          <input
-            value={rLabel}
-            onChange={(e) => setRLabel(e.target.value)}
+          Class
+          <select
             className="border rounded px-2 py-1"
-          />
+            value={selectedClass ?? ''}
+            onChange={(e) => setSelectedClass(e.target.value || null)}
+          >
+            {classes.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="flex flex-col text-sm">
@@ -86,10 +90,11 @@ export default function CreateReshuffle({
       </div>
 
       <button
-        className="bg-amber-600 text-white px-4 py-2 rounded-xl"
+        disabled={!selectedClass}
+        className="bg-amber-600 text-white px-4 py-2 rounded-xl disabled:opacity-50"
         onClick={async () => {
           try {
-            const fs = await reshuffle(rLabel, rNum, rRaceIds);
+            const fs = await reshuffle(rNum, rRaceIds);
             setRRaceIds([]);
             alert(`Reshuffle created successfully! (Fleet Set #${fs.id})`);
           } catch (e: any) {

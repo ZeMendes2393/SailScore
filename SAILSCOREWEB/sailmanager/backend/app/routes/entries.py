@@ -17,7 +17,7 @@ from utils.auth_utils import (
     hash_password,
     get_current_regatta_id_optional as _get_current_regatta_id_optional,
 )
-from app.org_scope import assert_user_can_manage_org_id
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from app.jury_scope import assert_jury_regatta_access
 from app.services.email import send_email  # usa SMTP/LOG conforme .env
 
@@ -92,6 +92,18 @@ def _entry_list_order():
         func.lower(func.trim(models.Entry.last_name)).asc(),
         func.lower(func.trim(models.Entry.first_name)).asc(),
     )
+
+
+def _assert_scorer_can_manage_regatta(db: Session, current_user: models.User, regatta_id: int) -> None:
+    if current_user.role != "scorer":
+        return
+    assert_staff_regatta_access(db, current_user, regatta_id)
+
+
+def _assert_scorer_can_manage_entry(db: Session, current_user: models.User, entry: models.Entry) -> None:
+    if current_user.role != "scorer":
+        return
+    _assert_scorer_can_manage_regatta(db, current_user, entry.regatta_id)
 
 # ---------------- LIST /entries ----------------
 @router.get("", response_model=List[schemas.EntryListRead])   # <— sem barra
@@ -779,6 +791,19 @@ def get_entries_by_regatta(
             assert_user_can_manage_org_id(current_user, reg.organization_id)
         elif current_user.role == "jury":
             assert_jury_regatta_access(db, current_user, regatta_id)
+        elif current_user.role == "scorer":
+            if int(reg.organization_id) != int(current_user.organization_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Sem permissão nesta regata (organização).",
+                )
+            staff_profile = (
+                db.query(models.RegattaJuryProfile)
+                .filter(models.RegattaJuryProfile.user_id == current_user.id)
+                .first()
+            )
+            if not staff_profile or int(staff_profile.regatta_id) != int(regatta_id):
+                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
         elif current_user.role == "regatista":
             if int(reg.organization_id) != int(current_user.organization_id):
                 raise HTTPException(
@@ -811,12 +836,13 @@ def delete_entry(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+    _assert_scorer_can_manage_entry(db, current_user, entry)
 
     db.delete(entry)
     db.commit()
@@ -868,12 +894,13 @@ def patch_entry(
     current_user: models.User = Depends(get_current_user),
 ):
     # ---- auth ----
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+    _assert_scorer_can_manage_entry(db, current_user, entry)
 
     # valores antigos (para propagação)
     old_class = entry.class_name
@@ -990,11 +1017,12 @@ def toggle_paid(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+    _assert_scorer_can_manage_entry(db, current_user, entry)
     entry.paid = not entry.paid
     db.commit()
     return {"id": entry.id, "paid": entry.paid}
@@ -1055,11 +1083,12 @@ def send_confirmation_email(
     Generates credentials (or a new password for this championship) and sends the email.
     Credentials can change from championship to championship.
     """
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+    _assert_scorer_can_manage_entry(db, current_user, entry)
     if not entry.paid or not entry.confirmed:
         raise HTTPException(
             status_code=400,

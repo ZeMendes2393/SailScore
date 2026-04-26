@@ -3,9 +3,9 @@
 import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 
 type Props = {
-  qLabel: string;
-  setQLabel: (v: string) => void;
-
+  classes: string[];
+  selectedClass: string | null;
+  setSelectedClass: (c: string | null) => void;
   qNum: 2 | 3 | 4;
   setQNum: (v: 2 | 3 | 4) => void;
 
@@ -15,15 +15,15 @@ type Props = {
   racesAvailable: RaceLite[];
 
   createQualifying: (
-    label: string,
     num_fleets: 2 | 3 | 4,
     race_ids: number[]
   ) => Promise<FleetSet>;
 };
 
 export default function CreateQualifying({
-  qLabel,
-  setQLabel,
+  classes,
+  selectedClass,
+  setSelectedClass,
   qNum,
   setQNum,
   qRaceIds,
@@ -43,12 +43,18 @@ export default function CreateQualifying({
 
       <div className="grid sm:grid-cols-3 gap-3">
         <label className="flex flex-col text-sm">
-          Name
-          <input
-            value={qLabel}
-            onChange={(e) => setQLabel(e.target.value)}
+          Class
+          <select
             className="border rounded px-2 py-1"
-          />
+            value={selectedClass ?? ''}
+            onChange={(e) => setSelectedClass(e.target.value || null)}
+          >
+            {classes.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="flex flex-col text-sm">
@@ -87,10 +93,11 @@ export default function CreateQualifying({
       </div>
 
       <button
+        disabled={!selectedClass}
         className="bg-blue-600 text-white px-4 py-2 rounded-xl"
         onClick={async () => {
           try {
-            const fs = await createQualifying(qLabel, qNum, qRaceIds);
+            const fs = await createQualifying(qNum, qRaceIds);
             setQRaceIds([]);
             alert(`Qualifying created successfully! (Fleet Set #${fs.id})`);
           } catch (e: any) {

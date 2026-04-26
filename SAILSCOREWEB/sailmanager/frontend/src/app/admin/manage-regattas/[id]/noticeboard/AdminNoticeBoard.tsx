@@ -10,6 +10,7 @@ import ScoringEnquiries from "./sections/ScoringEnquiries";
 import Requests from "./sections/Requests";
 import Questions from "./sections/Questions"; // ⬅️ NEW
 import { useAdminOrg, withOrg } from "@/lib/useAdminOrg";
+import { useAuth } from "@/context/AuthContext";
 
 type Section =
   | "documents"
@@ -32,8 +33,11 @@ const NOTICE_SECTIONS: Section[] = [
 
 export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
   const { orgSlug } = useAdminOrg();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const [section, setSection] = useState<Section>("documents");
+  const manageRegattaBasePath =
+    user?.role === "scorer" ? "/scorer/manage-regattas" : "/admin/manage-regattas";
 
   useEffect(() => {
     const raw = searchParams?.get("noticeSection")?.trim();
@@ -61,7 +65,9 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Notice Board — Admin</h2>
+      <h2 className="text-xl font-semibold">
+        Notice Board — {user?.role === "scorer" ? "Scorer" : "Admin"}
+      </h2>
 
       {/* Tabs */}
       <div role="tablist" aria-label="Notice board sections" className="flex gap-2 border-b">
@@ -84,7 +90,7 @@ export default function AdminNoticeBoard({ regattaId }: { regattaId: number }) {
             linkWithOrg={(p) => withOrg(p, orgSlug)}
             newProtestHref={`/dashboard/protests/new?regattaId=${regattaId}`}
             fillDecisionPath={(pid) =>
-              `/admin/manage-regattas/${regattaId}/decisions/${pid}`
+              `${manageRegattaBasePath}/${regattaId}/decisions/${pid}`
             }
           />
         )}

@@ -93,7 +93,7 @@ export default function DraftResultsEditor({
             onChange={(e) => setDraftInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onAddBySail()}
             className="border rounded px-3 py-2 w-full"
-            placeholder="e.g. POR123"
+            placeholder="e.g. 123"
             aria-label="Sail number to add to draft"
           />
           <button onClick={onAddBySail} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">

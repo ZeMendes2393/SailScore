@@ -8,14 +8,13 @@ import { useResults } from '../hooks/useResults';
 
 import RaceSelector from './RaceSelector';
 import ExistingResultsTable from './ExistingResultsTable';
-import AddSingleForm from './AddSingleForm';
 import DraftResultsEditor from './DraftResultsEditor';
 import TimeScoringEditor from './TimeScoringEditor';
 import ImportRaceCsvModal from './ImportRaceCsvModal';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { BASE_URL } from '@/lib/api';
 
-type View = 'existing' | 'draft' | 'add' | 'time';
+type View = 'existing' | 'draft' | 'time';
 
 interface Props {
   regattaId: number;
@@ -38,7 +37,7 @@ const FLEET_ORDER: Record<string, number> = {
   Emerald: 140,
 };
 
-const ALLOWED_VIEWS: View[] = ['existing', 'draft', 'add', 'time'];
+const ALLOWED_VIEWS: View[] = ['existing', 'draft', 'time'];
 
 export default function RaceResultsManager({
   regattaId,
@@ -52,6 +51,7 @@ export default function RaceResultsManager({
 
   const {
     races,
+    allEntries,
     selectedRaceId,
     setSelectedRaceId,
     selectedClass,
@@ -62,10 +62,6 @@ export default function RaceResultsManager({
     draft,
     draftInput,
     setDraftInput,
-    singleSail,
-    setSingleSail,
-    singlePos,
-    setSinglePos,
     addDraftBySail,
     addDraftEntry,
     removeDraft,
@@ -73,8 +69,6 @@ export default function RaceResultsManager({
     saveBulk,
     moveRow,
     savePosition,
-    saveOrder,
-    addSingle,
     deleteResult,
     refreshExisting,
     scoringCodes,
@@ -85,12 +79,12 @@ export default function RaceResultsManager({
 
     sailChoicePending,
     addDraftByChosenEntry,
-    addSingleWithChosenEntry,
     clearSailChoicePending,
 
     // fleets
     currentRace,
     fleetsForRace,
+    entryIdToFleetName,
     selectedFleetId,
     setSelectedFleetId,
 
@@ -107,15 +101,15 @@ export default function RaceResultsManager({
     removeHandicapEntry,
     updateHandicapField,
     updateHandicapCode,
-    updateHandicapNotes,
+    patchHandicapResultFields,
     saveHandicap,
   } = useResults(regattaId, token ?? undefined, newlyCreatedRace ?? null);
 
-  const [view, setView] = useState<View>('existing');
+  const [view, setView] = useState<View>('draft');
 
   const [showImportCsvModal, setShowImportCsvModal] = useState(false);
 
-  const initialAppliedRef = useRef(false);
+  const lastAppliedInitialRaceIdRef = useRef<number | null>(null);
   const lastClassRef = useRef<string | null>(null);
 
   // bloquear toggle enquanto guarda
@@ -187,12 +181,14 @@ export default function RaceResultsManager({
     return orderedRaces.filter((r: any) => r.class_name === selectedClass);
   }, [orderedRaces, selectedClass]);
 
+  const defaultScoringView: View = isHandicapClass ? 'time' : 'draft';
+
   // -----------------------------
   // URL -> state (view e race)
   // -----------------------------
   useEffect(() => {
-    const raw = (search.get('view') || 'existing') as string;
-    const v: View = (ALLOWED_VIEWS as string[]).includes(raw) ? (raw as View) : 'existing';
+    const raw = (search.get('view') || defaultScoringView) as string;
+    const v: View = (ALLOWED_VIEWS as string[]).includes(raw) ? (raw as View) : defaultScoringView;
     setView(v);
 
     const raceParam = search.get('race');
@@ -208,7 +204,7 @@ export default function RaceResultsManager({
       setSelectedRaceId(urlRaceId);
       setSelectedFleetId('all');
     }
-  }, [search, races, selectedRaceId, setSelectedRaceId, setSelectedFleetId]);
+  }, [search, races, selectedRaceId, setSelectedRaceId, setSelectedFleetId, defaultScoringView]);
 
   // -----------------------------
   // initialRaceId (do path /races/[raceId]) -> aplica assim que races carregar
@@ -216,12 +212,12 @@ export default function RaceResultsManager({
   useEffect(() => {
     const id = initialRaceId != null && Number.isFinite(initialRaceId) ? initialRaceId : null;
     if (!id) return;
-    if (initialAppliedRef.current) return;
+    if (lastAppliedInitialRaceIdRef.current === id) return;
 
     const exists = (races ?? []).some((r: any) => r.id === id);
     if (!exists) return;
 
-    initialAppliedRef.current = true;
+    lastAppliedInitialRaceIdRef.current = id;
 
     if (selectedRaceId !== id) {
       setSelectedRaceId(id);
@@ -229,12 +225,12 @@ export default function RaceResultsManager({
       const sp = new URLSearchParams(search?.toString() ?? '');
       sp.set('race', String(id));
       const rawView = sp.get('view');
-      if (!rawView || !(ALLOWED_VIEWS as string[]).includes(rawView)) sp.set('view', 'existing');
+      if (!rawView || !(ALLOWED_VIEWS as string[]).includes(rawView)) sp.set('view', defaultScoringView);
       router.replace(`?${sp.toString()}`);
 
       setSelectedFleetId('all');
     }
-  }, [initialRaceId, races, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId]);
+  }, [initialRaceId, races, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId, defaultScoringView]);
 
   // -----------------------------
   // Mudança de classe -> garantir race da classe
@@ -259,10 +255,11 @@ export default function RaceResultsManager({
     const sp = new URLSearchParams(search?.toString() ?? '');
     if (firstId) sp.set('race', String(firstId));
     else sp.delete('race');
+    if (firstId) sp.set('view', defaultScoringView);
     router.replace(`?${sp.toString()}`);
 
     setSelectedFleetId('all');
-  }, [selectedClass, racesForSelectedClass, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId]);
+  }, [selectedClass, racesForSelectedClass, selectedRaceId, setSelectedRaceId, search, router, setSelectedFleetId, defaultScoringView]);
 
   const setViewAndUrl = (v: View) => {
     setView(v);
@@ -279,36 +276,42 @@ export default function RaceResultsManager({
     const sp = new URLSearchParams(search?.toString() ?? '');
     if (raceId) sp.set('race', String(raceId));
     else sp.delete('race');
+    // Let the class/view sync effect choose the correct view for the selected race
+    // (avoids stale view values when switching between one-design and handicap races).
+    if (raceId) sp.delete('view');
+    else sp.set('view', 'existing');
     router.replace(`?${sp.toString()}`);
 
+    setView(raceId ? view : 'existing');
     setSelectedFleetId('all');
   };
 
-  const tabs = useMemo(
-    () => {
-      const base: { key: View; label: string; badge?: number }[] = [
-        { key: 'existing', label: 'Results', badge: (existingResults ?? []).length },
-      ];
+  // Keep view aligned with selected race class to prevent flicker/wrong tab when switching classes.
+  useEffect(() => {
+    if (!selectedRaceId) return;
+    const desired: View = isHandicapClass ? 'time' : 'draft';
+    const invalidCurrent =
+      (isHandicapClass && view === 'draft') || (!isHandicapClass && view === 'time');
+    if (!invalidCurrent) return;
 
-      if (isHandicapClass) {
-        base.push({
-          key: 'time',
-          label: 'Time Scoring (Handicap)',
-          badge: (handicapDraft ?? []).length,
-        });
-      } else {
-        base.push({
-          key: 'draft',
-          label: 'Draft',
-          badge: (draft ?? []).length,
-        });
-      }
+    setView(desired);
+    const sp = new URLSearchParams(search?.toString() ?? '');
+    sp.set('view', desired);
+    router.replace(`?${sp.toString()}`);
+  }, [selectedRaceId, isHandicapClass, view, search, router]);
 
-      base.push({ key: 'add', label: 'Add 1' });
-      return base;
-    },
-    [existingResults, draft, isHandicapClass, handicapDraft]
-  );
+  const tabs = useMemo(() => {
+    if (isHandicapClass) {
+      return [
+        { key: 'time', label: 'Time Scoring (Handicap)', badge: (handicapDraft ?? []).length },
+        { key: 'existing', label: 'Existing Results', badge: (existingResults ?? []).length },
+      ] as { key: View; label: string; badge?: number }[];
+    }
+    return [
+      { key: 'draft', label: 'Score Race', badge: (draft ?? []).length },
+      { key: 'existing', label: 'Existing Results', badge: (existingResults ?? []).length },
+    ] as { key: View; label: string; badge?: number }[];
+  }, [existingResults, draft, isHandicapClass, handicapDraft]);
 
   // fleets ordenadas
   const orderedFleets = useMemo(() => {
@@ -351,22 +354,22 @@ export default function RaceResultsManager({
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
               {/* Left */}
               <div>
-                <h1 className="text-xl font-bold">Results</h1>
-                <p className="text-xs text-gray-600">
+                <h1 className="text-2xl font-bold">Race Scoring</h1>
+                <p className="text-base text-gray-600">
                   {selectedRaceId
                     ? `Race selected${selectedClass ? ` — ${selectedClass}` : ''}`
                     : 'Select a race to get started.'}
                 </p>
 
                 {hasFleets && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-500">Fleets:</span>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <span className="text-sm font-semibold uppercase tracking-wide text-gray-500">Fleets:</span>
                     {orderedFleets.map((f: any) => (
                       <button
                         key={f.id}
                         type="button"
                         className={[
-                          'px-2 py-0.5 rounded-full border text-xs',
+                          'min-h-[40px] px-4 py-1.5 rounded-full border text-base font-semibold transition',
                           selectedFleetId === f.id
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-gray-700 hover:bg-gray-50',
@@ -389,8 +392,8 @@ export default function RaceResultsManager({
             </div>
 
             {!hideInnerTabs && (
-              <nav role="tablist" aria-label="Results sections" className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
-                <div className="flex gap-2">
+              <nav role="tablist" aria-label="Race scoring sections" className="flex flex-wrap items-center gap-3 overflow-x-auto pb-2 pt-1">
+                <div className="flex flex-wrap gap-3">
                   {tabs.map((t) => {
                     const active = view === t.key;
                     const disabled = !selectedRaceId;
@@ -402,17 +405,19 @@ export default function RaceResultsManager({
                         onClick={() => setViewAndUrl(t.key)}
                         disabled={disabled}
                         className={[
-                          'px-3 py-1.5 rounded-full border text-sm transition',
-                          active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50',
-                          disabled ? 'opacity-50 cursor-not-allowed' : '',
+                          'min-h-[44px] px-5 py-2.5 rounded-xl border-2 text-base font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                          active
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                            : 'bg-white text-gray-800 border-gray-300 hover:bg-blue-50 hover:border-blue-400',
+                          disabled ? 'opacity-50 cursor-not-allowed shadow-none' : '',
                         ].join(' ')}
                       >
                         <span>{t.label}</span>
                         {typeof t.badge === 'number' && (
                           <span
                             className={[
-                              'ml-2 inline-flex items-center justify-center min-w-5 px-1 rounded-full text-[10px]',
-                              active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700',
+                              'ml-2 inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-bold tabular-nums',
+                              active ? 'bg-white/25 text-white' : 'bg-gray-200 text-gray-800',
                             ].join(' ')}
                           >
                             {t.badge}
@@ -424,7 +429,7 @@ export default function RaceResultsManager({
                 </div>
                 {selectedRaceId && (
                   <div className="ml-auto flex items-center gap-2 shrink-0">
-                    {currentRace && !isHandicapClass && (
+                    {currentRace && (
                       <>
                         <button
                           type="button"
@@ -460,14 +465,30 @@ export default function RaceResultsManager({
                       </>
                     )}
                     {currentRace && (
-                      <a
-                        href={`${BASE_URL}/results/races/${selectedRaceId}/results/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!selectedRaceId) return;
+                          try {
+                            const url = `${BASE_URL}/results/races/${selectedRaceId}/results/pdf`;
+                            const res = await fetch(url, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                            });
+                            if (!res.ok) throw new Error(await res.text());
+                            const blob = await res.blob();
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = `race_${selectedRaceId}_results.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(a.href);
+                          } catch (e: any) {
+                            alert(e?.message || 'PDF download failed.');
+                          }
+                        }}
                         className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
                       >
                         Download race PDF
-                      </a>
+                      </button>
                     )}
                     {currentRace && (
                       <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-xs lg:text-sm">
@@ -518,7 +539,7 @@ export default function RaceResultsManager({
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
-                    Existing results {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
+                    Existing Results {selectedClass ? <span className="text-gray-500">— {selectedClass}</span> : null}
                   </h2>
                   <span className="text-xs text-gray-500">
                     {loadingExisting ? 'Loading…' : `${(existingResults ?? []).length} rows`}
@@ -528,15 +549,20 @@ export default function RaceResultsManager({
                 <div className="max-h-[66vh] overflow-auto rounded border">
                   <ExistingResultsTable
                     results={existingResults ?? []}
+                    entries={allEntries ?? []}
+                    fleetNameByEntryId={entryIdToFleetName}
                     loading={!!loadingExisting || savingOverridePoints}
                     onMove={moveRow}
                     onEditPos={savePosition}
-                    onSaveOrder={saveOrder}
                     onDelete={deleteResult}
                     scoringCodes={scoringCodes ?? {}}
                     onMarkCode={markCode}
                     onOverridePoints={handleOverridePoints}
                     isHandicapClass={isHandicapClass}
+                    onUpdateHandicapResult={patchHandicapResultFields}
+                    raceStartTime={currentRace?.start_time ?? ''}
+                    handicapMethod={currentRace?.handicap_method || 'manual'}
+                    orcRatingMode={(currentRace as any)?.orc_rating_mode || 'medium'}
                   />
                 </div>
               </section>
@@ -545,16 +571,16 @@ export default function RaceResultsManager({
             {view === 'draft' && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3">
-                  <h2 className="text-lg font-semibold">Draft &amp; Entries</h2>
+                  <h2 className="text-lg font-semibold">Score Race</h2>
                   <p className="text-xs text-gray-500">
-                    Add by sail number or from the filterable list.
+                    Add competitors by sail number or from the filterable list, then save the race results.
                     {hasFleets && ' (list filtered by selected fleet)'}
                   </p>
                 </header>
                 <div className="max-h-[66vh] overflow-auto">
                   <DraftResultsEditor
                     draft={draft ?? []}
-                    entries={(availableEntries ?? []).concat()}
+                    entries={allEntries ?? []}
                     available={availableEntries ?? []}
                     draftInput={draftInput}
                     setDraftInput={setDraftInput}
@@ -571,20 +597,13 @@ export default function RaceResultsManager({
               </section>
             )}
 
-            {view === 'add' && (
-              <section className="p-4 border rounded-2xl bg-white shadow-sm">
-                <h2 className="text-lg font-semibold mb-3">Add missing result</h2>
-                <AddSingleForm singleSail={singleSail} setSingleSail={setSingleSail} singlePos={singlePos} setSinglePos={setSinglePos} onAdd={addSingle} />
-              </section>
-            )}
-
             {view === 'time' && isHandicapClass && (
               <section className="p-4 border rounded-2xl bg-white shadow-sm">
                 <header className="mb-3">
                   <h2 className="text-lg font-semibold">Time Scoring (Handicap)</h2>
                   <p className="text-xs text-gray-500">
                     Enter times in HH:MM:SS. Position, delta and points are calculated automatically
-                    from Corrected Time. On save, results move to &quot;Existing results&quot;.
+                    from Corrected Time. On save, results move to &quot;Existing Results&quot;.
                   </p>
                 </header>
                 <TimeScoringEditor
@@ -602,8 +621,10 @@ export default function RaceResultsManager({
                   onRemoveEntry={removeHandicapEntry}
                   onUpdateField={updateHandicapField}
                   onUpdateCode={updateHandicapCode}
-                  onUpdateNotes={updateHandicapNotes}
-                  onSave={saveHandicap}
+                  onSave={async () => {
+                    const ok = await saveHandicap();
+                    if (ok) setViewAndUrl('existing');
+                  }}
                 />
               </section>
             )}
@@ -617,16 +638,16 @@ export default function RaceResultsManager({
           <div className="w-full px-6">
             <div className="flex items-center gap-3 rounded-2xl border bg-white shadow-lg p-3">
               <span className="text-sm text-gray-700">
-                {(draft ?? []).length} in draft — confirm to save in bulk.
+                {(draft ?? []).length} in Score Race — confirm to save in bulk.
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <button onClick={saveBulk} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">
-                  Save in bulk
+                  Save Results
                 </button>
                 <button
                   onClick={() => (draft ?? []).forEach((d) => removeDraft(d.entryId))}
                   className="px-3 py-2 rounded-xl border hover:bg-gray-50"
-                  title="Clear draft"
+                  title="Clear Score Race"
                 >
                   Clear
                 </button>
@@ -644,9 +665,7 @@ export default function RaceResultsManager({
               Multiple boats with this sail number
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              {sailChoicePending.context === 'draft'
-                ? 'Choose which boat to add to the draft:'
-                : `Choose which boat to place in position ${sailChoicePending.singlePos}:`}
+              Choose which boat to add to Score Race:
             </p>
             <ul className="space-y-2 mb-4">
               {sailChoicePending.candidates.map((entry) => (
@@ -666,11 +685,7 @@ export default function RaceResultsManager({
                   </span>
                   <button
                     type="button"
-                    onClick={() =>
-                      sailChoicePending.context === 'draft'
-                        ? addDraftByChosenEntry(entry.id)
-                        : addSingleWithChosenEntry(entry.id)
-                    }
+                    onClick={() => addDraftByChosenEntry(entry.id)}
                     className="shrink-0 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
                   >
                     Select

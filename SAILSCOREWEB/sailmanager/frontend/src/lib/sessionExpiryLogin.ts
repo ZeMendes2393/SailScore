@@ -4,6 +4,50 @@
  */
 
 const ADMIN_ORG_STORAGE_KEY = 'adminOrgSlug';
+const SAILOR_ORG_STORAGE_KEY = 'sailorOrgSlug';
+
+function setOrgStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function getOrgStorage(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const fromSession = sessionStorage.getItem(key)?.trim();
+    if (fromSession) return fromSession;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return localStorage.getItem(key)?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearOrgStorage(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Grava org atual quando o admin navega com ?org= (chamar de um efeito no cliente). */
 export function persistAdminOrgFromUrl(pathname: string, search: string): void {
@@ -11,11 +55,7 @@ export function persistAdminOrgFromUrl(pathname: string, search: string): void {
   if (!pathname.startsWith('/admin')) return;
   const org = new URLSearchParams(search).get('org')?.trim();
   if (org) {
-    try {
-      sessionStorage.setItem(ADMIN_ORG_STORAGE_KEY, org);
-    } catch {
-      /* ignore */
-    }
+    setOrgStorage(ADMIN_ORG_STORAGE_KEY, org);
   }
 }
 
@@ -24,11 +64,39 @@ export function persistAdminOrgFromUser(organizationSlug: string | null | undefi
   if (typeof window === 'undefined') return;
   const s = organizationSlug?.trim();
   if (!s) return;
-  try {
-    sessionStorage.setItem(ADMIN_ORG_STORAGE_KEY, s);
-  } catch {
-    /* ignore */
+  setOrgStorage(ADMIN_ORG_STORAGE_KEY, s);
+}
+
+/** Grava org quando o regatista navega em /dashboard com ?org= */
+export function persistSailorOrgFromUrl(pathname: string, search: string): void {
+  if (typeof window === 'undefined') return;
+  if (!pathname.startsWith('/dashboard') && !pathname.startsWith('/scorer')) return;
+  const org = new URLSearchParams(search).get('org')?.trim();
+  if (org) {
+    setOrgStorage(SAILOR_ORG_STORAGE_KEY, org);
   }
+}
+
+/** Regatista / jury: grava slug para login pós-expiração (URL pode ainda não ter ?org=). */
+export function persistSailorOrgFromUser(organizationSlug: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  const s = organizationSlug?.trim();
+  if (!s) return;
+  setOrgStorage(SAILOR_ORG_STORAGE_KEY, s);
+}
+
+function getStoredSailorOrgSlug(): string | null {
+  return getOrgStorage(SAILOR_ORG_STORAGE_KEY);
+}
+
+/** Fallback para página de login quando fluxo sailor/scorer perde ?org=. */
+export function getStoredSailorOrgSlugForLogin(): string | null {
+  return getStoredSailorOrgSlug();
+}
+
+/** Após logout do regatista para não misturar com próxima sessão. */
+export function clearStoredSailorOrgSlug(): void {
+  clearOrgStorage(SAILOR_ORG_STORAGE_KEY);
 }
 
 /**
@@ -45,22 +113,12 @@ export function getOrgSlugFromCurrentLocation(): string | null {
 }
 
 function getStoredAdminOrgSlug(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return sessionStorage.getItem(ADMIN_ORG_STORAGE_KEY)?.trim() || null;
-  } catch {
-    return null;
-  }
+  return getOrgStorage(ADMIN_ORG_STORAGE_KEY);
 }
 
 /** Após sign-out (especialmente regatista) para não reutilizar org de sessão admin anterior. */
 export function clearStoredAdminOrgSlug(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.removeItem(ADMIN_ORG_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+  clearOrgStorage(ADMIN_ORG_STORAGE_KEY);
 }
 
 /**
@@ -84,21 +142,43 @@ export function buildSessionExpiredLoginUrl(): string {
     return url;
   }
 
-  // Regatista: /dashboard muitas vezes sem ?regattaId= (ID no token). /login sem regattaId = modo admin.
+  // Regatista: /dashboard muitas vezes sem ?regattaId= (ID no token). Preservar org (URL ou última org guardada).
   if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
     const regattaId = params.get('regattaId');
-    const org = params.get('org')?.trim();
+    const orgFromQs = params.get('org')?.trim();
+    const sailorOrg =
+      orgFromQs || getStoredSailorOrgSlug() || getOrgSlugFromCurrentLocation();
     if (regattaId) {
       const p = new URLSearchParams({ reason: 'expired', regattaId });
-      if (org) p.set('org', org);
+      if (sailorOrg) p.set('org', sailorOrg);
       return `/login?${p.toString()}`;
     }
-    return `/?${reason}`;
+    if (sailorOrg) {
+      return `/login?${reason}&org=${encodeURIComponent(sailorOrg)}`;
+    }
+    return `/login?${reason}`;
+  }
+
+  if (pathname === '/scorer' || pathname.startsWith('/scorer/')) {
+    const regattaMatch = pathname.match(/^\/scorer\/manage-regattas\/(\d+)/);
+    const sailorOrg =
+      params.get('org')?.trim() ||
+      getStoredSailorOrgSlug() ||
+      getStoredAdminOrgSlug() ||
+      getOrgSlugFromCurrentLocation();
+    const p = new URLSearchParams({ reason: 'expired' });
+    if (regattaMatch?.[1]) p.set('regattaId', regattaMatch[1]);
+    if (sailorOrg) p.set('org', sailorOrg);
+    return `/login?${p.toString()}`;
   }
 
   let url = `/login?${reason}`;
   const regattaId = params.get('regattaId');
-  const orgLogin = params.get('org')?.trim();
+  const orgLogin =
+    params.get('org')?.trim() ||
+    getStoredSailorOrgSlug() ||
+    getStoredAdminOrgSlug() ||
+    getOrgSlugFromCurrentLocation();
   if (regattaId) url += `&regattaId=${encodeURIComponent(regattaId)}`;
   if (orgLogin) url += `&org=${encodeURIComponent(orgLogin)}`;
   return url;

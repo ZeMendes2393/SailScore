@@ -55,6 +55,18 @@ type OverallResult = {
   boat_model?: string | null;
   bow_number?: string | null;
 };
+type RegattaEntryLite = {
+  first_name?: string | null;
+  last_name?: string | null;
+  sail_number?: string | null;
+  boat_country_code?: string | null;
+  boat_name?: string | null;
+  class_name?: string | null;
+  crew_members?: Array<{
+    first_name?: string | null;
+    last_name?: string | null;
+  }> | null;
+};
 
 type ComputedRow = OverallResult & {
   discardedRaceNames: Set<string>;
@@ -72,6 +84,7 @@ type Props = { regattaId: number };
 // para ir buscar codes por corrida
 type RaceResultLite = {
   sail_number: string;
+  boat_country_code?: string | null;
   code?: string | null;
 };
 
@@ -92,6 +105,14 @@ function normalizeSail(sn: string | null | undefined) {
   return (sn ?? '').trim().toUpperCase();
 }
 
+function normalizeCountry(cc: string | null | undefined) {
+  return (cc ?? '').trim().toUpperCase();
+}
+
+function resultCodeKey(sail: string | null | undefined, country: string | null | undefined) {
+  return `${normalizeCountry(country)}|${normalizeSail(sail)}`;
+}
+
 function formatPerRaceCell(
   raw: number | string | undefined,
   discarded: boolean,
@@ -110,18 +131,25 @@ function formatPerRaceCell(
 
   // pointsStr: tenta isolar os pontos
   let pointsStr = s;
+  let codeFromRaw: string | null = null;
 
   // se vier "(10)" -> pointsStr "10"
   if (isWrapped) pointsStr = s.slice(1, -1).trim();
 
   // se vier "DNF(10)" ou "(DNF 10)" etc -> tenta extrair pontos
   const m1 = pointsStr.match(/^([A-Za-z]{2,6})\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*\)$/);
-  if (m1) pointsStr = m1[2];
+  if (m1) {
+    codeFromRaw = m1[1].toUpperCase();
+    pointsStr = m1[2];
+  }
 
   const m2 = pointsStr.match(/^([A-Za-z]{2,6})\s+([-+]?\d+(?:\.\d+)?)$/);
-  if (m2) pointsStr = m2[2];
+  if (m2) {
+    codeFromRaw = m2[1].toUpperCase();
+    pointsStr = m2[2];
+  }
 
-  const c = code ? String(code).toUpperCase() : null;
+  const c = code ? String(code).toUpperCase() : codeFromRaw;
 
   // 🔹 NÃO descartado → sem parêntesis
   if (!discarded) {
@@ -137,7 +165,8 @@ function formatPerRaceCell(
 
 export default function AdminOverallResultsClient({ regattaId }: Props) {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const manageRegattaBasePath = user?.role === 'scorer' ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
@@ -171,6 +200,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
+  const [entriesByBoatKey, setEntriesByBoatKey] = useState<Map<string, string[]>>(new Map());
 
   // Visible columns per class
   const visibleColumns = useMemo(
@@ -358,17 +388,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
     const list = selectedClass ? racesByClass[selectedClass] || [] : [];
     const norm = (s: string) => (s ?? '').trim().toLowerCase();
     for (const r of list) {
-      map.set(r.name, `/admin/manage-regattas/${regattaId}/races/${r.id}`);
+      map.set(r.name, `${manageRegattaBasePath}/${regattaId}/races/${r.id}`);
     }
     // Fallback: nomes que aparecem em raceNames mas não batem exatamente
     for (const rn of raceNames) {
       if (map.has(rn)) continue;
       const needle = norm(rn);
       const match = list.find((r) => norm(r.name) === needle || norm(r.name).includes(needle) || needle.includes(norm(r.name)));
-      if (match) map.set(rn, `/admin/manage-regattas/${regattaId}/races/${match.id}`);
+      if (match) map.set(rn, `${manageRegattaBasePath}/${regattaId}/races/${match.id}`);
     }
     return map;
-  }, [regattaId, selectedClass, racesByClass, raceNames]);
+  }, [regattaId, selectedClass, racesByClass, raceNames, manageRegattaBasePath]);
 
   // Abrir corrida individual (robusto: fallback se nameToId falhar)
   const openRace = (raceName: string) => {
@@ -394,9 +424,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
             const map: Record<string, string | null> = {};
             (rows || []).forEach((rr) => {
-              const key = normalizeSail(rr.sail_number);
-              if (!key) return;
-              map[key] = rr.code ? String(rr.code).toUpperCase() : null;
+              const key = resultCodeKey(rr.sail_number, rr.boat_country_code);
+              const sailOnlyKey = `|${normalizeSail(rr.sail_number)}`;
+              const code = rr.code ? String(rr.code).toUpperCase() : null;
+              map[key] = code;
+              if (!(sailOnlyKey in map)) map[sailOnlyKey] = code;
             });
 
             return [raceName, map] as const;
@@ -411,6 +443,54 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       setCodesByRace(next);
     })();
   }, [apiGet, selectedClass, orderedRaceNames, nameToId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!selectedClass) {
+        setEntriesByBoatKey(new Map());
+        return;
+      }
+      const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase();
+      const boatKey = (e: RegattaEntryLite) =>
+        `${normalizeText(e.sail_number)}|${normalizeText(e.boat_country_code)}|${normalizeText(
+          e.boat_name
+        )}|${normalizeText(e.class_name)}`;
+      const boatLooseKey = (e: RegattaEntryLite) =>
+        `${normalizeText(e.sail_number)}|${normalizeText(e.boat_country_code)}|${normalizeText(
+          e.class_name
+        )}`;
+      const sailClassKey = (e: RegattaEntryLite) =>
+        `${normalizeText(e.sail_number)}|${normalizeText(e.class_name)}`;
+      try {
+        const list = await apiGet<RegattaEntryLite[]>(`/entries/by_regatta/${regattaId}?include_waiting=1`);
+        const next = new Map<string, string[]>();
+        for (const entry of Array.isArray(list) ? list : []) {
+          if ((entry.class_name ?? '').trim() !== selectedClass) continue;
+          const helmName = `${(entry.first_name ?? '').trim()} ${(entry.last_name ?? '').trim()}`.trim();
+          const crewNames = Array.isArray(entry.crew_members)
+            ? entry.crew_members
+                .map((m) => `${(m?.first_name ?? '').trim()} ${(m?.last_name ?? '').trim()}`.trim())
+                .filter(Boolean)
+            : [];
+          const allBoatNames = [helmName, ...crewNames].filter(Boolean);
+          if (allBoatNames.length === 0) continue;
+          const keys = [boatKey(entry), boatLooseKey(entry), sailClassKey(entry)];
+          for (const key of keys) {
+            const names = next.get(key) ?? [];
+            for (const personName of allBoatNames) {
+              if (!names.some((n) => n.toUpperCase() === personName.toUpperCase())) {
+                names.push(personName);
+              }
+            }
+            next.set(key, names);
+          }
+        }
+        setEntriesByBoatKey(next);
+      } catch {
+        setEntriesByBoatKey(new Map());
+      }
+    })();
+  }, [apiGet, regattaId, selectedClass]);
 
   // Calcular descartes apenas para fins visuais (backend já tratou dos pontos)
   const results: ComputedRow[] = useMemo(() => {
@@ -445,13 +525,32 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       })
       .sort((a, b) => a.overall_rank - b.overall_rank);
   }, [rawResults]);
+  const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase();
+  const boatKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.boat_country_code)}|${normalizeText(
+      r.boat_name
+    )}|${normalizeText(r.class_name)}`;
+  const boatLooseKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.boat_country_code)}|${normalizeText(
+      r.class_name
+    )}`;
+  const sailClassKeyFromResult = (r: OverallResult) =>
+    `${normalizeText(r.sail_number)}|${normalizeText(r.class_name)}`;
+  const getCrewForResult = (r: OverallResult) => {
+    const crew =
+      entriesByBoatKey.get(boatKeyFromResult(r)) ??
+      entriesByBoatKey.get(boatLooseKeyFromResult(r)) ??
+      entriesByBoatKey.get(sailClassKeyFromResult(r));
+    if (crew && crew.length > 0) return crew.join(', ');
+    return r.skipper_name || '—';
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Voltar ao menu da regata */}
       <div className="mb-4">
         <Link
-          href={`/admin/manage-regattas/${regattaId}`}
+          href={`${manageRegattaBasePath}/${regattaId}`}
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
           ← Back to regatta menu
@@ -679,14 +778,14 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           </thead>
 
           <tbody>
-            {results.map((r) => (
-              <tr key={`${r.class_name}-${r.sail_number}-${r.skipper_name}`}>
+            {results.map((r, idx) => (
+              <tr key={`${r.class_name}-${r.sail_number}-${idx}`}>
                 {visibleColumns.filter((id) => id !== 'total' && id !== 'net').map((id) => {
                   if (id === 'place') return <td key={id} className="border px-3 py-2 text-center">{r.overall_rank}º</td>;
                   if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{r.finals_fleet ?? '-'}</td>;
                   if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>;
                   if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>;
-                  if (id === 'skipper') return <td key={id} className="border px-3 py-2">{r.skipper_name}</td>;
+                  if (id === 'skipper') return <td key={id} className="border px-3 py-2">{getCrewForResult(r)}</td>;
                   if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>;
                   if (id === 'model') return <td key={id} className="border px-3 py-2">{r.boat_model ?? '—'}</td>;
                   if (id === 'bow') return <td key={id} className="border px-3 py-2">{r.bow_number ?? '—'}</td>;
@@ -701,8 +800,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                     ? FLEET_COLOR_CLASSES[fleetLabel] ?? 'bg-gray-400'
                     : '';
 
-                  const sailKey = normalizeSail(r.sail_number);
-                  const code = codesByRace[n]?.[sailKey] ?? null;
+                  const compositeKey = resultCodeKey(r.sail_number, r.boat_country_code);
+                  const sailFallbackKey = `|${normalizeSail(r.sail_number)}`;
+                  const code = codesByRace[n]?.[compositeKey] ?? codesByRace[n]?.[sailFallbackKey] ?? null;
 
                   const display = formatPerRaceCell(raw as any, discarded, code);
 

@@ -10,7 +10,7 @@ import os
 from app import models, schemas
 from app.metadata.timezones import is_valid_iana_timezone, is_valid_timezone_for_country
 from app.database import get_db
-from app.org_scope import assert_user_can_manage_org_id, resolve_org
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id, resolve_org
 from utils.auth_utils import (
     get_current_user,
     get_current_user_optional,
@@ -141,15 +141,30 @@ def update_regatta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Regata não encontrada")
-    assert_user_can_manage_org_id(current_user, reg.organization_id)
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, reg.organization_id)
+    else:
+        assert_staff_regatta_access(db, current_user, regatta_id)
 
     data = body.model_dump(exclude_unset=True)
+    if current_user.role == "scorer":
+        scorer_allowed_fields = {
+            "online_entry_open",
+            "online_entry_limit_enabled",
+            "online_entry_limit",
+            "online_entry_limits_by_class",
+            "entry_list_columns",
+            "results_overall_columns",
+        }
+        data = {k: v for k, v in data.items() if k in scorer_allowed_fields}
+        if not data:
+            raise HTTPException(status_code=403, detail="Acesso negado")
     if "organization_id" in data:
         org = db.query(models.Organization).filter(models.Organization.id == data["organization_id"]).first()
         if not org:

@@ -8,8 +8,11 @@ import { isAdminRole } from '@/lib/roles';
 import {
   buildSessionExpiredLoginUrl,
   clearStoredAdminOrgSlug,
+  clearStoredSailorOrgSlug,
   persistAdminOrgFromUrl,
   persistAdminOrgFromUser,
+  persistSailorOrgFromUrl,
+  persistSailorOrgFromUser,
 } from '@/lib/sessionExpiryLogin';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -61,9 +64,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Lembrar org no admin: ?org= na URL ou slug do admin de organização
   useEffect(() => {
     if (!user || !token || typeof window === 'undefined') return;
-    persistAdminOrgFromUrl(pathname || '', window.location.search);
+    const search = window.location.search;
+    persistAdminOrgFromUrl(pathname || '', search);
+    persistSailorOrgFromUrl(pathname || '', search);
     if (user.role === 'admin' && (user as { organization_slug?: string }).organization_slug) {
       persistAdminOrgFromUser((user as { organization_slug: string }).organization_slug);
+    }
+    if (
+      (user.role === 'regatista' || user.role === 'jury' || user.role === 'scorer') &&
+      (user as BaseUser).organization_slug
+    ) {
+      persistSailorOrgFromUser((user as BaseUser).organization_slug);
     }
   }, [user, token, pathname]);
 
@@ -75,6 +86,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const interval = setInterval(() => {
       const t = sessionStorage.getItem('token');
       if (t && isTokenExpired(t)) {
+        try {
+          const raw = sessionStorage.getItem('user');
+          if (raw) {
+            const parsed = JSON.parse(raw) as BaseUser;
+            const slug = parsed?.organization_slug?.trim();
+            if (slug && (parsed.role === 'regatista' || parsed.role === 'jury' || parsed.role === 'scorer')) {
+              persistSailorOrgFromUser(slug);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
         setToken(null);
@@ -140,6 +163,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const orgFromUser = (usr as BaseUser).organization_slug?.trim();
       const slug = orgFromLoginUrl || orgFromUser || null;
       router.replace(slug ? `/admin?org=${encodeURIComponent(slug)}` : '/admin');
+    } else if (usr.role === 'scorer') {
+      const org = params.get('org')?.trim();
+      const scorerRegattaId = (usr as BaseUser).current_regatta_id;
+      if (scorerRegattaId) {
+        const p = new URLSearchParams();
+        if (org) p.set('org', org);
+        const qs = p.toString();
+        router.replace(`/scorer/manage-regattas/${scorerRegattaId}${qs ? `?${qs}` : ''}`);
+      } else {
+        router.replace(org ? `/dashboard/scorer?org=${encodeURIComponent(org)}` : '/dashboard/scorer');
+      }
     } else {
       const org = params.get('org')?.trim();
       if (regattaId) {
@@ -156,6 +190,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     clearStoredAdminOrgSlug();
+    clearStoredSailorOrgSlug();
     try {
       localStorage.removeItem('access_token');
       localStorage.removeItem('token');

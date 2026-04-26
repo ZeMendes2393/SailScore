@@ -1,8 +1,8 @@
-"""Admin: jury profiles per regatta + generate login credentials (role=jury)."""
+"""Admin: staff profiles per regatta + generate jury/scorer login credentials."""
 from __future__ import annotations
 
 import secrets
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -46,6 +46,7 @@ class JuryProfileCreate(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=200)
     note: Optional[str] = Field(None, max_length=500)
     auto_generate_credentials: bool = True
+    credentials_role: Literal["jury", "scorer"] = "jury"
 
 
 class JuryProfileUpdate(BaseModel):
@@ -60,6 +61,7 @@ class JuryProfileRead(BaseModel):
     note: Optional[str] = None
     has_credentials: bool
     username: Optional[str] = None
+    credentials_role: Optional[Literal["jury", "scorer"]] = None
 
     class Config:
         from_attributes = True
@@ -68,6 +70,7 @@ class JuryProfileRead(BaseModel):
 class JuryCredentialsOut(BaseModel):
     username: str
     password: str
+    role: Literal["jury", "scorer"]
     message: str = "Save these credentials now. The password will not be shown again."
 
 
@@ -78,10 +81,13 @@ class JuryProfileCreateResult(BaseModel):
 
 def _to_read(db: Session, p: models.RegattaJuryProfile) -> JuryProfileRead:
     username: Optional[str] = None
+    credentials_role: Optional[Literal["jury", "scorer"]] = None
     if p.user_id:
         u = db.query(models.User).filter(models.User.id == p.user_id).first()
         if u:
             username = u.username
+            if u.role in ("jury", "scorer"):
+                credentials_role = u.role
     return JuryProfileRead(
         id=p.id,
         regatta_id=p.regatta_id,
@@ -89,19 +95,21 @@ def _to_read(db: Session, p: models.RegattaJuryProfile) -> JuryProfileRead:
         note=p.note,
         has_credentials=p.user_id is not None,
         username=username,
+        credentials_role=credentials_role,
     )
 
 
-def _issue_jury_credentials(
+def _issue_credentials(
     db: Session,
     regatta: models.Regatta,
     p: models.RegattaJuryProfile,
+    role: Literal["jury", "scorer"],
 ) -> JuryCredentialsOut:
     """Create user or reset password; commit DB."""
     regatta_id = regatta.id
     # Short password (~8 chars); still cryptographically random
     password = secrets.token_urlsafe(6)
-    email = f"jury.p{p.id}.r{regatta_id}@jury.internal"
+    email = f"{role}.p{p.id}.r{regatta_id}@{role}.internal"
     org_id = regatta.organization_id
 
     if p.user_id:
@@ -111,12 +119,14 @@ def _issue_jury_credentials(
         else:
             u.hashed_password = hash_password(password)
             u.name = p.display_name
+            u.role = role
             u.is_active = True
             db.commit()
             db.refresh(u)
             return JuryCredentialsOut(
                 username=u.username,
                 password=password,
+                role=role,
                 message="New password generated. Save it now; it will not be shown again.",
             )
 
@@ -125,9 +135,9 @@ def _issue_jury_credentials(
         .filter(models.User.organization_id == org_id, models.User.email == email)
         .first()
     ):
-        email = f"jury.p{p.id}.r{regatta_id}.{secrets.token_hex(3)}@jury.internal"
+        email = f"{role}.p{p.id}.r{regatta_id}.{secrets.token_hex(3)}@{role}.internal"
 
-    username = make_unique_username(db, org_id, f"jury_r{regatta_id}_p{p.id}")
+    username = make_unique_username(db, org_id, f"{role}_r{regatta_id}_p{p.id}")
 
     new_user = models.User(
         organization_id=org_id,
@@ -135,7 +145,7 @@ def _issue_jury_credentials(
         email=email,
         username=username,
         hashed_password=hash_password(password),
-        role="jury",
+        role=role,
         is_active=True,
     )
     db.add(new_user)
@@ -147,6 +157,7 @@ def _issue_jury_credentials(
     return JuryCredentialsOut(
         username=new_user.username,
         password=password,
+        role=role,
     )
 
 
@@ -191,7 +202,7 @@ def create_jury_profile(
 
     creds: Optional[JuryCredentialsOut] = None
     if body.auto_generate_credentials:
-        creds = _issue_jury_credentials(db, regatta, p)
+        creds = _issue_credentials(db, regatta, p, body.credentials_role)
         db.refresh(p)
 
     return JuryProfileCreateResult(profile=_to_read(db, p), credentials=creds)
@@ -241,6 +252,10 @@ def delete_jury_profile(
     return None
 
 
+class GenerateCredentialsBody(BaseModel):
+    credentials_role: Literal["jury", "scorer"] = "jury"
+
+
 @router.post(
     "/{regatta_id}/jury-profiles/{profile_id}/credentials",
     response_model=JuryCredentialsOut,
@@ -248,10 +263,11 @@ def delete_jury_profile(
 def generate_jury_credentials(
     regatta_id: int,
     profile_id: int,
+    body: GenerateCredentialsBody,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(verify_role(["admin"])),
 ):
     regatta = _get_regatta(db, regatta_id)
     assert_user_can_manage_org_id(current_user, regatta.organization_id)
     p = _profile_for_regatta(db, regatta_id, profile_id)
-    return _issue_jury_credentials(db, regatta, p)
+    return _issue_credentials(db, regatta, p, body.credentials_role)

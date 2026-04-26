@@ -31,8 +31,9 @@ export default function Page() {
   const params = useParams<{ id: string; entryId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const manageRegattaBasePath = user?.role === 'scorer' ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const entryId = Number(params.entryId);
   const regattaId = useMemo(() => {
@@ -85,10 +86,26 @@ export default function Page() {
   const [form, setForm] = useState<any>({});
   const [isDirty, setIsDirty] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [ratingInput, setRatingInput] = useState('');
+  const [orcLowInput, setOrcLowInput] = useState('');
+  const [orcMediumInput, setOrcMediumInput] = useState('');
+  const [orcHighInput, setOrcHighInput] = useState('');
+
+  const parseDecimalInput = (raw: string): number | null => {
+    const t = raw.trim().replace(',', '.');
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  };
+
   useEffect(() => {
     if (entry) {
       setForm(entry);
       setIsDirty(false);
+      setRatingInput(entry.rating != null ? String(entry.rating) : '');
+      setOrcLowInput(entry.orc_low != null ? String(entry.orc_low) : '');
+      setOrcMediumInput(entry.orc_medium != null ? String(entry.orc_medium) : '');
+      setOrcHighInput(entry.orc_high != null ? String(entry.orc_high) : '');
     }
   }, [entry]);
 
@@ -163,7 +180,7 @@ export default function Page() {
       await apiSend(`/entries/${entry.id}`, 'DELETE', {}, token);
       window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
       alert('Entry deleted.');
-      router.push(withOrg(`/admin/manage-regattas/${regattaId}?tab=entry`, orgSlug));
+      router.push(withOrg(`${manageRegattaBasePath}/${regattaId}?tab=entry`, orgSlug));
     } catch (e: any) {
       alert(e?.message ?? 'Failed to delete entry.');
       setDeleting(false);
@@ -266,7 +283,7 @@ export default function Page() {
 
   // ====== RENDER ======
   return (
-    <RequireAuth roles={['admin']}>
+    <RequireAuth roles={['admin', 'scorer']}>
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold">Edit entry</h1>
@@ -287,7 +304,7 @@ export default function Page() {
                   );
                   if (!ok) return;
                 }
-                router.push(withOrg(`/admin/manage-regattas/${regattaId}?tab=entry`, orgSlug));
+                router.push(withOrg(`${manageRegattaBasePath}/${regattaId}?tab=entry`, orgSlug));
               }}
             >
               Back
@@ -453,11 +470,17 @@ export default function Page() {
                         const v = e.target.value;
                         const next = v === 'none' ? null : v;
                         onChange('rating_type', next);
-                        if (next !== 'anc') onChange('rating', undefined);
+                          if (next !== 'anc') {
+                            onChange('rating', null);
+                            setRatingInput('');
+                          }
                         if (next !== 'orc') {
-                          onChange('orc_low', undefined);
-                          onChange('orc_medium', undefined);
-                          onChange('orc_high', undefined);
+                          onChange('orc_low', null);
+                          onChange('orc_medium', null);
+                          onChange('orc_high', null);
+                            setOrcLowInput('');
+                            setOrcMediumInput('');
+                            setOrcHighInput('');
                         }
                       }}
                     >
@@ -472,13 +495,16 @@ export default function Page() {
                         <div>
                           <label className="block text-gray-500 mb-1">Simple Rating</label>
                           <input
-                            type="number"
-                            step="0.0001"
+                            type="text"
+                            inputMode="decimal"
                             className="border rounded px-2 py-1.5 w-full max-w-xs"
-                            value={form.rating ?? ''}
+                            value={ratingInput}
                             onChange={(e) => {
                               const v = e.target.value;
-                              onChange('rating', v === '' ? undefined : Number(v));
+                              setRatingInput(v);
+                            }}
+                            onBlur={() => {
+                              onChange('rating', parseDecimalInput(ratingInput));
                             }}
                             placeholder="ex: 1.025"
                           />
@@ -489,13 +515,16 @@ export default function Page() {
                           <div>
                             <label className="block text-gray-500 mb-1">ORC Low</label>
                             <input
-                              type="number"
-                              step="0.0001"
+                              type="text"
+                              inputMode="decimal"
                               className="border rounded px-2 py-1.5 w-full"
-                              value={form.orc_low ?? ''}
+                              value={orcLowInput}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                onChange('orc_low', v === '' ? undefined : Number(v));
+                                setOrcLowInput(v);
+                              }}
+                              onBlur={() => {
+                                onChange('orc_low', parseDecimalInput(orcLowInput));
                               }}
                               placeholder="ex: 0.95"
                             />
@@ -503,13 +532,16 @@ export default function Page() {
                           <div>
                             <label className="block text-gray-500 mb-1">ORC Medium</label>
                             <input
-                              type="number"
-                              step="0.0001"
+                              type="text"
+                              inputMode="decimal"
                               className="border rounded px-2 py-1.5 w-full"
-                              value={form.orc_medium ?? ''}
+                              value={orcMediumInput}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                onChange('orc_medium', v === '' ? undefined : Number(v));
+                                setOrcMediumInput(v);
+                              }}
+                              onBlur={() => {
+                                onChange('orc_medium', parseDecimalInput(orcMediumInput));
                               }}
                               placeholder="ex: 1.00"
                             />
@@ -517,13 +549,16 @@ export default function Page() {
                           <div>
                             <label className="block text-gray-500 mb-1">ORC High</label>
                             <input
-                              type="number"
-                              step="0.0001"
+                              type="text"
+                              inputMode="decimal"
                               className="border rounded px-2 py-1.5 w-full"
-                              value={form.orc_high ?? ''}
+                              value={orcHighInput}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                onChange('orc_high', v === '' ? undefined : Number(v));
+                                setOrcHighInput(v);
+                              }}
+                              onBlur={() => {
+                                onChange('orc_high', parseDecimalInput(orcHighInput));
                               }}
                               placeholder="ex: 1.05"
                             />

@@ -21,7 +21,7 @@ export default function FleetSetList({
     return (
       <div className="space-y-2">
         <h4 className="font-semibold">Fleet Sets</h4>
-        <div>A carregar…</div>
+        <div>Loading...</div>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export default function FleetSetList({
               <div className="text-sm text-gray-500">
                 {s.phase.toUpperCase()}
               </div>
-              <div className="font-semibold">{s.label || '(sem label)'}</div>
+              <div className="font-semibold">{s.label || '(no label)'}</div>
               <div className="text-sm">
                 Fleets: {s.fleets.map((f) => f.name).join(', ')}
               </div>

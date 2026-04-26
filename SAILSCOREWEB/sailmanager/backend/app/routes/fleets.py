@@ -603,7 +603,16 @@ def assign_medal_race_entries(
         (
             db.query(Race)
             .filter(Race.id.in_(data.race_ids))
-            .update({"fleet_set_id": fs.id}, synchronize_session=False)
+            .update(
+                {
+                    "fleet_set_id": fs.id,
+                    # Medal race associada: força flags coerentes com medal scoring
+                    "is_medal_race": True,
+                    "double_points": True,
+                    "discardable": False,
+                },
+                synchronize_session=False,
+            )
         )
 
     db.commit()
