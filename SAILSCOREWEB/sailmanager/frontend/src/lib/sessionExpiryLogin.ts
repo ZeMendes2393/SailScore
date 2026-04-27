@@ -124,22 +124,43 @@ export function clearStoredAdminOrgSlug(): void {
 /**
  * URL para onde redirecionar quando a sessão expira (client-side).
  */
-export function buildSessionExpiredLoginUrl(): string {
+export function buildSessionExpiredLoginUrl(roleHint?: string | null): string {
   if (typeof window === 'undefined') return '/login?reason=expired';
 
   const pathname = window.location.pathname;
   const params = new URLSearchParams(window.location.search);
   const reason = 'reason=expired';
+  const normalizedRole = (roleHint || '').trim().toLowerCase();
+  const forceSailorLogin =
+    normalizedRole === 'regatista' ||
+    normalizedRole === 'jury' ||
+    normalizedRole === 'scorer';
 
   let org = getOrgSlugFromCurrentLocation();
   if (!org && pathname.startsWith('/admin')) {
     org = getStoredAdminOrgSlug();
   }
 
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin') && !forceSailorLogin) {
     let url = `/admin/login?${reason}`;
     if (org) url += `&org=${encodeURIComponent(org)}`;
     return url;
+  }
+
+  // Sessão expirada de conta sailor/staff em URL /admin/... (ex: scorer em rota antiga):
+  // forçar login sailor/scorer para não cair no admin login.
+  if (forceSailorLogin) {
+    const regattaFromPath =
+      pathname.match(/\/manage-regattas\/(\d+)/)?.[1] || params.get('regattaId');
+    const sailorOrg =
+      params.get('org')?.trim() ||
+      getStoredSailorOrgSlug() ||
+      getStoredAdminOrgSlug() ||
+      getOrgSlugFromCurrentLocation();
+    const p = new URLSearchParams({ reason: 'expired' });
+    if (regattaFromPath) p.set('regattaId', regattaFromPath);
+    if (sailorOrg) p.set('org', sailorOrg);
+    return `/login?${p.toString()}`;
   }
 
   // Regatista: /dashboard muitas vezes sem ?regattaId= (ID no token). Preservar org (URL ou última org guardada).

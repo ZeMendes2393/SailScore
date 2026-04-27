@@ -265,7 +265,7 @@ export default function LoginPage() {
               placeholder={
                 mode === 'admin'
                   ? 'Email or username'
-                  : 'e.g. JoseMendes115'
+                  : 'e.g. AlexSailor22'
               }
               value={email}
               onChange={(e) => setEmail(e.target.value)}

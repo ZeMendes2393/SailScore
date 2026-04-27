@@ -121,7 +121,10 @@ def create_regatta(
     return new_regatta
 
 @router.get("/{regatta_id}", response_model=schemas.RegattaRead)
-def get_regatta(regatta_id: int, db: Session = Depends(get_db)):
+def get_regatta(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+):
     r = (
         db.query(models.Regatta)
         .options(joinedload(models.Regatta.organization))
@@ -364,13 +367,18 @@ def get_regatta_status(
                 )
             if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
                 raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+        elif current_user.role == "scorer":
+            assert_staff_regatta_access(db, current_user, regatta_id)
         else:
             raise HTTPException(status_code=403, detail="Acesso negado")
 
     return _compute_regatta_status(reg)
 
 @router.get("/{regatta_id}/classes/detailed", response_model=List[schemas.RegattaClassRead])
-def get_classes_detailed(regatta_id: int, db: Session = Depends(get_db)):
+def get_classes_detailed(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+):
     """Devolve classes com class_type (one_design | handicap)."""
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
@@ -397,7 +405,14 @@ def get_classes_detailed(regatta_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{regatta_id}/classes", response_model=List[str])
-def get_classes_for_regatta(regatta_id: int, db: Session = Depends(get_db)):
+def get_classes_for_regatta(
+    regatta_id: int,
+    db: Session = Depends(get_db),
+):
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regata não encontrada")
+
     # 1) Preferir as classes configuradas (RegattaClass) — funciona para regatas novas
     try:
         rc_rows = (

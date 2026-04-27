@@ -37,11 +37,16 @@ export default function OrganizationsPage() {
   const [editIsActive, setEditIsActive] = useState(true);
   const [editAdminEmail, setEditAdminEmail] = useState('');
   const [editAdminPassword, setEditAdminPassword] = useState('');
-  const { token } = useAuth();
-  const { orgSlug } = useAdminOrg();
+  const { token, user } = useAuth();
+  const { orgSlug, isPlatformAdmin } = useAdminOrg();
+  const isGlobalPlatformAdmin = isPlatformAdmin && !orgSlug;
 
   useEffect(() => {
     (async () => {
+      if (!isGlobalPlatformAdmin) {
+        setLoading(false);
+        return;
+      }
       try {
         const data = await apiGet<Organization[]>('/organizations/', token);
         setOrgs(Array.isArray(data) ? data : []);
@@ -51,7 +56,39 @@ export default function OrganizationsPage() {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token, isGlobalPlatformAdmin]);
+
+  if (user && !isGlobalPlatformAdmin) {
+    return (
+      <RequireAuth roles={['admin']}>
+        <div className="min-h-screen bg-gray-50 px-4 py-10">
+          <div className="mx-auto max-w-2xl rounded-xl border bg-white p-6">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">Organizations</h1>
+            <p className="text-sm text-gray-600">
+              Organization management is only available in the global platform admin context (without <code className="bg-gray-100 px-1 rounded">?org=...</code>).
+            </p>
+            <div className="mt-5 flex items-center gap-3">
+              {isPlatformAdmin ? (
+                <Link
+                  href="/admin/organizations"
+                  className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Open global Organizations
+                </Link>
+              ) : (
+                <Link
+                  href={withOrg('/admin', orgSlug)}
+                  className="inline-flex items-center rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Back to Admin dashboard
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   const handleSlugFromName = () => {
     const s = name

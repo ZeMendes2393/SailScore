@@ -16,6 +16,7 @@ import {
 } from '@/lib/sessionExpiryLogin';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const AUTH_LOGOUT_BROADCAST_KEY = 'auth:logoutAt';
 
 type BaseUser = {
   email: string;
@@ -48,6 +49,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const clearLocalSessionState = () => {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    clearStoredAdminOrgSlug();
+    clearStoredSailorOrgSlug();
+    try {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
+    } catch {
+      /* ignore */
+    }
+    setToken(null);
+    setUser(null);
+  };
 
   const refreshMe = async (tok: string) => {
     const res = await fetch(`${API_BASE}/auth/me`, {
@@ -86,10 +102,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const interval = setInterval(() => {
       const t = sessionStorage.getItem('token');
       if (t && isTokenExpired(t)) {
+        let roleHint: string | null = null;
         try {
           const raw = sessionStorage.getItem('user');
           if (raw) {
             const parsed = JSON.parse(raw) as BaseUser;
+            roleHint = parsed?.role || null;
             const slug = parsed?.organization_slug?.trim();
             if (slug && (parsed.role === 'regatista' || parsed.role === 'jury' || parsed.role === 'scorer')) {
               persistSailorOrgFromUser(slug);
@@ -105,7 +123,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const path = typeof window !== 'undefined' ? window.location.pathname : '';
         const after = path + (typeof window !== 'undefined' ? window.location.search : '');
         sessionStorage.setItem('postLoginRedirect', after);
-        router.replace(buildSessionExpiredLoginUrl());
+        router.replace(buildSessionExpiredLoginUrl(roleHint));
       }
     }, 60_000); // cada 60 segundos
 
@@ -139,6 +157,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
       }
     })();
+  }, []);
+
+  // Cross-tab logout sync: signing out in one tab must invalidate all open tabs.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== AUTH_LOGOUT_BROADCAST_KEY || !event.newValue) return;
+      clearLocalSessionState();
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      const qs = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const org = qs?.get('org')?.trim();
+      const isAdminArea = path.startsWith('/admin');
+      const isDashboardArea = path.startsWith('/dashboard') || path.startsWith('/scorer');
+      if (isAdminArea || isDashboardArea) {
+        if (isAdminArea) {
+          window.location.assign(org ? `/admin/login?org=${encodeURIComponent(org)}` : '/admin/login');
+        } else {
+          window.location.assign(org ? `/login?org=${encodeURIComponent(org)}` : '/login');
+        }
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const login = (tok: string, usr: User) => {
@@ -187,18 +228,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = (opts?: { redirectTo?: string }) => {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    clearStoredAdminOrgSlug();
-    clearStoredSailorOrgSlug();
+    clearLocalSessionState();
     try {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('token');
+      // Broadcast logout so other tabs clear session immediately.
+      localStorage.setItem(AUTH_LOGOUT_BROADCAST_KEY, String(Date.now()));
     } catch {
       /* ignore */
     }
-    setToken(null);
-    setUser(null);
 
     // Navegação completa evita corrida com RequireAuth no /dashboard sem ?regattaId=
     // (regatista usa current_regatta_id na URL nem sempre) → antes ia para /login = modo admin.

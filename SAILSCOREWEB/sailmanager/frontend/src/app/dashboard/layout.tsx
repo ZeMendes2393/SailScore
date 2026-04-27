@@ -6,7 +6,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <Suspense
       fallback={
         <div className="mx-auto max-w-[min(100%,90rem)] px-4 py-8 text-sm text-gray-500">
-          A carregar…
+          Loading...
         </div>
       }
     >

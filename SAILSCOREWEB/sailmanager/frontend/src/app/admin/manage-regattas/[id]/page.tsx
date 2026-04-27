@@ -614,9 +614,19 @@ export default function AdminRegattaPage() {
                   Admins cannot submit entries here.
                 </p>
                 <p className="text-gray-500 mt-3">
-                  <Link href={withOrg('/admin/email', orgSlug)} className="text-blue-600 hover:underline">
-                    Configure entry confirmation email →
-                  </Link>
+                  {isScorer ? (
+                    <span
+                      className="text-gray-400 cursor-not-allowed"
+                      title="Only admins can configure confirmation emails."
+                      aria-disabled="true"
+                    >
+                      Configure entry confirmation email →
+                    </span>
+                  ) : (
+                    <Link href={withOrg('/admin/email', orgSlug)} className="text-blue-600 hover:underline">
+                      Configure entry confirmation email →
+                    </Link>
+                  )}
                 </p>
               </div>
 

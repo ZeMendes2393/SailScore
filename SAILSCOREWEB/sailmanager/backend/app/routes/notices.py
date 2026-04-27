@@ -12,8 +12,8 @@ import os
 from app.database import get_db
 from app import models, schemas
 from app.models import NoticeSource, NoticeDocType, RegattaClass  # enums e modelo
-from app.org_scope import assert_user_can_manage_org_id
-from utils.auth_utils import verify_role
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
+from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -25,6 +25,22 @@ PUBLIC_PREFIX = "/uploads/notices"
 # ------------------------ helpers ------------------------
 def ensure_upload_dir() -> None:
     os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def _assert_notice_manager_access(
+    db: Session,
+    current_user: models.User,
+    regatta_id: int,
+    organization_id: int,
+) -> None:
+    role = (getattr(current_user, "role", "") or "").strip().lower()
+    if role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, organization_id)
+        return
+    if role == "scorer":
+        assert_staff_regatta_access(db, current_user, regatta_id)
+        return
+    raise HTTPException(status_code=403, detail="Permissão negada")
 
 
 def map_notice_to_read(n: models.Notice) -> schemas.NoticeRead:
@@ -56,7 +72,6 @@ def map_notice_to_read(n: models.Notice) -> schemas.NoticeRead:
     "/upload/",
     response_model=schemas.NoticeRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def upload_notice_file(
     regatta_id: int = Form(...),
@@ -73,12 +88,17 @@ def upload_notice_file(
 
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    _assert_notice_manager_access(
+        db=db,
+        current_user=current_user,
+        regatta_id=regatta_id,
+        organization_id=int(regatta.organization_id),
+    )
 
     ensure_upload_dir()
 
@@ -212,19 +232,23 @@ def get_notice_detail(notice_id: int, db: Session = Depends(get_db)):
 @router.delete(
     "/{notice_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def delete_notice(
     notice_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
     regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        _assert_notice_manager_access(
+            db=db,
+            current_user=current_user,
+            regatta_id=int(n.regatta_id),
+            organization_id=int(regatta.organization_id),
+        )
 
     # apaga ficheiro do sistema (mapeia caminho público -> pasta local)
     fs_path = n.filepath.replace("/uploads", "uploads")
@@ -249,13 +273,12 @@ class ImportantPatch(BaseModel):
     "/{notice_id}/important",
     response_model=schemas.NoticeRead,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(verify_role(["admin"]))],
 )
 def set_notice_important(
     notice_id: int,
     payload: ImportantPatch,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(verify_role(["admin"])),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     Atualiza o estado de destaque (is_important) de um notice.
@@ -266,7 +289,12 @@ def set_notice_important(
         raise HTTPException(status_code=404, detail="Documento não encontrado")
     regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        _assert_notice_manager_access(
+            db=db,
+            current_user=current_user,
+            regatta_id=int(n.regatta_id),
+            organization_id=int(regatta.organization_id),
+        )
 
     n.is_important = bool(payload.is_important)
     db.commit()

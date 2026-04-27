@@ -74,9 +74,9 @@ function EditProtestPageContent() {
     <RequireAuth roles={['jury', 'admin', 'platform_admin']}>
       <div className="max-w-3xl mx-auto p-4 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Editar protesto {api.editProtestId ? `P-${api.editProtestId}` : ''}</h1>
+          <h1 className="text-2xl font-semibold">Edit protest {api.editProtestId ? `P-${api.editProtestId}` : ''}</h1>
           <button type="button" className="px-3 py-2 rounded border" onClick={back}>
-            Voltar
+            Back
           </button>
         </div>
 
@@ -190,7 +190,7 @@ function EditProtestPageContent() {
             />
           </div>
           <div>
-            <label className="block text-sm mb-1">Regras alegadas</label>
+            <label className="block text-sm mb-1">Rules alleged</label>
             <textarea
               className="w-full border rounded px-3 py-2"
               rows={2}

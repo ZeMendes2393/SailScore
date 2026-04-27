@@ -9,6 +9,7 @@ export default function AdminSidebar() {
   const { logout } = useAuth();
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
   const pathname = usePathname();
+  const canManageOrganizations = isPlatformAdmin && !orgSlug;
 
   const base = (path: string) => withOrg(path, orgSlug);
   const itemClass = (active: boolean) =>
@@ -45,7 +46,7 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="flex flex-col space-y-1">
-        {isPlatformAdmin && (
+        {canManageOrganizations && (
           <Link href={base('/admin/organizations')} className={itemClass(!!isOrganizations)}>
             Organizations
           </Link>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import UploadNoticeForm from "../UploadNoticeForm";
 import AdminNoticeTable from "../AdminNoticeTable";
 import { useNotices } from "@/lib/hooks/useNotices";
-import { api } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 
 export default function Documents({ regattaId }: { regattaId: number }) {
   const { data, loading, error, refresh } = useNotices(regattaId);
@@ -16,7 +16,7 @@ export default function Documents({ regattaId }: { regattaId: number }) {
     let alive = true;
     (async () => {
       try {
-        const regatta: any = await api(`/regattas/${regattaId}`);
+        const regatta: any = await apiGet(`/regattas/${regattaId}`);
         if (!alive) return;
         const tz = (regatta?.timezone || "").trim();
         setTimezone(tz || null);

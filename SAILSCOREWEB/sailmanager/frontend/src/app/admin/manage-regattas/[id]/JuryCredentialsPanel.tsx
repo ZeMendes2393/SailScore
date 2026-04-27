@@ -104,14 +104,23 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
     }
   }
 
-  async function handleRegeneratePassword(id: number) {
+  async function handleRegeneratePassword(
+    id: number,
+    roleHint?: 'jury' | 'scorer' | null,
+    options?: { hasCredentials?: boolean }
+  ) {
     if (!token) return;
     setError(null);
     try {
+      const roleToUse = roleHint ?? credentialsRole;
+      const payload =
+        options?.hasCredentials
+          ? {}
+          : { credentials_role: roleToUse };
       const out = await apiSend<JuryCredentialsOut>(
         `/regattas/${regattaId}/jury-profiles/${id}/credentials`,
         'POST',
-        { credentials_role: credentialsRole },
+        payload,
         token
       );
       setDetailsProfile(null);
@@ -301,13 +310,6 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                         </div>
                       ) : (
                         <div className="inline-flex flex-wrap gap-2 justify-end">
-                          <button
-                            type="button"
-                            className="text-blue-600 hover:underline text-sm"
-                            onClick={() => startEdit(r)}
-                          >
-                            Edit
-                          </button>
                           {r.has_credentials && (
                             <button
                               type="button"
@@ -321,7 +323,11 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                             <button
                               type="button"
                               className="text-emerald-700 hover:underline text-sm"
-                              onClick={() => handleRegeneratePassword(r.id)}
+                              onClick={() =>
+                                handleRegeneratePassword(r.id, r.credentials_role ?? 'jury', {
+                                  hasCredentials: true,
+                                })
+                              }
                             >
                               Regenerate password
                             </button>
@@ -329,7 +335,11 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                             <button
                               type="button"
                               className="text-emerald-700 hover:underline text-sm font-medium"
-                              onClick={() => handleRegeneratePassword(r.id)}
+                              onClick={() =>
+                                handleRegeneratePassword(r.id, credentialsRole, {
+                                  hasCredentials: false,
+                                })
+                              }
                             >
                               Issue credentials
                             </button>
@@ -411,8 +421,9 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
                 className="flex-1 py-2 rounded bg-emerald-600 text-white text-sm"
                 onClick={() => {
                   const id = detailsProfile.id;
+                  const role = detailsProfile.credentials_role ?? 'jury';
                   setDetailsProfile(null);
-                  void handleRegeneratePassword(id);
+                  void handleRegeneratePassword(id, role, { hasCredentials: true });
                 }}
               >
                 Regenerate password

@@ -5,7 +5,7 @@ from typing import List
 
 from app.database import get_db
 from app import models, schemas
-from app.org_scope import assert_user_can_manage_org_id
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
 # NÃO USAMOS RaceRead DIRETAMENTE → removido
@@ -33,13 +33,16 @@ def create_race(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    else:
+        assert_staff_regatta_access(db, current_user, race.regatta_id)
 
     if not (race.name or "").strip():
         raise HTTPException(status_code=400, detail="Race name is required")
@@ -133,7 +136,7 @@ def update_race(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     r = db.query(models.Race).filter_by(id=race_id).first()
@@ -141,7 +144,10 @@ def update_race(
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=r.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     if body.name is not None:
         new_name = _stored_name(body.name, r.class_name)
@@ -198,7 +204,7 @@ def delete_race(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     r = db.query(models.Race).filter_by(id=race_id).first()
@@ -206,7 +212,10 @@ def delete_race(
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=r.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     db.delete(r)
     db.commit()
@@ -237,13 +246,16 @@ def reorder_races_legacy(
 
 
 def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    else:
+        assert_staff_regatta_access(db, current_user, regatta_id)
 
     ordered = list(getattr(body, "ordered_ids", []) or [])
     if not ordered:

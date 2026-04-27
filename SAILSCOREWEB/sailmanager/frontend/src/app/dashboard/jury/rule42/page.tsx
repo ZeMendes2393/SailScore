@@ -18,10 +18,10 @@ export default function JuryRule42Page() {
     return (
       <RequireAuth roles={['jury']}>
         <div className="p-6 max-w-lg text-sm text-gray-700">
-          <p className="mb-2">Não há regata na sessão.</p>
+          <p className="mb-2">No regatta found in this session.</p>
           <p className="mb-4">
-            Inicia sessão a partir da página da regata com{' '}
-            <code className="bg-gray-100 px-1 rounded">/login?regattaId=…</code> e as credenciais de júri.
+            Start from the regatta page with{' '}
+            <code className="bg-gray-100 px-1 rounded">/login?regattaId=...</code> and jury credentials.
           </p>
         </div>
       </RequireAuth>
@@ -38,7 +38,7 @@ export default function JuryRule42Page() {
             onClick={() => logout({ redirectTo: `/regattas/${regattaId}` })}
             className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
           >
-            Terminar sessão
+            Sign out
           </button>
         </header>
         <Rule42Manager regattaId={regattaId} heading="" />

@@ -253,7 +253,7 @@ def delete_jury_profile(
 
 
 class GenerateCredentialsBody(BaseModel):
-    credentials_role: Literal["jury", "scorer"] = "jury"
+    credentials_role: Optional[Literal["jury", "scorer"]] = None
 
 
 @router.post(
@@ -270,4 +270,15 @@ def generate_jury_credentials(
     regatta = _get_regatta(db, regatta_id)
     assert_user_can_manage_org_id(current_user, regatta.organization_id)
     p = _profile_for_regatta(db, regatta_id, profile_id)
-    return _issue_credentials(db, regatta, p, body.credentials_role)
+    role_to_issue: Literal["jury", "scorer"] = "jury"
+    # Safety rule: for existing linked accounts, preserve current role on password regeneration.
+    # This avoids accidental role flips from stale UI state.
+    if p.user_id:
+        u = db.query(models.User).filter(models.User.id == p.user_id).first()
+        if u and u.role in ("jury", "scorer"):
+            role_to_issue = u.role
+        elif body.credentials_role in ("jury", "scorer"):
+            role_to_issue = body.credentials_role
+    elif body.credentials_role in ("jury", "scorer"):
+        role_to_issue = body.credentials_role
+    return _issue_credentials(db, regatta, p, role_to_issue)

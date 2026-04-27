@@ -55,6 +55,18 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
                 )
                 .first()
             )
+            # Platform admin is global (stored in default org) and may log in from any org-branded URL.
+            if not user:
+                default_org = resolve_org(db, org_slug=None)
+                user = (
+                    db.query(models.User)
+                    .filter(
+                        models.User.email == email_norm,
+                        models.User.organization_id == default_org.id,
+                        models.User.role == "platform_admin",
+                    )
+                    .first()
+                )
         else:
             default_org = resolve_org(db, org_slug=None)
             user = (

@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from app.database import get_db
 from app import models
 from app.models import FleetSet, FleetAssignment, Race, Result, Fleet, Regatta
-from app.org_scope import assert_user_can_manage_org_id
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 from app.services.fleets import (
     create_initial_set_random,
@@ -34,12 +34,15 @@ router = APIRouter(prefix="/regattas", tags=["fleets"])
 # -------------------------
 def _assert_can_manage_regatta(db: Session, regatta_id: int, current_user: models.User) -> None:
     """Admin/platform_admin: assert org scope."""
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
     regatta = db.query(Regatta).filter_by(id=regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    else:
+        assert_staff_regatta_access(db, current_user, regatta_id)
 
 
 def _ensure_single_phase_set(

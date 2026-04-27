@@ -54,7 +54,7 @@ export default function DashboardPage() {
         <div className={dashboardShell}>
           <header className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Júri</h1>
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Jury</h1>
               <p className="mt-1 text-base text-gray-600">
                 {(user as { name?: string }).name || user?.email}
                 {!loading && status?.regatta?.name && (
@@ -70,17 +70,17 @@ export default function DashboardPage() {
               }
               className="px-4 py-2.5 rounded-lg text-base font-medium bg-gray-200 hover:bg-gray-300"
             >
-              Terminar sessão
+              Sign out
             </button>
           </header>
 
           <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
             <FeatureCard
               title="Rule 42"
-              description="Registar e gerir penalidades Rule 42 nesta regata."
+                description="Register and manage Rule 42 penalties for this regatta."
               href={withOrg('/dashboard/jury/rule42')}
               enabled
-              cta="Abrir Rule 42"
+                cta="Open Rule 42"
             />
             <FeatureCard
               title="Protests"
@@ -91,7 +91,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {loading && <div className="text-sm text-gray-500">A carregar regata…</div>}
+          {loading && <div className="text-sm text-gray-500">Loading regatta…</div>}
         </div>
       </RequireAuth>
     );

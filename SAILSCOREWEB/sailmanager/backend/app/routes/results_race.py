@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.database import get_db
 from app import models, schemas
-from app.org_scope import assert_user_can_manage_org_id
+from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 from app.services.results_pdf import build_race_results_pdf
 
@@ -116,7 +116,7 @@ def upsert_single_result(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Access denied")
 
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
@@ -124,7 +124,10 @@ def upsert_single_result(
         raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     existing = (
         db.query(models.Result)
@@ -212,7 +215,7 @@ def add_single_result(
     Criação pontual de 1 resultado.
     (não faz auto-DNC para os restantes; isso acontece no bulk save /results)
     """
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     race = db.query(models.Race).filter_by(id=race_id).first()
@@ -220,7 +223,10 @@ def add_single_result(
         raise HTTPException(404, "Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
 
@@ -324,7 +330,7 @@ def reorder_race_results(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
@@ -332,7 +338,10 @@ def reorder_race_results(
         raise HTTPException(404, "Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     rows = (
         db.query(models.Result)
@@ -434,7 +443,7 @@ def create_results_for_race(
         → só substitui resultados dos barcos do payload (essa fleet),
           e o helper ensure_missing_results_as_dnc trata dos DNCs só nessa fleet.
     """
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     race = db.query(models.Race).filter_by(id=race_id).first()
@@ -442,7 +451,10 @@ def create_results_for_race(
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
 
     # Verificar se a classe é handicap (usa tempos e corrected_time)
     regatta_class = (
@@ -709,14 +721,17 @@ def export_race_results_csv(
     current_user: models.User = Depends(get_current_user),
 ):
     """Export this race results as CSV (one design or handicap)."""
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Acesso negado")
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail="Corrida não encontrada")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
     rows = (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
@@ -964,7 +979,7 @@ def import_race_results_csv(
     Without confirm: returns validation + preview.
     With confirm: applies import (upsert by sail_number); optional clear_existing.
     """
-    if current_user.role not in ("admin", "platform_admin"):
+    if current_user.role not in ("admin", "platform_admin", "scorer"):
         raise HTTPException(status_code=403, detail="Access denied")
     if not file:
         raise HTTPException(status_code=400, detail="Missing file.")
@@ -973,7 +988,10 @@ def import_race_results_csv(
         raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
-        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        if current_user.role in ("admin", "platform_admin"):
+            assert_user_can_manage_org_id(current_user, regatta.organization_id)
+        else:
+            assert_staff_regatta_access(db, current_user, regatta.id)
     content = file.file.read()
     file.file.close()
     is_one_design = _race_is_one_design(db, race)

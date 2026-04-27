@@ -104,6 +104,17 @@ function handleUnauthorized() {
   handling401 = true;
 
   const path = window.location.pathname;
+  let roleHint: string | null = null;
+  try {
+    const rawUser = sessionStorage.getItem('user');
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser) as { role?: string };
+      roleHint = parsed?.role || null;
+    }
+  } catch {
+    roleHint = null;
+  }
+  const expiredLoginUrl = buildSessionExpiredLoginUrl(roleHint);
   // páginas públicas (não redirecionar)
   const isPublicPage =
     /^\/regattas\/\d+\/?/i.test(path) &&
@@ -121,7 +132,7 @@ function handleUnauthorized() {
   const after = path + window.location.search;
   sessionStorage.setItem('postLoginRedirect', after);
 
-  window.location.replace(buildSessionExpiredLoginUrl());
+  window.location.replace(expiredLoginUrl);
 }
 
 async function parseError(res: Response): Promise<Error> {
