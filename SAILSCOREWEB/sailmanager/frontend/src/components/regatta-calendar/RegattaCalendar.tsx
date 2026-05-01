@@ -40,6 +40,7 @@ interface RegattaCalendarProps {
     statusOpen?: string;
     statusClosed?: string;
   };
+  uiVariant?: 'default' | 'admin';
 }
 
 /** Formata intervalo de datas para exibição no card: "12–14 Abr" */
@@ -92,7 +93,9 @@ export function RegattaCalendar({
   regattaLinkSuffix = '',
   addRegattaHref,
   labels = {},
+  uiVariant = 'default',
 }: RegattaCalendarProps) {
+  const isAdminUi = uiVariant === 'admin';
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -126,12 +129,12 @@ export function RegattaCalendar({
   }, []);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className={`bg-white rounded-2xl border p-6 ${isAdminUi ? 'shadow-md border-gray-200' : 'shadow-sm border-gray-100'}`}>
       {/* Year selector */}
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-600">{t.regattas}</span>
+      <div className="mb-5 flex items-center gap-2.5">
+        <span className={`${isAdminUi ? 'text-base' : 'text-sm'} font-medium text-gray-600`}>{t.regattas}</span>
         <select
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className={`border border-gray-200 rounded-lg px-3 py-1.5 ${isAdminUi ? 'text-base' : 'text-sm'} focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
         >
@@ -144,7 +147,7 @@ export function RegattaCalendar({
         {addRegattaHref && (
           <Link
             href={addRegattaHref}
-            className="ml-auto text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            className={`ml-auto bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 ${isAdminUi ? 'text-base font-medium' : 'text-sm'}`}
           >
             {t.addRegatta}
           </Link>
@@ -157,7 +160,7 @@ export function RegattaCalendar({
           <button
             key={m}
             onClick={() => setMonth(i)}
-            className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition ${
+            className={`px-2.5 py-1.5 rounded-lg ${isAdminUi ? 'text-base' : 'text-sm'} font-medium transition ${
               month === i
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -169,15 +172,15 @@ export function RegattaCalendar({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-0.5 mb-6 justify-items-center max-w-xs">
+      <div className={`grid grid-cols-7 gap-0.5 mb-6 justify-items-center ${isAdminUi ? 'max-w-sm' : 'max-w-xs'}`}>
         {WEEKDAYS.map((wd) => (
-          <div key={wd} className="text-center text-[10px] text-gray-500 font-medium w-6">
+          <div key={wd} className={`text-center text-gray-500 font-medium ${isAdminUi ? 'text-xs w-8' : 'text-[10px] w-6'}`}>
             {wd.charAt(0)}
           </div>
         ))}
         {calendarDays.map((d, idx) => {
           if (d === null) {
-            return <div key={`empty-${idx}`} className="w-6 h-6" />;
+            return <div key={`empty-${idx}`} className={isAdminUi ? 'w-8 h-8' : 'w-6 h-6'} />;
           }
           const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           const hasRegatta = dateHasRegatta(dateStr, regattas);
@@ -190,7 +193,7 @@ export function RegattaCalendar({
           return (
             <div
               key={dateStr}
-              className={`w-6 h-6 flex items-center justify-center rounded-full border text-[10px] relative ${
+              className={`${isAdminUi ? 'w-8 h-8 text-xs' : 'w-6 h-6 text-[10px]'} flex items-center justify-center rounded-full border relative ${
                 isToday
                   ? 'border-blue-600 bg-blue-600 text-white'
                   : hasRegatta
@@ -213,11 +216,11 @@ export function RegattaCalendar({
 
       {/* List of regattas in selected month */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">
+        <h3 className={`${isAdminUi ? 'text-2xl' : 'text-sm'} font-semibold text-gray-700 mb-2`}>
           {MONTHS[month]} {year}
         </h3>
         {regattasInMonth.length === 0 ? (
-          <p className="text-gray-500 text-sm">{t.noRegattas}</p>
+          <p className={`text-gray-500 ${isAdminUi ? 'text-lg' : 'text-sm'}`}>{t.noRegattas}</p>
         ) : (
           <ul className="space-y-4">
             {regattasInMonth.map((r) => {

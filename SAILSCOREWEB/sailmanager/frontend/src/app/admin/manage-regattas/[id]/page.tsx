@@ -11,6 +11,7 @@ import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
 import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 import JuryCredentialsPanel from './JuryCredentialsPanel';
+import AdminRegattaFinances from './AdminRegattaFinances';
 
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
 type CountryItem = { code: string; name: string };
@@ -42,6 +43,7 @@ type Tab =
   | 'design'
   | 'sponsors'
   | 'jury-credentials'
+  | 'finances'
   | 'delete';
 
 export default function AdminRegattaPage() {
@@ -157,6 +159,7 @@ export default function AdminRegattaPage() {
       activeTab === 'design' ||
       activeTab === 'sponsors' ||
       activeTab === 'jury-credentials' ||
+      activeTab === 'finances' ||
       activeTab === 'delete'
     ) {
       setActiveTab('entry');
@@ -370,6 +373,7 @@ export default function AdminRegattaPage() {
       'design',
       'sponsors',
       'jury-credentials',
+      'finances',
       'delete',
     ];
     const valid = isScorer ? scorerAllowedTabs : allValid;
@@ -529,6 +533,9 @@ export default function AdminRegattaPage() {
             <button onClick={() => setActiveTab('jury-credentials')} className="hover:underline">
               Jury / Scorer credentials
             </button>
+            <button onClick={() => setActiveTab('finances')} className="hover:underline">
+              Finances
+            </button>
           </>
         )}
         {!isScorer && (
@@ -560,6 +567,7 @@ export default function AdminRegattaPage() {
         activeTab !== 'design' &&
         activeTab !== 'sponsors' &&
         activeTab !== 'jury-credentials' &&
+        activeTab !== 'finances' &&
         activeTab !== 'delete' && (
         <div className="p-6 bg-white rounded shadow">
           {activeTab === 'entry' && (
@@ -839,6 +847,8 @@ export default function AdminRegattaPage() {
       {activeTab === 'jury-credentials' && (
         <JuryCredentialsPanel regattaId={regattaId} />
       )}
+
+      {activeTab === 'finances' && <AdminRegattaFinances regattaId={regattaId} />}
 
       {/* DESIGN / LAYOUT */}
       {activeTab === 'design' && (

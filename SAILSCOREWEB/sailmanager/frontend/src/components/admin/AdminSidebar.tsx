@@ -6,16 +6,17 @@ import { useAuth } from '@/context/AuthContext';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 export default function AdminSidebar() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
   const pathname = usePathname();
-  const canManageOrganizations = isPlatformAdmin && !orgSlug;
+  const canManageOrganizations =
+    (isPlatformAdmin && !orgSlug) || (user?.role === 'admin' && orgSlug === 'example-sailing-club');
 
   const base = (path: string) => withOrg(path, orgSlug);
   const itemClass = (active: boolean) =>
-    `px-3 py-2 rounded-lg text-sm ${
+    `px-4 py-2.5 rounded-xl text-base ${
       active
-        ? 'font-semibold text-blue-700 bg-blue-50 border border-blue-100'
+        ? 'font-semibold text-blue-700 bg-blue-50 border border-blue-100 shadow-sm'
         : 'font-medium text-gray-700 hover:bg-gray-50'
     }`;
   const isRegattas =
@@ -30,16 +31,16 @@ export default function AdminSidebar() {
   const isOrganizations = pathname?.startsWith('/admin/organizations');
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 p-6 space-y-5 shadow-sm">
+    <aside className="w-72 bg-white/95 border-r border-gray-200 p-7 space-y-6 shadow-sm">
       <div>
-        <h2 className="text-lg font-bold tracking-wide text-gray-900">ADMIN DASHBOARD</h2>
-        <p className="text-xs text-gray-500 mt-1">Manage regattas, notices and content.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-gray-900">Admin Dashboard</h2>
+        <p className="text-sm text-gray-500 mt-1.5">Manage regattas, notices and content.</p>
       </div>
 
       <div>
         <Link
           href={base('/admin/create-regatta')}
-          className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700 transition"
         >
           New regatta
         </Link>
@@ -71,12 +72,12 @@ export default function AdminSidebar() {
         </Link>
       </nav>
 
-      <div className="pt-3 border-t border-gray-100">
+      <div className="pt-4 border-t border-gray-100">
         <button
           onClick={() => {
             logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' });
           }}
-          className="w-full mt-0 inline-flex items-center justify-center rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition"
+          className="w-full mt-0 inline-flex items-center justify-center rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-base font-semibold text-red-700 hover:bg-red-100 transition"
         >
           Sign out
         </button>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import RegattaHeader from '../components/RegattaHeader'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
-import { BASE_URL } from '@/lib/api'
+import { getApiBaseUrl } from '@/lib/api'
 import {
   getVisibleResultsOverallColumnsForClass,
   RESULTS_OVERALL_COLUMNS,
@@ -60,7 +60,7 @@ export default function OverallResultsPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/regattas/${regattaId}`)
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}`)
         if (!res.ok) throw new Error('Falha ao obter regata')
         const data = await res.json()
         setRegatta({
@@ -83,7 +83,7 @@ export default function OverallResultsPage() {
       setLoadingClasses(true)
       setError(null)
       try {
-        const res = await fetch(`${BASE_URL}/regattas/${regattaId}/classes`)
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/classes`)
         if (!res.ok) throw new Error('Falha ao obter classes da regata')
         const data: string[] = await res.json()
         setClasses(data || [])
@@ -108,7 +108,7 @@ export default function OverallResultsPage() {
       setLoadingResults(true)
       setError(null)
       try {
-        const url = `${BASE_URL}/results/overall/${regattaId}?class_name=${encodeURIComponent(
+        const url = `${getApiBaseUrl()}/results/overall/${regattaId}?class_name=${encodeURIComponent(
           selectedClass
         )}&public=1`
         const res = await fetch(url)

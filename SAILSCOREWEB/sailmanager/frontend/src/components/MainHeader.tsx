@@ -69,14 +69,12 @@ export default function MainHeader({
       return [
         { href: `/o/${orgSlug}`, label: 'Home' },
         { href: cal, label: 'Calendar' },
-        { href: '/results', label: 'Results' },
         { href: `/o/${orgSlug}/news`, label: 'News' },
       ];
     }
     return [
       { href: '/', label: 'Home' },
       { href: '/calendar', label: 'Calendar' },
-      { href: '/results', label: 'Results' },
       { href: '/news', label: 'News' },
     ];
   }, [orgSlug]);
@@ -89,7 +87,6 @@ export default function MainHeader({
       if (href.startsWith('/calendar')) {
         return pathname.startsWith('/calendar');
       }
-      if (href === '/results') return pathname.startsWith('/results');
     }
     return pathname === href;
   };
@@ -170,12 +167,6 @@ export default function MainHeader({
                 >
                   Dashboard
                 </Link>
-                <Link
-                  href={adminHomeHref}
-                  className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
-                >
-                  Admin Account
-                </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
                   className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
@@ -199,12 +190,6 @@ export default function MainHeader({
                   </Link>
                 ))}
               </nav>
-              <Link
-                href={orgSlug ? `/admin/login?org=${encodeURIComponent(orgSlug)}` : '/admin/login'}
-                className="inline-block px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition shadow-sm"
-              >
-                Admin Account
-              </Link>
             </>
           )}
         </div>

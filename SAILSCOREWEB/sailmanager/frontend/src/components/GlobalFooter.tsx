@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiGet } from '@/lib/api';
 
 type FooterDesign = {
@@ -60,6 +61,7 @@ export default function GlobalFooter({
     !!footer?.footer_show_terms_of_service && !!(footer?.footer_terms_of_service_text ?? '').trim();
   const showCookie =
     !!footer?.footer_show_cookie_policy && !!(footer?.footer_cookie_policy_text ?? '').trim();
+  const adminLoginHref = effectiveOrg ? `/admin/login?org=${encodeURIComponent(effectiveOrg)}` : '/admin/login';
 
   const getModalTitle = () => {
     if (openModal === 'privacy') return 'Privacy Policy';
@@ -149,6 +151,12 @@ export default function GlobalFooter({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-700 pt-4 text-xs text-slate-400">
             <p>© {new Date().getFullYear()} {siteName}. All rights reserved.</p>
             <div className="flex flex-wrap gap-3">
+              <Link
+                href={adminLoginHref}
+                className="text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2"
+              >
+                Admin account
+              </Link>
               {showPrivacy && (
                 <button
                   type="button"

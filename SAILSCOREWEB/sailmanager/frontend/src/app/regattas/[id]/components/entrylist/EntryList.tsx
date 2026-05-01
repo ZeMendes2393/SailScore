@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BASE_URL } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api';
 import { getVisibleColumns } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
@@ -46,7 +46,7 @@ export default function EntryList({
     let alive = true;
 
     async function loadPublic(): Promise<EntryListEntry[]> {
-      const url = `${BASE_URL}/entries/by_regatta/${Number(regattaId)}?include_waiting=1`;
+      const url = `${getApiBaseUrl()}/entries/by_regatta/${Number(regattaId)}?include_waiting=1`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) return [];
       const data = await res.json();

@@ -63,6 +63,10 @@ function isPublicHomePage(pathname: string | null | undefined): boolean {
   return /^\/o\/[^/]+\/?$/.test(pathname);
 }
 
+function isRootHomePage(pathname: string | null | undefined): boolean {
+  return !pathname || pathname === '/';
+}
+
 function ClientLayoutInner({
   headerDesign,
   footerDesign,
@@ -91,7 +95,8 @@ function ClientLayoutInner({
     }
   }, [pathname]);
 
-  const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/);
+  const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/) && !isRootHomePage(pathname);
+  const showGlobalFooter = !isRootHomePage(pathname);
   const homeRoute = isPublicHomePage(pathname);
   const useContentContainer =
     !homeRoute &&
@@ -118,11 +123,13 @@ function ClientLayoutInner({
       <main className={`flex-1 w-full ${homeRoute ? 'pt-0 pb-8' : 'py-8'}`}>
         {useContentContainer ? <ContentContainer>{children}</ContentContainer> : children}
       </main>
-      <GlobalFooter
+      {showGlobalFooter && (
+        <GlobalFooter
           orgSlug={serverOrgSlug ?? orgSlug}
           initialFooter={footerDesign}
           serverOrgSlug={serverOrgSlug}
         />
+      )}
     </>
   );
 }
@@ -140,7 +147,8 @@ export default function ClientLayout({
 }) {
   const pathname = usePathname();
   const orgSlugFallback = serverOrgSlug ?? orgSlugFromPathname(pathname);
-  const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/);
+  const showMainHeader = !pathname?.match(/^\/regattas\/\d+(?:\/|$)/) && !isRootHomePage(pathname);
+  const showGlobalFooter = !isRootHomePage(pathname);
   const homeRoute = isPublicHomePage(pathname);
   const useContentContainer =
     !homeRoute &&
@@ -164,7 +172,9 @@ export default function ClientLayout({
       <main className={`flex-1 w-full ${homeRoute ? 'pt-0 pb-8' : 'py-8'}`}>
         {useContentContainer ? <ContentContainer>{children}</ContentContainer> : children}
       </main>
-      <GlobalFooter orgSlug={orgSlugFallback} initialFooter={footerDesign} serverOrgSlug={serverOrgSlug} />
+      {showGlobalFooter && (
+        <GlobalFooter orgSlug={orgSlugFallback} initialFooter={footerDesign} serverOrgSlug={serverOrgSlug} />
+      )}
     </>
   );
 

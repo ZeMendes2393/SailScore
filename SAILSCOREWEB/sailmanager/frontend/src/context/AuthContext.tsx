@@ -130,6 +130,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [user, token, router]);
 
+  // Org admins are locked to their own organization context in /admin routes.
+  // If they try to manually switch ?org=..., normalize URL back to their own slug.
+  useEffect(() => {
+    if (!user || user.role !== 'admin' || typeof window === 'undefined') return;
+    const ownOrgSlug = (user as BaseUser).organization_slug?.trim();
+    if (!ownOrgSlug) return;
+    const path = window.location.pathname;
+    if (!path.startsWith('/admin')) return;
+
+    const current = new URLSearchParams(window.location.search);
+    const currentOrg = current.get('org')?.trim();
+    if (currentOrg === ownOrgSlug) return;
+
+    current.set('org', ownOrgSlug);
+    const next = `${path}?${current.toString()}`;
+    router.replace(next);
+  }, [user, router, pathname]);
+
   useEffect(() => {
     const storedToken = sessionStorage.getItem('token');
     const storedUser = sessionStorage.getItem('user');

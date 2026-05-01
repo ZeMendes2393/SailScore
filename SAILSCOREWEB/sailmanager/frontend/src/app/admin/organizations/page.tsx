@@ -40,10 +40,12 @@ export default function OrganizationsPage() {
   const { token, user } = useAuth();
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
   const isGlobalPlatformAdmin = isPlatformAdmin && !orgSlug;
+  const isProvisionalExampleOrgAdmin = user?.role === 'admin' && orgSlug === 'example-sailing-club';
+  const canAccessOrganizationsPage = isGlobalPlatformAdmin || isProvisionalExampleOrgAdmin;
 
   useEffect(() => {
     (async () => {
-      if (!isGlobalPlatformAdmin) {
+      if (!canAccessOrganizationsPage) {
         setLoading(false);
         return;
       }
@@ -56,9 +58,9 @@ export default function OrganizationsPage() {
         setLoading(false);
       }
     })();
-  }, [token, isGlobalPlatformAdmin]);
+  }, [token, canAccessOrganizationsPage]);
 
-  if (user && !isGlobalPlatformAdmin) {
+  if (user && !canAccessOrganizationsPage) {
     return (
       <RequireAuth roles={['admin']}>
         <div className="min-h-screen bg-gray-50 px-4 py-10">

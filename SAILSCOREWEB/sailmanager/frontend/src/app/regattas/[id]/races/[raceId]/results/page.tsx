@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
-import { BASE_URL } from '@/lib/api'
+import { getApiBaseUrl } from '@/lib/api'
 import { isAdminRole } from '@/lib/roles'
 
 interface Result {
@@ -26,7 +26,7 @@ export default function RaceResultsPage() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/results/races/${raceId}/results`, {
+        const res = await fetch(`${getApiBaseUrl()}/results/races/${raceId}/results`, {
           cache: 'no-store',
           credentials: 'include',
         })
@@ -52,7 +52,7 @@ export default function RaceResultsPage() {
     if (!confirm) return
 
     try {
-      const res = await fetch(`${BASE_URL}/results/${resultId}`, {
+      const res = await fetch(`${getApiBaseUrl()}/results/${resultId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -77,7 +77,7 @@ export default function RaceResultsPage() {
           Resultados da Corrida #{raceId}
         </h2>
         <a
-          href={`${BASE_URL}/results/races/${raceId}/results/pdf`}
+          href={`${getApiBaseUrl()}/results/races/${raceId}/results/pdf`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm font-medium text-blue-700 hover:text-blue-800 underline"

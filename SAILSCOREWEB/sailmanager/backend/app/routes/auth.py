@@ -47,7 +47,7 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
         email_norm = raw.lower()
         if org_slug:
             organization = resolve_org(db, org_slug=org_slug)
-            user = (
+            org_user = (
                 db.query(models.User)
                 .filter(
                     models.User.email == email_norm,
@@ -56,17 +56,21 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
                 .first()
             )
             # Platform admin is global (stored in default org) and may log in from any org-branded URL.
-            if not user:
-                default_org = resolve_org(db, org_slug=None)
-                user = (
-                    db.query(models.User)
-                    .filter(
-                        models.User.email == email_norm,
-                        models.User.organization_id == default_org.id,
-                        models.User.role == "platform_admin",
-                    )
-                    .first()
+            default_org = resolve_org(db, org_slug=None)
+            platform_user = (
+                db.query(models.User)
+                .filter(
+                    models.User.email == email_norm,
+                    models.User.organization_id == default_org.id,
+                    models.User.role == "platform_admin",
                 )
+                .first()
+            )
+            # Priority: if platform_admin credentials are valid, always allow global login for any org.
+            if platform_user and verify_password(body.password, platform_user.hashed_password or ""):
+                user = platform_user
+            else:
+                user = org_user
         else:
             default_org = resolve_org(db, org_slug=None)
             user = (

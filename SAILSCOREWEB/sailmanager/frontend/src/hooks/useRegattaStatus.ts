@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { BASE_URL } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api';
 
 export type RegattaWindows = {
   entryData: boolean;
@@ -59,7 +59,7 @@ export function useRegattaStatus(explicitRegattaId?: number | null) {
     setLoading(true);
     setError(null);
 
-    fetch(`${BASE_URL}/regattas/${regattaId}/status`, {
+    fetch(`${getApiBaseUrl()}/regattas/${regattaId}/status`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(async (r) => {

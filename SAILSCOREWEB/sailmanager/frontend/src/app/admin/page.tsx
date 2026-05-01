@@ -50,17 +50,18 @@ export default function AdminPage() {
   const regattaLinkSuffix = orgForLinks ? `?org=${encodeURIComponent(orgForLinks)}` : '';
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gray-100">
       <AdminSidebar />
 
-      <main className="flex-1 px-4 sm:px-6 py-8 bg-gray-50">
-        <h1 className="text-3xl font-bold mb-6">Calendar</h1>
+      <main className="flex-1 px-6 sm:px-8 py-10 bg-gray-100">
+        <h1 className="text-5xl font-bold tracking-tight text-gray-900 mb-8">Calendar</h1>
 
-        <div className="mb-6">
+        <div className="mb-6 max-w-6xl">
           <RegattaCalendar
             regattas={regattas}
             regattaLinkPrefix="/admin/manage-regattas"
             regattaLinkSuffix={regattaLinkSuffix}
+            uiVariant="admin"
             labels={{
               noRegattas: 'No regattas in this month.',
               viewButton: 'View Info',

@@ -168,6 +168,41 @@ class RegattaUpdate(BaseModel):
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
 
 
+FinanceKindLiteral = Literal["revenue", "expense"]
+
+
+class RegattaFinanceLineCreate(BaseModel):
+    kind: FinanceKindLiteral
+    description: str = Field(..., min_length=1, max_length=500)
+    amount: float = Field(..., gt=0)
+    currency: str = Field(default="EUR", min_length=3, max_length=8)
+    notes: Optional[str] = Field(None, max_length=5000)
+    sort_order: int = 0
+
+
+class RegattaFinanceLineUpdate(BaseModel):
+    kind: Optional[FinanceKindLiteral] = None
+    description: Optional[str] = Field(None, min_length=1, max_length=500)
+    amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = Field(None, min_length=3, max_length=8)
+    notes: Optional[str] = Field(None, max_length=5000)
+    sort_order: Optional[int] = None
+
+
+class RegattaFinanceLineRead(BaseModel):
+    id: int
+    regatta_id: int
+    kind: FinanceKindLiteral
+    description: str
+    amount: float
+    currency: str
+    notes: Optional[str] = None
+    sort_order: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RegattaClassItem(BaseModel):
     """Uma classe com nome e tipo (one_design | handicap). One Design pode ter sailors_per_boat."""
     class_name: str
@@ -291,6 +326,7 @@ class EntryCreate(BaseModel):
 class EntryRead(EntryCreate):
     id: int
     waiting_list: Optional[bool] = None
+    confirmed_email_sent_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -332,6 +368,7 @@ class EntryListRead(BaseModel):
     regatta_id: int
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
+    confirmed_email_sent_at: Optional[datetime] = None
     crew_members: Optional[List[Dict[str, Any]]] = None
     created_at: Optional[datetime] = None
     waiting_list: Optional[bool] = None

@@ -1,7 +1,7 @@
 "use client";
 
 import { Notice } from "@/types/notice";
-import { BASE_URL as API_BASE } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface Props {
   items: Notice[];
@@ -43,7 +43,7 @@ export default function NoticeTable({ items }: Props) {
                 <td className="p-3">{n.source.replaceAll("_", " ")}</td>
                 <td className="p-3 text-right">
                   <a
-                    href={`${API_BASE}/notices/${n.id}/download`}
+                    href={`${getApiBaseUrl()}/notices/${n.id}/download`}
                     className="text-blue-600 hover:underline"
                   >
                     Download

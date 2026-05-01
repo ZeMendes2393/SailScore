@@ -1,0 +1,202 @@
+[
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "POR",
+    "sail_number": "POR 3001",
+    "boat_name": "Mistral",
+    "helm_position": "Skipper",
+    "first_name": "Duarte",
+    "last_name": "Almeida",
+    "email": "duarte.49er01@test.local",
+    "club": "Clube de Vela do Tejo",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Inês",
+        "last_name": "Correia",
+        "email": "ines.49er01@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "POR",
+    "sail_number": "POR 3002",
+    "boat_name": "Cascais Flyer",
+    "helm_position": "Skipper",
+    "first_name": "Miguel",
+    "last_name": "Santos",
+    "email": "miguel.49er02@test.local",
+    "club": "Clube de Vela de Cascais",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Rita",
+        "last_name": "Fernandes",
+        "email": "rita.49er02@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "GBR",
+    "sail_number": "GBR 2045",
+    "boat_name": "Solent Swift",
+    "helm_position": "Skipper",
+    "first_name": "James",
+    "last_name": "Whitmore",
+    "email": "james.49er03@test.local",
+    "club": "Royal Thames YC",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Sophie",
+        "last_name": "Harper",
+        "email": "sophie.49er03@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "DEN",
+    "sail_number": "DEN 881",
+    "boat_name": "Nordic Runner",
+    "helm_position": "Skipper",
+    "first_name": "Frederik",
+    "last_name": "Møller",
+    "email": "frederik.49er04@test.local",
+    "club": "Royal Danish YC",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Anna",
+        "last_name": "Kristensen",
+        "email": "anna.49er04@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "ESP",
+    "sail_number": "ESP 1502",
+    "boat_name": "Mediterráneo",
+    "helm_position": "Skipper",
+    "first_name": "Carlos",
+    "last_name": "Vega",
+    "email": "carlos.49er05@test.local",
+    "club": "RCN Palma",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Lucía",
+        "last_name": "Ortega",
+        "email": "lucia.49er05@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "FRA",
+    "sail_number": "FRA 990",
+    "boat_name": "Bretagne",
+    "helm_position": "Skipper",
+    "first_name": "Antoine",
+    "last_name": "Laurent",
+    "email": "antoine.49er06@test.local",
+    "club": "Société Nautique de Marseille",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Chloé",
+        "last_name": "Morel",
+        "email": "chloe.49er06@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "GER",
+    "sail_number": "GER 1120",
+    "boat_name": "Baltic Breeze",
+    "helm_position": "Skipper",
+    "first_name": "Lukas",
+    "last_name": "Weber",
+    "email": "lukas.49er07@test.local",
+    "club": "Norddeutscher Regatta Verein",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Hannah",
+        "last_name": "Klein",
+        "email": "hannah.49er07@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "ITA",
+    "sail_number": "ITA 770",
+    "boat_name": "Liguria",
+    "helm_position": "Skipper",
+    "first_name": "Matteo",
+    "last_name": "Ricci",
+    "email": "matteo.49er08@test.local",
+    "club": "YCI Santa Margherita",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Giulia",
+        "last_name": "Ferrari",
+        "email": "giulia.49er08@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "SWE",
+    "sail_number": "SWE 440",
+    "boat_name": "Archipelago",
+    "helm_position": "Skipper",
+    "first_name": "Elin",
+    "last_name": "Bergström",
+    "email": "elin.49er09@test.local",
+    "club": "GKSS",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Oscar",
+        "last_name": "Lindqvist",
+        "email": "oscar.49er09@test.local"
+      }
+    ]
+  },
+  {
+    "regatta_id": 17,
+    "class_name": "49er",
+    "boat_country_code": "USA",
+    "sail_number": "USA 3300",
+    "boat_name": "Bay Runner",
+    "helm_position": "Skipper",
+    "first_name": "Tyler",
+    "last_name": "Morgan",
+    "email": "tyler.49er10@test.local",
+    "club": "St. Francis YC",
+    "crew_members": [
+      {
+        "position": "Crew",
+        "first_name": "Alex",
+        "last_name": "Reed",
+        "email": "alex.49er10@test.local"
+      }
+    ]
+  }
+]

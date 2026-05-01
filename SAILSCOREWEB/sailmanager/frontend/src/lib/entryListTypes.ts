@@ -21,6 +21,7 @@ export interface EntryListEntry {
   category?: string;
   paid?: boolean | null;
   confirmed?: boolean | null;
+  confirmed_email_sent_at?: string | null;
   waiting_list?: boolean | null;
   owner_first_name?: string | null;
   owner_last_name?: string | null;

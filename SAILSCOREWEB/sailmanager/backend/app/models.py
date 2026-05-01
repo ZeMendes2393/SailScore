@@ -122,6 +122,12 @@ class Regatta(Base):
         back_populates="regatta",
         cascade="all, delete-orphan",
     )
+    finance_lines = relationship(
+        "RegattaFinanceLine",
+        back_populates="regatta",
+        cascade="all, delete-orphan",
+        order_by="RegattaFinanceLine.sort_order",
+    )
 
 
 # =========================
@@ -139,6 +145,25 @@ class RegattaJuryProfile(Base):
 
     regatta = relationship("Regatta", back_populates="jury_profiles")
     user = relationship("User", back_populates="jury_profile")
+
+
+# =========================
+#   REGATTA FINANCES (internal revenue / expense lines per championship)
+# =========================
+class RegattaFinanceLine(Base):
+    __tablename__ = "regatta_finance_lines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    regatta_id = Column(Integer, ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(16), nullable=False)  # revenue | expense
+    description = Column(String(500), nullable=False)
+    amount = Column(Float, nullable=False)
+    currency = Column(String(8), nullable=False, default="EUR", server_default="EUR")
+    notes = Column(Text, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    regatta = relationship("Regatta", back_populates="finance_lines")
 
 
 # =========================
@@ -237,6 +262,8 @@ class Entry(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     paid = Column(Boolean, default=False)
     confirmed = Column(Boolean, default=False, nullable=False)
+    # "Confirmed entry" email must be sent only once per entry.
+    confirmed_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     # When online entry limit is enabled and reached, new submissions are stored here as waiting list
     waiting_list = Column(Boolean, nullable=False, server_default="0")

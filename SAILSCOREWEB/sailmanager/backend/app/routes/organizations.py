@@ -21,9 +21,21 @@ from utils.auth_utils import get_current_user, hash_password
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_PROVISIONAL_ORG_MANAGEMENT_SLUGS = {"example-sailing-club"}
 
 
-def _require_platform_admin(current_user: models.User) -> None:
+def _is_provisional_org_manager(db: Session, current_user: models.User) -> bool:
+    if current_user.role != "admin":
+        return False
+    org = db.query(models.Organization).filter(models.Organization.id == current_user.organization_id).first()
+    return bool(org and org.slug in _PROVISIONAL_ORG_MANAGEMENT_SLUGS)
+
+
+def _require_platform_admin(db: Session, current_user: models.User) -> None:
+    if current_user.role == "platform_admin":
+        return
+    if _is_provisional_org_manager(db, current_user):
+        return
     if current_user.role != "platform_admin":
         raise HTTPException(status_code=403, detail="Apenas administradores da plataforma.")
 
@@ -58,7 +70,7 @@ def list_organizations(
     current_user: models.User = Depends(get_current_user),
 ):
     _require_staff(current_user)
-    if current_user.role == "platform_admin":
+    if current_user.role == "platform_admin" or _is_provisional_org_manager(db, current_user):
         return (
             db.query(models.Organization)
             .order_by(models.Organization.name.asc(), models.Organization.id.asc())
@@ -93,7 +105,11 @@ def get_organization(
     org = db.query(models.Organization).filter(models.Organization.id == organization_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    if current_user.role == "admin" and current_user.organization_id != organization_id:
+    if (
+        current_user.role == "admin"
+        and current_user.organization_id != organization_id
+        and not _is_provisional_org_manager(db, current_user)
+    ):
         raise HTTPException(status_code=403, detail="Acesso negado a esta organização")
     admin = (
         db.query(models.User)
@@ -115,7 +131,7 @@ def create_organization(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _require_platform_admin(current_user)
+    _require_platform_admin(db, current_user)
 
     name = _normalize_name(body.name)
     slug = _normalize_slug(body.slug)
@@ -196,7 +212,7 @@ def update_organization(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _require_platform_admin(current_user)
+    _require_platform_admin(db, current_user)
 
     org = db.query(models.Organization).filter(models.Organization.id == organization_id).first()
     if not org:
@@ -310,7 +326,7 @@ def delete_organization(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _require_platform_admin(current_user)
+    _require_platform_admin(db, current_user)
 
     org = db.query(models.Organization).filter(models.Organization.id == organization_id).first()
     if not org:

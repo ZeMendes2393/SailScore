@@ -16,7 +16,9 @@ export function getApiBaseUrl(): string {
   if (env) return env;
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // Mesmo host que a página, API na porta 8000 — funciona em localhost e em IP da LAN.
+    // Em produção com API noutro domínio, define NEXT_PUBLIC_API_URL.
+    if (hostname && hostname !== '0.0.0.0') {
       return `${protocol}//${hostname}:8000`;
     }
   }

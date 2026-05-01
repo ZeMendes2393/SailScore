@@ -216,6 +216,8 @@ export default function AdminEntryList({
 
   const maybeSendConfirmedEmail = async (entryId: number, nextPaid: boolean, nextConfirmed: boolean) => {
     if (!token) return;
+    const currentEntry = entries.find((e) => e.id === entryId);
+    if (currentEntry?.confirmed_email_sent_at) return;
     const wasFullyConfirmed = entries.some((e) => e.id === entryId && e.paid && e.confirmed);
     const willBeFullyConfirmed = nextPaid && nextConfirmed;
     if (!willBeFullyConfirmed || wasFullyConfirmed) return;
@@ -226,8 +228,21 @@ export default function AdminEntryList({
     if (!ok) return;
 
     try {
-      await apiSend(`/entries/${entryId}/send-confirmation-email`, 'POST', {}, token);
-      alert('Confirmation email sent.');
+      const res = await apiSend<{ message?: string; sent?: boolean }>(
+        `/entries/${entryId}/send-confirmation-email`,
+        'POST',
+        {},
+        token
+      );
+      const sent = res?.sent !== false;
+      alert(
+        res?.message ||
+          (sent
+            ? 'Confirmation email sent.'
+            : 'Confirmation email was already sent previously for this entry.')
+      );
+      const refreshed = await loadEntries();
+      setEntries(refreshed);
     } catch (e: any) {
       alert(e?.message || 'Failed to send confirmation email.');
     }

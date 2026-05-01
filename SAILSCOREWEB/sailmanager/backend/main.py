@@ -47,6 +47,7 @@ from app.routes import questions as questions_module
 from app.routes.questions import router as questions_router
 from app.routes import fleets as fleets_router
 from app.routes.public_fleets import router as public_fleets_router
+from app.routes.regatta_finances import router as regatta_finances_router
 
 app = FastAPI(title="SailScore API")
 
@@ -64,8 +65,15 @@ if extra_origins:
     for o in [x.strip() for x in extra_origins.split(",") if x.strip()]:
         if o not in ALLOWED_ORIGINS:
             ALLOWED_ORIGINS.append(o)
+# Inclui LAN (192.168 / 10 / 172.16–31) para dev com Next no IP local; produção: ALLOWED_ORIGINS / regex no .env.
 ALLOWED_ORIGIN_REGEX = os.getenv(
-    "ALLOWED_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+    "ALLOWED_ORIGIN_REGEX",
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r")(:\d+)?$",
 )
 app.add_middleware(
     CORSMiddleware,
@@ -145,6 +153,7 @@ app.include_router(metadata_routes.router)
 app.include_router(organizations.router)
 app.include_router(regattas.router)
 app.include_router(regatta_jury.router)
+app.include_router(regatta_finances_router)
 app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(notices.router)

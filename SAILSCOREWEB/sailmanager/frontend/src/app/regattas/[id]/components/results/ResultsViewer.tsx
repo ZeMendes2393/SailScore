@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
-import { BASE_URL } from '@/lib/api'
+import { getApiBaseUrl } from '@/lib/api'
 import {
   getVisibleResultsOverallColumnsForClass,
   RESULTS_OVERALL_COLUMNS,
@@ -88,7 +88,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   useEffect(() => {
     const fetchRegatta = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/regattas/${regattaId}`)
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}`)
         const data = await res.json()
         setResultsOverallColumns(data?.results_overall_columns ?? null)
       } catch {
@@ -103,7 +103,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     const fetchOverallResults = async () => {
       setLoading(true)
       try {
-        const url = `${BASE_URL}/results/overall/${regattaId}?class_name=${encodeURIComponent(selectedClass)}&public=1`
+        const url = `${getApiBaseUrl()}/results/overall/${regattaId}?class_name=${encodeURIComponent(selectedClass)}&public=1`
         const res = await fetch(url)
         const data = await res.json()
         if (Array.isArray(data)) {
@@ -151,7 +151,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
       `${normalizeText(e.sail_number)}|${normalizeText(e.class_name)}`
     const fetchEntries = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/entries/by_regatta/${regattaId}?include_waiting=1`)
+        const res = await fetch(`${getApiBaseUrl()}/entries/by_regatta/${regattaId}?include_waiting=1`)
         const data: RegattaEntryLite[] = await res.json()
         const next = new Map<string, string[]>()
         for (const entry of Array.isArray(data) ? data : []) {
@@ -258,7 +258,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
             </span>
           )}
           <a
-            href={`${BASE_URL}/results/overall/${regattaId}/pdf?class_name=${encodeURIComponent(selectedClass)}`}
+            href={`${getApiBaseUrl()}/results/overall/${regattaId}/pdf?class_name=${encodeURIComponent(selectedClass)}`}
             download
             target="_blank"
             rel="noopener noreferrer"
@@ -382,7 +382,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                   )}
                   {meta?.race_id && (
                     <a
-                      href={`${BASE_URL}/results/races/${meta.race_id}/results/pdf`}
+                      href={`${getApiBaseUrl()}/results/races/${meta.race_id}/results/pdf`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-blue-700 hover:text-blue-800 underline ml-auto"

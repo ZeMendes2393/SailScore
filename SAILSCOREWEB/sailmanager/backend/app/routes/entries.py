@@ -1098,11 +1098,25 @@ def send_confirmation_email(
     org_id = regatta.organization_id if regatta else 1
     if not _confirmed_entry_email_enabled(db, org_id):
         raise HTTPException(status_code=400, detail="Confirmed entry email is disabled in Email settings.")
+    if entry.confirmed_email_sent_at is not None:
+        return {
+            "message": "Confirmation email already sent for this entry. Skipping duplicate send.",
+            "entry_id": entry.id,
+            "sent": False,
+            "confirmed_email_sent_at": entry.confirmed_email_sent_at.isoformat(),
+        }
+
     user = _get_or_create_user_for_entry(db, entry)
-    # Generate new temporary password (per championship: overwrites any previous)
+    # Generate new temporary password only for the first (and only) send for this entry.
     pwd = _gen_temp_password(6)
     user.hashed_password = hash_password(pwd)
     user.email_verified_at = datetime.utcnow()
+    entry.confirmed_email_sent_at = datetime.utcnow()
     db.commit()
     _send_confirmed_entry_email(background, db, entry, user.username, pwd)
-    return {"message": "Confirmation email sent.", "entry_id": entry.id}
+    return {
+        "message": "Confirmation email sent.",
+        "entry_id": entry.id,
+        "sent": True,
+        "confirmed_email_sent_at": entry.confirmed_email_sent_at.isoformat() if entry.confirmed_email_sent_at else None,
+    }
