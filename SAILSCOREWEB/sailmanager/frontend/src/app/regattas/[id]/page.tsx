@@ -38,7 +38,6 @@ export default function RegattaHomePage() {
   const regattaId = useMemo(() => {
     const n = Number(id);
     return Number.isFinite(n) && n > 0 ? n : 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
@@ -239,8 +238,8 @@ export default function RegattaHomePage() {
                 <div className="p-4">
                   <p className="text-xs text-gray-500 mb-1">{formatNewsDate(n.published_at)}</p>
                   <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">{n.title}</h3>
-                  {bodyToSnippet(n.body, 120) && (
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{bodyToSnippet(n.body, 120)}</p>
+                  {bodyToSnippet(n.excerpt, 120) && (
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{bodyToSnippet(n.excerpt, 120)}</p>
                   )}
                 </div>
               </Link>
