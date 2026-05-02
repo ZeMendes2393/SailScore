@@ -21,11 +21,11 @@ type Section =
   | 'fleets'; // 👈 NOVO
 
 export default function NoticeBoard({ regattaId }: { regattaId: number }) {
+  const [section, setSection] = useState<Section>('documents');
+
   if (!Number.isFinite(regattaId)) {
     return <div className="p-4">Invalid regatta.</div>;
   }
-
-  const [section, setSection] = useState<Section>('documents');
 
   const Tab = ({ value, label }: { value: Section; label: string }) => (
     <button
