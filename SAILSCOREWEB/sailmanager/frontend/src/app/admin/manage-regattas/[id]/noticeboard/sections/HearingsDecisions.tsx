@@ -289,10 +289,14 @@ export default function HearingsDecisions({
                         <span className="text-gray-400">Decision PDF —</span>
                       )}
                       <button
-                        className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50"
-                        onClick={() =>
-                          router.push(linkWithOrg(fillDecisionPath(r.protest_id)))
-                        }
+                        type="button"
+                        className="px-2 py-1 border rounded text-blue-600 hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none"
+                        disabled={r.protest_id == null || !Number.isFinite(Number(r.protest_id))}
+                        onClick={() => {
+                          const pid = r.protest_id;
+                          if (pid == null || !Number.isFinite(pid)) return;
+                          router.push(linkWithOrg(fillDecisionPath(pid)));
+                        }}
                         title="Fill or update decision and generate PDF"
                       >
                         Fill decision

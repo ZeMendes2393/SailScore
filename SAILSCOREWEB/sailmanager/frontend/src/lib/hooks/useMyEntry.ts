@@ -12,6 +12,7 @@ export type MyEntry = {
   // Boat
   boat_name?: string | null;
   sail_number?: string | null;
+  boat_country_code?: string | null;
   boat_country?: string | null;
   category?: string | null;
 

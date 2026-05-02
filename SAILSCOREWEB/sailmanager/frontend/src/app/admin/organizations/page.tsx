@@ -6,6 +6,7 @@ import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import { isSuperAdminOrganizationManager } from '@/lib/superAdmin';
 
 interface Organization {
   id: number;
@@ -41,11 +42,17 @@ export default function OrganizationsPage() {
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
   const isGlobalPlatformAdmin = isPlatformAdmin && !orgSlug;
   const isProvisionalExampleOrgAdmin = user?.role === 'admin' && orgSlug === 'example-sailing-club';
-  const canAccessOrganizationsPage = isGlobalPlatformAdmin || isProvisionalExampleOrgAdmin;
+  const isDedicatedSuperOrgAdmin = isPlatformAdmin && isSuperAdminOrganizationManager(user?.email);
+  const canAccessOrganizationsPage =
+    isGlobalPlatformAdmin || isProvisionalExampleOrgAdmin || isDedicatedSuperOrgAdmin;
 
   useEffect(() => {
     (async () => {
       if (!canAccessOrganizationsPage) {
+        setLoading(false);
+        return;
+      }
+      if (!token) {
         setLoading(false);
         return;
       }

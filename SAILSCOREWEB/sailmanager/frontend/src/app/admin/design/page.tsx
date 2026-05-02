@@ -9,6 +9,14 @@ import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
+type HomepageDesign = {
+  home_images: HomeImageItem[];
+  hero_title?: string | null;
+  hero_subtitle?: string | null;
+  club_logo_url?: string | null;
+  club_logo_link?: string | null;
+};
+
 type FooterDesign = {
   footer_site_name: string | null;
   footer_tagline: string | null;
@@ -68,13 +76,9 @@ export default function AdminDesignPage() {
         const [regattaList, ids, homepage, footer] = await Promise.all([
           apiGet<Regatta[]>(withOrg('/regattas/', orgSlug), token ?? undefined),
           apiGet<number[]>(withOrg('/design/featured-regattas/ids', orgSlug)).catch(() => []),
-          apiGet<{
-            home_images: HomeImageItem[];
-            hero_title?: string | null;
-            hero_subtitle?: string | null;
-            club_logo_url?: string | null;
-            club_logo_link?: string | null;
-          }>(withOrg('/design/homepage', orgSlug)).catch(() => ({ home_images: [] })),
+          apiGet<HomepageDesign>(withOrg('/design/homepage', orgSlug)).catch(
+            (): HomepageDesign => ({ home_images: [] }),
+          ),
           apiGet<FooterDesign>(withOrg('/design/footer', orgSlug)).catch(
             () =>
               ({

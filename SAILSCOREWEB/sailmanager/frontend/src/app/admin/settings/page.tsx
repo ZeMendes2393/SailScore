@@ -7,17 +7,26 @@ import { apiGet, apiSend } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 
-type GlobalSettings = {
+/** Resposta da API (campos opcionais / null). */
+type GlobalSettingsResponse = {
   club_name: string | null;
   entry_fee_transfer_iban: string | null;
   contact_email: string | null;
   contact_phone: string | null;
 };
 
+/** Estado do formulário — sempre strings para inputs controlados. */
+type GlobalSettingsForm = {
+  club_name: string;
+  entry_fee_transfer_iban: string;
+  contact_email: string;
+  contact_phone: string;
+};
+
 export default function AdminSettingsPage() {
   const { token } = useAuth();
   const { orgSlug } = useAdminOrg();
-  const [settings, setSettings] = useState<GlobalSettings>({
+  const [settings, setSettings] = useState<GlobalSettingsForm>({
     club_name: '',
     entry_fee_transfer_iban: '',
     contact_email: '',
@@ -29,7 +38,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const data = await apiGet<GlobalSettings>(withOrg('/settings/global', orgSlug));
+      const data = await apiGet<GlobalSettingsResponse>(withOrg('/settings/global', orgSlug));
       setSettings({
         club_name: data.club_name ?? '',
         entry_fee_transfer_iban: data.entry_fee_transfer_iban ?? '',

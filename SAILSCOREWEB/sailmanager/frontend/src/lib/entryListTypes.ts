@@ -1,5 +1,3 @@
-import type { EntryListColumnId } from './entryListColumns';
-
 /** Crew member as stored in entry.crew_members */
 export interface EntryCrewMember {
   first_name?: string | null;
