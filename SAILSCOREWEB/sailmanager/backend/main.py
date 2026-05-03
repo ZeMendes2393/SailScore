@@ -132,6 +132,8 @@ FILES_DIR.mkdir(parents=True, exist_ok=True)
 # ---------- Startup ----------
 @app.on_event("startup")
 def _ensure_upload_dirs():
+    # Liga à BD após a app estar montada (evita bloquear import / healthcheck na Railway).
+    create_database()
     (UPLOADS_DIR / "notices").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "news").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "regattas").mkdir(parents=True, exist_ok=True)
@@ -143,9 +145,6 @@ def _ensure_upload_dirs():
     # Arrancar fila persistente de emails e fazer uma passagem imediata.
     start_email_outbox_worker()
     process_email_outbox()
-
-# Inicializa DB (dev)
-create_database()
 
 # ---------- Routers ----------
 app.include_router(auth.router)
