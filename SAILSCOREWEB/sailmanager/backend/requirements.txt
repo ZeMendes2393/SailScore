@@ -1,4 +1,4 @@
-# rebuild trigger (Railway cache)
+# rebuild trigger (Railway cache v2)
 annotated-types==0.7.0
 anyio==4.9.0
 click==8.2.1
