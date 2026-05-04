@@ -49,7 +49,8 @@ from app.routes import fleets as fleets_router
 from app.routes.public_fleets import router as public_fleets_router
 from app.routes.regatta_finances import router as regatta_finances_router
 
-app = FastAPI(title="SailScore API")
+# docs_url="/swagger": liberta GET /docs para healthcheck leve (Railway UI usa /docs por defeito).
+app = FastAPI(title="SailScore API", docs_url="/swagger", redoc_url="/redoc")
 
 # ---------- CORS ----------
 ALLOWED_ORIGINS = [
@@ -133,7 +134,12 @@ FILES_DIR.mkdir(parents=True, exist_ok=True)
 @app.on_event("startup")
 def _ensure_upload_dirs():
     # Liga à BD após a app estar montada (evita bloquear import / healthcheck na Railway).
-    create_database()
+    try:
+        create_database()
+    except Exception:
+        logging.getLogger("sailscore").exception(
+            "create_database falhou no startup; continua a servir healthchecks"
+        )
     (UPLOADS_DIR / "notices").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "news").mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / "regattas").mkdir(parents=True, exist_ok=True)
@@ -179,6 +185,12 @@ app.include_router(global_settings_routes.router)
 app.include_router(uploads.router)  # ✅ NOVO (POST /uploads/news)
 
 # ---------- Utilitários ----------
+@app.get("/docs")
+def healthcheck_docs_path():
+    """Resposta mínima para healthchecks configurados com path /docs (Railway)."""
+    return {"status": "ok"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

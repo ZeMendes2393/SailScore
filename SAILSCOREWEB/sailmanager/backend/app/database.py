@@ -10,11 +10,48 @@ load_dotenv()
 DEFAULT_DB_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "test.db")
 )
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
+
+
+def _normalize_database_url(url: str) -> str:
+    # SQLAlchemy 2 aceita postgres:// por retrocompat; normalizamos por consistência.
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://") :]
+    return url
+
+
+def _sqlalchemy_connect_args(url: str) -> dict:
+    if url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    if not (url.startswith("postgresql://") or url.startswith("postgres://")):
+        return {}
+    lower = url.lower()
+    if "sslmode=" in lower or "ssl=" in lower:
+        return {}
+    explicit = os.getenv("PGSSLMODE", "").strip()
+    if explicit:
+        return {"sslmode": explicit}
+    # Railway e vários hosts geridos exigem TLS; localhost fica sem forçar SSL.
+    if any(
+        h in lower
+        for h in (
+            "railway.internal",
+            ".rlwy.net",
+            "neon.tech",
+            "amazonaws.com",
+            "supabase.co",
+        )
+    ):
+        return {"sslmode": "require"}
+    return {}
+
+
+DATABASE_URL = _normalize_database_url(
+    os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
+)
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    connect_args=_sqlalchemy_connect_args(DATABASE_URL),
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
