@@ -148,9 +148,14 @@ def _ensure_upload_dirs():
     (UPLOADS_DIR / "header").mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / "protests").mkdir(parents=True, exist_ok=True)
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
-    # Arrancar fila persistente de emails e fazer uma passagem imediata.
-    start_email_outbox_worker()
-    process_email_outbox()
+    # Arrancar fila persistente de emails sem bloquear readiness da app.
+    try:
+        start_email_outbox_worker()
+        process_email_outbox()
+    except Exception:
+        logger.exception(
+            "Inicializacao da outbox de email falhou no startup; continua a servir healthchecks"
+        )
 
 # ---------- Routers ----------
 app.include_router(auth.router)

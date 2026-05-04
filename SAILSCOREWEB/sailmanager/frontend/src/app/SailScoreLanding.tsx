@@ -17,8 +17,12 @@ export default function SailScoreLanding() {
           </div>
           <div className="ss-visual-card">
             <p className="ss-visual-label">Main Dashboard Preview</p>
-            <div className="ss-visual-block" />
-            <p className="ss-visual-note">Best spot for your product screenshot</p>
+            <img
+              className="ss-visual-block"
+              src="/dashboard-preview.png"
+              alt="SailScore dashboard preview"
+            />
+            <p className="ss-visual-note">Screenshot do dashboard em producao</p>
           </div>
         </div>
       </section>
