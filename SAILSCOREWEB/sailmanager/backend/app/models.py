@@ -86,10 +86,11 @@ class Regatta(Base):
     notice_board_url = Column(String, nullable=True)
     entry_list_url = Column(String, nullable=True)
     online_entry_url = Column(String, nullable=True)
-    online_entry_open = Column(Boolean, nullable=False, server_default="1")  # default True
+    # Postgres exige literal boolean (true/false). "1"/"0" quebra DDL.
+    online_entry_open = Column(Boolean, nullable=False, server_default=sa.text("true"))  # default True
 
     # Online Entry limit (total number of entries allowed for this regatta)
-    online_entry_limit_enabled = Column(Boolean, nullable=False, server_default="0")
+    online_entry_limit_enabled = Column(Boolean, nullable=False, server_default=sa.text("false"))
     online_entry_limit = Column(Integer, nullable=True)
     # Per-class online entry limits:
     # { "<class_name>": { "enabled": true|false, "limit": number|null } }
@@ -266,7 +267,7 @@ class Entry(Base):
     confirmed_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     # When online entry limit is enabled and reached, new submissions are stored here as waiting list
-    waiting_list = Column(Boolean, nullable=False, server_default="0")
+    waiting_list = Column(Boolean, nullable=False, server_default=sa.text("false"))
 
     regatta = relationship("Regatta", back_populates="entries")
     user = relationship("User", back_populates="entries")
@@ -317,10 +318,10 @@ class Notice(Base):
         nullable=False,
         server_default=NoticeDocType.RACE_DOCUMENT.value
     )
-    is_important = Column(Boolean, nullable=False, server_default="0")
+    is_important = Column(Boolean, nullable=False, server_default=sa.text("false"))
 
     # “All Classes” sem duplicação
-    applies_to_all = Column(Boolean, nullable=False, server_default="1")
+    applies_to_all = Column(Boolean, nullable=False, server_default=sa.text("true"))
 
     # Relações
     classes = relationship(
@@ -946,7 +947,7 @@ class FleetSet(Base):
         sa.Boolean,
         nullable=False,
         default=False,
-        server_default=sa.text("0"),  # ✅ para SQLite
+        server_default=sa.text("false"),
     )
     public_title = sa.Column(sa.String(255), nullable=True)
     published_at = sa.Column(sa.DateTime, nullable=True)
@@ -1010,9 +1011,9 @@ class SiteDesign(Base):
     footer_address = sa.Column(sa.String(500), nullable=True)
     footer_instagram_url = sa.Column(sa.String(500), nullable=True)
     footer_facebook_url = sa.Column(sa.String(500), nullable=True)
-    footer_show_privacy_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
-    footer_show_terms_of_service = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
-    footer_show_cookie_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    footer_show_privacy_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    footer_show_terms_of_service = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    footer_show_cookie_policy = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
     footer_privacy_policy_text = sa.Column(sa.Text, nullable=True)
     footer_terms_of_service_text = sa.Column(sa.Text, nullable=True)
     footer_cookie_policy_text = sa.Column(sa.Text, nullable=True)
@@ -1053,7 +1054,7 @@ class Organization(Base):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     name = sa.Column(sa.String(255), nullable=False, index=True)
     slug = sa.Column(sa.String(120), unique=True, nullable=False, index=True)
-    is_active = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1"))
+    is_active = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
     created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())
     updated_at = sa.Column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()
