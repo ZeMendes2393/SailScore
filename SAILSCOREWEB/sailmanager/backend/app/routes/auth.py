@@ -72,14 +72,15 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
             else:
                 user = org_user
         else:
-            default_org = resolve_org(db, org_slug=None)
+            # Login sem org é reservado a platform_admin.
+            # Não deve depender da existência de uma org "default" específica.
             user = (
                 db.query(models.User)
                 .filter(
                     models.User.email == email_norm,
-                    models.User.organization_id == default_org.id,
                     models.User.role == "platform_admin",
                 )
+                .order_by(models.User.id.asc())
                 .first()
             )
     else:
@@ -177,14 +178,13 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     """
     raw = (form.username or "").strip()
     if "@" in raw:
-        default_org = resolve_org(db, org_slug=None)
         user = (
             db.query(models.User)
             .filter(
                 models.User.email == raw.lower(),
-                models.User.organization_id == default_org.id,
                 models.User.role == "platform_admin",
             )
+            .order_by(models.User.id.asc())
             .first()
         )
         if not user:
