@@ -4,17 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
-import { isSuperAdminOrganizationManager } from '@/lib/superAdmin';
+import { canAccessOrganizationManagement, hrefOrganizationsPage } from '@/lib/organizationManagementAccess';
 
 export default function AdminSidebar() {
   const { logout, user } = useAuth();
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
   const pathname = usePathname();
-  const superOrgManager = isPlatformAdmin && isSuperAdminOrganizationManager(user?.email);
-  const canManageOrganizations =
-    (isPlatformAdmin && !orgSlug) ||
-    (user?.role === 'admin' && orgSlug === 'example-sailing-club') ||
-    superOrgManager;
+  const canManageOrganizations = canAccessOrganizationManagement(user, isPlatformAdmin, orgSlug);
 
   const base = (path: string) => withOrg(path, orgSlug);
   const itemClass = (active: boolean) =>
@@ -33,9 +29,7 @@ export default function AdminSidebar() {
   const isEmail = pathname?.startsWith('/admin/email');
   const isSettings = pathname?.startsWith('/admin/settings');
   const isOrganizations = pathname?.startsWith('/admin/organizations');
-  /** Global org page must not carry ?org= or API/UI stay in "single org" mode for platform admins. */
-  const organizationsHref =
-    superOrgManager ? '/admin/organizations' : base('/admin/organizations');
+  const organizationsHref = hrefOrganizationsPage(user, isPlatformAdmin, orgSlug, withOrg);
 
   return (
     <aside className="w-72 bg-white/95 border-r border-gray-200 p-7 space-y-6 shadow-sm">

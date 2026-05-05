@@ -6,7 +6,7 @@ import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
-import { isSuperAdminOrganizationManager } from '@/lib/superAdmin';
+import { canAccessOrganizationManagement } from '@/lib/organizationManagementAccess';
 
 interface Organization {
   id: number;
@@ -40,11 +40,7 @@ export default function OrganizationsPage() {
   const [editAdminPassword, setEditAdminPassword] = useState('');
   const { token, user } = useAuth();
   const { orgSlug, isPlatformAdmin } = useAdminOrg();
-  const isGlobalPlatformAdmin = isPlatformAdmin && !orgSlug;
-  const isProvisionalExampleOrgAdmin = user?.role === 'admin' && orgSlug === 'example-sailing-club';
-  const isDedicatedSuperOrgAdmin = isPlatformAdmin && isSuperAdminOrganizationManager(user?.email);
-  const canAccessOrganizationsPage =
-    isGlobalPlatformAdmin || isProvisionalExampleOrgAdmin || isDedicatedSuperOrgAdmin;
+  const canAccessOrganizationsPage = canAccessOrganizationManagement(user, isPlatformAdmin, orgSlug);
 
   useEffect(() => {
     (async () => {

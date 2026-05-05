@@ -141,6 +141,31 @@ input.login-input:-webkit-autofill:focus {
 .sailscore-landing .ss-cta-band p { color: #e2e8f0; }
 .sailscore-landing .ss-center { text-align: center; margin-inline: auto; }
 
+/* Discreet admin/staff entry — landing is English marketing copy */
+.sailscore-landing .ss-landing-staff-login {
+  position: fixed;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 30;
+}
+.sailscore-landing .ss-landing-staff-login a {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(11, 27, 51, 0.32);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.sailscore-landing .ss-landing-staff-login a:hover {
+  color: rgba(11, 27, 51, 0.52);
+  text-decoration: underline;
+}
+.sailscore-landing .ss-landing-staff-login a:focus-visible {
+  outline: 2px solid rgba(0, 86, 214, 0.45);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 @media (max-width: 1024px) {
   .sailscore-landing .ss-section { padding: 4rem 0; }
   .sailscore-landing .ss-hero { padding-top: 3.5rem; }

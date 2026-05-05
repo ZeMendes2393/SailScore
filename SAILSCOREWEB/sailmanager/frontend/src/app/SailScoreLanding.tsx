@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function SailScoreLanding() {
   return (
     <div className="sailscore-landing">
@@ -95,12 +97,18 @@ export default function SailScoreLanding() {
           <h2 className="ss-h2">Ready for a more organized and faster race day?</h2>
           <p>See how SailScore fits your regatta workflow and helps your team deliver clear, trusted results.</p>
           <div className="ss-hero-actions ss-center">
-            <a className="ss-btn ss-btn-primary" href="/admin/login">Book a Demo</a>
+            <a className="ss-btn ss-btn-primary" href="#hero">
+              Book a Demo
+            </a>
             <a className="ss-btn ss-btn-secondary" href="/register">Start Free Trial</a>
           </div>
           <p className="ss-microcopy">No hard sell - just a practical walkthrough.</p>
         </div>
       </section>
+
+      <div className="ss-landing-staff-login" aria-label="Staff access">
+        <Link href="/admin/login">Staff sign-in</Link>
+      </div>
     </div>
   );
 }
