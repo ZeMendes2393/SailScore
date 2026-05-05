@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
 
 from app import models, schemas
@@ -169,7 +170,11 @@ def get_homepage_design(
 ):
     """Public: returns homepage hero images, hero text and header settings."""
     organization = resolve_org(db, org_slug=org)
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    try:
+        row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    except SQLAlchemyError:
+        # Fallback resiliente para ambientes ainda sem schema completo.
+        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
     if not row:
         return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
     images = (row.home_images or [])[:3]
@@ -189,7 +194,11 @@ def get_header_design(
 ):
     """Public: returns header club logo and link for the main site."""
     organization = resolve_org(db, org_slug=org)
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    try:
+        row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    except SQLAlchemyError:
+        # Fallback resiliente para ambientes ainda sem schema completo.
+        return HeaderOut(club_logo_url=None, club_logo_link=None)
     if not row:
         return HeaderOut(club_logo_url=None, club_logo_link=None)
     return HeaderOut(
@@ -238,7 +247,11 @@ def get_footer_design(
 ):
     """Public: returns footer configuration (brand, contacts, legal texts)."""
     organization = resolve_org(db, org_slug=org)
-    row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    try:
+        row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
+    except SQLAlchemyError:
+        # Fallback resiliente para ambientes ainda sem schema completo.
+        return FooterDesignOut(footer_site_name=organization.name)
     if not row:
         # Novo site: nome da organização até configurar no Design
         return FooterDesignOut(footer_site_name=organization.name)
