@@ -60,6 +60,8 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "https://www.sailscore.online",
+    "https://sailscore.online",
 ]
 extra_origins = os.getenv("ALLOWED_ORIGINS")
 if extra_origins:
@@ -71,6 +73,8 @@ ALLOWED_ORIGIN_REGEX = os.getenv(
     "ALLOWED_ORIGIN_REGEX",
     r"^https?://("
     r"localhost|127\.0\.0\.1|"
+    r"(?:[a-z0-9-]+\.)?sailscore\.online|"
+    r"(?:[a-z0-9-]+\.)?vercel\.app|"
     r"192\.168\.\d{1,3}\.\d{1,3}|"
     r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
     r"172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
