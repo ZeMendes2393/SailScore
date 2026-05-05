@@ -1,5 +1,6 @@
 # app/database.py
 from sqlalchemy import create_engine
+from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
@@ -58,18 +59,31 @@ Base = declarative_base()
 
 def create_database():
     """
-    NÃO cria tabelas! (nada de Base.metadata.create_all)
-    Apenas garante que o ficheiro existe para SQLite.
-    O schema é responsabilidade do Alembic.
+    Garante que o schema existe.
+
+    - Em SQLite (muito comum em local/testes e quando `DATABASE_URL` não está configurado na
+      plataforma), cria as tabelas a partir dos models para evitar erros do tipo
+      "no such table: organizations" durante o startup e requests.
+    - Em PostgreSQL, o schema é responsabilidade do Alembic (não criamos tabelas automaticamente).
     """
     if DATABASE_URL.startswith("sqlite:///"):
         db_file = DATABASE_URL.replace("sqlite:///", "", 1)
         os.makedirs(os.path.dirname(db_file), exist_ok=True)
         if not os.path.exists(db_file):
             open(db_file, "a").close()
-    # abre/fecha só para garantir o ficheiro
-    with engine.connect() as _:
-        pass
+        # Se o ficheiro existir mas estiver "vazio" (sem migrations), criamos o schema.
+        try:
+            insp = inspect(engine)
+            if "organizations" not in insp.get_table_names():
+                Base.metadata.create_all(bind=engine)
+        except Exception:
+            # Não bloqueia startup: erros aqui normalmente são por permissão/lock ou config incompleta.
+            # A app pode continuar e falhar apenas em endpoints que dependem do schema.
+            pass
+    else:
+        # abre/fecha só para validar conexão para bancos não-SQLite
+        with engine.connect() as _:
+            pass
 
 def get_db():
     db = SessionLocal()
