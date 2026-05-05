@@ -146,7 +146,8 @@ input.login-input:-webkit-autofill:focus {
   position: fixed;
   bottom: max(12px, env(safe-area-inset-bottom));
   right: max(14px, env(safe-area-inset-right));
-  z-index: 30;
+  z-index: 9999;
+  pointer-events: auto;
 }
 .sailscore-landing .ss-landing-staff-login a {
   font-size: 0.72rem;
