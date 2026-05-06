@@ -219,7 +219,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     <div className="p-6 bg-white rounded shadow max-w-3xl mx-auto">
       {sailorsSummary.length > 0 && (
         <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm">
-          <span className="font-semibold text-gray-700">Sailors nesta inscrição: </span>
+          <span className="font-semibold text-gray-700">Velejadores nesta inscrição: </span>
           {sailorsSummary.map((s, i) => (
             <span key={i} className="mr-2">
               {s.name} <span className="text-gray-500">({s.pos})</span>

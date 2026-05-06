@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { Geist, Geist_Mono } from 'next/font/google';
+import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import ClientLayout from './ClientLayout';
@@ -18,6 +19,16 @@ const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0
 
 /** Homepage `/` sem /o/slug: usar a mesma org em todo o site (variável de ambiente). */
 const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;
+
+export const metadata: Metadata = {
+  icons: {
+    icon: [
+      { url: '/sailscore-icon.png', type: 'image/png' },
+    ],
+    shortcut: '/sailscore-icon.png',
+    apple: '/sailscore-icon.png',
+  },
+};
 
 export default async function RootLayout({
   children,

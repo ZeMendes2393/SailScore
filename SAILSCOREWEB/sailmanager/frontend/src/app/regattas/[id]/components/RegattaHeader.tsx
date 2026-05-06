@@ -13,6 +13,10 @@ type RegattaHeaderProps = {
   organizationSlug?: string | null;
 };
 
+type HeaderDesign = {
+  club_logo_url?: string | null;
+};
+
 export default function RegattaHeader({ regattaId, organizationSlug: organizationSlugProp }: RegattaHeaderProps) {
   const pathname = usePathname();
   const base = `/regattas/${regattaId}`;
@@ -25,6 +29,9 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const [organizationSlug, setOrganizationSlug] = useState<string | null>(
     organizationSlugProp !== undefined ? organizationSlugProp ?? null : null
   );
+  const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
+  const [headerDesign, setHeaderDesign] = useState<HeaderDesign | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     if (organizationSlugProp !== undefined) {
@@ -45,6 +52,44 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
     };
   }, [regattaId, organizationSlugProp]);
 
+  useEffect(() => {
+    if (!organizationSlug) {
+      setOrgDisplayName(null);
+      setHeaderDesign(null);
+      return;
+    }
+    let cancelled = false;
+    const encoded = encodeURIComponent(organizationSlug);
+
+    fetch(`${API_BASE}/organizations/by-slug/${encoded}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { name?: string | null } | null) => {
+        if (cancelled || !d) return;
+        const name = d.name?.trim();
+        setOrgDisplayName(name || null);
+      })
+      .catch(() => {});
+
+    fetch(`${API_BASE}/design/header?org=${encoded}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: HeaderDesign | null) => {
+        if (cancelled) return;
+        setHeaderDesign(d);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHeaderDesign(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationSlug]);
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [headerDesign?.club_logo_url]);
+
   const sailorAccountHref = useMemo(() => {
     const p = new URLSearchParams({ regattaId: String(regattaId) });
     if (organizationSlug) p.set('org', organizationSlug);
@@ -54,13 +99,26 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const linkClass = (active: boolean) =>
     `px-4 py-2.5 rounded-xl transition text-base sm:text-lg ${active ? 'bg-white/20' : 'hover:bg-white/10'}`;
 
+  const logoUrl = headerDesign?.club_logo_url?.trim();
+  const brandText = orgDisplayName || organizationSlug || 'Regattas';
+  const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
+
   return (
     <header
       className="sticky top-0 z-50 w-full bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-md backdrop-blur-md"
     >
       <div className="w-full min-h-[8rem] py-3 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-3 sm:px-4">
-        <Link href="/" className="text-2xl sm:text-3xl font-bold tracking-wide shrink-0">
-          SailScore
+        <Link href={brandHref} className="shrink-0 hover:opacity-90 transition-opacity">
+          {logoUrl && !logoFailed ? (
+            <img
+              src={logoUrl.startsWith('http') ? logoUrl : `${API_BASE}${logoUrl}`}
+              alt={brandText}
+              className="max-h-[3.25rem] w-auto object-contain object-left"
+              onError={() => setLogoFailed(true)}
+            />
+          ) : (
+            <span className="text-2xl sm:text-3xl font-bold tracking-wide">{brandText}</span>
+          )}
         </Link>
         <nav className="flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
           <Link href={base} className={linkClass(isHome)} title="Vista principal da regata">

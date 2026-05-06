@@ -167,10 +167,10 @@ export default function LoginPage() {
     try {
       // corpo do login: inclui regatta_id apenas no modo sailor
       const body: any = { email, password };
+      if (orgFromQs) body.org = orgFromQs;
       if (mode === 'sailor') {
         if (!qsId) throw new Error('Invalid regatta in URL.');
         body.regatta_id = qsId;
-        if (orgFromQs) body.org = orgFromQs;
       }
 
       const { access_token } = await apiPostJson<TokenRes>('/auth/login', body);

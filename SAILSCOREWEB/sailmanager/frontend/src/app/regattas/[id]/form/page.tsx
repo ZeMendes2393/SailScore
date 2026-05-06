@@ -94,7 +94,7 @@ export default function RegattaFormPage() {
         </div>
       </section>
       <div className="container-page py-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Online Entry</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Inscrição Online</h2>
         <div className="bg-white shadow rounded p-6">
           {isOpen ? (
             <OnlineEntryPublic regattaId={regattaId} />
