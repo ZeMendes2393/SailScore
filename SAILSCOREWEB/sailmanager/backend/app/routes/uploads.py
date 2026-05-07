@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from starlette import status
 
+from app.storage_uploads import save_image_upload, use_s3
 from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -16,11 +17,12 @@ REGATTAS_DIR = UPLOADS_DIR / "regattas"
 SPONSORS_DIR = UPLOADS_DIR / "sponsors"
 HOMEPAGE_DIR = UPLOADS_DIR / "homepage"
 HEADER_DIR = UPLOADS_DIR / "header"
-NEWS_DIR.mkdir(parents=True, exist_ok=True)
-REGATTAS_DIR.mkdir(parents=True, exist_ok=True)
-SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
-HOMEPAGE_DIR.mkdir(parents=True, exist_ok=True)
-HEADER_DIR.mkdir(parents=True, exist_ok=True)
+if not use_s3():
+    NEWS_DIR.mkdir(parents=True, exist_ok=True)
+    REGATTAS_DIR.mkdir(parents=True, exist_ok=True)
+    SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
+    HOMEPAGE_DIR.mkdir(parents=True, exist_ok=True)
+    HEADER_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED = {"image/jpeg", "image/png", "image/webp"}
 MAX_MB = 6
@@ -39,8 +41,8 @@ async def upload_regatta_image(
         raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_MB}MB.")
     ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
     filename = f"{uuid4().hex}{ext}"
-    (REGATTAS_DIR / filename).write_bytes(content)
-    return {"url": f"/uploads/regattas/{filename}"}
+    url = save_image_upload("regattas", filename, content, file.content_type)
+    return {"url": url}
 
 
 @router.post("/sponsors", status_code=status.HTTP_201_CREATED)
@@ -56,8 +58,8 @@ async def upload_sponsor_image(
         raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_MB}MB.")
     ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
     filename = f"{uuid4().hex}{ext}"
-    (SPONSORS_DIR / filename).write_bytes(content)
-    return {"url": f"/uploads/sponsors/{filename}"}
+    url = save_image_upload("sponsors", filename, content, file.content_type)
+    return {"url": url}
 
 
 @router.post("/news", status_code=status.HTTP_201_CREATED)
@@ -74,9 +76,8 @@ async def upload_news_image(
 
     ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
     filename = f"{uuid4().hex}{ext}"
-    (NEWS_DIR / filename).write_bytes(content)
-
-    return {"url": f"/uploads/news/{filename}"}
+    url = save_image_upload("news", filename, content, file.content_type)
+    return {"url": url}
 
 
 @router.post("/homepage", status_code=status.HTTP_201_CREATED)
@@ -92,8 +93,8 @@ async def upload_homepage_image(
         raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_MB}MB.")
     ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
     filename = f"{uuid4().hex}{ext}"
-    (HOMEPAGE_DIR / filename).write_bytes(content)
-    return {"url": f"/uploads/homepage/{filename}"}
+    url = save_image_upload("homepage", filename, content, file.content_type)
+    return {"url": url}
 
 
 @router.post("/header", status_code=status.HTTP_201_CREATED)
@@ -109,5 +110,5 @@ async def upload_header_image(
         raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_MB}MB.")
     ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
     filename = f"{uuid4().hex}{ext}"
-    (HEADER_DIR / filename).write_bytes(content)
-    return {"url": f"/uploads/header/{filename}"}
+    url = save_image_upload("header", filename, content, file.content_type)
+    return {"url": url}
