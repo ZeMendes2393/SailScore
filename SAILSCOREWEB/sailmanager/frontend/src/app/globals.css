@@ -118,7 +118,15 @@ input.login-input:-webkit-autofill:focus {
 .sailscore-landing .ss-visual-card { background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: var(--ss-radius); padding: 1rem; box-shadow: var(--ss-shadow); position: relative; overflow: hidden; }
 .sailscore-landing .ss-visual-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(0,86,214,.06), rgba(0,163,163,.06)); pointer-events: none; }
 .sailscore-landing .ss-visual-label { color: var(--ss-text); font-weight: 600; margin-bottom: .75rem; }
-.sailscore-landing .ss-visual-block { width: 100%; min-height: 260px; border-radius: 12px; border: 1px dashed #8db2db; background: linear-gradient(135deg, #dceaff, #eef7ff 54%, #e2f8f8); }
+.sailscore-landing .ss-visual-block {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  border: 1px solid #9bb6d7;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
 .sailscore-landing .ss-visual-note { font-size: .86rem; margin-top: .6rem; }
 .sailscore-landing .ss-grid { display: grid; gap: 1rem; }
 .sailscore-landing .ss-cards-3,

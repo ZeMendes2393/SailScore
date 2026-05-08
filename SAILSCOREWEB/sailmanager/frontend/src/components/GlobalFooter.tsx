@@ -62,7 +62,6 @@ export default function GlobalFooter({
   const showCookie =
     !!footer?.footer_show_cookie_policy && !!(footer?.footer_cookie_policy_text ?? '').trim();
   const adminLoginHref = effectiveOrg ? `/admin/login?org=${encodeURIComponent(effectiveOrg)}` : '/admin/login';
-  const publicSiteHref = effectiveOrg ? `/o/${encodeURIComponent(effectiveOrg)}` : '/';
 
   const getModalTitle = () => {
     if (openModal === 'privacy') return 'Privacy Policy';
@@ -136,7 +135,12 @@ export default function GlobalFooter({
             </div>
 
             <div className="flex flex-col items-end gap-1 text-slate-300 text-sm font-medium shrink-0 justify-end">
-              <div className="flex items-center gap-2">
+              <a
+                href="https://www.sailscore.online/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-slate-100 transition-colors underline underline-offset-2"
+              >
                 <span>Powered by SailScore</span>
                 <img
                   src="/sailscore-icon.png"
@@ -147,13 +151,7 @@ export default function GlobalFooter({
                     e.currentTarget.style.display = 'none';
                   }}
                 />
-              </div>
-              <Link
-                href={publicSiteHref}
-                className="text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2"
-              >
-                Site publico
-              </Link>
+              </a>
             </div>
           </div>
 

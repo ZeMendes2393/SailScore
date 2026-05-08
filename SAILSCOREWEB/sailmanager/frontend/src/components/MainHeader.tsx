@@ -30,6 +30,7 @@ export default function MainHeader({
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -62,6 +63,10 @@ export default function MainHeader({
   useEffect(() => {
     setLogoFailed(false);
   }, [design?.club_logo_url]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   const navItems = useMemo(() => {
     if (orgSlug) {
@@ -109,11 +114,11 @@ export default function MainHeader({
       <img
         src={logoUrl!.startsWith('http') ? logoUrl! : `${BASE_URL}${logoUrl}`}
         alt="Club logo"
-        className="max-h-[6rem] w-auto h-auto object-contain object-left drop-shadow-sm"
+        className="max-h-[2.6rem] md:max-h-[3.2rem] w-auto h-auto object-contain object-left drop-shadow-sm"
         onError={() => setLogoFailed(true)}
       />
     ) : (
-      <span className="text-2xl md:text-3xl font-bold tracking-tight">{brandFallback}</span>
+      <span className="text-lg md:text-xl font-bold tracking-tight">{brandFallback}</span>
     );
 
   return (
@@ -121,7 +126,7 @@ export default function MainHeader({
       className="sticky top-0 z-50 bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-lg backdrop-blur-md"
       suppressHydrationWarning
     >
-      <div className="w-full min-h-[8rem] py-3 sm:py-4 flex items-center justify-between px-3 sm:px-4 gap-4 flex-wrap">
+      <div className="w-full min-h-[4rem] md:min-h-[4.75rem] py-2 sm:py-2.5 flex items-center justify-between px-3 sm:px-4 gap-2 md:gap-3 flex-wrap">
         <div className="flex items-center gap-4 shrink-0">
           {showExternalLink ? (
             <Link
@@ -140,7 +145,7 @@ export default function MainHeader({
           {!isLoggedIn && (
             <Link
               href={homeHref}
-              className="text-3xl md:text-4xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
+              className="text-xl md:text-2xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
               prefetch={false}
             >
               Regattas
@@ -177,7 +182,7 @@ export default function MainHeader({
             )
           ) : (
             <>
-              <nav className="flex items-center gap-2 text-xl font-semibold">
+              <nav className="flex items-center gap-2 text-base md:text-lg font-semibold">
                 {navItems.map((item) => (
                   <Link
                     key={item.href}
@@ -193,7 +198,64 @@ export default function MainHeader({
             </>
           )}
         </div>
+
+        <div className="md:hidden ml-auto">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="inline-flex items-center justify-center rounded-xl px-3 py-2 bg-white/15 hover:bg-white/25 text-white transition"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-main-nav"
+          >
+            <span className="text-lg font-semibold leading-none">{mobileMenuOpen ? 'X' : 'Menu'}</span>
+          </button>
+        </div>
       </div>
+
+      {mobileMenuOpen && (
+        <div id="mobile-main-nav" className="md:hidden border-t border-white/20 bg-blue-900/85 backdrop-blur-md px-3 pb-3">
+          {isLoggedIn ? (
+            isSailor ? (
+              <div className="py-3 text-white/90">
+                <p className="text-sm uppercase tracking-wide font-semibold text-white/75">Sailor account</p>
+                <p className="text-base mt-1 break-all">
+                  {user?.email || (user as any)?.username || (user as any)?.name || 'Signed in'}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 py-3">
+                <Link
+                  href={adminHomeHref}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition text-center"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
+                  className="w-full px-4 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
+                >
+                  Sign out
+                </button>
+              </div>
+            )
+          ) : (
+            <nav className="flex flex-col gap-2 py-3 text-base font-semibold">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`w-full px-4 py-2.5 rounded-xl transition ${
+                    isNavActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          )}
+        </div>
+      )}
     </header>
   );
 }

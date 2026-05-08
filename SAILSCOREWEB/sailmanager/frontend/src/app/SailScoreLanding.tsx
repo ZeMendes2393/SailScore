@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function SailScoreLanding() {
   return (
@@ -19,10 +20,14 @@ export default function SailScoreLanding() {
           </div>
           <div className="ss-visual-card">
             <p className="ss-visual-label">Main Dashboard Preview</p>
-            <img
+            <Image
               className="ss-visual-block"
               src="/dashboard-preview.png"
               alt="SailScore dashboard preview"
+              width={1600}
+              height={900}
+              quality={100}
+              priority
             />
             <p className="ss-visual-note">Screenshot do dashboard em producao</p>
           </div>
