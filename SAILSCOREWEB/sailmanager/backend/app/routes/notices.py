@@ -13,19 +13,10 @@ from app.database import get_db
 from app import models, schemas
 from app.models import NoticeSource, NoticeDocType, RegattaClass  # enums e modelo
 from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
+from app.storage_uploads import build_download_url, delete_stored_upload, save_binary_upload
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/notices", tags=["notices"])
-
-# caminhos de upload
-UPLOAD_DIR = "uploads/notices"
-PUBLIC_PREFIX = "/uploads/notices"
-
-
-# ------------------------ helpers ------------------------
-def ensure_upload_dir() -> None:
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 
 def _assert_notice_manager_access(
     db: Session,
@@ -100,19 +91,19 @@ def upload_notice_file(
         organization_id=int(regatta.organization_id),
     )
 
-    ensure_upload_dir()
-
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Só são permitidos PDFs.")
 
-    # guarda o ficheiro com nome aleatório
+    # guarda o ficheiro com nome aleatório no disco (dev) ou S3 (produção)
     extension = file.filename.split(".")[-1]
     random_name = f"{uuid4()}.{extension}"
-    system_path = os.path.join(UPLOAD_DIR, random_name)
-    public_path = f"{PUBLIC_PREFIX}/{random_name}"
-
-    with open(system_path, "wb") as buffer:
-        buffer.write(file.file.read())
+    content = file.file.read()
+    public_path = save_binary_upload(
+        subdir="notices",
+        filename=random_name,
+        content=content,
+        content_type=file.content_type or "application/pdf",
+    )
 
     # cria o Notice
     notice = models.Notice(
@@ -250,14 +241,8 @@ def delete_notice(
             organization_id=int(regatta.organization_id),
         )
 
-    # apaga ficheiro do sistema (mapeia caminho público -> pasta local)
-    fs_path = n.filepath.replace("/uploads", "uploads")
-    if os.path.exists(fs_path):
-        try:
-            os.remove(fs_path)
-        except Exception:
-            # não bloquear remoção do registo se o ficheiro já não existir
-            pass
+    # remove ficheiro armazenado (S3 ou local legado)
+    delete_stored_upload(n.filepath)
 
     db.delete(n)
     db.commit()
@@ -303,12 +288,21 @@ def set_notice_important(
 
 
 from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 
 @router.get("/{notice_id}/download")
 def download_notice(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
+
+    s3_or_remote_url = build_download_url(
+        stored_path=n.filepath,
+        download_filename=n.filename,
+        expires_seconds=600,
+    )
+    if s3_or_remote_url:
+        return RedirectResponse(url=s3_or_remote_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     # mapeia caminho público -> caminho no disco (pasta uploads/)
     fs_path = n.filepath.replace("/uploads", "uploads")
