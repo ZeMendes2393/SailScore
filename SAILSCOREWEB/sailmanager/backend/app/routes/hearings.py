@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time, datetime
+from pathlib import Path
 from typing import Optional, Literal, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session, load_only, joinedload
 from app.database import get_db
 from app import models, schemas
 from app.org_scope import assert_staff_regatta_access
+from app.services.pdf.decision_pdf import generate_decision_pdf as render_decision_pdf_document
+from app.storage_uploads import delete_stored_upload, save_binary_upload
 from utils.auth_utils import verify_role
 
 router = APIRouter(prefix="/hearings", tags=["hearings"])
@@ -136,16 +139,26 @@ def _safe_updated_at(h) -> str:
 # -------------------------
 def _render_decision_pdf(snapshot: dict, hearing: models.Hearing) -> str:
     """
-    Gera/sobrescreve o PDF da decisão a partir do snapshot e devolve o URL público.
-    Implementa aqui a tua rotina real (WeasyPrint, ReportLab, etc).
-    Mantém SEMPRE o mesmo path para sobrescrever (sem versionamento).
+    Gera PDF de decisão e guarda em storage persistente (S3 quando ativo).
+    Devolve URL pública (S3) ou /uploads/... em modo local.
     """
-    # Exemplo de caminho fixo (ajusta para o teu setup de static files):
-    pdf_path = f"static/decisions/hearing-{hearing.id}.pdf"
-    # TODO: render_pdf(snapshot, out_path=pdf_path)
-    # e.g.: weasyprint.HTML(string=html).write_pdf(pdf_path)
-    public_url = f"/{pdf_path}"  # assumindo que /static é servido publicamente
-    return public_url
+    out_dir = Path("uploads") / "protests" / str(hearing.regatta_id) / "hearings"
+    # Usa o gerador atual para manter layout consistente com decisões de protest.
+    pdf_path, _ = render_decision_pdf_document(
+        regatta_id=int(hearing.regatta_id),
+        protest_id=int(hearing.id),
+        snapshot=snapshot,
+        out_dir=out_dir,
+        regatta_title=snapshot.get("regatta_name") if isinstance(snapshot, dict) else None,
+        venue=snapshot.get("venue") if isinstance(snapshot, dict) else None,
+    )
+    content = Path(pdf_path).read_bytes()
+    return save_binary_upload(
+        subdir=f"protests/{hearing.regatta_id}/hearings",
+        filename=f"decision_hearing_{hearing.id}.pdf",
+        content=content,
+        content_type="application/pdf",
+    )
 
 
 # -------------------------
@@ -417,6 +430,9 @@ def regenerate_decision_pdf(
 
     try:
         url = _render_decision_pdf(h.decision_snapshot_json, h)  # sobrescreve o mesmo ficheiro
+        old_url = getattr(h, "decision_pdf_url", None)
+        if old_url and old_url != url:
+            delete_stored_upload(old_url)
         h.decision_pdf_url = url
         h.decision_at = datetime.utcnow()
         db.commit()
