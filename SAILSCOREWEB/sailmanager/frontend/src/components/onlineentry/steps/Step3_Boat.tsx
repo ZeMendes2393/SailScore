@@ -57,68 +57,68 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">Passo 3: Dados do barco</h2>
-      <p className="text-sm text-gray-600">Informações sobre o barco com que vais competir.</p>
+      <h2 className="text-xl font-bold text-gray-900">Step 3: Boat details</h2>
+      <p className="text-sm text-gray-600">Information about the boat you will compete with.</p>
 
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1">Identificação do barco</h3>
-        <Field label="Nome do barco" required hint="Nome oficial ou como o barco é conhecido">
-          <input type="text" name="boat_name" placeholder="ex.: Northern Wind" value={localData.boat_name || ''} onChange={handleChange} className={inputClass} required />
+        <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1">Boat identification</h3>
+        <Field label="Boat name" required hint="Official name or how the boat is known">
+          <input type="text" name="boat_name" placeholder="e.g. Northern Wind" value={localData.boat_name || ''} onChange={handleChange} className={inputClass} required />
         </Field>
-        <Field label="Código do país" required hint="País de registo (obrigatório)">
+        <Field label="Country code" required hint="Country of registration (required)">
           <select name="boat_country_code" value={localData.boat_country_code || ''} onChange={handleChange} className={inputClass} required>
-            <option value="">Selecionar</option>
+            <option value="">Select</option>
             {COUNTRIES_UNIQUE.map((c) => (
               <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
             ))}
           </select>
         </Field>
-        <Field label="Número de vela" required hint="Número de regata na vela grande (ex.: 47, 123)">
-          <input type="text" name="sail_number" placeholder="ex.: 47" value={localData.sail_number || ''} onChange={handleChange} className={inputClass} required />
+        <Field label="Sail number" required hint="Race number on the mainsail (e.g. 47, 123)">
+          <input type="text" name="sail_number" placeholder="e.g. 47" value={localData.sail_number || ''} onChange={handleChange} className={inputClass} required />
         </Field>
 
         {isHandicap && (
           <>
-            <Field label="Modelo do barco" hint="Marca e modelo do barco">
+            <Field label="Boat model" hint="Boat brand and model">
               <input
                 type="text"
                 name="boat_model"
-                placeholder="ex.: Beneteau First 36.7"
+                placeholder="e.g. Beneteau First 36.7"
                 value={localData.boat_model || ''}
                 onChange={handleChange}
                 className={inputClass}
               />
             </Field>
             <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1 mt-4">
-              Proprietário do barco
+              Boat owner
             </h3>
-            <p className="text-xs text-gray-600">Dados do proprietário (handicap).</p>
+            <p className="text-xs text-gray-600">Owner details (handicap).</p>
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Primeiro nome do proprietário">
+              <Field label="Owner first name">
                 <input
                   type="text"
                   name="owner_first_name"
-                  placeholder="ex.: João"
+                  placeholder="e.g. John"
                   value={localData.owner_first_name || ''}
                   onChange={handleChange}
                   className={inputClass}
                 />
               </Field>
-              <Field label="Apelido do proprietário">
+              <Field label="Owner last name">
                 <input
                   type="text"
                   name="owner_last_name"
-                  placeholder="ex.: Silva"
+                  placeholder="e.g. Smith"
                   value={localData.owner_last_name || ''}
                   onChange={handleChange}
                   className={inputClass}
                 />
               </Field>
-              <Field label="Email do proprietário">
+              <Field label="Owner email">
                 <input
                   type="email"
                   name="owner_email"
-                  placeholder="ex.: joao@exemplo.com"
+                  placeholder="e.g. john@example.com"
                   value={localData.owner_email || ''}
                   onChange={handleChange}
                   className={inputClass}
@@ -128,15 +128,15 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
           </>
         )}
 
-        <Field label="Categoria" hint="ex.: Masculino, Feminino, Misto">
-          <input type="text" name="category" placeholder="ex.: Misto" value={localData.category || ''} onChange={handleChange} className={inputClass} />
+        <Field label="Category" hint="e.g. Men, Women, Mixed">
+          <input type="text" name="category" placeholder="e.g. Mixed" value={localData.category || ''} onChange={handleChange} className={inputClass} />
         </Field>
       </div>
 
       <div className="flex justify-between pt-2">
-        <button type="button" onClick={onBack} className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">Voltar</button>
+        <button type="button" onClick={onBack} className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">Back</button>
         <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-          Submeter inscrição
+          Submit entry
         </button>
       </div>
     </form>

@@ -62,8 +62,8 @@ export default function RegattaFormPage() {
       const s = new Date(start);
       const e = new Date(end);
       const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts);
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('en-GB', opts);
+      return `${s.toLocaleDateString('en-GB', opts)} – ${e.toLocaleDateString('en-GB', opts)}`;
     } catch {
       return `${start} – ${end}`;
     }
@@ -94,13 +94,13 @@ export default function RegattaFormPage() {
         </div>
       </section>
       <div className="container-page py-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Inscrição Online</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Online Entry</h2>
         <div className="bg-white shadow rounded p-6">
           {isOpen ? (
             <OnlineEntryPublic regattaId={regattaId} />
           ) : (
             <div className="p-4 rounded border bg-amber-50 text-amber-800">
-              As inscrições online estão fechadas neste momento.
+              Online entries are currently closed.
             </div>
           )}
         </div>

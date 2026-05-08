@@ -134,7 +134,7 @@ export default function Step2Crew({ data, helm, sailorsPerBoat, onChange, onNext
                 onClick={() => removeCrew(index)}
                 className="text-sm text-red-600 hover:underline"
               >
-                Remover
+                Remove
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">

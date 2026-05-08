@@ -54,11 +54,11 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     const boat = formData.boat || {};
 
     if (!(boat.sail_number || '').trim()) {
-      alert('Sail number é obrigatório.');
+      alert('Sail number is required.');
       return;
     }
     if (!(boat.boat_country_code || '').trim()) {
-      alert('Country code da vela é obrigatório.');
+      alert('Sail country code is required.');
       return;
     }
 
@@ -120,7 +120,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
         alert(
           waiting
             ? 'Entry received, but the championship limit was reached. You have been added to the waiting list.'
-            : 'Entry submitted successfully! You will receive an email with the Sailor Account username and a temporary password.'
+            : 'Entry submitted successfully!'
         );
         setStep(1);
         setFormData({
@@ -219,7 +219,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     <div className="p-6 bg-white rounded shadow max-w-3xl mx-auto">
       {sailorsSummary.length > 0 && (
         <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm">
-          <span className="font-semibold text-gray-700">Velejadores nesta inscrição: </span>
+          <span className="font-semibold text-gray-700">Sailors in this entry: </span>
           {sailorsSummary.map((s, i) => (
             <span key={i} className="mr-2">
               {s.name} <span className="text-gray-500">({s.pos})</span>
