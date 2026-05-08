@@ -81,7 +81,11 @@ def _entry_list_order():
     """Ordenação padrão da entry list: classe -> país -> número de vela crescente."""
     sail_trim = func.trim(models.Entry.sail_number)
     # Números de vela puramente numéricos primeiro (ordem numérica), depois restantes valores.
-    sail_is_numeric = sail_trim.op("GLOB")("[0-9]*")
+    # Implementação compatível com PostgreSQL e SQLite (evita operador GLOB).
+    non_digit = sail_trim
+    for digit in "0123456789":
+        non_digit = func.replace(non_digit, digit, "")
+    sail_is_numeric = and_(sail_trim != "", non_digit == "")
     sail_number_int = cast(sail_trim, Integer)
     return (
         func.lower(func.trim(models.Entry.class_name)),
@@ -669,6 +673,17 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             raise HTTPException(status_code=404, detail="Regatta not found")
         if regatta.online_entry_open is False:
             raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
+
+        # Classe é obrigatória e tem de existir nesta regata
+        class_name = (entry.class_name or "").strip()
+        if not class_name:
+            raise HTTPException(status_code=400, detail="Class is required.")
+        if not _class_exists_in_regatta(db, entry.regatta_id, class_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Class '{class_name}' is not configured for this regatta.",
+            )
+        entry.class_name = class_name
 
         # === LIMITE: waiting list ao invés de recusar ===
         is_waiting = False
