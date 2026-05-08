@@ -124,14 +124,14 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
           <Link href={base} className={linkClass(isHome)} title="Vista principal da regata">
             Home
           </Link>
+          <Link href={`${base}/form`} className={linkClass(isForm)}>
+            Online Entry
+          </Link>
           <Link href={`${base}/entry`} className={linkClass(isEntry)}>
             Entry List
           </Link>
           <Link href={`${base}/notice`} className={linkClass(isNotice)}>
             Notice Board
-          </Link>
-          <Link href={`${base}/form`} className={linkClass(isForm)}>
-            Online Entry
           </Link>
           <Link href={`${base}/results`} className={linkClass(isResults)}>
             Results

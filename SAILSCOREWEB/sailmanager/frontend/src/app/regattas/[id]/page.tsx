@@ -186,11 +186,11 @@ export default function RegattaHomePage() {
       <section className="mb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link
-            href={`/regattas/${regattaId}/notice`}
+            href={`/regattas/${regattaId}/form`}
             className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
           >
-            <FileText className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Notice Board</span>
+            <PenLine className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Online Entry</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/entry`}
@@ -200,11 +200,11 @@ export default function RegattaHomePage() {
             <span className="font-semibold text-sm uppercase tracking-wide">Entry List</span>
           </Link>
           <Link
-            href={`/regattas/${regattaId}/form`}
+            href={`/regattas/${regattaId}/notice`}
             className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
           >
-            <PenLine className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Online Entry</span>
+            <FileText className="w-8 h-8" strokeWidth={2} />
+            <span className="font-semibold text-sm uppercase tracking-wide">Notice Board</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/results`}
