@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Protest, ProtestAttachment
+from app.storage_uploads import save_binary_upload
 from utils.auth_utils import get_current_user, verify_role
 from utils.guards import ensure_regatta_scope
-from .helpers import PUBLIC_BASE_URL
+from .helpers import normalize_public_url
 
 router = APIRouter()
 
@@ -58,22 +58,21 @@ def upload_attachment(
         raise HTTPException(status_code=404, detail="Protest not found")
 
     safe_name = os.path.basename(file.filename or "upload.bin")
-    dest_dir = Path("uploads") / "protests" / str(regatta_id) / str(protest_id)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / safe_name
-
-    with dest_path.open("wb") as f:
-        import shutil
-        shutil.copyfileobj(file.file, f)
-
-    public_url = f"{PUBLIC_BASE_URL}/uploads/protests/{regatta_id}/{protest_id}/{safe_name}"
+    content = file.file.read()
+    stored_url = save_binary_upload(
+        subdir=f"protests/{regatta_id}/{protest_id}",
+        filename=safe_name,
+        content=content,
+        content_type=file.content_type or "application/octet-stream",
+    )
+    public_url = normalize_public_url(stored_url)
 
     a = ProtestAttachment(
         protest_id=protest_id,
         kind=kind,
         filename=safe_name,
         content_type=file.content_type or "application/octet-stream",
-        size=dest_path.stat().st_size,
+        size=len(content),
         url=public_url,
         uploaded_by_user_id=current_user.id,
     )

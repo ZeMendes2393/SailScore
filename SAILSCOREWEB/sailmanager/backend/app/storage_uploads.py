@@ -111,7 +111,7 @@ def delete_stored_upload(stored_path: str) -> None:
     if not stored_path:
         return
 
-    if stored_path.startswith(("http://", "https://")) and use_s3():
+    if stored_path.startswith(("http://", "https://")):
         key = _s3_key_from_public_url(stored_path)
         if not key:
             return

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import uuid4
@@ -9,6 +9,7 @@ from datetime import datetime
 from app.database import get_db
 from app import models, schemas
 from app.org_scope import assert_user_can_manage_org_id
+from app.storage_uploads import build_download_url, delete_stored_upload, save_binary_upload
 from utils.auth_utils import get_current_user
 
 
@@ -17,12 +18,7 @@ import mimetypes
 
 router = APIRouter(prefix="/entries", tags=["entry_attachments"])
 
-# storage local
-BASE_UPLOAD_DIR = "uploads/entry_attachments"      # disco
-BASE_PUBLIC_PREFIX = "/uploads/entry_attachments"  # url pública (static)
-
-def ensure_dir(path: str) -> None:
-    os.makedirs(path, exist_ok=True)
+BASE_PUBLIC_PREFIX = "/uploads/entry_attachments"
 
 def _created_at_utc(dt: Optional[datetime]) -> str:
     """Serialize datetime as ISO with Z (UTC) so frontend can convert to regatta timezone."""
@@ -112,21 +108,19 @@ def upload_attachment(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
-    # paths
-    entry_dir = os.path.join(BASE_UPLOAD_DIR, str(entry_id))
-    ensure_dir(entry_dir)
-
     # mantém a extensão original
     orig_name = os.path.basename(file.filename)
     _, ext = os.path.splitext(orig_name)           # e.g. ".pdf"
     rand_name = f"{uuid4()}{ext or ''}"            # uuid + .pdf
-    storage_path = os.path.join(entry_dir, rand_name)
-    public_path = f"{BASE_PUBLIC_PREFIX}/{entry_id}/{rand_name}"
-
-    with open(storage_path, "wb") as fh:
-        fh.write(file.file.read())
-
-    size = os.path.getsize(storage_path) if os.path.exists(storage_path) else 0
+    content = file.file.read()
+    public_path = save_binary_upload(
+        subdir=f"entry_attachments/{entry_id}",
+        filename=rand_name,
+        content=content,
+        content_type=file.content_type or "application/pdf",
+    )
+    storage_path = public_path if public_path.startswith("http") else f"{BASE_PUBLIC_PREFIX}/{entry_id}/{rand_name}"
+    size = len(content)
 
     # content-type correto
     content_type = file.content_type or mimetypes.guess_type(rand_name)[0] or "application/octet-stream"
@@ -231,11 +225,7 @@ def delete_attachment_scoped(
         raise HTTPException(status_code=404, detail="Regatta not found")
     if not _can_manage_entry_attachment(current_user, entry, regatta):
         raise HTTPException(status_code=403, detail="Acesso negado")
-    try:
-        if a.storage_path and os.path.exists(a.storage_path):
-            os.remove(a.storage_path)
-    except Exception:
-        pass
+    delete_stored_upload(a.public_path or a.storage_path or "")
     db.delete(a); db.commit()
     return
 
@@ -257,11 +247,7 @@ def delete_attachment_legacy(
         raise HTTPException(status_code=404, detail="Regatta not found")
     if not _can_manage_entry_attachment(current_user, entry, regatta):
         raise HTTPException(status_code=403, detail="Acesso negado")
-    try:
-        if a.storage_path and os.path.exists(a.storage_path):
-            os.remove(a.storage_path)
-    except Exception:
-        pass
+    delete_stored_upload(a.public_path or a.storage_path or "")
     db.delete(a); db.commit()
     return
 
@@ -278,6 +264,14 @@ def download_attachment_scoped(entry_id: int, attachment_id: int, db: Session = 
     )
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    download_url = build_download_url(
+        stored_path=a.public_path or a.storage_path or "",
+        download_filename=(a.original_filename or "").strip() or None,
+        expires_seconds=600,
+    )
+    if download_url:
+        return RedirectResponse(url=download_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
     if not a.storage_path or not os.path.exists(a.storage_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
 
@@ -300,6 +294,14 @@ def download_attachment_legacy(attachment_id: int, db: Session = Depends(get_db)
     a = db.query(models.EntryAttachment).filter(models.EntryAttachment.id == attachment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    download_url = build_download_url(
+        stored_path=a.public_path or a.storage_path or "",
+        download_filename=(a.original_filename or "").strip() or None,
+        expires_seconds=600,
+    )
+    if download_url:
+        return RedirectResponse(url=download_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
     if not os.path.exists(a.storage_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     return FileResponse(

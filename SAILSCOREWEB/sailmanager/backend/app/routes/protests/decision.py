@@ -11,8 +11,9 @@ from app.database import get_db
 from app import models, schemas
 from app.models import Protest, Hearing, ProtestAttachment
 from app.org_scope import assert_staff_regatta_access
+from app.storage_uploads import delete_stored_upload, save_binary_upload
 from utils.auth_utils import get_current_user, verify_role
-from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, normalize_public_url
+from .helpers import tiny_valid_pdf_bytes, normalize_public_url
 from app.services.pdf import generate_decision_pdf  # gerador central
 
 router = APIRouter()
@@ -259,6 +260,7 @@ def save_decision(
     wrote_ok = False
 
     try:
+        pdf_bytes: bytes | None = None
         disk_path, public_url = generate_decision_pdf(
             regatta_id=regatta_id,
             protest_id=protest_id,
@@ -269,19 +271,31 @@ def save_decision(
         file_path = Path(disk_path)
         if file_path.exists() and file_path.stat().st_size > 0:
             wrote_ok = True
-        public_url = normalize_public_url(public_url)
+            try:
+                pdf_bytes = file_path.read_bytes()
+                public_url = save_binary_upload(
+                    subdir=f"protests/{regatta_id}",
+                    filename=f"decision_{protest_id}.pdf",
+                    content=pdf_bytes,
+                    content_type="application/pdf",
+                )
+            except Exception:
+                public_url = normalize_public_url(public_url)
+        else:
+            public_url = normalize_public_url(public_url)
     except Exception as e:
         print("[decision_pdf] generate_decision_pdf ERROR:", e)
 
     if not wrote_ok:
-        out_dir = Path("uploads") / "protests" / str(regatta_id)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        file_path = out_dir / f"decision_{protest_id}.pdf"
-        file_path.write_bytes(
-            tiny_valid_pdf_bytes("Hearing Decision", f"Protest ID: {protest_id}")
+        pdf_bytes = tiny_valid_pdf_bytes("Hearing Decision", f"Protest ID: {protest_id}")
+        public_url = save_binary_upload(
+            subdir=f"protests/{regatta_id}",
+            filename=f"decision_{protest_id}.pdf",
+            content=pdf_bytes,
+            content_type="application/pdf",
         )
-        public_url = f"{PUBLIC_BASE_URL}/uploads/protests/{regatta_id}/decision_{protest_id}.pdf"
         public_url = normalize_public_url(public_url)
+        file_path = None
 
     # Guardar URL (no Protest; evitar colunas inexistentes no Hearing)
     try:
@@ -292,9 +306,17 @@ def save_decision(
 
     # Attachment
     try:
+        old_rows = db.query(ProtestAttachment).filter(
+            ProtestAttachment.protest_id == protest_id,
+            ProtestAttachment.kind == "decision_pdf",
+        ).all()
+        for old in old_rows:
+            delete_stored_upload(old.url or "")
+            db.delete(old)
+
         from os.path import basename
         filename = basename(file_path.name) if file_path else f"decision_{protest_id}.pdf"
-        size = file_path.stat().st_size if file_path and file_path.exists() else 0
+        size = file_path.stat().st_size if file_path and file_path.exists() else (len(pdf_bytes) if 'pdf_bytes' in locals() and pdf_bytes else 0)
         db.add(
             ProtestAttachment(
                 protest_id=protest_id,

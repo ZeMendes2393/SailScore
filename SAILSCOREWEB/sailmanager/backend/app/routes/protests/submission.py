@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 from app.models import Protest, ProtestAttachment, Entry, Regatta
 from app.schemas import ProtestCreate
 from app.services.pdf import generate_submitted_pdf
+from app.storage_uploads import delete_stored_upload, save_binary_upload
 from app.services.pdf.generators import (
     build_submitted_pdf_initiator_rows,
     build_submitted_pdf_respondent_rows,
 )
 
-from .helpers import PUBLIC_BASE_URL, tiny_valid_pdf_bytes, normalize_public_url
+from .helpers import tiny_valid_pdf_bytes, normalize_public_url
 
 
 def apply_submitted_snapshot_and_pdf(
@@ -31,10 +32,13 @@ def apply_submitted_snapshot_and_pdf(
 ) -> None:
     """Atualiza submitted_snapshot_json e gera PDF de submissão (commit incluído)."""
     if replace_submitted_pdfs:
-        db.query(ProtestAttachment).filter(
+        old_rows = db.query(ProtestAttachment).filter(
             ProtestAttachment.protest_id == p.id,
             ProtestAttachment.kind == "submitted_pdf",
-        ).delete(synchronize_session=False)
+        ).all()
+        for old in old_rows:
+            delete_stored_upload(old.url or "")
+            db.delete(old)
         db.flush()
 
     regatta_name = None
@@ -130,17 +134,24 @@ def apply_submitted_snapshot_and_pdf(
                 file_path, public_url = None, ret  # type: ignore[assignment]
             if file_path and file_path.exists() and file_path.stat().st_size > 0:
                 written_ok = True
-            public_url = normalize_public_url(public_url)
+                try:
+                    content = file_path.read_bytes()
+                    public_url = save_binary_upload(
+                        subdir=f"protests/{p.regatta_id}",
+                        filename=f"submitted_{p.id}.pdf",
+                        content=content,
+                        content_type="application/pdf",
+                    )
+                except Exception:
+                    public_url = normalize_public_url(public_url)
+            else:
+                public_url = normalize_public_url(public_url)
         except Exception as e:
             print("[PDF][submitted] serviço falhou, fallback:", e)
             public_url = None
             file_path = None
 
         if not written_ok:
-            uploads_dir = Path("uploads") / "protests" / str(p.regatta_id)
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-            file_path = uploads_dir / f"submitted_{p.id}.pdf"
-
             init = (snapshot.get("initiator") or {})
             inc_s = (snapshot.get("incident") or {})
             respondents = (snapshot.get("respondents") or [])
@@ -172,9 +183,14 @@ def apply_submitted_snapshot_and_pdf(
                 f"Description: {inc_s.get('description') or snapshot.get('incident_description') or '—'}",
                 f"Rules Alleged: {inc_s.get('rules_applied') or snapshot.get('rules_alleged') or '—'}",
             ]
-
-            file_path.write_bytes(tiny_valid_pdf_bytes("Protest — Submission", lines))
-            public_url = f"{PUBLIC_BASE_URL}/uploads/protests/{p.regatta_id}/submitted_{p.id}.pdf"
+            pdf_bytes = tiny_valid_pdf_bytes("Protest — Submission", lines)
+            public_url = save_binary_upload(
+                subdir=f"protests/{p.regatta_id}",
+                filename=f"submitted_{p.id}.pdf",
+                content=pdf_bytes,
+                content_type="application/pdf",
+            )
+            file_path = None
 
         p.submitted_pdf_url = normalize_public_url(str(public_url))
 
@@ -183,7 +199,7 @@ def apply_submitted_snapshot_and_pdf(
             kind="submitted_pdf",
             filename=os.path.basename(str(public_url)),
             content_type="application/pdf",
-            size=(file_path.stat().st_size if file_path else 0),
+            size=(file_path.stat().st_size if file_path and file_path.exists() else (len(pdf_bytes) if 'pdf_bytes' in locals() else 0)),
             url=p.submitted_pdf_url,
             uploaded_by_user_id=current_user_id,
         ))
