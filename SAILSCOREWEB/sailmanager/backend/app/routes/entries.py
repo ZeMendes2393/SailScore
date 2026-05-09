@@ -86,7 +86,11 @@ def _entry_list_order():
     for digit in "0123456789":
         non_digit = func.replace(non_digit, digit, "")
     sail_is_numeric = and_(sail_trim != "", non_digit == "")
-    sail_number_int = cast(sail_trim, Integer)
+    # Evita cast inválido (ex.: "ILCA001") em PostgreSQL ao só converter quando é numérico.
+    sail_number_int = case(
+        (sail_is_numeric, cast(sail_trim, Integer)),
+        else_=None,
+    )
     return (
         func.lower(func.trim(models.Entry.class_name)),
         func.upper(func.trim(models.Entry.boat_country_code)),
