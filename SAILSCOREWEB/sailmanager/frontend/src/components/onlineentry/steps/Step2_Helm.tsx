@@ -52,8 +52,8 @@ export default function Step2({ data, onChange, onNext, onBack }: Step2Props) {
 
   return (
     <form onSubmit={handleNext} className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">Step 2: Helm / Skipper details</h2>
-      <p className="text-sm text-gray-600">Enter the helm/skipper athlete details (required).</p>
+      <h2 className="text-xl font-bold text-gray-900">Step 2: Skipper details</h2>
+      <p className="text-sm text-gray-600">Enter the skipper details (required).</p>
 
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1">Identification</h3>

@@ -128,9 +128,11 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
           </>
         )}
 
-        <Field label="Category" hint="e.g. Men, Women, Mixed">
-          <input type="text" name="category" placeholder="e.g. Mixed" value={localData.category || ''} onChange={handleChange} className={inputClass} />
-        </Field>
+        {!isHandicap && (
+          <Field label="Category" hint="e.g. Men, Women, Mixed">
+            <input type="text" name="category" placeholder="e.g. Mixed" value={localData.category || ''} onChange={handleChange} className={inputClass} />
+          </Field>
+        )}
       </div>
 
       <div className="flex justify-between pt-2">

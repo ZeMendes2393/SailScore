@@ -200,6 +200,12 @@ export default function AdminRegattaPage() {
     if (!code) setTimezone('');
   };
 
+  const parseClassNames = (raw: string): string[] =>
+    raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
@@ -224,13 +230,37 @@ export default function AdminRegattaPage() {
       );
       setRegatta(prev => ({ ...(patched || prev), online_entry_open: prev?.online_entry_open ?? true }));
 
+      // Se o utilizador escreveu uma classe nova e clicou "Save changes"
+      // sem carregar no "+", inclui essa classe pendente automaticamente.
+      const mergedOD = [...editClassesOneDesign];
+      const mergedH = [...editClassesHandicap];
+      const hasClass = (name: string) => {
+        const key = name.toLowerCase();
+        return (
+          mergedOD.some((x) => x.class_name.toLowerCase() === key) ||
+          mergedH.some((x) => x.toLowerCase() === key)
+        );
+      };
+      for (const cname of parseClassNames(newClassNameOD)) {
+        if (!hasClass(cname)) {
+          mergedOD.push({ class_name: cname, sailors_per_boat: newSailorsOD });
+        }
+      }
+      for (const cname of parseClassNames(newClassNameH)) {
+        if (!hasClass(cname)) {
+          mergedH.push(cname);
+        }
+      }
+      mergedOD.sort((a, b) => a.class_name.localeCompare(b.class_name));
+      mergedH.sort((a, b) => a.localeCompare(b));
+
       const classesPayload = [
-        ...editClassesOneDesign.map((c) => ({
+        ...mergedOD.map((c) => ({
           class_name: c.class_name,
           class_type: 'one_design' as const,
           sailors_per_boat: c.sailors_per_boat,
         })),
-        ...editClassesHandicap.map((c) => ({ class_name: c, class_type: 'handicap' as const })),
+        ...mergedH.map((c) => ({ class_name: c, class_type: 'handicap' as const })),
       ];
       await apiSend<unknown>(
         `/regattas/${regattaId}/classes`,
@@ -238,7 +268,11 @@ export default function AdminRegattaPage() {
         { classes: classesPayload },
         token
       );
-      setAvailableClasses([...editClassesOneDesign.map((c) => c.class_name), ...editClassesHandicap]);
+      setEditClassesOneDesign(mergedOD);
+      setEditClassesHandicap(mergedH);
+      setNewClassNameOD('');
+      setNewClassNameH('');
+      setAvailableClasses([...mergedOD.map((c) => c.class_name), ...mergedH]);
 
       alert('Regatta and classes updated.');
       setActiveTab('entry');
@@ -387,14 +421,23 @@ export default function AdminRegattaPage() {
   }, [regattaId, loadEditClassesIntoForm, isScorer]);
 
   const addEditClassOD = () => {
-    const c = newClassNameOD.trim();
-    if (!c) return;
-    const key = c.toLowerCase();
-    if (editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) || editClassesHandicap.some((x) => x.toLowerCase() === key)) {
-      alert('Essa classe já está na lista.');
+    const names = parseClassNames(newClassNameOD);
+    if (names.length === 0) return;
+    const duplicates = names.filter((c) => {
+      const key = c.toLowerCase();
+      return (
+        editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) ||
+        editClassesHandicap.some((x) => x.toLowerCase() === key)
+      );
+    });
+    if (duplicates.length > 0) {
+      alert(`Essa classe já está na lista: ${duplicates.join(', ')}`);
       return;
     }
-    setEditClassesOneDesign((prev) => [...prev, { class_name: c, sailors_per_boat: newSailorsOD }].sort((a, b) => a.class_name.localeCompare(b.class_name)));
+    setEditClassesOneDesign((prev) =>
+      [...prev, ...names.map((c) => ({ class_name: c, sailors_per_boat: newSailorsOD }))]
+        .sort((a, b) => a.class_name.localeCompare(b.class_name))
+    );
     setNewClassNameOD('');
   };
 
@@ -405,14 +448,20 @@ export default function AdminRegattaPage() {
   };
 
   const addEditClassH = () => {
-    const c = newClassNameH.trim();
-    if (!c) return;
-    const key = c.toLowerCase();
-    if (editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) || editClassesHandicap.some((x) => x.toLowerCase() === key)) {
-      alert('Essa classe já está na lista.');
+    const names = parseClassNames(newClassNameH);
+    if (names.length === 0) return;
+    const duplicates = names.filter((c) => {
+      const key = c.toLowerCase();
+      return (
+        editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) ||
+        editClassesHandicap.some((x) => x.toLowerCase() === key)
+      );
+    });
+    if (duplicates.length > 0) {
+      alert(`Essa classe já está na lista: ${duplicates.join(', ')}`);
       return;
     }
-    setEditClassesHandicap((prev) => [...prev, c].sort((a, b) => a.localeCompare(b)));
+    setEditClassesHandicap((prev) => [...prev, ...names].sort((a, b) => a.localeCompare(b)));
     setNewClassNameH('');
   };
 

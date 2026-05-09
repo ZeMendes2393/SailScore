@@ -84,7 +84,10 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       boat_name: boat.boat_name || '',
       boat_model: boat.boat_model || undefined,
       rating: boat.rating != null && boat.rating !== '' ? Number(boat.rating) : undefined,
-      category: boat.category || '',
+      category:
+        formData.class_type === 'handicap'
+          ? undefined
+          : (boat.category || ''),
       owner_first_name: boat.owner_first_name || undefined,
       owner_last_name: boat.owner_last_name || undefined,
       owner_email: boat.owner_email || undefined,
