@@ -76,7 +76,7 @@ input.login-input:-webkit-autofill:focus {
   --ss-primary: #0056d6;
   --ss-primary-hover: #0047b1;
   --ss-radius: 16px;
-  --ss-container: 1440px;
+  --ss-container: 1280px;
   --ss-shadow: 0 14px 34px rgba(7, 36, 73, 0.08);
   --ss-shadow-soft: 0 8px 20px rgba(7, 36, 73, 0.05);
   background:
@@ -84,6 +84,10 @@ input.login-input:-webkit-autofill:focus {
     radial-gradient(circle at 10% 35%, #e7f9f9 0, transparent 24%),
     var(--ss-bg);
   color: var(--ss-text);
+  font-size: 1.08rem;
+}
+.sailscore-landing {
+  scroll-behavior: smooth;
 }
 
 .sailscore-landing *,
@@ -99,18 +103,83 @@ input.login-input:-webkit-autofill:focus {
 
 .sailscore-landing .ss-content-narrow { max-width: 820px; }
 .sailscore-landing .ss-section { padding: 6rem 0; }
+.sailscore-landing .ss-section[id] { scroll-margin-top: 5.75rem; }
 .sailscore-landing .ss-section-muted { background: linear-gradient(180deg, var(--ss-surface-muted), var(--ss-surface-alt)); }
+.sailscore-landing .ss-section-intro { max-width: 70ch; margin-bottom: 1.25rem; }
 .sailscore-landing .ss-hero { padding-top: 5rem; }
+.sailscore-landing .ss-top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(10px);
+  background: rgba(243, 247, 252, 0.9);
+  border-bottom: 1px solid var(--ss-border);
+}
+.sailscore-landing .ss-top-nav-inner {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  flex-wrap: wrap;
+}
+.sailscore-landing .ss-top-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--ss-text);
+  padding: 0.25rem 0.45rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.sailscore-landing .ss-top-brand:hover {
+  background: #fff;
+  border-color: var(--ss-border);
+}
+.sailscore-landing .ss-top-brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+}
+.sailscore-landing .ss-top-brand-name {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+}
+.sailscore-landing .ss-top-links {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sailscore-landing .ss-top-links a {
+  text-decoration: none;
+  color: var(--ss-text);
+  font-weight: 600;
+  font-size: 0.98rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+.sailscore-landing .ss-top-links a:hover {
+  background: #fff;
+  border-color: var(--ss-border);
+}
 .sailscore-landing .ss-hero-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 2rem; align-items: center; }
-.sailscore-landing .ss-h1 { font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.15; margin-bottom: 1rem; color: var(--ss-text); }
-.sailscore-landing .ss-h2 { font-size: clamp(1.5rem, 2.5vw, 2rem); margin-bottom: 1rem; letter-spacing: -0.02em; color: var(--ss-text); }
-.sailscore-landing .ss-h3 { font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--ss-text); }
+.sailscore-landing .ss-h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); line-height: 1.15; margin-bottom: 1rem; color: var(--ss-text); }
+.sailscore-landing .ss-h2 { font-size: clamp(1.8rem, 2.8vw, 2.35rem); margin-bottom: 1rem; letter-spacing: -0.02em; color: var(--ss-text); }
+.sailscore-landing .ss-h3 { font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--ss-text); }
 .sailscore-landing p { color: var(--ss-text-soft); margin: 0; }
 .sailscore-landing .ss-eyebrow { color: #0a4db8; font-weight: 700; margin-bottom: .8rem; text-transform: uppercase; font-size: .8rem; letter-spacing: .08em; }
-.sailscore-landing .ss-lead { max-width: 65ch; font-size: 1.08rem; }
+.sailscore-landing .ss-lead { max-width: 65ch; font-size: 1.16rem; }
 .sailscore-landing .ss-microcopy { margin-top: .8rem; font-size: .92rem; }
 .sailscore-landing .ss-hero-actions { display: flex; gap: .8rem; margin-top: 1.5rem; flex-wrap: wrap; }
-.sailscore-landing .ss-btn { display: inline-flex; align-items: center; justify-content: center; padding: .8rem 1.2rem; border-radius: 999px; font-weight: 700; border: 1px solid transparent; transition: all .2s ease, transform .15s ease; text-decoration: none; }
+.sailscore-landing .ss-btn { display: inline-flex; align-items: center; justify-content: center; padding: .92rem 1.35rem; border-radius: 999px; font-weight: 700; font-size: 1rem; border: 1px solid transparent; transition: all .2s ease, transform .15s ease; text-decoration: none; }
 .sailscore-landing .ss-btn-primary { background: linear-gradient(135deg, var(--ss-primary), #1f6fff); color: #fff; box-shadow: 0 10px 20px rgba(0,86,214,.28); }
 .sailscore-landing .ss-btn-primary:hover { background: linear-gradient(135deg, var(--ss-primary-hover), #165dcc); transform: translateY(-1px); }
 .sailscore-landing .ss-btn-secondary { border-color: var(--ss-border); background: #fff; color: var(--ss-text); box-shadow: var(--ss-shadow-soft); }
@@ -131,10 +200,136 @@ input.login-input:-webkit-autofill:focus {
 .sailscore-landing .ss-grid { display: grid; gap: 1rem; }
 .sailscore-landing .ss-cards-3,
 .sailscore-landing .ss-steps-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sailscore-landing .ss-modules-grid,
+.sailscore-landing .ss-persona-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.sailscore-landing .ss-module {
+  background: var(--ss-surface);
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--ss-shadow-soft);
+}
+.sailscore-landing .ss-module-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0b5ed7;
+  background: #e8f0ff;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  margin-bottom: 0.55rem;
+}
+.sailscore-landing .ss-chip-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sailscore-landing .ss-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ss-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.88rem;
+  color: var(--ss-text);
+  box-shadow: var(--ss-shadow-soft);
+}
+.sailscore-landing .ss-spotlight {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 2.25rem;
+  align-items: center;
+}
+.sailscore-landing .ss-spotlight-reverse .ss-spotlight-text {
+  order: 2;
+}
+.sailscore-landing .ss-spotlight-reverse .ss-spotlight-visual {
+  order: 1;
+}
+.sailscore-landing .ss-spotlight-text .ss-h2 {
+  margin-bottom: 0.6rem;
+}
+.sailscore-landing .ss-spotlight-text p {
+  max-width: 60ch;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+.sailscore-landing .ss-spotlight-visual {
+  background: var(--ss-surface);
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius);
+  padding: 0.6rem;
+  box-shadow: var(--ss-shadow);
+  position: relative;
+  overflow: hidden;
+}
+.sailscore-landing .ss-spotlight-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(0,86,214,.05), rgba(0,163,163,.05));
+  pointer-events: none;
+}
+.sailscore-landing .ss-spotlight-visual img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid #cbdaee;
+}
 .sailscore-landing .ss-card,
-.sailscore-landing .ss-step { background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: var(--ss-radius); padding: 1.1rem; box-shadow: var(--ss-shadow-soft); transition: transform .2s ease, box-shadow .2s ease; }
+.sailscore-landing .ss-step {
+  background: var(--ss-surface);
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius);
+  padding: 1.1rem;
+  box-shadow: var(--ss-shadow-soft);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.sailscore-landing .ss-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.98)),
+    linear-gradient(140deg, rgba(0,86,214,.06), rgba(0,163,163,.05));
+}
+.sailscore-landing .ss-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0d6efd, #1fb6ff);
+  opacity: 0.9;
+}
+.sailscore-landing .ss-card .ss-h3 {
+  margin-bottom: 0.45rem;
+  font-size: 1.04rem;
+  line-height: 1.3;
+}
+.sailscore-landing .ss-card p {
+  line-height: 1.52;
+  font-size: 0.96rem;
+}
 .sailscore-landing .ss-card:hover,
-.sailscore-landing .ss-step:hover { transform: translateY(-3px); box-shadow: var(--ss-shadow); }
+.sailscore-landing .ss-step:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--ss-shadow);
+  border-color: #b7cbe6;
+}
+.sailscore-landing .ss-card:hover::before {
+  background: linear-gradient(90deg, #0b5ed7, #14b8a6);
+}
 .sailscore-landing .ss-step-number { display: inline-flex; width: 1.9rem; height: 1.9rem; border-radius: 999px; background: linear-gradient(140deg, #e3efff, #d6fbfb); color: #144a9e; align-items: center; justify-content: center; font-weight: 700; margin-bottom: .7rem; }
 .sailscore-landing details { background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: 12px; padding: .9rem 1rem; box-shadow: var(--ss-shadow-soft); }
 .sailscore-landing details + details { margin-top: .75rem; }
@@ -172,10 +367,16 @@ input.login-input:-webkit-autofill:focus {
 }
 
 @media (max-width: 1024px) {
+  .sailscore-landing { font-size: 1rem; }
   .sailscore-landing .ss-section { padding: 4rem 0; }
-  .sailscore-landing .ss-hero { padding-top: 3.5rem; }
+  .sailscore-landing .ss-hero { padding-top: 3rem; }
   .sailscore-landing .ss-container { width: min(var(--ss-container), calc(100% - 3rem)); }
   .sailscore-landing .ss-hero-grid,
   .sailscore-landing .ss-cards-3,
-  .sailscore-landing .ss-steps-3 { grid-template-columns: 1fr; }
+  .sailscore-landing .ss-steps-3,
+  .sailscore-landing .ss-modules-grid,
+  .sailscore-landing .ss-persona-grid,
+  .sailscore-landing .ss-spotlight { grid-template-columns: 1fr; }
+  .sailscore-landing .ss-spotlight-reverse .ss-spotlight-text { order: 1; }
+  .sailscore-landing .ss-spotlight-reverse .ss-spotlight-visual { order: 2; }
 }
