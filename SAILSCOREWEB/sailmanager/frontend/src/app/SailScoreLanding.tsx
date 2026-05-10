@@ -20,7 +20,7 @@ export default function SailScoreLanding() {
             <a href="#platform">Platform</a>
             <a href="#features">Features</a>
             <a href="#benefits">Benefits</a>
-            <a href="#social-proof">Clients</a>
+            <a href="#social-proof">Use cases</a>
             <a href="#how-it-works">How it works</a>
             <a href="#faq">FAQ</a>
             <a href="#final-cta">Contact</a>
@@ -198,17 +198,17 @@ export default function SailScoreLanding() {
 
       <section id="social-proof" className="ss-section ss-section-muted">
         <div className="ss-container">
-          <h2 className="ss-h2">Trusted by clubs and race teams</h2>
+          <h2 className="ss-h2">Designed for real sailing events</h2>
           <p className="ss-section-intro">
-            Practical software for local club events and multi-class championships.
+            From club races to championship weekends, SailScore gives organisers one place to manage entries, scoring, notices, results and event administration.
           </p>
-          <div className="ss-chip-row" aria-label="Client examples">
-            <span className="ss-chip">Clube de Vela do Tejo</span>
-            <span className="ss-chip">RCN Sample Team</span>
-            <span className="ss-chip">Atlantic Series</span>
-            <span className="ss-chip">Junior Circuit</span>
-            <span className="ss-chip">Coastal Cup</span>
-            <span className="ss-chip">Class Association Events</span>
+          <div className="ss-chip-row" aria-label="Event types">
+            <span className="ss-chip">Club regattas</span>
+            <span className="ss-chip">Championships</span>
+            <span className="ss-chip">Training events</span>
+            <span className="ss-chip">Class events</span>
+            <span className="ss-chip">Junior fleets</span>
+            <span className="ss-chip">Handicap racing</span>
           </div>
         </div>
       </section>
