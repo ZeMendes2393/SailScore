@@ -21,13 +21,19 @@ const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0
 const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;
 
 export const metadata: Metadata = {
+  title: {
+    default: 'SailScore',
+    template: '%s | SailScore',
+  },
+  description:
+    'SailScore helps clubs and race teams handle setup, entries, scoring, notices, and results in one structured workflow.',
   icons: {
     icon: [
-      { url: '/sailscore-icon.png', sizes: '32x32', type: 'image/png' },
-      { url: '/sailscore-icon.png', sizes: '192x192', type: 'image/png' },
+      { url: '/sailscore-icon.png?v=2', sizes: '32x32', type: 'image/png' },
+      { url: '/sailscore-icon.png?v=2', sizes: '192x192', type: 'image/png' },
     ],
-    shortcut: '/sailscore-icon.png',
-    apple: [{ url: '/sailscore-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/sailscore-icon.png?v=2',
+    apple: [{ url: '/sailscore-icon.png?v=2', sizes: '180x180', type: 'image/png' }],
   },
 };
 
