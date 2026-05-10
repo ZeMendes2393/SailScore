@@ -29,12 +29,11 @@ export const metadata: Metadata = {
     'SailScore helps clubs and race teams handle setup, entries, scoring, notices, and results in one structured workflow.',
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/sailscore-icon.png?v=2', sizes: '32x32', type: 'image/png' },
-      { url: '/sailscore-icon.png?v=2', sizes: '192x192', type: 'image/png' },
+      { url: '/sailscore-icon.png?v=3', sizes: '32x32', type: 'image/png' },
+      { url: '/sailscore-icon.png?v=3', sizes: '192x192', type: 'image/png' },
     ],
-    shortcut: '/favicon.ico',
-    apple: [{ url: '/sailscore-icon.png?v=2', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/sailscore-icon.png?v=3',
+    apple: [{ url: '/sailscore-icon.png?v=3', sizes: '180x180', type: 'image/png' }],
   },
 };
 
