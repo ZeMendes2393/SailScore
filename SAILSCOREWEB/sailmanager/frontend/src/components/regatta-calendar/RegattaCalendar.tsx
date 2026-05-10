@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 export interface RegattaItem {
@@ -43,15 +42,15 @@ interface RegattaCalendarProps {
   uiVariant?: 'default' | 'admin';
 }
 
-/** Formata intervalo de datas para exibição no card: "12–14 Abr" */
+/** Formats date range for the card display: "12-14 Apr" */
 function formatDateRangeShort(startDate: string, endDate: string): string {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
   if (sameMonth) {
-    return `${start.getDate()}–${end.getDate()} ${MONTHS_PT[start.getMonth()]}`;
+    return `${start.getDate()}–${end.getDate()} ${MONTHS[start.getMonth()]}`;
   }
-  return `${start.getDate()} ${MONTHS_PT[start.getMonth()]} – ${end.getDate()} ${MONTHS_PT[end.getMonth()]}`;
+  return `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`;
 }
 
 /** Returns true if the date string (YYYY-MM-DD) falls within any regatta's date range */
