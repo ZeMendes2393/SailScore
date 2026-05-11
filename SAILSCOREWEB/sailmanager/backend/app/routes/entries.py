@@ -1,7 +1,7 @@
 # app/routes/entries.py
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request, status, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, and_, case, cast, Integer
+from sqlalchemy import or_, func, and_, case, cast, BigInteger
 from datetime import datetime
 import secrets, os
 import unicodedata
@@ -77,29 +77,65 @@ def _count_active_entries_for_limit(
     return q.count()
 
 
+SAIL_NUMBER_MAX_LEN = 15
+
+
+def _sanitize_sail_number(raw: Optional[str]) -> str:
+    """Normaliza o sail number antes de gravar: trim, colapsa espaços, garante
+    comprimento razoável (<=15 chars). Aceita números puros ou alfanuméricos curtos
+    (ex.: "POR 1", "ILCA001"). Rebenta com 400 se exceder o limite ou se ficar vazio."""
+    s = (raw or "").strip()
+    if not s:
+        raise HTTPException(status_code=400, detail="Sail number is required.")
+    # Colapsa múltiplos espaços / tabs em 1 espaço
+    s = re.sub(r"\s+", " ", s)
+    if len(s) > SAIL_NUMBER_MAX_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sail number is too long (max {SAIL_NUMBER_MAX_LEN} characters).",
+        )
+    return s
+
+
 def _entry_list_order():
     """Ordenação padrão da entry list: classe -> país -> número de vela crescente."""
     sail_trim = func.trim(models.Entry.sail_number)
-    # Números de vela puramente numéricos primeiro (ordem numérica), depois restantes valores.
-    # Implementação compatível com PostgreSQL e SQLite (evita operador GLOB).
     non_digit = sail_trim
     for digit in "0123456789":
         non_digit = func.replace(non_digit, digit, "")
     sail_is_numeric = and_(sail_trim != "", non_digit == "")
-    # Evita cast inválido (ex.: "ILCA001") em PostgreSQL ao só converter quando é numérico.
+    # Apenas tratamos como inteiro ordenável os sail numbers com até 18 dígitos
+    # (limite seguro do BIGINT). Acima disso ordenam-se como texto.
+    sail_fits_bigint = and_(sail_is_numeric, func.length(sail_trim) <= 18)
     sail_number_int = case(
-        (sail_is_numeric, cast(sail_trim, Integer)),
+        (sail_fits_bigint, cast(sail_trim, BigInteger)),
         else_=None,
     )
     return (
         func.lower(func.trim(models.Entry.class_name)),
         func.upper(func.trim(models.Entry.boat_country_code)),
-        case((sail_is_numeric, 0), else_=1),
+        case((sail_fits_bigint, 0), else_=1),
         sail_number_int.asc(),
         func.lower(sail_trim).asc(),
         func.lower(func.trim(models.Entry.last_name)).asc(),
         func.lower(func.trim(models.Entry.first_name)).asc(),
     )
+
+
+def _safe_ordered_entries(q):
+    """Executa a query com a ordenação padrão; se rebentar (sail numbers
+    inválidos / overflow / dados corrompidos), faz fallback para uma ordenação
+    simples por id em vez de devolver 500 e matar o endpoint."""
+    try:
+        return q.order_by(*_entry_list_order()).all()
+    except Exception as e:
+        print("[entries] ordering failed, falling back to id order:", e)
+        print_exc()
+        try:
+            q.session.rollback()
+        except Exception:
+            pass
+        return q.order_by(models.Entry.id.asc()).all()
 
 
 def _assert_scorer_can_manage_regatta(db: Session, current_user: models.User, regatta_id: int) -> None:
@@ -134,7 +170,7 @@ def list_entries(
             q = q.filter(models.Entry.user_id == current_user.id)
         if class_name:
             q = q.filter(models.Entry.class_name == class_name)
-        return q.order_by(*_entry_list_order()).all()
+        return _safe_ordered_entries(q)
 
     if current_user.role == "jury":
         raise HTTPException(
@@ -170,7 +206,7 @@ def list_entries(
         )
         if class_name:
             q = q.filter(models.Entry.class_name == class_name)
-        return q.order_by(*_entry_list_order()).all()
+        return _safe_ordered_entries(q)
 
     # Regatista a pedir geral
     raise HTTPException(status_code=400, detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.")
@@ -689,6 +725,10 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             )
         entry.class_name = class_name
 
+        # Sail number normalizado/validado para evitar lixo (ex.: números enormes
+        # que rebentam o ORDER BY com overflow de INTEGER em PostgreSQL).
+        entry.sail_number = _sanitize_sail_number(entry.sail_number)
+
         # === LIMITE: waiting list ao invés de recusar ===
         is_waiting = False
         scope, lim = _online_entry_limit_context(regatta, (entry.class_name or "").strip())
@@ -839,7 +879,7 @@ def get_entries_by_regatta(
         q = q.filter(models.Entry.class_name == class_name)
     if not include_waiting:
         q = q.filter(models.Entry.waiting_list == False)  # noqa: E712
-    return q.order_by(*_entry_list_order()).all()
+    return _safe_ordered_entries(q)
 
 @router.get("/{entry_id}", response_model=schemas.EntryRead)
 def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
@@ -876,7 +916,15 @@ def _norm_str(s: Optional[str]) -> Optional[str]:
 
 def _norm_sail(s: Optional[str]) -> Optional[str]:
     s = _norm_str(s)
-    return s.upper() if s else None
+    if not s:
+        return None
+    s = re.sub(r"\s+", " ", s)
+    if len(s) > SAIL_NUMBER_MAX_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sail number is too long (max {SAIL_NUMBER_MAX_LEN} characters).",
+        )
+    return s.upper()
 
 def _class_exists_in_regatta(db: Session, regatta_id: int, class_name: str) -> bool:
     # Preferir tabela RegattaClass se existir
