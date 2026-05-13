@@ -193,6 +193,41 @@ def start_email_outbox_worker() -> None:
     t.start()
     print(f"[EMAIL OUTBOX] worker started (poll={EMAIL_QUEUE_POLL_SECONDS}s)")
 
+def enqueue_email_send(
+    to: str,
+    subject: str,
+    html: Optional[str] = None,
+    text: Optional[str] = None,
+    *,
+    from_email: Optional[str] = None,
+    from_name: Optional[str] = None,
+    reply_to: Optional[str] = None,
+) -> None:
+    """Persistir o email na outbox para envio assíncrono pelo worker daemon.
+
+    Use isto a partir de endpoints HTTP em vez de chamar `send_email` em direto
+    (ou via BackgroundTasks). Garante que o request HTTP volta em milissegundos
+    mesmo que o SMTP esteja lento ou inacessível, evitando bloquear os workers
+    do uvicorn (1 ou poucos em hobby plans).
+    """
+    if not (to or "").strip():
+        return
+    record = {
+        "to": to,
+        "subject": subject,
+        "html": html,
+        "text": text,
+        "from_email": from_email,
+        "from_name": from_name,
+        "reply_to": reply_to,
+        "attempts": 0,
+        "next_try_at": 0,
+        "created_at": int(time.time()),
+    }
+    _enqueue_email(record)
+    print(f"[EMAIL QUEUED] to={to} queue_file={EMAIL_QUEUE_FILE}")
+
+
 def send_email(
     to: str,
     subject: str,

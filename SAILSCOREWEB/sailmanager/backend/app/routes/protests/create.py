@@ -13,7 +13,7 @@ from app import models
 from app.schemas import ProtestCreate
 from utils.auth_utils import get_current_user
 from utils.guards import ensure_regatta_scope
-from app.services.email import send_email
+from app.services.email import send_email, enqueue_email_send  # noqa: F401
 
 from .validation import validate_protest_submission
 from .submission import apply_submitted_snapshot_and_pdf
@@ -135,7 +135,7 @@ def create_protest(
                     "— SailScore"
                 )
                 for to in to_emails:
-                    background.add_task(send_email, to, subject, None, text)
+                    enqueue_email_send(to, subject, None, text)
     except Exception as mail_err:
         print(f"[PROTEST_EMAIL][protest={p.id}] falhou: {mail_err}")
 

@@ -19,7 +19,7 @@ from utils.auth_utils import (
 )
 from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from app.jury_scope import assert_jury_regatta_access
-from app.services.email import send_email  # usa SMTP/LOG conforme .env
+from app.services.email import send_email, enqueue_email_send  # noqa: F401
 
 router = APIRouter()
 
@@ -605,8 +605,7 @@ def _send_combined_entry_email(
     club = _get_global_setting(db, "club_name", organization_id) or CLUB_NAME
     reply_to = _get_global_setting(db, "contact_email", organization_id) or REPLY_TO or None
 
-    background.add_task(
-        send_email,
+    enqueue_email_send(
         to_email,
         subject,
         None,
@@ -1127,8 +1126,7 @@ def _send_confirmed_entry_email(
     )
     club = _get_global_setting(db, "club_name", org_id) or CLUB_NAME
     reply_to = _get_global_setting(db, "contact_email", org_id) or REPLY_TO or None
-    background.add_task(
-        send_email,
+    enqueue_email_send(
         to_email,
         subject,
         None,

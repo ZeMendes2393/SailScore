@@ -50,9 +50,31 @@ DATABASE_URL = _normalize_database_url(
     os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
 )
 
+
+def _build_engine_kwargs(url: str) -> dict:
+    """Pool tuning para Postgres em produção.
+
+    Default conservador para Railway hobby (max_connections ~22):
+      - pool_size=5, max_overflow=5 → no máx 10 conexões por worker.
+      - Com 2 workers uvicorn → no máx 20 conexões. Margem para Alembic / scripts.
+    Em ambientes mais generosos podemos subir via env vars sem mudar código.
+
+    SQLite ignora estas opções; nesse caso devolvemos vazio.
+    """
+    if url.startswith("sqlite"):
+        return {}
+    return {
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "5")),
+        "pool_pre_ping": True,
+        "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "300")),
+    }
+
+
 engine = create_engine(
     DATABASE_URL,
     connect_args=_sqlalchemy_connect_args(DATABASE_URL),
+    **_build_engine_kwargs(DATABASE_URL),
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
