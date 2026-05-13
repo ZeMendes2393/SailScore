@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import notify from '@/lib/notify'
 
 interface Race {
   id: number
@@ -29,7 +30,7 @@ export default function RaceList({ races, regattaId }: Props) {
     if (selectedRaceId) {
       router.push(`/regattas/${regattaId}/races/${selectedRaceId}/results`)
     } else {
-      alert('Seleciona uma corrida primeiro.')
+      notify.warning('Please select a race first.')
     }
   }
 

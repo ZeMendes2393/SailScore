@@ -8,6 +8,7 @@ import Step2 from './steps/Step2_Helm';
 import Step2Crew from './steps/Step2_Crew';
 import Step3 from './steps/Step3_Boat';
 import { boatClasses } from '@/utils/boatClasses';
+import notify from '@/lib/notify';
 
 export interface MultiStepEntryFormProps {
   regattaId: number;
@@ -54,11 +55,11 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     const boat = formData.boat || {};
 
     if (!(boat.sail_number || '').trim()) {
-      alert('Sail number is required.');
+      notify.warning('Sail number is required.');
       return;
     }
     if (!(boat.boat_country_code || '').trim()) {
-      alert('Sail country code is required.');
+      notify.warning('Sail country code is required.');
       return;
     }
 
@@ -120,11 +121,15 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       if (res.ok) {
         const data = await res.json().catch(() => null);
         const waiting = !!data?.waiting_list;
-        alert(
-          waiting
-            ? 'Entry received, but the championship limit was reached. You have been added to the waiting list.'
-            : 'Entry submitted successfully!'
-        );
+        if (waiting) {
+          notify.warning({
+            title: 'Added to waiting list',
+            description:
+              'Your entry was received, but the championship limit was reached. You have been placed on the waiting list.',
+          });
+        } else {
+          notify.success('Entry submitted successfully!');
+        }
         setStep(1);
         setFormData({
           regatta_id: regattaId,
@@ -138,11 +143,20 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Backend error:', errorData);
-        alert(errorData?.detail || 'Failed to submit entry. Please try again.');
+        notify.error({
+          title: 'Failed to submit entry',
+          description:
+            typeof errorData?.detail === 'string'
+              ? errorData.detail
+              : 'Please review the form and try again.',
+        });
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      alert('Submission error. Check console for details.');
+      notify.error({
+        title: 'Submission error',
+        description: 'Something went wrong while submitting. Please try again.',
+      });
     }
   };
 

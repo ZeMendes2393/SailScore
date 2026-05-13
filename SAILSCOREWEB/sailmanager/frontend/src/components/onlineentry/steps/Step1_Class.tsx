@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import notify from '@/lib/notify'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
 
@@ -86,7 +87,7 @@ export default function Step1({ data, onChange, onNext }: Step1Props) {
 
   const handleNext = () => {
     if (localData.class_name) onNext()
-    else alert('Please select a class.')
+    else notify.warning('Please select a class.')
   }
 
   return (

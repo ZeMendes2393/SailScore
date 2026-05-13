@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { getApiBaseUrl } from '@/lib/api'
 import { isAdminRole } from '@/lib/roles'
+import notify from '@/lib/notify'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 interface Result {
   id: number
@@ -19,6 +21,7 @@ export default function RaceResultsPage() {
   const { user, token } = useAuth()
   const params = useParams<{ id: string; raceId: string }>()
   const raceId = params.raceId
+  const confirm = useConfirm()
 
   const [results, setResults] = useState<Result[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,8 +51,13 @@ export default function RaceResultsPage() {
   }, [raceId])
 
   const handleDelete = async (resultId: number) => {
-    const confirm = window.confirm('Tens a certeza que queres apagar este resultado?')
-    if (!confirm) return
+    const ok = await confirm({
+      title: 'Delete this race result?',
+      description: 'This action cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Delete',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/results/${resultId}`, {
@@ -61,12 +69,13 @@ export default function RaceResultsPage() {
 
       if (res.status === 204) {
         setResults((prev) => prev.filter((r) => r.id !== resultId))
+        notify.success('Result deleted.')
       } else {
-        alert('Erro ao apagar resultado.')
+        notify.error('Failed to delete result.')
       }
     } catch (error) {
       console.error('Erro ao apagar resultado:', error)
-      alert('Erro ao apagar resultado.')
+      notify.error('Failed to delete result.')
     }
   }
 

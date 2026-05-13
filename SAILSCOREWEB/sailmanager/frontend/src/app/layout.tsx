@@ -1,9 +1,11 @@
 import { headers } from 'next/headers';
 import { Geist, Geist_Mono } from 'next/font/google';
 import type { Metadata } from 'next';
+import { Toaster } from 'sonner';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import ClientLayout from './ClientLayout';
+import { ConfirmProvider } from '@/components/ConfirmDialog';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -120,14 +122,32 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}
       >
         <AuthProvider>
-          <ClientLayout
-            headerDesign={headerDesign}
-            footerDesign={footerDesign}
-            serverOrgSlug={orgSlug}
-          >
-            {children}
-          </ClientLayout>
+          <ConfirmProvider>
+            <ClientLayout
+              headerDesign={headerDesign}
+              footerDesign={footerDesign}
+              serverOrgSlug={orgSlug}
+            >
+              {children}
+            </ClientLayout>
+          </ConfirmProvider>
         </AuthProvider>
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          expand={false}
+          duration={4000}
+          toastOptions={{
+            className: 'sailscore-toast',
+            style: {
+              borderRadius: '14px',
+              fontSize: '0.95rem',
+              padding: '12px 16px',
+              boxShadow: '0 18px 40px rgba(7, 36, 73, 0.18)',
+            },
+          }}
+        />
       </body>
     </html>
   );
