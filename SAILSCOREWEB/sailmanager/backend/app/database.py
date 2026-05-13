@@ -54,18 +54,23 @@ DATABASE_URL = _normalize_database_url(
 def _build_engine_kwargs(url: str) -> dict:
     """Pool tuning para Postgres em produção.
 
-    Default conservador para Railway hobby (max_connections ~22):
-      - pool_size=5, max_overflow=5 → no máx 10 conexões por worker.
-      - Com 2 workers uvicorn → no máx 20 conexões. Margem para Alembic / scripts.
-    Em ambientes mais generosos podemos subir via env vars sem mudar código.
+    Defaults dimensionados para Railway com PostgreSQL max_connections=100:
+      - pool_size=10, max_overflow=10 → até 20 conexões por worker.
+      - Com 2 workers uvicorn → no máx 40 conexões. Sobram ~60 para
+        Alembic / scripts / queries diretas.
+      - pool_timeout=5 → preferimos falhar rápido (5s) em vez de prender o
+        request 30s à espera de uma conexão (o utilizador vê erro claro
+        em vez de spinner infinito).
+    Em ambientes mais restritos podemos baixar via env vars sem mudar código.
 
     SQLite ignora estas opções; nesse caso devolvemos vazio.
     """
     if url.startswith("sqlite"):
         return {}
     return {
-        "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
-        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "5")),
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "10")),
+        "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "5")),
         "pool_pre_ping": True,
         "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "300")),
     }
@@ -111,5 +116,15 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Em caso de exceção dentro do request, fazemos rollback explícito antes
+        # de fechar para garantir que a conexão volta limpa ao pool (sem
+        # transação aberta a segurar locks). Isto evita o cenário em que um 500
+        # deixa conexões inutilizáveis e acaba por esgotar o pool inteiro.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         db.close()
