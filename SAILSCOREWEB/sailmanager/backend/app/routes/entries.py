@@ -291,17 +291,25 @@ def _build_sailor_username_base(entry: schemas.EntryCreate) -> str:
     return base or "sailor"
 
 
-def _ensure_sailor_user_and_profile(db: Session, entry: schemas.EntryCreate) -> models.User:
+def _ensure_sailor_user_and_profile(
+    db: Session,
+    entry: schemas.EntryCreate,
+    *,
+    regatta: Optional[models.Regatta] = None,
+) -> models.User:
     # Continua a ser obrigatório ter um email de contacto na entry,
     # mas já não é usado como identificador único da conta.
     contact_email = (entry.email or "").strip().lower()
     if not contact_email:
         raise HTTPException(status_code=400, detail="Email do timoneiro é obrigatório.")
 
-    regatta_row = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
-    if not regatta_row:
+    # Re-usa a regatta vinda do caller para evitar uma query extra a Postgres.
+    # Em produção remota essa query custa ~50-100ms por POST.
+    if regatta is None:
+        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+    if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
-    org_id = regatta_row.organization_id
+    org_id = regatta.organization_id
 
     base_username = _build_sailor_username_base(entry)
 
@@ -738,7 +746,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
             if current_count >= lim:
                 is_waiting = True
 
-        user = _ensure_sailor_user_and_profile(db, entry)
+        user = _ensure_sailor_user_and_profile(db, entry, regatta=regatta)
 
         # Duplicado = mesmo número de vela + mesmo country code na mesma classe (POR 1 + POR 1 não pode; POR 1 + GBR 1 pode)
         if _entry_duplicate_sail(

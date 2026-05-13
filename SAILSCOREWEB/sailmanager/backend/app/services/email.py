@@ -174,9 +174,63 @@ def start_email_outbox_worker() -> None:
     """
     Worker daemon que processa a outbox periodicamente.
     Chamar uma vez no startup da app.
+
+    Como o uvicorn em produção corre vários workers, todos eles executariam
+    este daemon e tentariam processar a MESMA fila JSONL em paralelo (com
+    leituras/escritas concorrentes que não estão protegidas entre processos).
+    Para evitar isto, só o primeiro worker que arranca cria o daemon. Os
+    restantes saltam silenciosamente. Em ambiente local sem o ficheiro de
+    lock, todos arrancam normalmente (fallback seguro).
     """
     if not SMTP_HOST:
         print("[EMAIL OUTBOX] SMTP not configured; worker not started.")
+        return
+
+    if os.getenv("EMAIL_OUTBOX_DISABLED", "").lower() in {"1", "true", "yes", "on"}:
+        print("[EMAIL OUTBOX] disabled via EMAIL_OUTBOX_DISABLED env.")
+        return
+
+    # Lock baseado em ficheiro: o primeiro worker uvicorn cria o ficheiro com
+    # PID dentro; os restantes detetam que já existe um daemon ativo e não
+    # arrancam um seu. Se o processo morrer, o lock fica órfão, mas o próximo
+    # startup limpa-o ao reabrir o ficheiro com `os.O_EXCL` falhar.
+    lock_path = Path(os.getenv("EMAIL_OUTBOX_LOCK_FILE", "/tmp/sailscore_email_outbox.lock")).resolve()
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        with os.fdopen(fd, "w") as f:
+            f.write(str(os.getpid()))
+    except FileExistsError:
+        # Outro worker já tem o daemon a correr. Verificamos se o PID ainda
+        # está vivo; se não, recuperamos o lock para evitar ficar sem worker.
+        try:
+            with open(lock_path, "r", encoding="utf-8") as f:
+                pid_text = f.read().strip()
+            pid = int(pid_text) if pid_text else 0
+            if pid and pid != os.getpid():
+                try:
+                    os.kill(pid, 0)
+                    print(
+                        f"[EMAIL OUTBOX] another worker (pid={pid}) is already running the daemon; skipping."
+                    )
+                    return
+                except OSError:
+                    # PID antigo morto → reciclamos o lock
+                    pass
+        except Exception:
+            pass
+        try:
+            lock_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            with os.fdopen(fd, "w") as f:
+                f.write(str(os.getpid()))
+        except Exception:
+            print("[EMAIL OUTBOX] could not acquire lock; skipping daemon.")
+            return
+    except Exception as e:
+        print(f"[EMAIL OUTBOX] lock error ({e}); skipping daemon.")
         return
 
     def _run() -> None:
@@ -191,7 +245,7 @@ def start_email_outbox_worker() -> None:
 
     t = threading.Thread(target=_run, name="email-outbox-worker", daemon=True)
     t.start()
-    print(f"[EMAIL OUTBOX] worker started (poll={EMAIL_QUEUE_POLL_SECONDS}s)")
+    print(f"[EMAIL OUTBOX] worker started (poll={EMAIL_QUEUE_POLL_SECONDS}s, lock={lock_path})")
 
 def enqueue_email_send(
     to: str,
