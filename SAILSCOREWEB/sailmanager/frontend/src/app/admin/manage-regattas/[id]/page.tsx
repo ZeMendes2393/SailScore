@@ -12,6 +12,8 @@ import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 import JuryCredentialsPanel from './JuryCredentialsPanel';
 import AdminRegattaFinances from './AdminRegattaFinances';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
 type CountryItem = { code: string; name: string };
@@ -53,6 +55,7 @@ export default function AdminRegattaPage() {
   const pathname = usePathname();
   const { token, user } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
   const isScorer = user?.role === 'scorer';
   const manageRegattaBasePath = isScorer ? '/scorer/manage-regattas' : '/admin/manage-regattas';
   const scorerAllowedTabs: Tab[] = ['entry', 'notice', 'form'];
@@ -209,7 +212,7 @@ export default function AdminRegattaPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert('Session missing. Please log in as admin.');
+      notify.error('Session missing. Please log in as admin.');
       router.push(withOrg('/admin/login', orgSlug));
       return;
     }
@@ -274,10 +277,10 @@ export default function AdminRegattaPage() {
       setNewClassNameH('');
       setAvailableClasses([...mergedOD.map((c) => c.class_name), ...mergedH]);
 
-      alert('Regatta and classes updated.');
+      notify.success('Regatta and classes updated.');
       setActiveTab('entry');
     } catch (err: any) {
-      alert(err?.message || 'Failed to update regatta.');
+      notify.error(err?.message || 'Failed to update regatta.');
     } finally {
       setSaving(false);
     }
@@ -287,7 +290,7 @@ export default function AdminRegattaPage() {
     const file = e.target.files?.[0];
     if (!file || !token || homeImages.length >= 3) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -299,7 +302,7 @@ export default function AdminRegattaPage() {
       setPosterUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
@@ -314,7 +317,7 @@ export default function AdminRegattaPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingListingLogo(true);
@@ -325,7 +328,7 @@ export default function AdminRegattaPage() {
       setListingLogoUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingListingLogo(false);
     }
@@ -342,7 +345,7 @@ export default function AdminRegattaPage() {
   const handleSaveDesign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert('Session missing. Please log in as admin.');
+      notify.error('Session missing. Please log in as admin.');
       router.push(withOrg('/admin/login', orgSlug));
       return;
     }
@@ -363,10 +366,10 @@ export default function AdminRegattaPage() {
             }
           : prev
       );
-      alert('Design saved.');
+      notify.success('Design saved.');
       setActiveTab('entry');
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to save design.');
+      notify.error(err instanceof Error ? err.message : 'Failed to save design.');
     } finally {
       setSaving(false);
     }
@@ -431,7 +434,7 @@ export default function AdminRegattaPage() {
       );
     });
     if (duplicates.length > 0) {
-      alert(`Essa classe já está na lista: ${duplicates.join(', ')}`);
+      notify.warning(`Class already in the list: ${duplicates.join(', ')}`);
       return;
     }
     setEditClassesOneDesign((prev) =>
@@ -458,7 +461,7 @@ export default function AdminRegattaPage() {
       );
     });
     if (duplicates.length > 0) {
-      alert(`Essa classe já está na lista: ${duplicates.join(', ')}`);
+      notify.warning(`Class already in the list: ${duplicates.join(', ')}`);
       return;
     }
     setEditClassesHandicap((prev) => [...prev, ...names].sort((a, b) => a.localeCompare(b)));
@@ -475,19 +478,26 @@ export default function AdminRegattaPage() {
 
   const handleDelete = async () => {
     if (!token) {
-      alert('Session missing. Please log in as admin.');
+      notify.error('Session missing. Please log in as admin.');
       router.push(withOrg('/admin/login', orgSlug));
       return;
     }
-    if (!confirm('Are you sure you want to delete this regatta? This cannot be undone.')) return;
+    const ok = await confirm({
+      title: 'Delete this regatta?',
+      description:
+        'This will permanently delete the regatta along with its entries, results and configuration. This cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Delete regatta',
+    });
+    if (!ok) return;
 
     setDeleting(true);
     try {
       await apiSend(`/regattas/${regattaId}`, 'DELETE', {}, token);
-      alert('Regatta deleted.');
+      notify.success('Regatta deleted.');
       router.replace(withOrg('/admin', orgSlug));
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete regatta.');
+      notify.error(err?.message || 'Failed to delete regatta.');
     } finally {
       setDeleting(false);
     }
@@ -495,7 +505,7 @@ export default function AdminRegattaPage() {
 
   async function toggleOnlineEntry(next: boolean) {
     if (!token) {
-      alert('Session missing. Please log in as admin.');
+      notify.error('Session missing. Please log in as admin.');
       router.push(withOrg('/admin/login', orgSlug));
       return;
     }
@@ -506,7 +516,7 @@ export default function AdminRegattaPage() {
     } catch (e: any) {
       // rollback
       setRegatta(r => (r ? { ...r, online_entry_open: !next } : r));
-      alert(e?.message || 'Failed to update online entry state.');
+      notify.error(e?.message || 'Failed to update online entry state.');
     }
   }
 

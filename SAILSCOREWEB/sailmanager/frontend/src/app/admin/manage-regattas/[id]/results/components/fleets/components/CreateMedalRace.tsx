@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { OverallRow } from '../types';
 import type { RaceLite } from '../../../hooks/useFleets';
+import notify from '@/lib/notify';
 
 type Props = {
   classOverall: OverallRow[];
@@ -120,9 +121,9 @@ export default function CreateMedalRace({
           try {
             await createMedalRace(selectedClass, from, to, selectedRaceIds);
             setSelectedRaceIds([]);
-            alert('Medal Race created successfully!');
+            notify.success('Medal Race created successfully.');
           } catch (e: any) {
-            alert(e?.message ?? 'Error creating Medal Race.');
+            notify.error(e?.message ?? 'Error creating Medal Race.');
           }
         }}
       >

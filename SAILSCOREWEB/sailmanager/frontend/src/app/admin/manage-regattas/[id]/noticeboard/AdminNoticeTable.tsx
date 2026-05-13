@@ -2,6 +2,8 @@
 
 import { Notice } from "@/types/notice";
 import { BASE_URL as API_BASE, apiDelete } from "@/lib/api";
+import notify from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type Props = { items: Notice[]; timezone?: string | null; onChanged: () => void };
 
@@ -24,14 +26,22 @@ function formatDate(iso: string | undefined, timezone?: string | null) {
 }
 
 export default function AdminNoticeTable({ items, timezone, onChanged }: Props) {
+  const confirm = useConfirm();
   const del = async (id: number) => {
-    if (!confirm("Delete this document?")) return;
+    const ok = await confirm({
+      title: "Delete this document?",
+      description: "The document will be permanently removed from the notice board.",
+      tone: "danger",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     try {
       await apiDelete(`/notices/${id}`);
+      notify.success("Document deleted.");
       onChanged();
     } catch (e) {
       console.error(e);
-      alert("Failed to delete document.");
+      notify.error("Failed to delete document.");
     }
   };
 

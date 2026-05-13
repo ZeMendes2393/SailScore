@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
@@ -136,10 +137,10 @@ export default function AdminDesignPage() {
     try {
       const ids = featuredIds.filter((id) => id > 0);
       await apiSend(withOrg('/design/featured-regattas', orgSlug), 'PUT', { regatta_ids: ids }, token);
-      alert('Featured regattas saved.');
+      notify.success('Featured regattas saved.');
     } catch (e) {
       console.error(e);
-      alert('Error saving.');
+      notify.error('Error saving featured regattas.');
     } finally {
       setSaving(false);
     }
@@ -149,7 +150,7 @@ export default function AdminDesignPage() {
     const file = e.target.files?.[0];
     if (!file || !token || homeImages.length >= 3) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -160,7 +161,7 @@ export default function AdminDesignPage() {
       setHomeImages((prev) => [...prev, { url: data.url, position_x: 50, position_y: 50 }]);
       e.target.value = '';
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
@@ -192,10 +193,10 @@ export default function AdminDesignPage() {
         },
         token
       );
-      alert('Homepage images and hero text saved.');
+      notify.success('Homepage images and hero text saved.');
     } catch (e) {
       console.error(e);
-      alert('Error saving.');
+      notify.error('Error saving homepage.');
     } finally {
       setSavingHome(false);
     }
@@ -205,7 +206,7 @@ export default function AdminDesignPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingLogo(true);
@@ -216,7 +217,7 @@ export default function AdminDesignPage() {
       setClubLogoUrl(data.url);
       e.target.value = '';
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingLogo(false);
     }
@@ -235,10 +236,10 @@ export default function AdminDesignPage() {
         },
         token
       );
-      alert('Header club logo and link saved.');
+      notify.success('Header club logo and link saved.');
     } catch (e) {
       console.error(e);
-      alert('Error saving.');
+      notify.error('Error saving header.');
     } finally {
       setSavingHeader(false);
     }
@@ -256,10 +257,10 @@ export default function AdminDesignPage() {
         },
         token,
       );
-      alert('Footer design saved.');
+      notify.success('Footer design saved.');
     } catch (e) {
       console.error(e);
-      alert('Error saving footer design.');
+      notify.error('Error saving footer design.');
     } finally {
       setSavingFooter(false);
     }

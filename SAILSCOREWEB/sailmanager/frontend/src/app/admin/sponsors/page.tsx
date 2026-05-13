@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend, apiUpload, apiDelete, BASE_URL } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type Sponsor = {
   id: number;
@@ -19,6 +21,7 @@ type Sponsor = {
 export default function AdminSponsorsPage() {
   const { token } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,7 +51,7 @@ export default function AdminSponsorsPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -59,7 +62,7 @@ export default function AdminSponsorsPage() {
       setNewImageUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
@@ -76,7 +79,7 @@ export default function AdminSponsorsPage() {
   const handleAddSponsor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !effectiveCategory || !newImageUrl) {
-      alert('Choose or create a category and upload an image.');
+      notify.warning('Choose or create a category and upload an image.');
       return;
     }
     setSaving(true);
@@ -98,22 +101,30 @@ export default function AdminSponsorsPage() {
       setUseNewCategory(false);
       setSelectedCategory(effectiveCategory);
       fetchSponsors();
+      notify.success('Sponsor added.');
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error adding sponsor.');
+      notify.error(err instanceof Error ? err.message : 'Error adding sponsor.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteSponsor = async (sponsorId: number) => {
-    if (!token || !confirm('Remove this sponsor? It will no longer appear on the homepage, calendar, news and all regattas.'))
-      return;
+    if (!token) return;
+    const ok = await confirm({
+      title: 'Remove this sponsor?',
+      description: 'The sponsor will no longer appear on the homepage, calendar, news and all regattas.',
+      tone: 'danger',
+      confirmLabel: 'Remove sponsor',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await apiDelete(withOrg(`/sponsors/${sponsorId}`, orgSlug), token);
       fetchSponsors();
+      notify.success('Sponsor removed.');
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error removing sponsor.');
+      notify.error(err instanceof Error ? err.message : 'Error removing sponsor.');
     } finally {
       setSaving(false);
     }

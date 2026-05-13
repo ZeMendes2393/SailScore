@@ -1,6 +1,7 @@
 'use client';
 
 import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
+import notify from '@/lib/notify';
 
 type Props = {
   classes: string[];
@@ -96,9 +97,9 @@ export default function CreateReshuffle({
           try {
             const fs = await reshuffle(rNum, rRaceIds);
             setRRaceIds([]);
-            alert(`Reshuffle created successfully! (Fleet Set #${fs.id})`);
+            notify.success(`Reshuffle created successfully (Fleet Set #${fs.id}).`);
           } catch (e: any) {
-            alert(e?.message ?? 'Error creating Reshuffle.');
+            notify.error(e?.message ?? 'Error creating Reshuffle.');
           }
         }}
       >

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiDelete, apiGet, apiPost, apiSend } from '@/lib/api';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export type JuryProfile = {
   id: number;
@@ -28,6 +29,7 @@ type JuryProfileCreateResult = {
 
 export default function JuryCredentialsPanel({ regattaId }: { regattaId: number }) {
   const { token } = useAuth();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<JuryProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,14 @@ export default function JuryCredentialsPanel({ regattaId }: { regattaId: number 
   }
 
   async function handleDelete(id: number) {
-    if (!token || !confirm('Delete this jury profile and its login user (if any)?')) return;
+    if (!token) return;
+    const ok = await confirm({
+      title: 'Delete this jury profile?',
+      description: 'The jury profile and its login user (if any) will be removed. This cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Delete profile',
+    });
+    if (!ok) return;
     setError(null);
     try {
       await apiDelete(`/regattas/${regattaId}/jury-profiles/${id}`, token);

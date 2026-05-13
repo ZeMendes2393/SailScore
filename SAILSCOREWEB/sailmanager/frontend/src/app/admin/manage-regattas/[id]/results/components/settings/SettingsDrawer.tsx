@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import notify from '@/lib/notify';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -133,9 +134,9 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
       const data: ClassSettingsResponse = await ref.json();
       setOverrides(data.overrides);
       setResolved(data.resolved);
-      alert('Definições guardadas.');
+      notify.success('Settings saved.');
     } catch (e: any) {
-      alert(e?.message || 'Falha ao guardar definições.');
+      notify.error(e?.message || 'Failed to save settings.');
     } finally {
       setSaving(false);
     }

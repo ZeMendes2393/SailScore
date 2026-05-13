@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ScoringConfig } from '../types';
+import notify from '@/lib/notify';
 
 interface Props {
   scoring: ScoringConfig;
@@ -26,9 +27,9 @@ export default function ScoringPanel({ scoring, onChange, onSave, saving }: Prop
   const addCode = () => {
     const k = newCode.trim().toUpperCase();
     const p = Number(newPoints);
-    if (!k) return alert('Enter the code (e.g. DNF)');
-    if (Number.isNaN(p)) return alert('Enter the points for that code');
-    if (codes[k] !== undefined) return alert('That code already exists');
+    if (!k) { notify.warning('Enter the code (e.g. DNF).'); return; }
+    if (Number.isNaN(p)) { notify.warning('Enter the points for that code.'); return; }
+    if (codes[k] !== undefined) { notify.warning('That code already exists.'); return; }
 
     onChange({
       ...scoring,

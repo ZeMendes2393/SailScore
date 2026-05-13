@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiDelete } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export type NewsItem = {
   id: number;
@@ -27,6 +29,7 @@ export default function AdminNewsPage() {
   const [loading, setLoading] = useState(true);
   const { token } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
 
   const fetchNews = async () => {
     try {
@@ -47,13 +50,20 @@ export default function AdminNewsPage() {
   }, [token, orgSlug]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this news item?')) return;
+    const ok = await confirm({
+      title: 'Delete this news item?',
+      description: 'The news item will be permanently removed from the homepage.',
+      tone: 'danger',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await apiDelete(withOrg(`/news/${id}`, orgSlug), token ?? undefined);
       setItems((prev) => prev.filter((n) => n.id !== id));
+      notify.success('News item deleted.');
     } catch (err) {
       console.error('Failed to delete news item:', err);
-      alert('Failed to delete news item.');
+      notify.error('Failed to delete news item.');
     }
   };
 

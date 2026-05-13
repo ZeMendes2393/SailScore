@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import { SailNumberDisplay } from "@/components/ui/SailNumberDisplay";
+import notify from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type Row = {
   id: number;
@@ -36,6 +38,7 @@ export type Rule42ManagerProps = {
 };
 
 export default function Rule42Manager({ regattaId, heading = "Rule 42" }: Rule42ManagerProps) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export default function Rule42Manager({ regattaId, heading = "Rule 42" }: Rule42
       !form.race.trim() ||
       !form.class_name.trim()
     ) {
-      alert("Please fill Sail Number, Penalty Number, Race and Class.");
+      notify.warning("Please fill Sail Number, Penalty Number, Race and Class.");
       return;
     }
     setCreating(true);
@@ -97,21 +100,29 @@ export default function Rule42Manager({ regattaId, heading = "Rule 42" }: Rule42
         comp_action: "",
         description: "",
       }));
+      notify.success("Rule 42 record created.");
       fetchRows();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed to create.");
+      notify.error(e instanceof Error ? e.message : "Failed to create Rule 42 record.");
     } finally {
       setCreating(false);
     }
   }
 
   async function deleteRow(id: number) {
-    if (!confirm("Delete this Rule 42 record?")) return;
+    const ok = await confirm({
+      title: "Delete this Rule 42 record?",
+      description: "The record will be permanently removed.",
+      tone: "danger",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     try {
       await apiDelete(`/rule42/${id}`);
+      notify.success("Rule 42 record deleted.");
       fetchRows();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed to delete.");
+      notify.error(e instanceof Error ? e.message : "Failed to delete Rule 42 record.");
     }
   }
 
@@ -120,9 +131,10 @@ export default function Rule42Manager({ regattaId, heading = "Rule 42" }: Rule42
       await apiPatch(`/rule42/${id}`, edit);
       setEditingId(null);
       setEdit({});
+      notify.success("Rule 42 record updated.");
       fetchRows();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed to save.");
+      notify.error(e instanceof Error ? e.message : "Failed to save Rule 42 record.");
     }
   }
 

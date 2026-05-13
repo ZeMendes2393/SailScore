@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import notify from '@/lib/notify';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -130,11 +131,11 @@ export default function DiscardsDrawer({
     if (!selectedClass) return;
 
     if (parsed.schedule.length === 0) {
-      alert('Schedule is empty. Use something like: 0,0,0,1,1,1');
+      notify.warning('Schedule is empty. Use something like: 0,0,0,1,1,1');
       return;
     }
     if (parsed.invalid.length) {
-      alert(`Invalid values in schedule: ${parsed.invalid.join(', ')}`);
+      notify.warning(`Invalid values in schedule: ${parsed.invalid.join(', ')}`);
       return;
     }
 
@@ -157,10 +158,10 @@ export default function DiscardsDrawer({
         }
       );
       if (!res.ok) throw new Error(await res.text().catch(() => ''));
-      alert('Discard schedule saved.');
+      notify.success('Discard schedule saved.');
     } catch (e: any) {
       console.error('Error saving discard plan:', e);
-      alert(e?.message || 'Failed to save discard schedule.');
+      notify.error(e?.message || 'Failed to save discard schedule.');
     } finally {
       setSaving(false);
     }

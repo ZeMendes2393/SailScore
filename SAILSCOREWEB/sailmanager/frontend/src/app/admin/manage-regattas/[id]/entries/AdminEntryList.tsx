@@ -14,6 +14,8 @@ import type { EntryListEntry } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
 import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 interface RegattaForEntryList {
   id: number;
@@ -39,6 +41,7 @@ export default function AdminEntryList({
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
   const isAdmin = isAdminRole(user?.role);
   const isScorer = user?.role === 'scorer';
   const canManageEntryList = isAdmin || isScorer;
@@ -187,7 +190,7 @@ export default function AdminEntryList({
       );
       if (patched) onRegattaUpdate(patched);
     } catch (e: any) {
-      alert(e?.message || 'Erro ao guardar colunas.');
+      notify.error(e?.message || 'Failed to save columns.');
     } finally {
       setSavingColumns(false);
     }
@@ -222,9 +225,13 @@ export default function AdminEntryList({
     const willBeFullyConfirmed = nextPaid && nextConfirmed;
     if (!willBeFullyConfirmed || wasFullyConfirmed) return;
 
-    const ok = window.confirm(
-      'This will mark the entry as PAID and CONFIRMED and send the confirmation email with account access details for this championship. Do you want to continue?'
-    );
+    const ok = await confirm({
+      title: 'Mark entry as paid and confirmed?',
+      description:
+        'A confirmation email with account access details for this championship will be sent to the sailor.',
+      tone: 'warning',
+      confirmLabel: 'Yes, confirm and send',
+    });
     if (!ok) return;
 
     try {
@@ -235,16 +242,17 @@ export default function AdminEntryList({
         token
       );
       const sent = res?.sent !== false;
-      alert(
-        res?.message ||
-          (sent
-            ? 'Confirmation email sent.'
-            : 'Confirmation email was already sent previously for this entry.')
-      );
+      if (sent) {
+        notify.success(res?.message || 'Confirmation email sent.');
+      } else {
+        notify.info(
+          res?.message || 'Confirmation email was already sent previously for this entry.'
+        );
+      }
       const refreshed = await loadEntries();
       setEntries(refreshed);
     } catch (e: any) {
-      alert(e?.message || 'Failed to send confirmation email.');
+      notify.error(e?.message || 'Failed to send confirmation email.');
     }
   };
 
@@ -260,7 +268,7 @@ export default function AdminEntryList({
         await maybeSendConfirmedEmail(entryId, !!current.paid, confirmed);
       }
     } catch (e: any) {
-      alert(e?.message || 'Erro ao atualizar status.');
+      notify.error(e?.message || 'Failed to update status.');
     }
   };
 
@@ -276,7 +284,7 @@ export default function AdminEntryList({
         await maybeSendConfirmedEmail(entryId, paid, !!current.confirmed);
       }
     } catch (e: any) {
-      alert(e?.message || 'Erro ao atualizar pagamento.');
+      notify.error(e?.message || 'Failed to update payment status.');
     }
   };
 
@@ -311,7 +319,7 @@ export default function AdminEntryList({
         limit: classLimitCfg.limit,
       });
     } catch (e: any) {
-      alert(e?.message || 'Failed to update class limit.');
+      notify.error(e?.message || 'Failed to update class limit.');
     } finally {
       setSavingLimit(false);
     }
@@ -321,14 +329,15 @@ export default function AdminEntryList({
     if (!selectedClass) return;
     const n = Number(limitDraft);
     if (!limitDraft.trim() || Number.isNaN(n) || n < 0) {
-      alert('Limit must be 0 or a positive number.');
+      notify.warning('Limit must be 0 or a positive number.');
       return;
     }
     setSavingLimit(true);
     try {
       await patchClassLimit({ limit: n });
+      notify.success('Class limit saved.');
     } catch (e: any) {
-      alert(e?.message || 'Failed to save class limit.');
+      notify.error(e?.message || 'Failed to save class limit.');
     } finally {
       setSavingLimit(false);
     }
@@ -342,7 +351,7 @@ export default function AdminEntryList({
       const list = await loadEntries();
       setEntries(list);
     } catch (e: any) {
-      alert(e?.message || 'Failed to update list placement.');
+      notify.error(e?.message || 'Failed to update list placement.');
     } finally {
       setMovingEntryId(null);
     }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiDelete, apiGet, apiSend } from '@/lib/api';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export type FinanceKind = 'revenue' | 'expense';
 
@@ -28,6 +30,7 @@ function formatMoney(amount: number, currency: string) {
 
 export default function AdminRegattaFinances({ regattaId }: { regattaId: number }) {
   const { token } = useAuth();
+  const confirm = useConfirm();
   const [lines, setLines] = useState<FinanceLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export default function AdminRegattaFinances({ regattaId }: { regattaId: number 
     if (!token) return;
     const amount = Number(amountStr.replace(',', '.'));
     if (!description.trim() || !Number.isFinite(amount) || amount <= 0) {
-      alert('Enter a description and a positive amount.');
+      notify.warning('Enter a description and a positive amount.');
       return;
     }
     setSaving(true);
@@ -96,9 +99,10 @@ export default function AdminRegattaFinances({ regattaId }: { regattaId: number 
       setDescription('');
       setAmountStr('');
       setNotes('');
+      notify.success('Finance line added.');
       await load();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Could not add line.');
+      notify.error(err instanceof Error ? err.message : 'Could not add line.');
     } finally {
       setSaving(false);
     }
@@ -106,12 +110,19 @@ export default function AdminRegattaFinances({ regattaId }: { regattaId: number 
 
   async function handleDelete(id: number) {
     if (!token) return;
-    if (!confirm('Remove this line?')) return;
+    const ok = await confirm({
+      title: 'Remove this line?',
+      description: 'The finance line will be deleted from this regatta. This cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     try {
       await apiDelete(`/regattas/${regattaId}/finance-lines/${id}`, token);
+      notify.success('Finance line removed.');
       await load();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Could not delete.');
+      notify.error(err instanceof Error ? err.message : 'Could not delete line.');
     }
   }
 

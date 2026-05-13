@@ -1,6 +1,7 @@
 'use client';
 
 import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
+import notify from '@/lib/notify';
 
 type Props = {
   classes: string[];
@@ -99,9 +100,9 @@ export default function CreateQualifying({
           try {
             const fs = await createQualifying(qNum, qRaceIds);
             setQRaceIds([]);
-            alert(`Qualifying created successfully! (Fleet Set #${fs.id})`);
+            notify.success(`Qualifying created successfully (Fleet Set #${fs.id}).`);
           } catch (e: any) {
-            alert(e?.message ?? 'Error creating Qualifying.');
+            notify.error(e?.message ?? 'Error creating Qualifying.');
           }
         }}
       >

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type Sponsor = {
   id: number;
@@ -15,6 +17,7 @@ type Sponsor = {
 
 export default function AdminSponsorsManager({ regattaId }: { regattaId: number }) {
   const { token } = useAuth();
+  const confirm = useConfirm();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,7 +59,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
     const file = e.target.files?.[0];
     if (!file || !token) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Invalid format. Use JPG, PNG or WebP.');
+      notify.warning('Invalid format. Use JPG, PNG or WebP.');
       return;
     }
     setUploadingImage(true);
@@ -67,7 +70,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
       setNewImageUrl(data.url);
       e.target.value = '';
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error uploading image.');
+      notify.error(err instanceof Error ? err.message : 'Error uploading image.');
     } finally {
       setUploadingImage(false);
     }
@@ -84,7 +87,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
   const handleAddSponsor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !effectiveCategory || !newImageUrl) {
-      alert('Choose or create a category and upload an image.');
+      notify.warning('Choose or create a category and upload an image.');
       return;
     }
     setSaving(true);
@@ -101,23 +104,32 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
       setNewCategory('');
       setUseNewCategory(false);
       setSelectedCategory(effectiveCategory);
+      notify.success('Sponsor added.');
       fetchSponsors();
       fetchAllCategories();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error adding.');
+      notify.error(err instanceof Error ? err.message : 'Error adding sponsor.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteSponsor = async (sponsorId: number) => {
-    if (!token || !confirm('Remove this sponsor?')) return;
+    if (!token) return;
+    const ok = await confirm({
+      title: 'Remove this sponsor?',
+      description: 'The sponsor will be removed from this regatta.',
+      tone: 'danger',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await apiSend(`/regattas/${regattaId}/sponsors/${sponsorId}`, 'DELETE', undefined, token);
+      notify.success('Sponsor removed.');
       fetchSponsors();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error removing.');
+      notify.error(err instanceof Error ? err.message : 'Error removing sponsor.');
     } finally {
       setSaving(false);
     }

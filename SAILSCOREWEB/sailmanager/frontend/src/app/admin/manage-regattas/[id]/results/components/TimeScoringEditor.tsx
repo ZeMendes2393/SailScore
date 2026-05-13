@@ -5,6 +5,7 @@ import type { Entry } from '../types';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { TimeInput } from '@/components/ui/TimeInput';
 import { BASE_URL } from '@/lib/api';
+import notify from '@/lib/notify';
 
 type HandicapDraftRow = {
   entryId: number;
@@ -407,7 +408,7 @@ export default function TimeScoringEditor({
           method === 'anc'
             ? 'Simple Rating'
             : 'all ORC ratings (low, medium, high)';
-        alert(`Scoring is locked: some entries are missing ${modeLabel}. Please complete all ratings first.`);
+        notify.warning(`Scoring is locked: some entries are missing ${modeLabel}. Please complete all ratings first.`);
         return;
       }
 
@@ -445,15 +446,15 @@ export default function TimeScoringEditor({
 
       if (method === 'anc' || method === 'orc') {
         if (!elapsedTime || parseTimeToSeconds(elapsedTime) == null) {
-          alert('You can only add this entry after filling a valid Elapsed Time (HH:MM:SS).');
+          notify.warning('You can only add this entry after filling a valid Elapsed Time (HH:MM:SS).');
           return;
         }
         if (rating == null) {
-          alert('This entry is missing rating for the selected handicap method.');
+          notify.warning('This entry is missing rating for the selected handicap method.');
           return;
         }
       } else if (!correctedTime || parseTimeToSeconds(correctedTime) == null) {
-        alert('You can only add this entry after filling a valid Corrected Time (HH:MM:SS).');
+        notify.warning('You can only add this entry after filling a valid Corrected Time (HH:MM:SS).');
         return;
       }
 

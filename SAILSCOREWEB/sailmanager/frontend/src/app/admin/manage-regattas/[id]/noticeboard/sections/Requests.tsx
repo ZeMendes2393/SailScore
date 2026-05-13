@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type RequestRead = {
   id: number;
@@ -21,6 +23,7 @@ type RequestRead = {
 type Row = RequestRead & { _expanded?: boolean };
 
 export default function Requests({ regattaId }: { regattaId: number }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -48,15 +51,31 @@ export default function Requests({ regattaId }: { regattaId: number }) {
   useEffect(() => { fetchRows(); }, [listPath]);
 
   async function save(id: number) {
-    await apiPatch(`/regattas/${regattaId}/requests/${id}`, patch);
-    setEditingId(null);
-    setPatch({});
-    await fetchRows();
+    try {
+      await apiPatch(`/regattas/${regattaId}/requests/${id}`, patch);
+      setEditingId(null);
+      setPatch({});
+      notify.success('Request updated.');
+      await fetchRows();
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to update request.');
+    }
   }
   async function remove(id: number) {
-    if (!confirm('Delete this request?')) return;
-    await apiDelete(`/regattas/${regattaId}/requests/${id}`);
-    await fetchRows();
+    const ok = await confirm({
+      title: 'Delete this request?',
+      description: 'The request will be permanently removed from the notice board.',
+      tone: 'danger',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await apiDelete(`/regattas/${regattaId}/requests/${id}`);
+      notify.success('Request deleted.');
+      await fetchRows();
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to delete request.');
+    }
   }
 
   return (

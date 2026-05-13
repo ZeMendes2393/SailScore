@@ -8,6 +8,7 @@ import { apiGet, apiSend } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import DatePicker from 'react-datepicker';
 import { format } from 'date-fns';
+import notify from '@/lib/notify';
 
 type CountryItem = { code: string; name: string };
 type TimezonesResponse = { country: string; timezones: string[] };
@@ -108,12 +109,12 @@ export default function CreateRegattaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert('No session. Please log in again.');
+      notify.error('No session. Please log in again.');
       router.push('/admin/login');
       return;
     }
     if (!startDate || !endDate) {
-      alert('Please select both start and end dates.');
+      notify.warning('Please select both start and end dates.');
       return;
     }
     setSubmitting(true);
@@ -147,10 +148,11 @@ export default function CreateRegattaPage() {
         );
       }
 
+      notify.success('Regatta created.');
       router.push(withOrg('/admin', orgSlug));
     } catch (err: any) {
       console.error('Create regatta error:', err);
-      alert(err?.message || 'Error creating regatta.');
+      notify.error(err?.message || 'Error creating regatta.');
     } finally {
       setSubmitting(false);
     }

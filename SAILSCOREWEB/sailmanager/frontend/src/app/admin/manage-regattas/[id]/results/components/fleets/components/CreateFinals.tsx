@@ -2,6 +2,7 @@
 
 import type { RaceLite, FleetSet } from '../../../hooks/useFleets';
 import type { OverallRow } from '../types';
+import notify from '@/lib/notify';
 
 type RangeRow = { name: string; from: string; to: string };
 
@@ -164,7 +165,7 @@ export default function CreateFinals({
         className="bg-emerald-600 text-white px-4 py-2 rounded-xl"
         onClick={async () => {
           if (totalBoats === 0) {
-            alert('No ranking available for this class.');
+            notify.warning('No ranking available for this class.');
             return;
           }
 
@@ -179,7 +180,7 @@ export default function CreateFinals({
             const toRaw = (g.to || '').trim();
 
             if (!fromRaw || !toRaw) {
-              alert(`Range "${name}" has empty from/to.`);
+              notify.warning(`Range "${name}" has empty from/to.`);
               return;
             }
 
@@ -188,7 +189,7 @@ export default function CreateFinals({
             const size = to - from + 1;
 
             if (!Number.isFinite(from) || !Number.isFinite(to) || size <= 0) {
-              alert(`Invalid range for "${name}".`);
+              notify.warning(`Invalid range for "${name}".`);
               return;
             }
 
@@ -196,19 +197,19 @@ export default function CreateFinals({
           }
 
           if (Object.keys(grouping).length === 0) {
-            alert('Invalid ranges.');
+            notify.warning('Invalid ranges.');
             return;
           }
 
           const sum = Object.values(grouping).reduce((a, b) => a + b, 0);
           if (sum > totalBoats) {
-            alert(`Ranges sum to ${sum}, but there are only ${totalBoats} boats in the ranking.`);
+            notify.warning(`Ranges sum to ${sum}, but there are only ${totalBoats} boats in the ranking.`);
             return;
           }
 
           await startFinals('Finals', grouping, finalRaceIds);
           setFinalRaceIds([]);
-          alert('Finals created successfully!');
+          notify.success('Finals created successfully.');
         }}
       >
         Start Finals

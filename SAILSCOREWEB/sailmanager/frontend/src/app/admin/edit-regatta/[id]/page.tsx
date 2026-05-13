@@ -6,6 +6,8 @@ import RequireAuth from '@/components/RequireAuth';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const AVAILABLE_CLASSES = [
   '420',
@@ -41,6 +43,7 @@ export default function EditRegattaPage() {
 
   const { token } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<Regatta | null>(null);
@@ -97,7 +100,7 @@ export default function EditRegattaPage() {
   };
 
   const saveMeta = async () => {
-    if (!token || !meta) return alert('No session.');
+    if (!token || !meta) { notify.error('No session.'); return; }
     setSavingMeta(true);
     try {
       await apiSend<Regatta>(
@@ -106,18 +109,18 @@ export default function EditRegattaPage() {
         { name, location, start_date: startDate, end_date: endDate },
         token
       );
-      alert('Details updated.');
+      notify.success('Details updated.');
       await load();
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Failed to update details.');
+      notify.error(e?.message || 'Failed to update details.');
     } finally {
       setSavingMeta(false);
     }
   };
 
   const saveClasses = async () => {
-    if (!token) return alert('No session.');
+    if (!token) { notify.error('No session.'); return; }
     setSavingClasses(true);
     try {
       await apiSend<{ updated: number }>(
@@ -126,27 +129,33 @@ export default function EditRegattaPage() {
         { classes: selectedClasses },
         token
       );
-      alert('Classes updated.');
+      notify.success('Classes updated.');
       await load();
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Failed to update classes.');
+      notify.error(e?.message || 'Failed to update classes.');
     } finally {
       setSavingClasses(false);
     }
   };
 
   const deleteRegatta = async () => {
-    if (!token) return alert('No session.');
-    if (!confirm('Delete this regatta? This action is irreversible.')) return;
+    if (!token) { notify.error('No session.'); return; }
+    const ok = await confirm({
+      title: 'Delete this regatta?',
+      description: 'This action is irreversible. The regatta and all its data will be permanently removed.',
+      tone: 'danger',
+      confirmLabel: 'Delete regatta',
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await apiSend<void>(`/regattas/${regattaId}`, 'DELETE', undefined, token);
-      alert('Regatta deleted.');
+      notify.success('Regatta deleted.');
       router.push(withOrg('/admin', orgSlug));
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Failed to delete regatta.');
+      notify.error(e?.message || 'Failed to delete regatta.');
     } finally {
       setDeleting(false);
     }

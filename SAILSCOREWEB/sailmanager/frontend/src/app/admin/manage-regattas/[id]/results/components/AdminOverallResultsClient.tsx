@@ -8,6 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 import { apiGet, apiSend } from '@/lib/api';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 import {
   RESULTS_OVERALL_COLUMNS,
   getVisibleResultsOverallColumnsForClass,
@@ -166,6 +168,7 @@ function formatPerRaceCell(
 export default function AdminOverallResultsClient({ regattaId }: Props) {
   const router = useRouter();
   const { token, user } = useAuth();
+  const confirm = useConfirm();
   const manageRegattaBasePath = user?.role === 'scorer' ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const [classes, setClasses] = useState<string[]>([]);
@@ -230,7 +233,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         );
         setRegatta((prev) => (prev ? { ...prev, results_overall_columns: data?.results_overall_columns ?? payload } : prev));
       } catch (e: any) {
-        alert(e?.message || 'Erro ao guardar colunas.');
+        notify.error(e?.message || 'Failed to save columns.');
       } finally {
         setSavingColumns(false);
       }
@@ -849,7 +852,13 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   disabled={saving}
                   onClick={async () => {
                     if (!pendingOrder) return;
-                    if (!confirm('Do you want to save the new race order?')) return;
+                    const ok = await confirm({
+                      title: 'Save the new race order?',
+                      description: 'The new race order will be applied to this regatta and reflected in the overall results.',
+                      tone: 'warning',
+                      confirmLabel: 'Save order',
+                    });
+                    if (!ok) return;
                     try {
                       setSaving(true);
                       await apiSend(`/races/regattas/${regattaId}/reorder`, 'PUT', {
@@ -867,9 +876,10 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                       }
                       setRacesByClass(grouped);
                       setPendingOrder(null);
+                      notify.success('Race order saved.');
                       router.refresh();
                     } catch (e: any) {
-                      alert(e?.message || 'Erro ao guardar a nova ordem.');
+                      notify.error(e?.message || 'Failed to save the new race order.');
                     } finally {
                       setSaving(false);
                     }

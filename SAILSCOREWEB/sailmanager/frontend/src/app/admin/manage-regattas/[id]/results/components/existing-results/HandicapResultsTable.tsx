@@ -3,6 +3,7 @@
 import { TimeInput } from '@/components/ui/TimeInput';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
+import notify from '@/lib/notify';
 import {
   START_DAY,
   ancCorrectedFromElapsed,
@@ -347,7 +348,7 @@ export default function HandicapResultsTable({
                           const rawPts = (pendingPoints[row.id] ?? '').trim();
                           const pts = Number(rawPts);
                           if (!Number.isFinite(pts)) {
-                            alert('Invalid value (points).');
+                            notify.warning('Invalid value (points).');
                             return;
                           }
                           onMarkCode(row.id, code, pts);
@@ -425,7 +426,7 @@ export default function HandicapResultsTable({
                           const raw = (rawPtsVal ?? '').trim();
                           const pts = Number(raw);
                           if (!Number.isFinite(pts) || pts < 0) {
-                            alert('Invalid value (points).');
+                            notify.warning('Invalid value (points).');
                             return;
                           }
                           onOverridePoints(row.id, pts);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet, apiSend } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import notify from '@/lib/notify';
 
 //
 // Tipos locais
@@ -414,7 +415,7 @@ export function useFleets() {
         setSuccessMessage('Races updated successfully.');
       } catch (err) {
         console.error('updateFleetSetRaces falhou:', err);
-        alert('Could not update races for this Fleet Set.');
+        notify.error('Could not update races for this Fleet Set.');
       }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]

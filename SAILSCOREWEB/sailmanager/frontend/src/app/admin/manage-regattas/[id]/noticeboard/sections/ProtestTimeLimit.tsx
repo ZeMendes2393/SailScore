@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import notify from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type Row = {
   id: number;
@@ -37,6 +39,7 @@ function formatDateDMY(iso: string): string {
 }
 
 export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
   async function createRow() {
     try {
       if (!form.class_name.trim() || !form.date) {
-        alert("Please fill Class and Date.");
+        notify.warning("Please fill Class and Date.");
         return;
       }
       const hhmm = normalizeHHMM(form.time_limit_hm);
@@ -108,22 +111,30 @@ export default function ProtestTimeLimits({ regattaId }: { regattaId: number }) 
         date: new Date().toISOString().slice(0, 10),
         time_limit_hm: "01:00",
       });
+      notify.success("Protest time limit created.");
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Failed to create.");
+      notify.error(e?.message || "Failed to create protest time limit.");
     } finally {
       setCreating(false);
     }
   }
 
   async function removeRow(rowId: number) {
-    if (!confirm("Delete this protest time limit?")) return;
+    const ok = await confirm({
+      title: "Delete this protest time limit?",
+      description: "The protest time limit will be permanently removed.",
+      tone: "danger",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     try {
       setDeletingId(rowId);
       await apiDelete(`/ptl/${rowId}`);
+      notify.success("Protest time limit deleted.");
       await fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Failed to delete.");
+      notify.error(e?.message || "Failed to delete protest time limit.");
     } finally {
       setDeletingId(null);
     }

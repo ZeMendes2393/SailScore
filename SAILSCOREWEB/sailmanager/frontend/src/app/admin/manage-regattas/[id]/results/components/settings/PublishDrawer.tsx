@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Globe } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import notify from '@/lib/notify';
 
 type Props = {
   regattaId: number;
@@ -57,7 +58,7 @@ export default function PublishDrawer({ regattaId, class_name, onClose, races }:
       );
       onClose();
     } catch (e: any) {
-      alert(e?.message || 'Failed to update publication.');
+      notify.error(e?.message || 'Failed to update publication.');
     } finally {
       setSaving(false);
     }

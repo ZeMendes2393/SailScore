@@ -1,9 +1,77 @@
 # app/schemas.py
 from __future__ import annotations
 
+import math
+import re
 from typing import Optional, List, Dict, Literal, Any, Union
 from datetime import datetime, date, time
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
+
+
+# ---------------------------------------------------------------------------
+# Shared field validators for entry-related schemas.
+# Normalizam e validam o input ANTES de tocar na DB, evitando 500 por overflow
+# de coluna VARCHAR(N) ou por valores numéricos malucos (NaN/Inf).
+# ---------------------------------------------------------------------------
+
+_COUNTRY_CODE_RE = re.compile(r"^[A-Z]{2,3}$")
+_VALID_RATING_TYPES = {"anc", "orc", "one_design"}
+_VALID_HELM_POSITIONS = {"Skipper", "Crew"}
+_NUMERIC_RATING_MIN = -1_000.0
+_NUMERIC_RATING_MAX = 1_000_000.0
+
+
+def _normalize_country_code(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip().upper()
+    if not s:
+        return None
+    if not _COUNTRY_CODE_RE.match(s):
+        raise ValueError("Country code must be 2 or 3 uppercase letters (e.g. POR, GBR, USA).")
+    return s
+
+
+def _normalize_rating_type(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip().lower()
+    if not s:
+        return None
+    if s not in _VALID_RATING_TYPES:
+        raise ValueError(
+            "Rating type must be one of: anc, orc, one_design (or empty)."
+        )
+    return s
+
+
+def _normalize_helm_position(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    # Aceita variações de capitalização vindas do frontend
+    canon = s.capitalize()
+    if canon not in _VALID_HELM_POSITIONS:
+        raise ValueError("Helm position must be 'Skipper' or 'Crew'.")
+    return canon
+
+
+def _validate_finite_rating(v: Optional[float]) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        raise ValueError("Rating must be a number.")
+    if math.isnan(f) or math.isinf(f):
+        raise ValueError("Rating must be a finite number.")
+    if f < _NUMERIC_RATING_MIN or f > _NUMERIC_RATING_MAX:
+        raise ValueError(
+            f"Rating out of range (allowed between {_NUMERIC_RATING_MIN} and {_NUMERIC_RATING_MAX})."
+        )
+    return f
 
 
 
@@ -310,6 +378,8 @@ class EntryCreate(BaseModel):
         s = (v or "").strip().upper()
         if not s:
             raise ValueError("Country code da vela é obrigatório.")
+        if not _COUNTRY_CODE_RE.match(s):
+            raise ValueError("Country code must be 2 or 3 uppercase letters (e.g. POR, GBR, USA).")
         return s
 
     @field_validator("sail_number")
@@ -321,6 +391,21 @@ class EntryCreate(BaseModel):
         if not s:
             raise ValueError("Sail number é obrigatório.")
         return s
+
+    @field_validator("rating_type", mode="before")
+    @classmethod
+    def _v_rating_type(cls, v):
+        return _normalize_rating_type(v)
+
+    @field_validator("helm_position", mode="before")
+    @classmethod
+    def _v_helm_position(cls, v):
+        return _normalize_helm_position(v)
+
+    @field_validator("rating", "orc_low", "orc_medium", "orc_high", mode="before")
+    @classmethod
+    def _v_finite_rating(cls, v):
+        return _validate_finite_rating(v)
 
 
 class EntryRead(EntryCreate):
@@ -924,6 +1009,26 @@ class EntryPatch(BaseModel):
     waiting_list: Optional[bool] = None
 
     crew_members: Optional[List[Dict[str, Any]]] = None
+
+    @field_validator("boat_country_code", mode="before")
+    @classmethod
+    def _v_boat_country_code(cls, v):
+        return _normalize_country_code(v)
+
+    @field_validator("rating_type", mode="before")
+    @classmethod
+    def _v_rating_type(cls, v):
+        return _normalize_rating_type(v)
+
+    @field_validator("helm_position", mode="before")
+    @classmethod
+    def _v_helm_position(cls, v):
+        return _normalize_helm_position(v)
+
+    @field_validator("rating", "orc_low", "orc_medium", "orc_high", mode="before")
+    @classmethod
+    def _v_finite_rating(cls, v):
+        return _validate_finite_rating(v)
 
 
 # =========================

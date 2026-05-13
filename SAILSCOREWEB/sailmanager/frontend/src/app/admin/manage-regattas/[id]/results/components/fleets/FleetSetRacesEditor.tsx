@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { FleetSet, RaceLite } from '../../hooks/useFleets';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type Props = {
   selectedSet: FleetSet;
@@ -14,6 +15,7 @@ export default function FleetSetRacesEditor({
   races,
   onUpdateRaces,
 }: Props) {
+  const confirm = useConfirm();
   // races atualmente ligadas a este set
   const current = useMemo(
     () => races.filter((r) => r.fleet_set_id === selectedSet.id),
@@ -29,11 +31,13 @@ export default function FleetSetRacesEditor({
   const currentIds = current.map((r) => r.id);
 
   const handleRemove = async (raceId: number) => {
-    const ok = window.confirm(
-      'This race may already have results linked to this group.\n' +
-        'If you remove it from the Fleet Set, results will remain in the race but will no longer be grouped here.\n\n' +
-        'Do you want to remove this race from this Fleet Set?'
-    );
+    const ok = await confirm({
+      title: 'Remove this race from the Fleet Set?',
+      description:
+        'This race may already have results linked to this group. Results will remain in the race, but it will no longer be grouped here.',
+      tone: 'warning',
+      confirmLabel: 'Remove race',
+    });
     if (!ok) return;
 
     const newIds = currentIds.filter((id) => id !== raceId);

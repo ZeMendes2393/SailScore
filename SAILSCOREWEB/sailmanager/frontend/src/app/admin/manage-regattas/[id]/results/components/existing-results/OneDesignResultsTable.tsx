@@ -3,6 +3,7 @@
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
 import { isAdjustable, isAutoNPlusOne } from './shared';
+import notify from '@/lib/notify';
 
 type CodeGroups = {
   autoDiscardable: string[];
@@ -220,7 +221,7 @@ export default function OneDesignResultsTable({
                             const rawPts = (pendingPoints[row.id] ?? '').trim();
                             const pts = Number(rawPts);
                             if (!Number.isFinite(pts)) {
-                              alert('Invalid value (points).');
+                              notify.warning('Invalid value (points).');
                               return;
                             }
                             onMarkCode(row.id, code, pts);
@@ -314,7 +315,7 @@ export default function OneDesignResultsTable({
                             const raw = (rawPtsVal ?? '').trim();
                             const pts = Number(raw);
                             if (!Number.isFinite(pts) || pts < 0) {
-                              alert('Invalid value (points).');
+                              notify.warning('Invalid value (points).');
                               return;
                             }
                             onOverridePoints(row.id, pts);

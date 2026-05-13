@@ -13,6 +13,8 @@ import TimeScoringEditor from './TimeScoringEditor';
 import ImportRaceCsvModal from './ImportRaceCsvModal';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { BASE_URL } from '@/lib/api';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type View = 'existing' | 'draft' | 'time';
 
@@ -48,6 +50,7 @@ export default function RaceResultsManager({
   const { token } = useAuth();
   const router = useRouter();
   const search = useSearchParams();
+  const confirm = useConfirm();
 
   const {
     races,
@@ -124,14 +127,14 @@ export default function RaceResultsManager({
   const handleOverridePoints = useCallback(
     async (rowId: number, points: number | null) => {
       if (!token) {
-        alert('No authentication token.');
+        notify.error('No authentication token. Please log in again.');
         return;
       }
 
       // se não for undo, valida o número
       if (points !== null) {
         if (!Number.isFinite(points) || points < 0) {
-          alert('Invalid points.');
+          notify.warning('Invalid points value.');
           return;
         }
       }
@@ -159,7 +162,7 @@ export default function RaceResultsManager({
         }
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Error updating points.');
+        notify.error(e?.message || 'Error updating points.');
       } finally {
         setSavingOverridePoints(false);
       }
@@ -448,7 +451,7 @@ export default function RaceResultsManager({
                               a.click();
                               URL.revokeObjectURL(a.href);
                             } catch (e: any) {
-                              alert(e?.message || 'Export failed.');
+                              notify.error(e?.message || 'Export failed.');
                             }
                           }}
                           className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
@@ -482,7 +485,7 @@ export default function RaceResultsManager({
                             a.click();
                             URL.revokeObjectURL(a.href);
                           } catch (e: any) {
-                            alert(e?.message || 'PDF download failed.');
+                            notify.error(e?.message || 'PDF download failed.');
                           }
                         }}
                         className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
@@ -514,7 +517,13 @@ export default function RaceResultsManager({
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!confirm('Are you sure you want to delete this race (and all its results)?')) return;
+                        const ok = await confirm({
+                          title: 'Delete this race?',
+                          description: 'The race and all its results will be permanently removed. This cannot be undone.',
+                          tone: 'danger',
+                          confirmLabel: 'Delete race',
+                        });
+                        if (!ok) return;
                         await deleteRace(selectedRaceId);
                       }}
                       className="px-3 py-1.5 rounded-full border border-red-500 text-red-600 hover:bg-red-50 text-xs lg:text-sm"

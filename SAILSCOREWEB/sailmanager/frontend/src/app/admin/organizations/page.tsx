@@ -7,6 +7,8 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import { canAccessOrganizationManagement } from '@/lib/organizationManagementAccess';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 interface Organization {
   id: number;
@@ -22,6 +24,7 @@ interface OrganizationWithAdmin extends Organization {
 }
 
 export default function OrganizationsPage() {
+  const confirm = useConfirm();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -202,17 +205,19 @@ export default function OrganizationsPage() {
 
   const handleDelete = async (id: number) => {
     if (!token) return;
-    if (
-      !confirm(
-        'Are you sure you want to delete this organization? Associated regattas may be affected.'
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Delete this organization?',
+      description: 'Associated regattas may be affected. This cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Delete organization',
+    });
+    if (!ok) return;
     try {
       await apiSend(`/organizations/${id}`, 'DELETE', undefined, token);
       setOrgs((prev) => prev.filter((o) => o.id !== id));
+      notify.success('Organization deleted.');
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete');
+      notify.error(err?.message || 'Failed to delete organization.');
     }
   };
 

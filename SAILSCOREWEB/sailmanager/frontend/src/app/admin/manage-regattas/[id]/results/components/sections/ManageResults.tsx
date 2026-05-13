@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useResults } from '../../hooks/useResults';
 import RaceCreator from '../RaceCreator';
 import type { Race } from '../../types';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 interface Props {
   regattaId: number;
@@ -14,6 +15,7 @@ interface Props {
 
 export default function ManageResults({ regattaId, onRaceCreated }: Props) {
   const { token } = useAuth();
+  const confirm = useConfirm();
 
   const {
     races,
@@ -68,7 +70,13 @@ export default function ManageResults({ regattaId, onRaceCreated }: Props) {
   };
 
   const confirmDelete = async (race: Race) => {
-    if (confirm(`Eliminar a corrida "${race.name}"? (resultados desta corrida serão apagados)`)) {
+    const ok = await confirm({
+      title: `Delete the race "${race.name}"?`,
+      description: 'The race and all its results will be permanently removed. This cannot be undone.',
+      tone: 'danger',
+      confirmLabel: 'Delete race',
+    });
+    if (ok) {
       await deleteRace(race.id);
     }
   };

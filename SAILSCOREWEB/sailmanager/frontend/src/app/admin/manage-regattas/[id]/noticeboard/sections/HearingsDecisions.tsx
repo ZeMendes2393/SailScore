@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch, apiDelete } from "@/lib/api";
 import type { HearingItem, HearingStatus, HearingsList } from "@/types/hearings";
+import notify from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 /** `sch_date` vem como YYYY-MM-DD; mostrar dia–mês–ano (pt-PT), não ordem US tipo 03/24/2026. */
 function formatHearingDate(iso: string | null | undefined): string {
@@ -48,6 +50,7 @@ export default function HearingsDecisions({
   fillDecisionPath,
 }: HearingsDecisionsProps) {
   const router = useRouter();
+  const confirm = useConfirm();
 
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,19 +106,27 @@ export default function HearingsDecisions({
       await apiPatch(`/hearings/${id}`, body);
       setEditingId(null);
       setPatch({});
+      notify.success("Hearing updated.");
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Failed to save.");
+      notify.error(e?.message || "Failed to save hearing.");
     }
   }
 
   async function remove(id: number) {
-    if (!confirm("Delete this hearing?")) return;
+    const ok = await confirm({
+      title: "Delete this hearing?",
+      description: "The hearing record will be permanently removed from the notice board.",
+      tone: "danger",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     try {
       await apiDelete(`/hearings/${id}`);
+      notify.success("Hearing deleted.");
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || "Failed to delete.");
+      notify.error(e?.message || "Failed to delete hearing.");
     }
   }
 

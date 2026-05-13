@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ScoringRead } from '@/lib/api';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type Row = ScoringRead & { _expanded?: boolean };
 
 export default function ScoringEnquiries({ regattaId }: { regattaId: number }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setErr] = useState<string | null>(null);
@@ -49,19 +52,27 @@ export default function ScoringEnquiries({ regattaId }: { regattaId: number }) {
       await apiPatch(`/regattas/${regattaId}/scoring/${id}`, patch);
       setEditingId(null);
       setPatch({});
+      notify.success('Scoring enquiry updated.');
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || 'Failed to save.');
+      notify.error(e?.message || 'Failed to save scoring enquiry.');
     }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this scoring enquiry?')) return;
+    const ok = await confirm({
+      title: 'Delete this scoring enquiry?',
+      description: 'The scoring enquiry will be permanently removed from the notice board.',
+      tone: 'danger',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await apiDelete(`/regattas/${regattaId}/scoring/${id}`);
+      notify.success('Scoring enquiry deleted.');
       fetchRows();
     } catch (e: any) {
-      alert(e?.message || 'Failed to delete.');
+      notify.error(e?.message || 'Failed to delete scoring enquiry.');
     }
   }
 

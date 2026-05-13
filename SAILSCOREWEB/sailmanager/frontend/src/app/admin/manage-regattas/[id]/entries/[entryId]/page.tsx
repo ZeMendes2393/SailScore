@@ -9,6 +9,8 @@ import { apiGet, apiSend } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { COUNTRIES_UNIQUE } from '@/utils/countries';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 // Tipos para a área de documentos
 type EntryAttachment = {
@@ -33,6 +35,7 @@ export default function Page() {
   const router = useRouter();
   const { token, user } = useAuth();
   const { orgSlug } = useAdminOrg();
+  const confirm = useConfirm();
   const manageRegattaBasePath = user?.role === 'scorer' ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const entryId = Number(params.entryId);
@@ -133,7 +136,13 @@ export default function Page() {
 
     const touchingKeys = 'class_name' in changed || 'sail_number' in changed;
     const propagate = touchingKeys
-      ? window.confirm('Class or sail number changed. Propagate changes to Results and Rule42?')
+      ? await confirm({
+          title: 'Propagate changes to Results and Rule 42?',
+          description:
+            'Class or sail number changed. Apply the same change to existing race results and Rule 42 records?',
+          tone: 'warning',
+          confirmLabel: 'Yes, propagate',
+        })
       : false;
 
     try {
@@ -144,45 +153,56 @@ export default function Page() {
         setEntry(updated);
         setIsDirty(false);
         window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
-        alert('Saved.');
+        notify.success('Entry saved.');
         if (!wasFullyConfirmed && nowFullyConfirmed && token) {
-          const ok = window.confirm(
-            'This will send the confirmation email for this championship, with account access details for this sailor. Do you want to send it now?'
-          );
+          const ok = await confirm({
+            title: 'Send confirmation email now?',
+            description:
+              'The sailor will receive the championship confirmation email with their account access details.',
+            tone: 'warning',
+            confirmLabel: 'Send email',
+          });
           if (ok) {
             try {
               await apiSend(`/entries/${updated.id}/send-confirmation-email`, 'POST', {}, token);
-              alert('Confirmation email sent.');
+              notify.success('Confirmation email sent.');
             } catch (err: any) {
-              alert(err?.message ?? 'Failed to send confirmation email.');
+              notify.error(err?.message ?? 'Failed to send confirmation email.');
             }
           }
         }
       } else {
         window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
-        alert('Saved.');
+        notify.success('Entry saved.');
       }
     } catch (e: any) {
-      alert(e?.message ?? 'Failed to save.');
+      notify.error(e?.message ?? 'Failed to save entry.');
     }
   };
 
   const onDeleteEntry = async () => {
     if (!entry || !token || deleting) return;
-    const ok = window.confirm(
-      'Delete this entry permanently? This cannot be undone and it will disappear from all lists.'
-    );
+    const ok = await confirm({
+      title: 'Delete this entry permanently?',
+      description:
+        'This cannot be undone and the entry will disappear from all lists.',
+      tone: 'danger',
+      confirmLabel: 'Delete entry',
+    });
     if (!ok) return;
     const confirmText = window.prompt('Type DELETE to confirm permanent removal.');
-    if (confirmText !== 'DELETE') return;
+    if (confirmText !== 'DELETE') {
+      notify.info('Deletion cancelled. Type DELETE to confirm next time.');
+      return;
+    }
     try {
       setDeleting(true);
       await apiSend(`/entries/${entry.id}`, 'DELETE', {}, token);
       window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
-      alert('Entry deleted.');
+      notify.success('Entry deleted.');
       router.push(withOrg(`${manageRegattaBasePath}/${regattaId}?tab=entry`, orgSlug));
     } catch (e: any) {
-      alert(e?.message ?? 'Failed to delete entry.');
+      notify.error(e?.message ?? 'Failed to delete entry.');
       setDeleting(false);
     }
   };
@@ -200,7 +220,7 @@ export default function Page() {
         setForm((prev: any) => ({ ...prev, confirmed: next }));
       }
     } catch (e: any) {
-      alert(e?.message ?? 'Failed to update confirmation.');
+      notify.error(e?.message ?? 'Failed to update confirmation.');
     }
   };
 
@@ -265,9 +285,20 @@ export default function Page() {
 
   async function deleteAttachment(attId: number) {
     if (!entry || !token) return;
-    if (!confirm('Delete this document?')) return;
-    await apiSend(`/entries/${entry.id}/attachments/${attId}`, 'DELETE', {}, token);
-    await loadAttachments();
+    const ok = await confirm({
+      title: 'Delete this document?',
+      description: 'This will permanently remove the attached file from the entry.',
+      tone: 'danger',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await apiSend(`/entries/${entry.id}/attachments/${attId}`, 'DELETE', {}, token);
+      notify.success('Document deleted.');
+      await loadAttachments();
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to delete document.');
+    }
   }
 
   async function renameAttachment(attId: number, newTitle: string) {
@@ -297,11 +328,14 @@ export default function Page() {
             </button>
             <button
               className="px-3 py-2 rounded border"
-              onClick={() => {
+              onClick={async () => {
                 if (hasUnsavedChanges()) {
-                  const ok = window.confirm(
-                    'You have unsaved changes on this entry. Do you want to leave without saving?'
-                  );
+                  const ok = await confirm({
+                    title: 'Leave without saving?',
+                    description: 'You have unsaved changes on this entry. They will be discarded if you go back now.',
+                    tone: 'warning',
+                    confirmLabel: 'Discard changes',
+                  });
                   if (!ok) return;
                 }
                 router.push(withOrg(`${manageRegattaBasePath}/${regattaId}?tab=entry`, orgSlug));
@@ -802,8 +836,9 @@ export default function Page() {
                 onUpload={async (file, title) => {
                   try {
                     await uploadAttachment(file, title);
+                    notify.success('Document uploaded.');
                   } catch (e: any) {
-                    alert(e?.message || 'Upload failed');
+                    notify.error(e?.message || 'Upload failed.');
                   }
                 }}
               />
@@ -896,8 +931,8 @@ function UploadBar({
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    if (!file) { alert('Choose a file'); return; }
-    if (!title.trim()) { alert('Enter a title'); return; }
+    if (!file) { notify.warning('Choose a file to upload.'); return; }
+    if (!title.trim()) { notify.warning('Enter a title for the document.'); return; }
     try {
       setBusy(true);
       await onUpload(file, title.trim());

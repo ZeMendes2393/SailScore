@@ -2,6 +2,8 @@
 import React from 'react';
 import type { FleetSet, Assignment, RaceLite } from '../../../hooks/useFleets';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import notify from '@/lib/notify';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 type Props = {
   selectedSet: FleetSet;
@@ -36,6 +38,7 @@ export default function ExistingFleetSet({
   deleteFleetSet,
   assignments,
 }: Props) {
+  const confirm = useConfirm();
   const missingTitle = !localTitle.trim();
   const isHandicap = classType === 'handicap';
   const displayTitle = selectedSet.public_title?.trim() || localTitle.trim();
@@ -91,7 +94,7 @@ export default function ExistingFleetSet({
             }`}
             onClick={async () => {
               if (!selectedSet.is_published && missingTitle) {
-                alert('Please set a public title before publishing.');
+                notify.warning('Please set a public title before publishing.');
                 return;
               }
 
@@ -109,9 +112,12 @@ export default function ExistingFleetSet({
           <button
             className="px-3 py-1 text-xs rounded border border-red-600 text-red-600 hover:bg-red-50"
             onClick={async () => {
-              const ok = window.confirm(
-                `Are you sure you want to delete the Fleet Set "${selectedSet.label}"?`
-              );
+              const ok = await confirm({
+                title: `Delete the Fleet Set "${selectedSet.label}"?`,
+                description: 'The Fleet Set and its configuration will be removed. This cannot be undone.',
+                tone: 'danger',
+                confirmLabel: 'Delete Fleet Set',
+              });
               if (!ok) return;
 
               try {
@@ -129,15 +135,18 @@ export default function ExistingFleetSet({
                 }
 
                 if (detail?.code === 'FLEETSET_HAS_RESULTS') {
-                  const force = window.confirm(
-                    `This Fleet Set has ${detail.result_count} associated results.\n\nForce delete anyway?`
-                  );
+                  const force = await confirm({
+                    title: 'Force delete this Fleet Set?',
+                    description: `This Fleet Set has ${detail.result_count} associated results. Force delete will remove them as well. This cannot be undone.`,
+                    tone: 'danger',
+                    confirmLabel: 'Force delete',
+                  });
                   if (force) {
                     await deleteFleetSet(selectedSet.id, true);
                   }
                 } else {
                   console.error('Error deleting Fleet Set:', err);
-                  alert('Error deleting Fleet Set.');
+                  notify.error('Error deleting Fleet Set.');
                 }
               }
             }}
@@ -173,11 +182,13 @@ export default function ExistingFleetSet({
                 <button
                   className="ml-1 text-red-600 hover:text-red-800"
                   onClick={async () => {
-                    const ok = window.confirm(
-                      `Are you sure you want to remove "${r.name}" from this Fleet Set?\n\n` +
-                        'This race already may have results associated with this Fleet Set. ' +
-                        'Results will remain in the race, but it will no longer be linked here.'
-                    );
+                    const ok = await confirm({
+                      title: `Remove "${r.name}" from this Fleet Set?`,
+                      description:
+                        'This race may already have results associated with this Fleet Set. Results will remain in the race, but it will no longer be linked here.',
+                      tone: 'warning',
+                      confirmLabel: 'Remove race',
+                    });
                     if (!ok) return;
                     const newIds = racesInSelectedSet
                       .filter((x) => x.id !== r.id)

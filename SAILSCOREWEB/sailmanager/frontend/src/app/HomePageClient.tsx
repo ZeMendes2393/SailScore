@@ -197,7 +197,7 @@ export default function HomePageClient({
   return (
     <>
       <section
-        className="relative w-full min-h-[70vh] md:min-h-[80vh] -mt-28 pt-28 flex flex-col items-center justify-center text-center py-24 md:py-32 text-white overflow-hidden"
+        className="relative w-full min-h-[60vh] md:min-h-[72vh] -mt-28 pt-28 flex flex-col items-center justify-center text-center py-16 md:py-24 text-white overflow-hidden"
         style={{
           ...(heroBgStyle ?? {
             background: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 50%, #0ea5e9 100%)',
@@ -227,10 +227,10 @@ export default function HomePageClient({
           </div>
         )}
         <div className="relative z-10 max-w-3xl mx-auto px-4">
-          <h1 className="text-7xl md:text-8xl font-bold mb-4 tracking-tight drop-shadow-lg">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight drop-shadow-lg">
             {heroTitle?.trim() || 'Regatta Management & Results'}
           </h1>
-          <p className="text-3xl md:text-4xl text-white/95 drop-shadow">
+          <p className="text-lg md:text-2xl text-white/95 drop-shadow">
             {heroSubtitle?.trim() || 'Track, participate and follow the world of sailing competitions.'}
           </p>
         </div>
