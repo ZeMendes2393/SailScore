@@ -32,7 +32,7 @@ export default function AdminSidebar() {
   const organizationsHref = hrefOrganizationsPage(user, isPlatformAdmin, orgSlug, withOrg);
 
   return (
-    <aside className="w-72 bg-white/95 border-r border-gray-200 p-7 space-y-6 shadow-sm">
+    <aside className="sticky top-0 h-screen w-72 overflow-y-auto bg-white/95 border-r border-gray-200 p-7 space-y-6 shadow-sm">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-gray-900">Admin Dashboard</h2>
         <p className="text-sm text-gray-500 mt-1.5">Manage regattas, notices and content.</p>

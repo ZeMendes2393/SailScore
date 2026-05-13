@@ -104,9 +104,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
 
   return (
-    <header
-      className="sticky top-0 z-50 w-full bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-md backdrop-blur-md"
-    >
+    <header className="sticky top-0 z-[70] w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70">
       <div className="w-full min-h-[8rem] py-3 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-3 sm:px-4">
         <Link href={brandHref} className="shrink-0 hover:opacity-90 transition-opacity">
           {logoUrl && !logoFailed ? (

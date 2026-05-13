@@ -123,7 +123,7 @@ export default function MainHeader({
 
   return (
     <header
-      className="sticky top-0 z-50 bg-gradient-to-r from-blue-700/35 to-sky-600/35 text-white shadow-lg backdrop-blur-md"
+      className="sticky top-0 z-[70] bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70"
       suppressHydrationWarning
     >
       <div className="w-full min-h-[4rem] md:min-h-[4.75rem] py-2 sm:py-2.5 flex items-center justify-between px-3 sm:px-4 gap-2 md:gap-3 flex-wrap">
