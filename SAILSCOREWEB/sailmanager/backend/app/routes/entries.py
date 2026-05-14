@@ -175,16 +175,16 @@ def list_entries(
     if current_user.role == "jury":
         raise HTTPException(
             status_code=400,
-            detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.",
+            detail="Use /entries/by_regatta/{regatta_id} for general listings.",
         )
 
     # Regatista (mine): só regata do token; regatta_id na query não pode contradizer o token
     if mine:
         if current_user.role != "regatista":
-            raise HTTPException(status_code=403, detail="Acesso negado")
+            raise HTTPException(status_code=403, detail="Access denied")
         rid = current_regatta_id
         if regatta_id is not None and rid is not None and int(regatta_id) != int(rid):
-            raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+            raise HTTPException(status_code=403, detail="You cannot access this regatta.")
         if rid is None:
             return []
         reg = db.query(models.Regatta).filter(models.Regatta.id == rid).first()
@@ -193,7 +193,7 @@ def list_entries(
         if int(reg.organization_id) != int(current_user.organization_id):
             raise HTTPException(
                 status_code=403,
-                detail="Sem permissão nesta regata (organização).",
+                detail="You do not have permission for this regatta (organization).",
             )
         q = (
             q.filter(models.Entry.regatta_id == rid)
@@ -209,7 +209,7 @@ def list_entries(
         return _safe_ordered_entries(q)
 
     # Regatista a pedir geral
-    raise HTTPException(status_code=400, detail="Usa /entries/by_regatta/{regatta_id} para listagens gerais.")
+    raise HTTPException(status_code=400, detail="Use /entries/by_regatta/{regatta_id} for general listings.")
 
 # ---------------- COUNT /entries ----------------
 @router.get("/count/by_regatta/{regatta_id}")
@@ -301,7 +301,7 @@ def _ensure_sailor_user_and_profile(
     # mas já não é usado como identificador único da conta.
     contact_email = (entry.email or "").strip().lower()
     if not contact_email:
-        raise HTTPException(status_code=400, detail="Email do timoneiro é obrigatório.")
+        raise HTTPException(status_code=400, detail="Helm email is required.")
 
     # Re-usa a regatta vinda do caller para evitar uma query extra a Postgres.
     # Em produção remota essa query custa ~50-100ms por POST.
@@ -759,7 +759,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
         ):
             raise HTTPException(
                 status_code=409,
-                detail="Já existe uma inscrição com o mesmo número de vela e país (country code) nesta classe. Números iguais só são permitidos com países diferentes (ex.: POR 1, GBR 1).",
+                detail="Another entry in this class already uses the same sail number and boat country. Identical numbers are only allowed with different countries (e.g. POR 1, GBR 1).",
             )
 
         new_entry = models.Entry(
@@ -827,7 +827,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
                 temp_password=temp_pwd,
             )
         return {
-            "message": "Inscrição criada com sucesso",
+            "message": "Entry created successfully",
             "id": new_entry.id,
             "user_id": user.id,
             "waiting_list": is_waiting,
@@ -837,7 +837,7 @@ def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Se
     except Exception as e:
         db.rollback()
         print("\n[ERROR] create_entry falhou:", e); print_exc()
-        raise HTTPException(status_code=500, detail="Erro interno ao criar a inscrição. Ver logs do servidor.")
+        raise HTTPException(status_code=500, detail="Internal error while creating the entry. Check server logs.")
 
 @router.get("/by_regatta/{regatta_id}", response_model=List[schemas.EntryListRead])
 def get_entries_by_regatta(
@@ -861,7 +861,7 @@ def get_entries_by_regatta(
             if int(reg.organization_id) != int(current_user.organization_id):
                 raise HTTPException(
                     status_code=403,
-                    detail="Sem permissão nesta regata (organização).",
+                    detail="You do not have permission for this regatta (organization).",
                 )
             staff_profile = (
                 db.query(models.RegattaJuryProfile)
@@ -869,17 +869,17 @@ def get_entries_by_regatta(
                 .first()
             )
             if not staff_profile or int(staff_profile.regatta_id) != int(regatta_id):
-                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+                raise HTTPException(status_code=403, detail="You cannot access this regatta.")
         elif current_user.role == "regatista":
             if int(reg.organization_id) != int(current_user.organization_id):
                 raise HTTPException(
                     status_code=403,
-                    detail="Sem permissão nesta regata (organização).",
+                    detail="You do not have permission for this regatta (organization).",
                 )
             if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
-                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+                raise HTTPException(status_code=403, detail="You cannot access this regatta.")
         else:
-            raise HTTPException(status_code=403, detail="Acesso negado")
+            raise HTTPException(status_code=403, detail="Access denied")
 
     q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
     if class_name:
@@ -903,11 +903,11 @@ def delete_entry(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
-        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+        raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
 
     db.delete(entry)
@@ -969,11 +969,11 @@ def patch_entry(
 ):
     # ---- auth ----
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
-        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+        raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
 
     # valores antigos (para propagação)
@@ -1009,7 +1009,7 @@ def patch_entry(
         ):
             raise HTTPException(
                 status_code=409,
-                detail="Já existe uma inscrição com o mesmo número de vela e país (country code) nesta classe. Números iguais só são permitidos com países diferentes (ex.: POR 1, GBR 1).",
+                detail="Another entry in this class already uses the same sail number and boat country. Identical numbers are only allowed with different countries (e.g. POR 1, GBR 1).",
             )
 
     # Confirmar só é permitido se não houver duplicado (número + country code únicos na classe)
@@ -1020,7 +1020,7 @@ def patch_entry(
         if sail and _entry_duplicate_sail(db, entry.regatta_id, cls, country, sail, exclude_entry_id=entry.id):
             raise HTTPException(
                 status_code=400,
-                detail="Não pode confirmar: existe outra inscrição com o mesmo número de vela e país nesta classe. Corrija os números de vela (ou países) antes de confirmar.",
+                detail="Cannot confirm: another entry in this class already uses the same sail number and boat country. Fix sail numbers (or countries) before confirming.",
             )
 
     regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
@@ -1092,10 +1092,10 @@ def toggle_paid(
     current_user: models.User = Depends(get_current_user)
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
-        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+        raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
     entry.paid = not entry.paid
     db.commit()
@@ -1157,10 +1157,10 @@ def send_confirmation_email(
     Credentials can change from championship to championship.
     """
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if not entry:
-        raise HTTPException(status_code=404, detail="Inscrição não encontrada")
+        raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
     if not entry.paid or not entry.confirmed:
         raise HTTPException(
