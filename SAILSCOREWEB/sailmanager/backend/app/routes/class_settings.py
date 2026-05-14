@@ -29,7 +29,7 @@ class ClassSettingsOut(BaseModel):
 def _ensure_regatta(db: Session, regatta_id: int) -> models.Regatta:
     regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
     if not regatta:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     return regatta
 
 def _get_settings_row(db: Session, regatta_id: int, class_name: str) -> Optional[models.RegattaClassSettings]:

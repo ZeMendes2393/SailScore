@@ -1065,3 +1065,21 @@ class Organization(Base):
     news_items = relationship("NewsItem", back_populates="organization", cascade="all, delete-orphan")
     regatta_sponsors = relationship("RegattaSponsor", back_populates="organization", cascade="all, delete-orphan")
     users = relationship("User", back_populates="organization")
+
+
+# =========================
+# MARKETING (landing pública)
+# =========================
+class MarketingDemoRequest(Base):
+    """Pedidos de demo enviados a partir da landing (Book a Demo)."""
+
+    __tablename__ = "marketing_demo_requests"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), index=True)
+    full_name = sa.Column(sa.String(120), nullable=False)
+    email = sa.Column(sa.String(254), nullable=False, index=True)
+    club_name = sa.Column(sa.String(200), nullable=False)
+    phone = sa.Column(sa.String(40), nullable=True)
+    message = sa.Column(sa.Text, nullable=True)
+    notification_email_sent = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("false"))

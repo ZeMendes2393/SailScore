@@ -67,7 +67,7 @@ def _ensure_single_phase_set(
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Já existe um Fleet Set de phase='{phase}' para esta classe.",
+            detail=f"A fleet set with phase='{phase}' already exists for this class.",
         )
 
 
@@ -93,12 +93,12 @@ def _validate_races_same_regatta_and_class(
         .all()
     )
     if len(rows) != len(race_ids):
-        raise HTTPException(status_code=400, detail="Alguma race_id é inválida.")
+        raise HTTPException(status_code=400, detail="One or more race_id values are invalid.")
     for rid, rreg, rcls in rows:
         if int(rreg) != int(regatta_id) or str(rcls) != str(class_name):
             raise HTTPException(
                 status_code=400,
-                detail=f"Race {rid} não pertence à regata/classe indicada.",
+                detail=f"Race {rid} does not belong to the given regatta/class.",
             )
 
 
@@ -169,7 +169,7 @@ def reshuffle(
     if not prev:
         raise HTTPException(
             status_code=400,
-            detail="Não existe Fleet Set anterior para fazer reshuffle.",
+            detail="There is no previous fleet set to reshuffle.",
         )
 
     try:
@@ -212,20 +212,20 @@ def start_finals_set(
         grouping = {}
         for r in body.ranges:
             if r.to_rank < r.from_rank:
-                raise HTTPException(status_code=400, detail="Range inválido (to < from).")
+                raise HTTPException(status_code=400, detail="Invalid range (to < from).")
             size = r.to_rank - r.from_rank + 1
             if size <= 0:
                 continue
             grouping[r.name] = int(size)
 
         if not grouping:
-            raise HTTPException(status_code=400, detail="Ranges inválidos.")
+            raise HTTPException(status_code=400, detail="Invalid ranges.")
 
     elif body.grouping and len(body.grouping) > 0:
         grouping = body.grouping
 
     else:
-        raise HTTPException(status_code=400, detail="É preciso enviar grouping ou ranges.")
+        raise HTTPException(status_code=400, detail="Send either grouping or ranges.")
 
     fs = start_finals(
         db,
@@ -284,7 +284,7 @@ def list_assignments(
         .first()
     )
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     rows = (
         db.query(FleetAssignment.entry_id, FleetAssignment.fleet_id)
@@ -320,7 +320,7 @@ def delete_fleet_set(
         .first()
     )
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     stats = _fleet_set_stats(db, set_id)
     race_count = stats["race_count"]
@@ -394,7 +394,7 @@ def update_fleet_set_races(
         .first()
     )
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     _validate_races_same_regatta_and_class(db, regatta_id, class_name, body.race_ids)
 
@@ -463,7 +463,7 @@ def publish_set(
     )
 
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     fs.is_published = True
 
@@ -497,7 +497,7 @@ def unpublish_set(
     )
 
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     fs.is_published = False
     fs.published_at = None
@@ -538,7 +538,7 @@ def update_fleet_set(
     )
 
     if not fs:
-        raise HTTPException(status_code=404, detail="Fleet set não encontrado")
+        raise HTTPException(status_code=404, detail="Fleet set not found")
 
     if body.public_title is not None:
         fs.public_title = body.public_title

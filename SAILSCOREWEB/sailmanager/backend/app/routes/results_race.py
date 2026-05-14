@@ -36,6 +36,23 @@ from app.routes.results_utils import (
 router = APIRouter()
 
 
+def _race_export_base_label(regatta: models.Regatta | None, race: models.Race) -> str:
+    reg_name = ((getattr(regatta, "name", None) or "") if regatta else "").strip() or "Regatta"
+    rn = (getattr(race, "name", None) or "").strip()
+    race_name = rn or f"Race {race.id}"
+    return f"{reg_name} - {race_name}"
+
+
+def _safe_race_export_filename(regatta: models.Regatta | None, race: models.Race, ext: str) -> str:
+    ext = ext.lstrip(".")
+    base = _race_export_base_label(regatta, race)
+    safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in base)
+    safe = safe.strip(" ._")
+    if not safe:
+        safe = f"race_{race.id}_results"
+    return f"{safe}.{ext}"
+
+
 def _norm_cc(v: Optional[str]) -> Optional[str]:
     raw = (v or "").strip().upper()
     return raw or None
@@ -220,7 +237,7 @@ def add_single_result(
 
     race = db.query(models.Race).filter_by(id=race_id).first()
     if not race:
-        raise HTTPException(404, "Corrida não encontrada")
+        raise HTTPException(404, "Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -259,7 +276,7 @@ def add_single_result(
                 | (func.trim(models.Result.boat_country_code) == "")
             )
         if q.first():
-            raise HTTPException(409, "Este barco já tem resultado nesta corrida")
+            raise HTTPException(409, "This boat already has a result in this race")
 
     # calcular points
     if code:
@@ -335,7 +352,7 @@ def reorder_race_results(
 
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
-        raise HTTPException(404, "Corrida não encontrada")
+        raise HTTPException(404, "Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -414,9 +431,7 @@ def get_race_results_pdf(
     uploads_dir = Path("uploads").resolve()
     pdf_bytes = build_race_results_pdf(regatta, race, results, sponsors, uploads_dir)
 
-    base_name = f"{getattr(regatta, 'name', 'Regatta')} - {getattr(race, 'name', 'Race')}"
-    safe_name = "".join(c if c.isalnum() or c in " -_." else "_" for c in base_name)
-    filename = f"{safe_name}.pdf"
+    filename = _safe_race_export_filename(regatta, race, "pdf")
 
     return Response(
         content=pdf_bytes,
@@ -448,7 +463,7 @@ def create_results_for_race(
 
     race = db.query(models.Race).filter_by(id=race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -725,7 +740,7 @@ def export_race_results_csv(
         raise HTTPException(status_code=403, detail="Acesso negado")
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -768,7 +783,7 @@ def export_race_results_csv(
             }
             writer.writerow([row_map.get(c, "") for c in cols])
     content = buf.getvalue()
-    filename = f"race_{race_id}_results.csv"
+    filename = _safe_race_export_filename(regatta, race, "csv")
     return Response(
         content=content.encode("utf-8"),
         media_type="text/csv",

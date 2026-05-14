@@ -304,7 +304,7 @@ def get_overall_results_data(
 ):
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(404, "Regata não encontrada")
+        raise HTTPException(404, "Regatta not found")
 
     reg_default_D = int(getattr(reg, "discard_count", 0) or 0)
     reg_default_TH = int(getattr(reg, "discard_threshold", 0) or 0)

@@ -122,16 +122,16 @@ def create_protest(
             entries = db.query(Entry).filter(Entry.id.in_(resp_ids)).all()
             to_emails = sorted({(e.email or "").strip().lower() for e in entries if e.email})
             if to_emails:
-                subject = f"[SailScore] Foste protestado (P-{p.id})"
+                subject = f"[SailScore] You were protested (P-{p.id})"
                 text = (
-                    "Olá,\n\n"
-                    "Foste indicado como parte num protesto.\n\n"
-                    f"Protesto: P-{p.id}\n"
-                    f"Tipo: {p.type}\n"
-                    f"Regata ID: {p.regatta_id}\n"
-                    f"Prova/Race: {p.race_number or '—'} | Data: {p.race_date or '—'}\n"
-                    f"Grupo: {p.group_name or '—'}\n\n"
-                    "Inicia sessão para ver detalhes e acompanhar o estado.\n\n"
+                    "Hello,\n\n"
+                    "You have been named as a party in a protest.\n\n"
+                    f"Protest: P-{p.id}\n"
+                    f"Type: {p.type}\n"
+                    f"Regatta ID: {p.regatta_id}\n"
+                    f"Race: {p.race_number or '—'} | Date: {p.race_date or '—'}\n"
+                    f"Group: {p.group_name or '—'}\n\n"
+                    "Sign in to see details and follow the status.\n\n"
                     "— SailScore"
                 )
                 for to in to_emails:

@@ -48,15 +48,15 @@ def delete_result(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -79,15 +79,15 @@ def change_result_position(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter(models.Result.id == result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -99,7 +99,7 @@ def change_result_position(
     if removes_from_ranking(getattr(row, "code", None)):
         raise HTTPException(
             status_code=400,
-            detail="Este resultado não pode ser movido (code fora do ranking).",
+            detail="This result cannot be moved (status code is outside the ranking).",
         )
 
     new_pos = int(body.new_position)
@@ -161,15 +161,15 @@ def set_result_code(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -235,15 +235,15 @@ def patch_handicap_fields(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -293,15 +293,15 @@ def override_points(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -313,11 +313,11 @@ def override_points(
     if removes_from_ranking(getattr(row, "code", None)):
         raise HTTPException(
             status_code=400,
-            detail="Este resultado está fora do ranking (DNF/DNC/etc). Não faz override de pontos aqui.",
+            detail="This result is outside the ranking (DNF/DNC/etc.). Points override is not applied here.",
         )
 
     if not hasattr(row, "points_override"):
-        raise HTTPException(status_code=500, detail="Modelo Result não tem points_override")
+        raise HTTPException(status_code=500, detail="Result model has no points_override field")
 
     row.points_override = float(body.points)
     row.points = float(body.points)
@@ -337,15 +337,15 @@ def undo_override_points(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     row = db.query(models.Result).filter_by(id=result_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Resultado não encontrado")
+        raise HTTPException(status_code=404, detail="Result not found")
 
     race = db.query(models.Race).filter_by(id=row.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=race.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -354,7 +354,7 @@ def undo_override_points(
             assert_staff_regatta_access(db, current_user, regatta.id)
 
     if not hasattr(row, "points_override"):
-        raise HTTPException(status_code=500, detail="Modelo Result não tem points_override")
+        raise HTTPException(status_code=500, detail="Result model has no points_override field")
 
     row.points_override = None
 

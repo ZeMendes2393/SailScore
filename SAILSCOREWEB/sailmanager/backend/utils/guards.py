@@ -29,12 +29,12 @@ def ensure_regatta_scope(
         assert_jury_regatta_access(db, current_user, regatta_id)
         return
     if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
-        raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+        raise HTTPException(status_code=403, detail="You cannot access this regatta.")
     regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
     if int(regatta.organization_id) != int(current_user.organization_id):
         raise HTTPException(
             status_code=403,
-            detail="Sem permissão nesta regata (organização).",
+            detail="You do not have permission for this regatta (organization).",
         )

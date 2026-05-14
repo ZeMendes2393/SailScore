@@ -5,7 +5,7 @@ import math
 import re
 from typing import Optional, List, Dict, Literal, Any, Union
 from datetime import datetime, date, time
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, TypeAdapter, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -19,6 +19,11 @@ _VALID_RATING_TYPES = {"anc", "orc", "one_design"}
 _VALID_HELM_POSITIONS = {"Skipper", "Crew"}
 _NUMERIC_RATING_MIN = -1_000.0
 _NUMERIC_RATING_MAX = 1_000_000.0
+_ENTRY_SAIL_NUMBER_MAX_LEN = 15
+_ENTRY_EMAIL_ADAPTER = TypeAdapter(EmailStr)
+_PHONE_RE = re.compile(r"^[0-9+()\-\s./]{5,30}$")
+_ALLOWED_GENDERS = {"male", "female", "other", "m", "f", "x"}
+_MAX_CREW_MEMBERS = 20
 
 
 def _normalize_country_code(v: Optional[str]) -> Optional[str]:
@@ -72,6 +77,116 @@ def _validate_finite_rating(v: Optional[float]) -> Optional[float]:
             f"Rating out of range (allowed between {_NUMERIC_RATING_MIN} and {_NUMERIC_RATING_MAX})."
         )
     return f
+
+
+def _normalize_required_text(v: Any, *, field_name: str, max_len: int) -> str:
+    if v is None:
+        raise ValueError(f"{field_name} is required.")
+    s = str(v).strip()
+    if not s:
+        raise ValueError(f"{field_name} is required.")
+    if len(s) > max_len:
+        raise ValueError(f"{field_name} is too long (max {max_len} characters).")
+    return s
+
+
+def _normalize_optional_text(v: Any, *, field_name: str, max_len: int) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    if len(s) > max_len:
+        raise ValueError(f"{field_name} is too long (max {max_len} characters).")
+    return s
+
+
+def _normalize_optional_email(v: Any, *, field_name: str = "Email") -> Optional[str]:
+    s = _normalize_optional_text(v, field_name=field_name, max_len=254)
+    if s is None:
+        return None
+    try:
+        return str(_ENTRY_EMAIL_ADAPTER.validate_python(s))
+    except Exception:
+        raise ValueError(f"{field_name} is invalid.")
+
+
+def _normalize_optional_phone(v: Any, *, field_name: str) -> Optional[str]:
+    s = _normalize_optional_text(v, field_name=field_name, max_len=30)
+    if s is None:
+        return None
+    if not _PHONE_RE.match(s):
+        raise ValueError(
+            f"{field_name} is invalid. Use digits and basic symbols (+ - ( ) . / and spaces)."
+        )
+    return s
+
+
+def _normalize_optional_birth_date(v: Any) -> Optional[str]:
+    s = _normalize_optional_text(v, field_name="Date of birth", max_len=10)
+    if s is None:
+        return None
+    try:
+        dt = datetime.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("Date of birth must be in format YYYY-MM-DD.")
+    today = date.today()
+    if dt > today:
+        raise ValueError("Date of birth cannot be in the future.")
+    if dt.year < 1900:
+        raise ValueError("Date of birth is too old to be valid.")
+    return dt.isoformat()
+
+
+def _normalize_optional_gender(v: Any) -> Optional[str]:
+    s = _normalize_optional_text(v, field_name="Gender", max_len=16)
+    if s is None:
+        return None
+    g = s.lower()
+    if g not in _ALLOWED_GENDERS:
+        raise ValueError("Gender must be one of: male, female, other, m, f, x.")
+    if g in {"male", "m"}:
+        return "Male"
+    if g in {"female", "f"}:
+        return "Female"
+    return "Other"
+
+
+def _normalize_crew_members(v: Any) -> Optional[List[Dict[str, Any]]]:
+    if v is None:
+        return None
+    if not isinstance(v, list):
+        raise ValueError("Crew members must be a list.")
+    if len(v) > _MAX_CREW_MEMBERS:
+        raise ValueError(f"Crew members exceeds maximum allowed ({_MAX_CREW_MEMBERS}).")
+
+    normalized: List[Dict[str, Any]] = []
+    for i, member in enumerate(v, start=1):
+        if not isinstance(member, dict):
+            raise ValueError(f"Crew member #{i} must be an object.")
+        clean_member: Dict[str, Any] = {}
+        for raw_key, raw_value in member.items():
+            key = _normalize_required_text(raw_key, field_name=f"Crew member #{i} field", max_len=40)
+            if raw_value is None:
+                clean_member[key] = None
+                continue
+            if isinstance(raw_value, (int, float, bool)):
+                clean_member[key] = raw_value
+                continue
+            if isinstance(raw_value, (list, dict)):
+                raise ValueError(f"Crew member #{i} field '{key}' must be a primitive value.")
+
+            val = _normalize_optional_text(raw_value, field_name=f"Crew member #{i} field '{key}'", max_len=200)
+            if key.lower() in {"email", "owner_email"}:
+                clean_member[key] = _normalize_optional_email(val, field_name=f"Crew member #{i} email")
+            elif key.lower() in {"phone", "contact_phone", "contact_phone_1", "contact_phone_2"}:
+                clean_member[key] = _normalize_optional_phone(val, field_name=f"Crew member #{i} phone")
+            elif key.lower() in {"date_of_birth", "dob"}:
+                clean_member[key] = _normalize_optional_birth_date(val)
+            else:
+                clean_member[key] = val
+        normalized.append(clean_member)
+    return normalized
 
 
 
@@ -137,6 +252,20 @@ class OrganizationRead(OrganizationBase):
 class OrganizationReadWithAdmin(OrganizationRead):
     """Organização com email do admin (para edição por platform_admin)."""
     admin_email: Optional[str] = None
+
+
+class MarketingDemoRequestRead(BaseModel):
+    """Pedido de demo (lista para platform_admin)."""
+
+    id: int
+    created_at: datetime
+    full_name: str
+    email: str
+    club_name: str
+    phone: Optional[str] = None
+    message: Optional[str] = None
+    notification_email_sent: bool
+    model_config = ConfigDict(from_attributes=True)
 
 
 # =========================
@@ -374,23 +503,97 @@ class EntryCreate(BaseModel):
     @classmethod
     def boat_country_code_non_empty(cls, v: str) -> str:
         if v is None:
-            raise ValueError("Country code da vela é obrigatório.")
+            raise ValueError("Sail country code is required.")
         s = (v or "").strip().upper()
         if not s:
-            raise ValueError("Country code da vela é obrigatório.")
+            raise ValueError("Sail country code is required.")
         if not _COUNTRY_CODE_RE.match(s):
             raise ValueError("Country code must be 2 or 3 uppercase letters (e.g. POR, GBR, USA).")
         return s
 
+    @field_validator("class_name")
+    @classmethod
+    def class_name_non_empty(cls, v: str) -> str:
+        return _normalize_required_text(v, field_name="Class name", max_len=100)
+
     @field_validator("sail_number")
     @classmethod
     def sail_number_non_empty(cls, v: str) -> str:
-        if v is None:
-            raise ValueError("Sail number é obrigatório.")
-        s = (v or "").strip()
-        if not s:
-            raise ValueError("Sail number é obrigatório.")
+        s = _normalize_required_text(v, field_name="Sail number", max_len=_ENTRY_SAIL_NUMBER_MAX_LEN)
+        if len(s) > _ENTRY_SAIL_NUMBER_MAX_LEN:
+            raise ValueError(f"Sail number is too long (max {_ENTRY_SAIL_NUMBER_MAX_LEN} characters).")
         return s
+
+    @field_validator(
+        "boat_country",
+        "bow_number",
+        "boat_name",
+        "boat_model",
+        "category",
+        "first_name",
+        "last_name",
+        "helm_country",
+        "territory",
+        "club",
+        "address",
+        "zip_code",
+        "town",
+        "helm_country_secondary",
+        "federation_license",
+        "owner_first_name",
+        "owner_last_name",
+        mode="before",
+    )
+    @classmethod
+    def _v_optional_text_fields(cls, v, info):
+        limits = {
+            "boat_country": 100,
+            "bow_number": 32,
+            "boat_name": 120,
+            "boat_model": 120,
+            "category": 80,
+            "first_name": 80,
+            "last_name": 80,
+            "helm_country": 100,
+            "territory": 100,
+            "club": 120,
+            "address": 250,
+            "zip_code": 20,
+            "town": 100,
+            "helm_country_secondary": 100,
+            "federation_license": 64,
+            "owner_first_name": 80,
+            "owner_last_name": 80,
+        }
+        field = str(info.field_name)
+        return _normalize_optional_text(v, field_name=field.replace("_", " ").title(), max_len=limits[field])
+
+    @field_validator("email", "owner_email", mode="before")
+    @classmethod
+    def _v_emails(cls, v, info):
+        field = "Owner email" if info.field_name == "owner_email" else "Email"
+        return _normalize_optional_email(v, field_name=field)
+
+    @field_validator("contact_phone_1", "contact_phone_2", mode="before")
+    @classmethod
+    def _v_phones(cls, v, info):
+        field = "Contact phone 1" if info.field_name == "contact_phone_1" else "Contact phone 2"
+        return _normalize_optional_phone(v, field_name=field)
+
+    @field_validator("date_of_birth", mode="before")
+    @classmethod
+    def _v_date_of_birth(cls, v):
+        return _normalize_optional_birth_date(v)
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _v_gender(cls, v):
+        return _normalize_optional_gender(v)
+
+    @field_validator("crew_members", mode="before")
+    @classmethod
+    def _v_crew_members(cls, v):
+        return _normalize_crew_members(v)
 
     @field_validator("rating_type", mode="before")
     @classmethod
@@ -920,7 +1123,7 @@ class PTLBase(BaseModel):
         h, m = v.split(":")
         h_i, m_i = int(h), int(m)
         if h_i < 0 or m_i < 0 or m_i > 59:
-            raise ValueError("time_limit_hm inválido (minutos 00–59)")
+            raise ValueError("time_limit_hm is invalid (minutes must be 00–59)")
         return f"{h_i:02d}:{m_i:02d}"
 
 
@@ -945,7 +1148,7 @@ class PTLPatch(BaseModel):
         h, m = v.split(":")
         h_i, m_i = int(h), int(m)
         if h_i < 0 or m_i < 0 or m_i > 59:
-            raise ValueError("time_limit_hm inválido (minutos 00–59)")
+            raise ValueError("time_limit_hm is invalid (minutes must be 00–59)")
         return f"{h_i:02d}:{m_i:02d}"
 
 
@@ -1014,6 +1217,91 @@ class EntryPatch(BaseModel):
     @classmethod
     def _v_boat_country_code(cls, v):
         return _normalize_country_code(v)
+
+    @field_validator("class_name", mode="before")
+    @classmethod
+    def _v_class_name(cls, v):
+        return _normalize_optional_text(v, field_name="Class name", max_len=100)
+
+    @field_validator("sail_number", mode="before")
+    @classmethod
+    def _v_sail_number(cls, v):
+        return _normalize_optional_text(
+            v,
+            field_name="Sail number",
+            max_len=_ENTRY_SAIL_NUMBER_MAX_LEN,
+        )
+
+    @field_validator(
+        "boat_country",
+        "bow_number",
+        "boat_name",
+        "boat_model",
+        "category",
+        "first_name",
+        "last_name",
+        "helm_country",
+        "territory",
+        "club",
+        "address",
+        "zip_code",
+        "town",
+        "helm_country_secondary",
+        "federation_license",
+        "owner_first_name",
+        "owner_last_name",
+        mode="before",
+    )
+    @classmethod
+    def _v_optional_text_fields(cls, v, info):
+        limits = {
+            "boat_country": 100,
+            "bow_number": 32,
+            "boat_name": 120,
+            "boat_model": 120,
+            "category": 80,
+            "first_name": 80,
+            "last_name": 80,
+            "helm_country": 100,
+            "territory": 100,
+            "club": 120,
+            "address": 250,
+            "zip_code": 20,
+            "town": 100,
+            "helm_country_secondary": 100,
+            "federation_license": 64,
+            "owner_first_name": 80,
+            "owner_last_name": 80,
+        }
+        field = str(info.field_name)
+        return _normalize_optional_text(v, field_name=field.replace("_", " ").title(), max_len=limits[field])
+
+    @field_validator("email", "owner_email", mode="before")
+    @classmethod
+    def _v_emails(cls, v, info):
+        field = "Owner email" if info.field_name == "owner_email" else "Email"
+        return _normalize_optional_email(v, field_name=field)
+
+    @field_validator("contact_phone_1", "contact_phone_2", mode="before")
+    @classmethod
+    def _v_phones(cls, v, info):
+        field = "Contact phone 1" if info.field_name == "contact_phone_1" else "Contact phone 2"
+        return _normalize_optional_phone(v, field_name=field)
+
+    @field_validator("date_of_birth", mode="before")
+    @classmethod
+    def _v_date_of_birth(cls, v):
+        return _normalize_optional_birth_date(v)
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _v_gender(cls, v):
+        return _normalize_optional_gender(v)
+
+    @field_validator("crew_members", mode="before")
+    @classmethod
+    def _v_crew_members(cls, v):
+        return _normalize_crew_members(v)
 
     @field_validator("rating_type", mode="before")
     @classmethod

@@ -168,11 +168,11 @@ def _render_decision_pdf(snapshot: dict, hearing: models.Hearing) -> str:
 def create_hearing_for_protest(protest_id: int, db: Session, current_user: models.User):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
     if not p:
-        raise HTTPException(status_code=404, detail="Protesto não encontrado")
+        raise HTTPException(status_code=404, detail="Protest not found")
 
     regatta_id = getattr(p, "regatta_id", None)
     if not regatta_id:
-        raise HTTPException(status_code=400, detail="Protesto sem regatta_id")
+        raise HTTPException(status_code=400, detail="Protest has no regatta_id")
 
     last = (
         db.query(models.Hearing.case_number)
@@ -206,7 +206,7 @@ def create_for_protest(
 ):
     p = db.query(models.Protest).filter(models.Protest.id == protest_id).first()
     if not p or not getattr(p, "regatta_id", None):
-        raise HTTPException(status_code=404, detail="Protesto não encontrado")
+        raise HTTPException(status_code=404, detail="Protest not found")
     assert_staff_regatta_access(db, current_user, int(p.regatta_id))
     # evita duplicados: se já existir hearing para este protesto, devolve-o
     exists = db.query(models.Hearing).filter(models.Hearing.protest_id == protest_id).first()
@@ -226,7 +226,7 @@ def update_hearing(
 ):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
-        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+        raise HTTPException(status_code=404, detail="Hearing not found")
     assert_staff_regatta_access(db, current_user, h.regatta_id)
 
     patch = payload.model_dump(exclude_unset=True)
@@ -257,7 +257,7 @@ def delete_hearing(
 ):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
-        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+        raise HTTPException(status_code=404, detail="Hearing not found")
     assert_staff_regatta_access(db, current_user, h.regatta_id)
     db.delete(h)
     db.commit()
@@ -360,7 +360,7 @@ def list_hearings(
 def get_hearing(hearing_id: int, db: Session = Depends(get_db)):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
-        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+        raise HTTPException(status_code=404, detail="Hearing not found")
 
     p = None
     if h.protest_id:
@@ -419,7 +419,7 @@ def regenerate_decision_pdf(
 ):
     h = db.query(models.Hearing).filter(models.Hearing.id == hearing_id).first()
     if not h:
-        raise HTTPException(status_code=404, detail="Hearing não encontrado")
+        raise HTTPException(status_code=404, detail="Hearing not found")
     assert_staff_regatta_access(db, current_user, h.regatta_id)
 
     if not getattr(h, "decision_snapshot_json", None):

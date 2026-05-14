@@ -216,7 +216,7 @@ def update_rule42(
 ):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
-        raise HTTPException(status_code=404, detail="Registo não encontrado")
+        raise HTTPException(status_code=404, detail="Record not found")
     _ensure_rule42_write(db, current_user, rec.regatta_id)
 
     data = payload.model_dump(exclude_unset=True)
@@ -242,7 +242,7 @@ def delete_rule42(
 ):
     rec = db.query(models.Rule42Record).filter(models.Rule42Record.id == id).first()
     if not rec:
-        raise HTTPException(status_code=404, detail="Registo não encontrado")
+        raise HTTPException(status_code=404, detail="Record not found")
     _ensure_rule42_write(db, current_user, rec.regatta_id)
     db.delete(rec)
     db.commit()

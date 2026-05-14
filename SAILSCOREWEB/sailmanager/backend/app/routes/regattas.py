@@ -86,7 +86,7 @@ def list_regattas(
 def _get_default_org_id(db: Session) -> int:
     org = db.query(models.Organization).filter(models.Organization.slug == "sailscore").first()
     if not org:
-        raise HTTPException(status_code=500, detail="Organização default (sailscore) não encontrada")
+        raise HTTPException(status_code=500, detail="Default organization (sailscore) not found")
     return org.id
 
 
@@ -97,16 +97,16 @@ def create_regatta(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
     if current_user.role == "admin":
         org_id = current_user.organization_id
     else:
         org_id = regatta.organization_id if regatta.organization_id is not None else _get_default_org_id(db)
     org = db.query(models.Organization).filter(models.Organization.id == org_id).first()
     if not org:
-        raise HTTPException(status_code=400, detail="Organização não encontrada")
+        raise HTTPException(status_code=400, detail="Organization not found")
     if not org.is_active:
-        raise HTTPException(status_code=400, detail="Organização inativa")
+        raise HTTPException(status_code=400, detail="Organization is inactive")
     assert_user_can_manage_org_id(current_user, org_id)
     data = regatta.model_dump(exclude={"organization_id"})
     data["organization_id"] = org_id
@@ -145,11 +145,11 @@ def update_regatta(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin", "scorer"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     if current_user.role in ("admin", "platform_admin"):
         assert_user_can_manage_org_id(current_user, reg.organization_id)
     else:
@@ -167,13 +167,13 @@ def update_regatta(
         }
         data = {k: v for k, v in data.items() if k in scorer_allowed_fields}
         if not data:
-            raise HTTPException(status_code=403, detail="Acesso negado")
+            raise HTTPException(status_code=403, detail="Access denied")
     if "organization_id" in data:
         org = db.query(models.Organization).filter(models.Organization.id == data["organization_id"]).first()
         if not org:
-            raise HTTPException(status_code=400, detail="Organização não encontrada")
+            raise HTTPException(status_code=400, detail="Organization not found")
         if not org.is_active:
-            raise HTTPException(status_code=400, detail="Organização inativa")
+            raise HTTPException(status_code=400, detail="Organization is inactive")
     cc_new = data.get("country_code")
     tz_new = data.get("timezone")
     cc = str(cc_new) if cc_new is not None else getattr(reg, "country_code", None)
@@ -198,11 +198,11 @@ def delete_regatta(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     db.delete(reg)
@@ -224,11 +224,11 @@ def update_scoring(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not regatta:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     regatta.discard_count = body.discard_count
@@ -352,7 +352,7 @@ def get_regatta_status(
 ):
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
 
     if current_user is not None:
         if current_user.role in ("admin", "platform_admin"):
@@ -363,14 +363,14 @@ def get_regatta_status(
             if int(reg.organization_id) != int(current_user.organization_id):
                 raise HTTPException(
                     status_code=403,
-                    detail="Sem permissão nesta regata (organização).",
+                    detail="You do not have permission for this regatta (organization).",
                 )
             if current_regatta_id is None or int(regatta_id) != int(current_regatta_id):
-                raise HTTPException(status_code=403, detail="Fora do âmbito da tua regata")
+                raise HTTPException(status_code=403, detail="You cannot access this regatta.")
         elif current_user.role == "scorer":
             assert_staff_regatta_access(db, current_user, regatta_id)
         else:
-            raise HTTPException(status_code=403, detail="Acesso negado")
+            raise HTTPException(status_code=403, detail="Access denied")
 
     return _compute_regatta_status(reg)
 
@@ -382,7 +382,7 @@ def get_classes_detailed(
     """Devolve classes com class_type (one_design | handicap)."""
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     rows = (
         db.query(models.RegattaClass)
         .filter(models.RegattaClass.regatta_id == regatta_id)
@@ -411,7 +411,7 @@ def get_classes_for_regatta(
 ):
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
 
     # 1) Preferir as classes configuradas (RegattaClass) — funciona para regatas novas
     try:
@@ -450,11 +450,11 @@ def replace_regatta_classes(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role not in ("admin", "platform_admin"):
-        raise HTTPException(status_code=403, detail="Acesso negado")
+        raise HTTPException(status_code=403, detail="Access denied")
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     assert_user_can_manage_org_id(current_user, reg.organization_id)
 
     # Normalizar: (class_name, class_type, sailors_per_boat)
@@ -505,7 +505,7 @@ def replace_regatta_classes(
         if has_entries:
             raise HTTPException(
                 status_code=400,
-                detail=f"Não é possível remover a classe '{cname}': ainda existem inscrições. Elimine ou altere as inscrições primeiro.",
+                detail=f"Cannot remove class '{cname}': there are still entries. Delete or change entries first.",
             )
         has_races = (
             db.query(models.Race.id)
@@ -516,7 +516,7 @@ def replace_regatta_classes(
         if has_races:
             raise HTTPException(
                 status_code=400,
-                detail=f"Não é possível remover a classe '{cname}': ainda existem corridas. Elimine ou altere as corridas primeiro.",
+                detail=f"Cannot remove class '{cname}': there are still races. Delete or change races first.",
             )
 
     # Ao remover uma classe, apagar também as configurações por classe (RegattaClassSettings)

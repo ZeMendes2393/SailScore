@@ -31,7 +31,7 @@ def _assert_notice_manager_access(
     if role == "scorer":
         assert_staff_regatta_access(db, current_user, regatta_id)
         return
-    raise HTTPException(status_code=403, detail="Permissão negada")
+    raise HTTPException(status_code=403, detail="Permission denied")
 
 
 def map_notice_to_read(n: models.Notice) -> schemas.NoticeRead:
@@ -92,7 +92,7 @@ def upload_notice_file(
     )
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Só são permitidos PDFs.")
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
     # guarda o ficheiro com nome aleatório no disco (dev) ou S3 (produção)
     extension = file.filename.split(".")[-1]
@@ -139,7 +139,7 @@ def upload_notice_file(
         if missing:
             raise HTTPException(
                 status_code=400,
-                detail=f"Classes inválidas para esta regata: {missing}",
+                detail=f"Invalid classes for this regatta: {missing}",
             )
         notice.classes = found
 
@@ -215,7 +215,7 @@ def get_notices_by_regatta(
 def get_notice_detail(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
-        raise HTTPException(status_code=404, detail="Documento não encontrado")
+        raise HTTPException(status_code=404, detail="Document not found")
     return map_notice_to_read(n)
 
 
@@ -231,7 +231,7 @@ def delete_notice(
 ):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
-        raise HTTPException(status_code=404, detail="Documento não encontrado")
+        raise HTTPException(status_code=404, detail="Document not found")
     regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
     if regatta:
         _assert_notice_manager_access(
@@ -271,7 +271,7 @@ def set_notice_important(
     """
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
-        raise HTTPException(status_code=404, detail="Documento não encontrado")
+        raise HTTPException(status_code=404, detail="Document not found")
     regatta = db.query(models.Regatta).filter_by(id=n.regatta_id).first()
     if regatta:
         _assert_notice_manager_access(
@@ -294,7 +294,7 @@ from fastapi.responses import RedirectResponse
 def download_notice(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
-        raise HTTPException(status_code=404, detail="Documento não encontrado")
+        raise HTTPException(status_code=404, detail="Document not found")
 
     s3_or_remote_url = build_download_url(
         stored_path=n.filepath,
@@ -307,7 +307,7 @@ def download_notice(notice_id: int, db: Session = Depends(get_db)):
     # mapeia caminho público -> caminho no disco (pasta uploads/)
     fs_path = n.filepath.replace("/uploads", "uploads")
     if not os.path.exists(fs_path):
-        raise HTTPException(status_code=404, detail="Ficheiro não encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     # força download com o nome original
     return FileResponse(

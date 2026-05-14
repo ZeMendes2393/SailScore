@@ -46,7 +46,7 @@ def _get_settings_row(db: Session, regatta_id: int, class_name: str):
     if Model is None:
         raise HTTPException(
             status_code=500,
-            detail="Model RegattaClassSettings não existe. Confirma o nome no app/models.py.",
+            detail="RegattaClassSettings model is missing. Check the model name in app/models.py.",
         )
 
     row = (

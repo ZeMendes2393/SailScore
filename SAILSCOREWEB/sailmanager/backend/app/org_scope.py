@@ -22,14 +22,14 @@ def assert_staff_regatta_access(db: Session, user: models.User, regatta_id: int)
         if not regatta:
             raise HTTPException(status_code=404, detail="Regatta not found")
         if int(regatta.organization_id) != int(user.organization_id):
-            raise HTTPException(status_code=403, detail="Sem permissão nesta regata (organização).")
+            raise HTTPException(status_code=403, detail="You do not have permission for this regatta (organization).")
         prof = (
             db.query(models.RegattaJuryProfile)
             .filter(models.RegattaJuryProfile.user_id == user.id)
             .first()
         )
         if not prof or int(prof.regatta_id) != int(regatta_id):
-            raise HTTPException(status_code=403, detail="Sem permissão nesta regata.")
+            raise HTTPException(status_code=403, detail="You do not have permission for this regatta.")
         return
     if user.role in ("admin", "platform_admin"):
         regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
@@ -37,7 +37,7 @@ def assert_staff_regatta_access(db: Session, user: models.User, regatta_id: int)
             raise HTTPException(status_code=404, detail="Regatta not found")
         assert_user_can_manage_org_id(user, regatta.organization_id)
         return
-    raise HTTPException(status_code=403, detail="Sem permissão para esta regata.")
+    raise HTTPException(status_code=403, detail="You do not have permission for this regatta.")
 
 DEFAULT_ORG_SLUG = "sailscore"
 
@@ -52,9 +52,9 @@ def resolve_org(db: Session, org_slug: str | None = None, org_id: int | None = N
         org = db.query(models.Organization).filter(models.Organization.slug == DEFAULT_ORG_SLUG).first()
 
     if not org:
-        raise HTTPException(status_code=404, detail="Organização não encontrada")
+        raise HTTPException(status_code=404, detail="Organization not found")
     if not org.is_active:
-        raise HTTPException(status_code=404, detail="Organização inativa")
+        raise HTTPException(status_code=404, detail="Organization is inactive")
     return org
 
 
@@ -64,7 +64,7 @@ def assert_user_can_manage_organization(user: models.User, organization: models.
         return
     if user.role == "admin" and user.organization_id == organization.id:
         return
-    raise HTTPException(status_code=403, detail="Sem permissão para esta organização.")
+    raise HTTPException(status_code=403, detail="You do not have permission for this organization.")
 
 
 def assert_user_can_manage_org_id(user: models.User, organization_id: int) -> None:
@@ -72,4 +72,4 @@ def assert_user_can_manage_org_id(user: models.User, organization_id: int) -> No
         return
     if user.role == "admin" and user.organization_id == organization_id:
         return
-    raise HTTPException(status_code=403, detail="Sem permissão para esta organização.")
+    raise HTTPException(status_code=403, detail="You do not have permission for this organization.")

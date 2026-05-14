@@ -22,7 +22,7 @@ def _require_admin_or_jury(user) -> None:
     if user.role not in ("admin", "platform_admin", "jury"):
         raise HTTPException(
             status_code=403,
-            detail="Apenas administrador de organização ou júri podem ver ou editar aqui.",
+            detail="Only an organization administrator or jury may view or edit here.",
         )
 
 

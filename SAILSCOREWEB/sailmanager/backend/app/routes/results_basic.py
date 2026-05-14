@@ -26,12 +26,12 @@ def create_result(
 
     regatta = db.query(models.Regatta).filter(models.Regatta.id == result.regatta_id).first()
     if not regatta:
-        raise HTTPException(status_code=404, detail="Regata não encontrada")
+        raise HTTPException(status_code=404, detail="Regatta not found")
     assert_user_can_manage_org_id(current_user, regatta.organization_id)
 
     race = db.query(models.Race).filter(models.Race.id == result.race_id).first()
     if not race:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
 
     code_map = regatta.scoring_codes or {}
     code = _norm(result.code)

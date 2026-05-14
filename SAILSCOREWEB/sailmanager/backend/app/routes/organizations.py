@@ -37,7 +37,7 @@ def _require_platform_admin(db: Session, current_user: models.User) -> None:
     if _is_provisional_org_manager(db, current_user):
         return
     if current_user.role != "platform_admin":
-        raise HTTPException(status_code=403, detail="Apenas administradores da plataforma.")
+        raise HTTPException(status_code=403, detail="Platform administrators only.")
 
 
 def _require_staff(current_user: models.User) -> None:
@@ -110,7 +110,7 @@ def get_organization(
         and current_user.organization_id != organization_id
         and not _is_provisional_org_manager(db, current_user)
     ):
-        raise HTTPException(status_code=403, detail="Acesso negado a esta organização")
+        raise HTTPException(status_code=403, detail="Access denied for this organization.")
     admin = (
         db.query(models.User)
         .filter(
@@ -145,9 +145,9 @@ def create_organization(
     admin_name = (body.admin_name or "").strip() if body.admin_name else None
 
     if admin_email and len(admin_password) < 8:
-        raise HTTPException(status_code=400, detail="Password do admin: mínimo 8 caracteres.")
+        raise HTTPException(status_code=400, detail="Admin password: at least 8 characters.")
     if admin_password and not admin_email:
-        raise HTTPException(status_code=400, detail="Indica o email do admin se quiseres definir password.")
+        raise HTTPException(status_code=400, detail="Provide the admin email if you want to set a password.")
 
     org = models.Organization(
         name=name,
@@ -187,7 +187,7 @@ def create_organization(
             .first()
         )
         if dup:
-            raise HTTPException(status_code=409, detail="Já existe utilizador com esse email nesta organização.")
+            raise HTTPException(status_code=409, detail="A user with this email already exists in this organization.")
         uname = make_unique_username(db, org.id, admin_email.split("@")[0])
         admin_user = models.User(
             organization_id=org.id,
@@ -264,20 +264,20 @@ def update_organization(
                     if dup:
                         raise HTTPException(
                             status_code=409,
-                            detail="Já existe outro utilizador com esse email nesta organização.",
+                            detail="Another user with this email already exists in this organization.",
                         )
                     admin_user.email = admin_email
                     admin_user.username = make_unique_username(db, organization_id, admin_email.split("@")[0])
                 else:
-                    raise HTTPException(status_code=400, detail="O email do admin não pode ficar vazio.")
+                    raise HTTPException(status_code=400, detail="Admin email cannot be empty.")
             if admin_password is not None and admin_password:
                 if len(admin_password) < 8:
-                    raise HTTPException(status_code=400, detail="Password do admin: mínimo 8 caracteres.")
+                    raise HTTPException(status_code=400, detail="Admin password: at least 8 characters.")
                 admin_user.hashed_password = hash_password(admin_password)
         else:
             if admin_email and admin_password:
                 if len(admin_password) < 8:
-                    raise HTTPException(status_code=400, detail="Password do admin: mínimo 8 caracteres.")
+                    raise HTTPException(status_code=400, detail="Admin password: at least 8 characters.")
                 dup = (
                     db.query(models.User)
                     .filter(
@@ -287,7 +287,7 @@ def update_organization(
                     .first()
                 )
                 if dup:
-                    raise HTTPException(status_code=409, detail="Já existe utilizador com esse email nesta organização.")
+                    raise HTTPException(status_code=409, detail="A user with this email already exists in this organization.")
                 uname = make_unique_username(db, organization_id, admin_email.split("@")[0])
                 new_admin = models.User(
                     organization_id=organization_id,
@@ -301,7 +301,7 @@ def update_organization(
             elif admin_email or admin_password:
                 raise HTTPException(
                     status_code=400,
-                    detail="Para criar admin: indica email e password (mín. 8 caracteres).",
+                    detail="To create an admin: provide email and password (min. 8 characters).",
                 )
 
     db.commit()

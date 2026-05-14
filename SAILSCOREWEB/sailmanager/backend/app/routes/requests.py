@@ -140,7 +140,7 @@ def create_request(
     # valida entry do sailor
     en = db.query(models.Entry).filter(models.Entry.id == body.initiator_entry_id).first()
     if not en or en.regatta_id != regatta_id:
-        raise HTTPException(status_code=400, detail="Entry inválida para esta regata")
+        raise HTTPException(status_code=400, detail="Invalid entry for this regatta")
 
     # só o próprio (ou admin) pode criar
     if current_user.role != "admin":
@@ -215,7 +215,7 @@ def patch_request(
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     if r.status != "submitted":
-        raise HTTPException(status_code=400, detail="Já não é possível editar este pedido.")
+        raise HTTPException(status_code=400, detail="This request can no longer be edited.")
 
     if body.request_text is not None:
         r.request_text = body.request_text.strip()

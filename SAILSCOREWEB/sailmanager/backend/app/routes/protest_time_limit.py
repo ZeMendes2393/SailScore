@@ -51,7 +51,7 @@ def create_ptl(
         .first()
     )
     if exists:
-        raise HTTPException(status_code=409, detail="Já existe um registo para esta Class/Fleet/Date")
+        raise HTTPException(status_code=409, detail="A record already exists for this class/fleet/date")
 
     row = models.ProtestTimeLimit(
         regatta_id=payload.regatta_id,
@@ -74,7 +74,7 @@ def patch_ptl(
 ):
     row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Registo não encontrado")
+        raise HTTPException(status_code=404, detail="Record not found")
     regatta = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)
@@ -96,7 +96,7 @@ def delete_ptl(
 ):
     row = db.query(models.ProtestTimeLimit).filter(models.ProtestTimeLimit.id == row_id).first()
     if not row:
-        raise HTTPException(status_code=404, detail="Registo não encontrado")
+        raise HTTPException(status_code=404, detail="Record not found")
     regatta = db.query(models.Regatta).filter_by(id=row.regatta_id).first()
     if regatta:
         assert_user_can_manage_org_id(current_user, regatta.organization_id)

@@ -39,6 +39,7 @@ from app.routes import (
     design,
     global_settings as global_settings_routes,
 )
+from app.routes import marketing
 from app.routes.discards import router as discard_router
 from app.services.email import start_email_outbox_worker, process_email_outbox
 
@@ -190,6 +191,7 @@ app.include_router(publication.router)
 app.include_router(news.router)
 app.include_router(design.router)
 app.include_router(global_settings_routes.router)
+app.include_router(marketing.router)
 
 app.include_router(uploads.router)  # ✅ NOVO (POST /uploads/news)
 

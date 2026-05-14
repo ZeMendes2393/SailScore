@@ -84,7 +84,7 @@ def _get_regatta(db: Session, regatta_id: int, ctx: ScoringContext) -> models.Re
         return ctx.regatta_cache[regatta_id]
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not reg:
-        raise HTTPException(404, "Regata não encontrada")
+        raise HTTPException(404, "Regatta not found")
     ctx.regatta_cache[regatta_id] = reg
     return reg
 
@@ -94,7 +94,7 @@ def _get_race(db: Session, race_id: int, ctx: ScoringContext) -> models.Race:
         return ctx.race_cache[race_id]
     race = db.query(models.Race).filter(models.Race.id == race_id).first()
     if not race:
-        raise HTTPException(404, "Corrida não encontrada")
+        raise HTTPException(404, "Race not found")
     ctx.race_cache[race_id] = race
     return race
 
@@ -308,11 +308,11 @@ def resolve_points(
     # ajustáveis
     if c in ADJUSTABLE_CODES:
         if manual_points is None:
-            raise HTTPException(400, f"Código {c} precisa de um valor (points).")
+            raise HTTPException(400, f"Code {c} requires a points value.")
         try:
             return float(manual_points)
         except Exception:
-            raise HTTPException(400, f"Valor inválido para {c}.")
+            raise HTTPException(400, f"Invalid value for {c}.")
 
     # N+1
     if c in N_PLUS_ONE_DISCARDABLE or c in N_PLUS_ONE_NOT_DISCARDABLE:
@@ -325,4 +325,4 @@ def resolve_points(
     if c in mapping:
         return float(mapping[c])
 
-    raise HTTPException(400, f"Código {c} sem pontuação definida.")
+    raise HTTPException(400, f"Code {c} has no defined score.")

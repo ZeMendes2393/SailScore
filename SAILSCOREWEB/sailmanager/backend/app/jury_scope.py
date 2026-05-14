@@ -9,14 +9,14 @@ from app import models
 def assert_jury_regatta_access(db: Session, user: models.User, regatta_id: int) -> None:
     """Júri só acede à regata do seu perfil e da mesma organização."""
     if user.role != "jury":
-        raise HTTPException(status_code=403, detail="Operação reservada a conta de júri.")
+        raise HTTPException(status_code=403, detail="This operation requires a jury account.")
     regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
     if int(regatta.organization_id) != int(user.organization_id):
         raise HTTPException(
             status_code=403,
-            detail="Sem permissão nesta regata (organização).",
+            detail="You do not have permission for this regatta (organization).",
         )
     prof = (
         db.query(models.RegattaJuryProfile)
@@ -26,5 +26,5 @@ def assert_jury_regatta_access(db: Session, user: models.User, regatta_id: int) 
     if not prof or int(prof.regatta_id) != int(regatta_id):
         raise HTTPException(
             status_code=403,
-            detail="Sem permissão nesta regata.",
+            detail="You do not have permission for this regatta.",
         )

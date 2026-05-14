@@ -117,11 +117,11 @@ def login(body: schemas.UserLogin, db: Session = Depends(get_db)):
 
         if body.regatta_id is not None:
             if int(body.regatta_id) not in my_regattas:
-                raise HTTPException(status_code=403, detail="Não tens inscrição nessa regata")
+                raise HTTPException(status_code=403, detail="You are not entered in that regatta.")
             claims["regatta_id"] = int(body.regatta_id)
         else:
             if len(my_regattas) == 0:
-                raise HTTPException(status_code=403, detail="Sem inscrição em nenhuma regata")
+                raise HTTPException(status_code=403, detail="You are not entered in any regatta.")
             if len(my_regattas) == 1:
                 claims["regatta_id"] = my_regattas[0]
             else:
@@ -249,7 +249,7 @@ def register_user(
     current_user: models.User = Depends(get_current_user),
 ):
     if current_user.role != "platform_admin":
-        raise HTTPException(status_code=403, detail="Apenas administradores da plataforma podem criar utilizadores aqui.")
+        raise HTTPException(status_code=403, detail="Only platform administrators can create users here.")
     email_l = str(data.email).lower().strip()
     exists = (
         db.query(models.User)
@@ -260,7 +260,7 @@ def register_user(
         .first()
     )
     if exists:
-        raise HTTPException(status_code=400, detail="Email já registado nesta organização")
+        raise HTTPException(status_code=400, detail="Email is already registered for this organization.")
 
     uname = make_unique_username(db, current_user.organization_id, email_l.split("@")[0])
     new_user = models.User(
@@ -304,11 +304,11 @@ def create_invitation(data: InvitationCreate, db: Session = Depends(get_db)):
 def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
     inv = db.query(models.Invitation).filter(models.Invitation.token == payload.token).first()
     if not inv:
-        raise HTTPException(status_code=404, detail="Convite inválido")
+        raise HTTPException(status_code=404, detail="Invalid invite.")
     if inv.accepted_at:
-        raise HTTPException(status_code=400, detail="Convite já aceite")
+        raise HTTPException(status_code=400, detail="Invite has already been accepted.")
     if inv.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Convite expirado")
+        raise HTTPException(status_code=400, detail="Invite has expired.")
 
     default_org = resolve_org(db, org_slug=None)
     email_l = inv.email.lower().strip()
@@ -340,16 +340,16 @@ def accept_invite(payload: AcceptInviteInput, db: Session = Depends(get_db)):
 
     inv.accepted_at = datetime.utcnow()
     db.commit()
-    return {"message": "Convite aceite. Já podes iniciar sessão."}
+    return {"message": "Invite accepted. You can sign in now."}
 
 # ---------- Áreas por role ----------
 @router.get("/admin-area")
 def admin_only(user: models.User = Depends(verify_role(["admin"]))):
-    return {"message": f"Olá {user.email}, bem-vindo à zona de admin."}
+    return {"message": f"Hello {user.email}, welcome to the admin area."}
 
 @router.get("/regatista-area")
 def regatista_only(user: models.User = Depends(verify_role(["regatista"]))):
-    return {"message": f"Olá {user.email}, bem-vindo à zona de regatista."}
+    return {"message": f"Hello {user.email}, welcome to the sailor area."}
 
 # ---------- Trocar regata (novo token com regatta_id) ----------
 @router.post("/switch-regatta", response_model=schemas.Token)
@@ -371,7 +371,7 @@ def switch_regatta(
             .first()
         )
         if not prof or int(regatta_id) != int(prof.regatta_id):
-            raise HTTPException(status_code=403, detail="Sem acesso a essa regata")
+            raise HTTPException(status_code=403, detail="No access to that regatta.")
         claims["regatta_id"] = int(prof.regatta_id)
         return schemas.Token(access_token=create_access_token(claims))
 
@@ -380,7 +380,7 @@ def switch_regatta(
         models.Entry.regatta_id == regatta_id,
     ).first()
     if not ok:
-        raise HTTPException(status_code=403, detail="Não tens inscrição nessa regata")
+        raise HTTPException(status_code=403, detail="You are not entered in that regatta.")
 
     claims["regatta_id"] = int(regatta_id)
     return schemas.Token(access_token=create_access_token(claims))

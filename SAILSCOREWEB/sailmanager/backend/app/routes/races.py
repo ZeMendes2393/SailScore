@@ -58,7 +58,7 @@ def create_race(
     ).first()
 
     if exists:
-        raise HTTPException(status_code=400, detail="Já existe uma corrida com esse nome nessa classe.")
+        raise HTTPException(status_code=400, detail="A race with this name already exists in this class.")
 
     max_order = db.query(func.max(models.Race.order_index)) \
         .filter(models.Race.regatta_id == race.regatta_id) \
@@ -141,7 +141,7 @@ def update_race(
 
     r = db.query(models.Race).filter_by(id=race_id).first()
     if not r:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=r.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -160,7 +160,7 @@ def update_race(
         ).first()
 
         if dup:
-            raise HTTPException(status_code=400, detail="Já existe corrida com esse nome nessa classe.")
+            raise HTTPException(status_code=400, detail="A race with this name already exists in this class.")
 
         r.name = new_name
 
@@ -209,7 +209,7 @@ def delete_race(
 
     r = db.query(models.Race).filter_by(id=race_id).first()
     if not r:
-        raise HTTPException(status_code=404, detail="Corrida não encontrada")
+        raise HTTPException(status_code=404, detail="Race not found")
     regatta = db.query(models.Regatta).filter_by(id=r.regatta_id).first()
     if regatta:
         if current_user.role in ("admin", "platform_admin"):
@@ -272,7 +272,7 @@ def _reorder_impl_atomic(regatta_id: int, body, db, current_user):
     sent_rows = db.execute(sel_sent, {"rid": regatta_id, "ids": ordered}).fetchall()
 
     if len(sent_rows) != len(ordered):
-        raise HTTPException(status_code=400, detail="IDs inválidos para esta regata.")
+        raise HTTPException(status_code=400, detail="Invalid IDs for this regatta.")
 
     classes = {r.class_name for r in sent_rows}
     if len(classes) != 1:

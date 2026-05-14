@@ -375,14 +375,14 @@ def _auto_n_plus_one_points(
 
 def _rdg_to_int_position(manual_points: Optional[float]) -> int:
     if manual_points is None:
-        raise ValueError("RDG requer points (posição) manual")
+        raise ValueError("RDG requires manual points (place)")
 
     if float(manual_points).is_integer() is False:
-        raise ValueError("RDG requer um número inteiro (posição), ex: 5")
+        raise ValueError("RDG requires an integer place, e.g. 5")
 
     pos = int(manual_points)
     if pos < 1:
-        raise ValueError("RDG requer posição >= 1")
+        raise ValueError("RDG requires place >= 1")
 
     return pos
 
@@ -403,7 +403,7 @@ def compute_points_for_code(
 ) -> float:
     c = _norm(code)
     if not c:
-        raise ValueError("Código inválido")
+        raise ValueError("Invalid code")
 
     if ctx is None:
         ctx = _build_competitor_context_for_race(db, race)
@@ -420,7 +420,7 @@ def compute_points_for_code(
         return float(manual_points)
 
     if c not in scoring_map:
-        raise ValueError(f"Código {c} sem pontuação definida")
+        raise ValueError(f"Code {c} has no defined score")
     return float(scoring_map[c])
 
 

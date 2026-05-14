@@ -155,7 +155,7 @@ def create_initial_set_random(
     num_fleets: int,
 ) -> FleetSet:
     if num_fleets not in FLEET_COLORS_QUALI:
-        raise ValueError("Número de frotas inválido para qualifying (2, 3 ou 4).")
+        raise ValueError("Invalid fleet count for qualifying (must be 2, 3, or 4).")
 
     phase = "qualifying"
     unique_label = _ensure_unique_label(db, regatta_id, class_name, phase, label)
@@ -245,11 +245,11 @@ def reshuffle_from_ranking(
     num_fleets: int,
 ) -> FleetSet:
     if num_fleets not in FLEET_COLORS_QUALI:
-        raise ValueError("Número de frotas inválido para reshuffle (2, 3 ou 4).")
+        raise ValueError("Invalid fleet count for reshuffle (must be 2, 3, or 4).")
 
     # garante que todas as races ligadas ao set anterior estão scored
     if not all_races_scored_for_set(db, prev_set_id):
-        raise ValueError("Há regatas do set anterior por pontuar.")
+        raise ValueError("Previous set still has races to be scored.")
 
     # ranking oficial (mesma lógica que /results/overall)
     ranking = compute_overall_ranking(db, regatta_id, class_name)

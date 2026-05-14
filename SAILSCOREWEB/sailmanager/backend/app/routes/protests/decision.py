@@ -161,7 +161,7 @@ def save_decision(
     if not (body.facts_found and body.conclusions_and_rules and (body.short_decision or body.decision_text)):
         raise HTTPException(
             status_code=422,
-            detail="facts_found, conclusions_and_rules e short_decision/decision_text são obrigatórios.",
+            detail="facts_found, conclusions_and_rules and short_decision/decision_text are required.",
         )
 
     # Snapshot enriquecido (robusto)
