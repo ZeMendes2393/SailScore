@@ -40,6 +40,9 @@ def _race_export_base_label(regatta: models.Regatta | None, race: models.Race) -
     reg_name = ((getattr(regatta, "name", None) or "") if regatta else "").strip() or "Regatta"
     rn = (getattr(race, "name", None) or "").strip()
     race_name = rn or f"Race {race.id}"
+    cn = (getattr(race, "class_name", None) or "").strip()
+    if cn:
+        return f"{reg_name} - {race_name} - {cn}"
     return f"{reg_name} - {race_name}"
 
 
