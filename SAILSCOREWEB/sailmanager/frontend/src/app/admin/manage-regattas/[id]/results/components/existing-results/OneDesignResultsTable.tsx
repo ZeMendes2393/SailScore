@@ -70,22 +70,36 @@ export default function OneDesignResultsTable({
 }: Props) {
   return (
     <>
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-100 sticky top-0 z-10">
-          <tr>
-            <th className="border px-2 py-2 text-left">Sail</th>
-            {showFleetColumn ? (
-              <th className="border px-2 py-2 text-left whitespace-nowrap">Fleet</th>
-            ) : null}
-            <th className="border px-2 py-2 text-left">Crew</th>
-            <th className="border px-2 py-2 text-center">Position</th>
-            <th className="border px-2 py-2 text-left">Code</th>
-            <th className="border px-2 py-2 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row, idx) => {
-            const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+      <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+        <table className="min-w-full border-collapse text-sm text-slate-800">
+          <thead className="bg-slate-50/95 sticky top-0 z-10 backdrop-blur-sm shadow-[0_1px_0_0_rgb(226_232_240)]">
+            <tr>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Sail
+              </th>
+              {showFleetColumn ? (
+                <th className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                  Fleet
+                </th>
+              ) : null}
+              <th className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Crew
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Position
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Code
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((row, idx) => {
+              const rowBg =
+                idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60';
             const codeUpper = row.code ? row.code.toUpperCase() : null;
             const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
             const maxPos = sorted.length;
@@ -98,7 +112,7 @@ export default function OneDesignResultsTable({
 
             return (
               <tr key={row.id} className={rowBg}>
-                <td className="border px-2 py-2">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   <div className="flex items-center gap-2">
                     <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
                     {row.code ? (
@@ -120,12 +134,12 @@ export default function OneDesignResultsTable({
                   </div>
                 </td>
                 {showFleetColumn ? (
-                  <td className="border px-2 py-2 text-sm text-gray-800 font-medium">
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-sm text-gray-800 font-medium">
                     {fleetLabelForRow?.(row) ?? '—'}
                   </td>
                 ) : null}
-                <td className="border px-2 py-2">{resolveCrew(row)}</td>
-                <td className="border px-2 py-2 text-center">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">{resolveCrew(row)}</td>
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-center">
                   <input
                     type="number"
                     min={1}
@@ -135,7 +149,7 @@ export default function OneDesignResultsTable({
                     readOnly
                   />
                 </td>
-                <td className="border px-2 py-2">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <select
@@ -241,7 +255,7 @@ export default function OneDesignResultsTable({
                     )}
                   </div>
                 </td>
-                <td className="border px-2 py-2 text-right">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-right">
                   <div className="inline-flex gap-2 items-center">
                     {!isChangeOpen ? (
                       <button
@@ -353,6 +367,7 @@ export default function OneDesignResultsTable({
           })}
         </tbody>
       </table>
+      </div>
     </>
   );
 }

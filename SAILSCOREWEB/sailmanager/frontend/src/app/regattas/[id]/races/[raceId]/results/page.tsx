@@ -100,25 +100,31 @@ export default function RaceResultsPage() {
       ) : results.length === 0 ? (
         <p className="text-gray-500">No results for this race yet.</p>
       ) : (
-        <table className="table-auto w-full border mt-4">
+        <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm mt-4">
+        <table className="table-auto w-full border-collapse text-sm text-slate-800">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="border px-4 py-2">Pos</th>
-              <th className="border px-4 py-2">Sail number</th>
-              <th className="border px-4 py-2">Name</th>
-              {isAdminRole(user?.role) && <th className="border px-4 py-2">Actions</th>}
+            <tr className="bg-slate-50/95">
+              <th className="border-b border-slate-200 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Pos</th>
+              <th className="border-b border-slate-200 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Sail number</th>
+              <th className="border-b border-slate-200 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Name</th>
+              {isAdminRole(user?.role) && (
+                <th className="border-b border-slate-200 px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {results.map((r) => (
-              <tr key={r.id}>
-                <td className="border px-4 py-2">{r.position}</td>
-                <td className="border px-4 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
-                <td className="border px-4 py-2">{r.skipper_name}</td>
+            {results.map((r, idx) => (
+              <tr
+                key={r.id}
+                className={idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'}
+              >
+                <td className="border-b border-slate-100 px-4 py-2.5 tabular-nums">{r.position}</td>
+                <td className="border-b border-slate-100 px-4 py-2.5"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
+                <td className="border-b border-slate-100 px-4 py-2.5">{r.skipper_name}</td>
                 {isAdminRole(user?.role) && (
-                  <td className="border px-4 py-2 text-center">
+                  <td className="border-b border-slate-100 px-4 py-2.5 text-center">
                     <button
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
                       onClick={() => handleDelete(r.id)}
                     >
                       Remove
@@ -129,6 +135,7 @@ export default function RaceResultsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )

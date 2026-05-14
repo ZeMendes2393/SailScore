@@ -70,37 +70,46 @@ export default function EntryList({
   }, [regattaId]);
 
   const renderTable = (rows: EntryListEntry[]) => (
-    <table className="w-full table-auto border mt-2 text-sm">
-      <thead className="bg-gray-100 text-left">
-        <tr>
-          {visibleColumnIds.map((id) => {
-            const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-            return (
-              <th
-                key={id}
-                className={`p-2 border ${id === 'paid' || id === 'status' ? 'text-center' : ''}`}
-              >
-                {def?.label ?? id}
-              </th>
-            );
-          })}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((entry) => (
-          <tr key={entry.id}>
-            {visibleColumnIds.map((colId) => (
-              <td
-                key={colId}
-                className={`p-2 border ${colId === 'paid' || colId === 'status' ? 'text-center' : ''}`}
-              >
-                <EntryListCell entry={entry} columnId={colId} />
-              </td>
-            ))}
+    <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+      <table className="w-full table-auto border-collapse text-sm text-slate-800">
+        <thead className="bg-slate-50/95 text-left">
+          <tr>
+            {visibleColumnIds.map((id) => {
+              const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+              return (
+                <th
+                  key={id}
+                  className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 ${
+                    id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
+                  }`}
+                >
+                  {def?.label ?? id}
+                </th>
+              );
+            })}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((entry, idx) => (
+            <tr
+              key={entry.id}
+              className={idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'}
+            >
+              {visibleColumnIds.map((colId) => (
+                <td
+                  key={colId}
+                  className={`px-3 py-2.5 border-b border-slate-100 align-middle ${
+                    colId === 'paid' || colId === 'status' ? 'text-center' : ''
+                  }`}
+                >
+                  <EntryListCell entry={entry} columnId={colId} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 
   return (

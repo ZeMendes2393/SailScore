@@ -269,11 +269,15 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
         </div>
       </div>
 
-      <table className="table-auto w-full border border-collapse">
-        <thead className="bg-gray-100">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+      <table className="table-auto w-full border-collapse text-sm text-slate-800">
+        <thead className="bg-slate-50/95">
           <tr>
             {fixedColumnIds.map((id) => (
-              <th key={id} className="border px-3 py-2">
+              <th
+                key={id}
+                className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+              >
                 {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
               </th>
             ))}
@@ -283,9 +287,17 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
               return (
                 <th
                   key={race}
-                  className={`border px-3 py-2 ${hasDetail ? 'cursor-pointer hover:bg-blue-100 select-none' : ''} ${isSelected ? 'bg-blue-200 font-semibold' : ''}`}
+                  className={`border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 ${
+                    hasDetail ? 'cursor-pointer hover:bg-slate-100/90 select-none' : ''
+                  } ${isSelected ? 'bg-blue-50 font-semibold text-blue-900' : ''}`}
                   onClick={() => hasDetail && setSelectedRaceForTimes((prev) => (prev === race ? null : race))}
-                  title={hasDetail ? (isSelected ? 'Clique para ocultar detalhe' : 'Clique para ver detalhe desta race') : undefined}
+                  title={
+                    hasDetail
+                      ? isSelected
+                        ? 'Click to hide race detail'
+                        : 'Click to show race detail'
+                      : undefined
+                  }
                 >
                   {race}
                   {hasDetail && <span className="ml-1 text-xs opacity-70">⏱</span>}
@@ -293,32 +305,39 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
               )
             })}
             {visibleColumns.includes('total') && (
-              <th className="border px-3 py-2 font-bold">Total</th>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-800">
+                Total
+              </th>
             )}
             {visibleColumns.includes('net') && (
-              <th className="border px-3 py-2 font-bold">Net</th>
+              <th className="border-b border-slate-200 px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-800">
+                Net
+              </th>
             )}
           </tr>
         </thead>
         <tbody>
           {sortedResults.map((r, i) => (
-            <tr key={`${r.sail_number}-${r.class_name}-${i}`}>
+            <tr
+              key={`${r.sail_number}-${r.class_name}-${i}`}
+              className={i % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'}
+            >
               {fixedColumnIds.map((id) => {
-                if (id === 'place') return <td key={id} className="border px-3 py-2 text-center">{r.overall_rank != null ? `${r.overall_rank}º` : i + 1}</td>
-                if (id === 'fleet') return <td key={id} className="border px-3 py-2 text-center">{r.finals_fleet ?? '—'}</td>
-                if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
-                if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>
-                if (id === 'skipper') return <td key={id} className="border px-3 py-2">{getCrewForResult(r)}</td>
-                if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>
-                if (id === 'model') return <td key={id} className="border px-3 py-2">{r.boat_model ?? '—'}</td>
-                if (id === 'bow') return <td key={id} className="border px-3 py-2">{r.bow_number ?? '—'}</td>
-                return <td key={id} className="border px-3 py-2">—</td>
+                if (id === 'place') return <td key={id} className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">{r.overall_rank != null ? `${r.overall_rank}º` : i + 1}</td>
+                if (id === 'fleet') return <td key={id} className="border-b border-slate-100 px-3 py-2 text-center">{r.finals_fleet ?? '—'}</td>
+                if (id === 'sail_no') return <td key={id} className="border-b border-slate-100 px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
+                if (id === 'boat') return <td key={id} className="border-b border-slate-100 px-3 py-2">{r.boat_name}</td>
+                if (id === 'skipper') return <td key={id} className="border-b border-slate-100 px-3 py-2">{getCrewForResult(r)}</td>
+                if (id === 'class') return <td key={id} className="border-b border-slate-100 px-3 py-2">{r.class_name}</td>
+                if (id === 'model') return <td key={id} className="border-b border-slate-100 px-3 py-2">{r.boat_model ?? '—'}</td>
+                if (id === 'bow') return <td key={id} className="border-b border-slate-100 px-3 py-2">{r.bow_number ?? '—'}</td>
+                return <td key={id} className="border-b border-slate-100 px-3 py-2">—</td>
               })}
               {raceNames.map((race) => {
                 const fleetLabel = r.per_race_fleet?.[race] ?? null
                 const fleetColorClass = fleetLabel ? (FLEET_COLOR_CLASSES[fleetLabel] ?? 'bg-gray-400') : ''
                 return (
-                  <td key={race} className="border px-3 py-2 text-center">
+                  <td key={race} className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
                     <div className="flex items-center justify-center gap-1">
                       {fleetLabel && (
                         <span
@@ -332,15 +351,16 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                 )
               })}
               {visibleColumns.includes('total') && (
-                <td className="border px-3 py-2 text-right font-semibold">{Number(r.total_points ?? 0).toFixed(2)}</td>
+                <td className="border-b border-slate-100 px-3 py-2 text-right font-semibold tabular-nums">{Number(r.total_points ?? 0).toFixed(2)}</td>
               )}
               {visibleColumns.includes('net') && (
-                <td className="border px-3 py-2 text-right font-bold">{Number(r.net_points ?? r.total_points ?? 0).toFixed(2)}</td>
+                <td className="border-b border-slate-100 px-3 py-2 text-right font-bold tabular-nums">{Number(r.net_points ?? r.total_points ?? 0).toFixed(2)}</td>
               )}
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Tabela de detalhe da race selecionada (handicap: tempos) */}
       {selectedRaceForTimes && (
@@ -395,41 +415,46 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                     onClick={() => setSelectedRaceForTimes(null)}
                     className="text-sm text-blue-600 hover:underline"
                   >
-                    Fechar
+                    Close
                   </button>
                 </div>
-                <table className="table-auto w-full border text-sm">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm mt-2">
+                <table className="table-auto w-full border-collapse text-sm text-slate-800">
                   <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border px-2 py-1">#</th>
-                      <th className="border px-2 py-1">Sail #</th>
-                      <th className="border px-2 py-1">Start</th>
-                      <th className="border px-2 py-1">Finish</th>
-                      <th className="border px-2 py-1">Elapsed</th>
-                      <th className="border px-2 py-1">Corrected</th>
-                      <th className="border px-2 py-1">Delta</th>
-                      <th className="border px-2 py-1">Points</th>
+                    <tr className="bg-slate-50/95">
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">#</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Sail #</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Start</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Finish</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Elapsed</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Corrected</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Delta</th>
+                      <th className="border-b border-slate-200 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">Points</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detailRows.map(({ row, times }) => (
-                      <tr key={`${row.boat_country_code ?? ''}-${row.sail_number}-${selectedRaceForTimes}`}>
-                        <td className="border px-2 py-1 text-center">{times?.position ?? '—'}</td>
-                        <td className="border px-2 py-1">
+                    {detailRows.map(({ row, times }, di) => (
+                      <tr
+                        key={`${row.boat_country_code ?? ''}-${row.sail_number}-${selectedRaceForTimes}`}
+                        className={di % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'}
+                      >
+                        <td className="border-b border-slate-100 px-2 py-2 text-center tabular-nums">{times?.position ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2">
                           <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
                         </td>
-                        <td className="border px-2 py-1 text-center">{startTime ?? '—'}</td>
-                        <td className="border px-2 py-1 text-center">{times?.finish_time ?? '—'}</td>
-                        <td className="border px-2 py-1 text-center">{times?.elapsed_time ?? '—'}</td>
-                        <td className="border px-2 py-1 text-center">{times?.corrected_time ?? '—'}</td>
-                        <td className="border px-2 py-1 text-center">{times?.delta ?? '—'}</td>
-                        <td className="border px-2 py-1 text-center">
+                        <td className="border-b border-slate-100 px-2 py-2 text-center tabular-nums">{startTime ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2 text-center">{times?.finish_time ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2 text-center">{times?.elapsed_time ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2 text-center">{times?.corrected_time ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2 text-center tabular-nums">{times?.delta ?? '—'}</td>
+                        <td className="border-b border-slate-100 px-2 py-2 text-center tabular-nums">
                           {times?.points != null ? times.points.toFixed(2) : '—'}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </>
             )
           })()}

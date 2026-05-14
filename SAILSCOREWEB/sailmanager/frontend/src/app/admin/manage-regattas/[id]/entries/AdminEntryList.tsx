@@ -465,41 +465,46 @@ export default function AdminEntryList({
       ) : (
         <div className="space-y-6">
           {activeEntries.length > 0 && (
-            <table className="w-full table-auto border border-gray-900 text-base leading-snug">
-              <thead className="bg-gray-100 text-left">
-                <tr>
-                  {adminVisibleColumnIds.map((id) => {
-                    const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-                    return (
-                      <th
-                        key={id}
-                        className={`p-3 border border-gray-900 font-semibold ${id === 'paid' || id === 'status' ? 'text-center' : ''} ${
-                          isPublicColumnVisible(id) ? '' : 'bg-gray-200 text-gray-600'
-                        }`}
-                      >
-                        {def?.label ?? id}
-                        {!isPublicColumnVisible(id) && (
-                          <span className="ml-1 block sm:inline text-xs font-normal uppercase tracking-wide">(hidden on public)</span>
-                        )}
+            <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+              <table className="w-full table-auto border-collapse text-base leading-snug text-slate-800">
+                <thead className="bg-slate-50/95 text-left">
+                  <tr>
+                    {adminVisibleColumnIds.map((id) => {
+                      const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+                      return (
+                        <th
+                          key={id}
+                          className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 ${
+                            id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
+                          } ${isPublicColumnVisible(id) ? '' : 'bg-slate-100/90 text-slate-600'}`}
+                        >
+                          {def?.label ?? id}
+                          {!isPublicColumnVisible(id) && (
+                            <span className="ml-1 block sm:inline text-[10px] font-normal normal-case tracking-normal text-slate-500">
+                              (hidden on public)
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
+                    {showWaitingListActions && (
+                      <th className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 text-center w-[11rem]">
+                        Actions
                       </th>
-                    );
-                  })}
-                  {showWaitingListActions && (
-                    <th className="p-3 border border-gray-900 text-center w-[11rem]">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {activeEntries.map((entry) => {
-                  const c = rowColors(entry);
-                  const cell = `p-3 border border-gray-900 ${c.base} ${c.hover} transition-colors`;
-                  return (
-                    <tr key={entry.id} onClick={() => goToEdit(entry.id)} className="group cursor-pointer">
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeEntries.map((entry) => {
+                    const c = rowColors(entry);
+                    const cell = `p-3 border-b border-slate-100 ${c.base} ${c.hover} transition-colors`;
+                    return (
+                      <tr key={entry.id} onClick={() => goToEdit(entry.id)} className="group cursor-pointer">
                       {adminVisibleColumnIds.map((colId) => (
                         <td
                           key={colId}
                           className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''} ${
-                            isPublicColumnVisible(colId) ? '' : 'bg-gray-100 text-gray-700'
+                            isPublicColumnVisible(colId) ? '' : 'bg-slate-50/90 text-slate-700'
                           }`}
                         >
                           <EntryListCell
@@ -530,6 +535,7 @@ export default function AdminEntryList({
                 })}
               </tbody>
             </table>
+            </div>
           )}
 
           {waitingEntries.length > 0 && (
@@ -537,34 +543,39 @@ export default function AdminEntryList({
               <h3 className="text-lg font-semibold text-gray-800 mb-3">
                 Waiting list ({waitingEntries.length})
               </h3>
-              <table className="w-full table-auto border border-gray-900 text-base leading-snug">
-                <thead className="bg-gray-100 text-left">
-                  <tr>
-                    {adminVisibleColumnIds.map((id) => {
-                      const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-                      return (
-                        <th
-                          key={id}
-                          className={`p-3 border border-gray-900 font-semibold ${id === 'paid' || id === 'status' ? 'text-center' : ''} ${
-                            isPublicColumnVisible(id) ? '' : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {def?.label ?? id}
-                          {!isPublicColumnVisible(id) && (
-                            <span className="ml-1 block sm:inline text-xs font-normal uppercase tracking-wide">(hidden on public)</span>
-                          )}
+              <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+                <table className="w-full table-auto border-collapse text-base leading-snug text-slate-800">
+                  <thead className="bg-slate-50/95 text-left">
+                    <tr>
+                      {adminVisibleColumnIds.map((id) => {
+                        const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
+                        return (
+                          <th
+                            key={id}
+                            className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 ${
+                              id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
+                            } ${isPublicColumnVisible(id) ? '' : 'bg-slate-100/90 text-slate-600'}`}
+                          >
+                            {def?.label ?? id}
+                            {!isPublicColumnVisible(id) && (
+                              <span className="ml-1 block sm:inline text-[10px] font-normal normal-case tracking-normal text-slate-500">
+                                (hidden on public)
+                              </span>
+                            )}
+                          </th>
+                        );
+                      })}
+                      {showWaitingListActions && (
+                        <th className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 text-center w-[11rem]">
+                          Actions
                         </th>
-                      );
-                    })}
-                    {showWaitingListActions && (
-                      <th className="p-3 border border-gray-900 text-center w-[11rem]">Actions</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {waitingEntries.map((entry) => {
-                    const c = rowColors(entry);
-                    const cell = `p-3 border border-gray-900 ${c.base} ${c.hover} transition-colors`;
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waitingEntries.map((entry) => {
+                      const c = rowColors(entry);
+                      const cell = `p-3 border-b border-slate-100 ${c.base} ${c.hover} transition-colors`;
                     const blocked = entryListAtCapacity;
                     return (
                       <tr key={entry.id} onClick={() => goToEdit(entry.id)} className="group cursor-pointer">
@@ -572,7 +583,7 @@ export default function AdminEntryList({
                           <td
                             key={colId}
                             className={`${cell} ${colId === 'paid' || colId === 'status' ? 'text-center' : ''} ${
-                              isPublicColumnVisible(colId) ? '' : 'bg-gray-100 text-gray-700'
+                              isPublicColumnVisible(colId) ? '' : 'bg-slate-50/90 text-slate-700'
                             }`}
                           >
                             <EntryListCell
@@ -605,9 +616,10 @@ export default function AdminEntryList({
                         )}
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

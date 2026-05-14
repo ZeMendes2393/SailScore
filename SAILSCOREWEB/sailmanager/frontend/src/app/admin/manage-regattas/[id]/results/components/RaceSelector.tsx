@@ -3,20 +3,28 @@
 import { useMemo } from 'react';
 import type { Race } from '../types';
 
+/** Collapse all whitespace (incl. NBSP) to a single normal space. */
+function collapseWs(s: string): string {
+  return s.replace(/\s+/gu, ' ').trim();
+}
+
 /** One line in the race dropdown: name + class, never duplicating "(class)" from `race.name`. */
 function raceSelectLabel(race: Race): string {
-  const cn = (race.class_name || '').trim();
-  const raw = (race.name || '').trim();
+  const cn = collapseWs(race.class_name || '');
+  const raw = collapseWs(race.name || '');
   if (!cn) return raw || `Race ${race.id}`;
 
-  const escaped = cn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Strip one or more trailing "(class)" tails (case-insensitive), e.g. "2 (ANC A) (ANC A)" → "2"
-  const trailingClass = new RegExp(`(?:\\s*\\(\\s*${escaped}\\s*\\))+\\s*$`, 'i');
+  // Match "(class)" at the end even if inner spacing differs from `class_name` (e.g. "ANC  A")
+  const flex = cn
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  const trailingClass = new RegExp(`(?:\\s*\\(\\s*${flex}\\s*\\))+\\s*$`, 'iu');
   let nameOnly = raw.replace(trailingClass, '').trim();
 
   if (!nameOnly) {
-    const beforeParen = raw.match(/^([^(]*)/);
-    const prefix = (beforeParen?.[1] ?? '').trim();
+    const prefix = (raw.match(/^([^(]*)/u)?.[1] ?? '').trim();
     nameOnly = prefix || `Race ${race.id}`;
   }
 

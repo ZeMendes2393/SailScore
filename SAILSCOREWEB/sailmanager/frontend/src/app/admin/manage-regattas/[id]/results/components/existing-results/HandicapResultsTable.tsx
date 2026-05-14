@@ -98,30 +98,32 @@ export default function HandicapResultsTable({
   fleetLabelForRow,
 }: Props) {
   return (
-    <table className="min-w-full text-xs">
-      <thead className="bg-gray-100 sticky top-0 z-10">
-        <tr>
-          <th className="border px-2 py-2 text-center">Pos</th>
-          <th className="border px-2 py-2 text-left">Sail No</th>
+    <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+      <table className="min-w-full border-collapse text-xs text-slate-800">
+        <thead className="bg-slate-50/95 sticky top-0 z-10 backdrop-blur-sm shadow-[0_1px_0_0_rgb(226_232_240)]">
+          <tr>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Pos</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-left">Sail No</th>
           {showFleetColumn ? (
-            <th className="border px-2 py-2 text-left whitespace-nowrap">Fleet</th>
+            <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-left whitespace-nowrap">Fleet</th>
           ) : null}
-          <th className="border px-2 py-2 text-left">Boat / Sponsor</th>
-          <th className="border px-2 py-2 text-left">Crew</th>
-          <th className="border px-2 py-2 text-center">Rating</th>
-          <th className="border px-2 py-2 text-center">Finish Time</th>
-          <th className="border px-2 py-2 text-center">Days after start</th>
-          <th className="border px-2 py-2 text-center">Elapsed</th>
-          <th className="border px-2 py-2 text-center">Corrected</th>
-          <th className="border px-2 py-2 text-center">Delta</th>
-          <th className="border px-2 py-2 text-center">Points</th>
-          <th className="border px-2 py-2 text-center">Code</th>
-          <th className="border px-2 py-2 text-right">Actions</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-left">Boat / Sponsor</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-left">Crew</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Rating</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Finish Time</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Days after start</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Elapsed</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Corrected</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Delta</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Points</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-center">Code</th>
+          <th className="border-b border-slate-200 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 text-right">Actions</th>
         </tr>
       </thead>
       <tbody>
         {sorted.map((row, idx) => {
-          const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+          const rowBg =
+            idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60';
           const codeUpper = row.code ? row.code.toUpperCase() : null;
           const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
           const ptsIsOpen = !!pointsOpen[row.id];
@@ -134,27 +136,27 @@ export default function HandicapResultsTable({
 
           return (
             <tr key={row.id} className={rowBg}>
-              <td className="border px-2 py-2 text-center font-semibold">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center font-semibold">
                 {preview?.position ?? row.position}
               </td>
-              <td className="border px-2 py-2">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800">
                 <div className="flex items-center gap-2">
                   <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
                 </div>
               </td>
               {showFleetColumn ? (
-                <td className="border px-2 py-2 text-sm text-gray-800 font-medium">
+                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-sm font-medium text-slate-900">
                   {fleetLabelForRow?.(row) ?? '—'}
                 </td>
               ) : null}
-              <td className="border px-2 py-2">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800">
                 <span className="text-sm text-gray-800">{row.boat_name || '—'}</span>
               </td>
-              <td className="border px-2 py-2">{resolveCrew(row)}</td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800">{resolveCrew(row)}</td>
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 {effRating != null ? effRating : '—'}
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 <TimeInput
                   value={he.finish_time}
                   onChange={(v) => {
@@ -184,7 +186,7 @@ export default function HandicapResultsTable({
                   placeholder="HH:MM:SS"
                 />
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 <input
                   type="number"
                   min={0}
@@ -216,7 +218,7 @@ export default function HandicapResultsTable({
                   placeholder="0"
                 />
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 <TimeInput
                   value={he.elapsed_time}
                   onChange={(v) => {
@@ -241,7 +243,7 @@ export default function HandicapResultsTable({
                   placeholder="HH:MM:SS"
                 />
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 {handicapMethod === 'anc' || handicapMethod === 'orc' ? (
                   <span className="text-xs">{he.corrected_time || row.corrected_time || '—'}</span>
                 ) : (
@@ -253,10 +255,10 @@ export default function HandicapResultsTable({
                   />
                 )}
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 {preview?.delta ?? (row.delta || (row.code ? '—' : ''))}
               </td>
-              <td className="border px-2 py-2 text-center">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-center">
                 <span className="text-sm">
                   {preview
                     ? Number.isInteger(preview.points)
@@ -268,7 +270,7 @@ export default function HandicapResultsTable({
                   ) : null}
                 </span>
               </td>
-              <td className="border px-2 py-2">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <select
@@ -368,7 +370,7 @@ export default function HandicapResultsTable({
                   )}
                 </div>
               </td>
-              <td className="border px-2 py-2 text-right">
+              <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800 text-right">
                 <div className="inline-flex gap-2 items-center">
                   <button
                     type="button"
@@ -464,5 +466,6 @@ export default function HandicapResultsTable({
         })}
       </tbody>
     </table>
+    </div>
   );
 }

@@ -268,40 +268,44 @@ export default function OverallResultsPage() {
           ) : results.length === 0 ? (
             <p className="text-gray-500">No published results yet for this class.</p>
           ) : (
-            <table className="table-auto w-full border border-collapse text-lg [&_td]:min-h-[3.25rem] [&_th]:text-lg">
+            <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
+            <table className="table-auto w-full border-collapse text-lg text-slate-800 [&_td]:min-h-[3.25rem] [&_th]:text-lg">
               <thead>
-                <tr className="bg-gray-100">
+                <tr className="bg-slate-50/95">
                   {fixedColumnIds.map((id) => (
-                    <th key={id} className="border px-4 py-4 font-semibold">
+                    <th key={id} className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-700 text-left">
                       {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
                     </th>
                   ))}
                   {raceNames.map((name) => (
-                    <th key={name} className="border px-4 py-4 font-semibold">
+                    <th key={name} className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-700 text-left">
                       {name}
                     </th>
                   ))}
                   {visibleColumns.includes('total') && (
-                    <th className="border px-4 py-4 font-bold text-right">Total</th>
+                    <th className="border-b border-slate-200 px-4 py-3 font-bold text-right text-slate-800">Total</th>
                   )}
                   {visibleColumns.includes('net') && (
-                    <th className="border px-4 py-4 font-bold text-right">Net</th>
+                    <th className="border-b border-slate-200 px-4 py-3 font-bold text-right text-slate-800">Net</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {results.map((r, i) => (
-                  <tr key={`${r.class_name}-${r.sail_number}-${i}`}>
+                  <tr
+                    key={`${r.class_name}-${r.sail_number}-${i}`}
+                    className={i % 2 === 0 ? 'bg-white hover:bg-slate-50/70' : 'bg-slate-50/35 hover:bg-slate-100/50'}
+                  >
                     {fixedColumnIds.map((id) => {
-                      if (id === 'place') return <td key={id} className="border px-4 py-4 text-center">{i + 1}</td>
-                      if (id === 'fleet') return <td key={id} className="border px-4 py-4 text-center">{(r as any).finals_fleet ?? '—'}</td>
-                      if (id === 'sail_no') return <td key={id} className="border px-4 py-4"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
-                      if (id === 'boat') return <td key={id} className="border px-4 py-4">{r.boat_name}</td>
-                      if (id === 'skipper') return <td key={id} className="border px-4 py-4">{r.skipper_name}</td>
-                      if (id === 'class') return <td key={id} className="border px-4 py-4">{r.class_name}</td>
-                      if (id === 'model') return <td key={id} className="border px-4 py-4">{(r as any).boat_model ?? '—'}</td>
-                      if (id === 'bow') return <td key={id} className="border px-4 py-4">{(r as any).bow_number ?? '—'}</td>
-                      return <td key={id} className="border px-4 py-4">—</td>
+                      if (id === 'place') return <td key={id} className="border-b border-slate-100 px-4 py-3 text-center tabular-nums">{i + 1}</td>
+                      if (id === 'fleet') return <td key={id} className="border-b border-slate-100 px-4 py-3 text-center">{(r as any).finals_fleet ?? '—'}</td>
+                      if (id === 'sail_no') return <td key={id} className="border-b border-slate-100 px-4 py-3"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
+                      if (id === 'boat') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.boat_name}</td>
+                      if (id === 'skipper') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.skipper_name}</td>
+                      if (id === 'class') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.class_name}</td>
+                      if (id === 'model') return <td key={id} className="border-b border-slate-100 px-4 py-3">{(r as any).boat_model ?? '—'}</td>
+                      if (id === 'bow') return <td key={id} className="border-b border-slate-100 px-4 py-3">{(r as any).bow_number ?? '—'}</td>
+                      return <td key={id} className="border-b border-slate-100 px-4 py-3">—</td>
                     })}
                     {raceNames.map((name) => {
                       const raw = r.per_race?.[name]
@@ -310,7 +314,7 @@ export default function OverallResultsPage() {
                       return (
                         <td
                           key={name}
-                          className={`border px-4 py-4 text-center ${discarded ? 'text-gray-400' : ''}`}
+                          className={`border-b border-slate-100 px-4 py-3 text-center tabular-nums ${discarded ? 'text-gray-400' : ''}`}
                           title={discarded ? 'Discarded' : undefined}
                         >
                           {discarded ? `(${typeof raw === 'number' ? raw : (raw ?? '-')})` : (raw ?? '-')}
@@ -318,15 +322,16 @@ export default function OverallResultsPage() {
                       )
                     })}
                     {visibleColumns.includes('total') && (
-                      <td className="border px-4 py-4 font-semibold text-right">{Number(r.total_points).toFixed(2)}</td>
+                      <td className="border-b border-slate-100 px-4 py-3 font-semibold text-right tabular-nums">{Number(r.total_points).toFixed(2)}</td>
                     )}
                     {visibleColumns.includes('net') && (
-                      <td className="border px-4 py-4 font-extrabold text-right">{Number(r.net_points).toFixed(2)}</td>
+                      <td className="border-b border-slate-100 px-4 py-3 font-extrabold text-right tabular-nums">{Number(r.net_points).toFixed(2)}</td>
                     )}
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

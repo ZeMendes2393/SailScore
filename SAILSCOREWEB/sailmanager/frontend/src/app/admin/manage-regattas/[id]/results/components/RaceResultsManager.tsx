@@ -49,13 +49,14 @@ export default function RaceResultsManager({
   hideInnerTabs = false,
   initialRaceId,
 }: Props) {
-  const { token } = useAuth();
+  const { token, loading: authLoading } = useAuth();
   const router = useRouter();
   const search = useSearchParams();
   const confirm = useConfirm();
 
   const {
     races,
+    scoresBootstrapPending,
     allEntries,
     selectedRaceId,
     setSelectedRaceId,
@@ -350,6 +351,18 @@ export default function RaceResultsManager({
     const existsCurrent = selectedFleetId !== 'all' && list.some((f: any) => f.id === selectedFleetId);
     if (!existsCurrent) setSelectedFleetId(list[0].id);
   }, [selectedRaceId, orderedFleets, selectedFleetId, setSelectedFleetId]);
+
+  if (authLoading || scoresBootstrapPending) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 px-6">
+        <div
+          className="h-12 w-12 rounded-full border-[3px] border-slate-200 border-t-blue-600 animate-spin"
+          aria-hidden
+        />
+        <p className="text-base text-slate-600 font-medium text-center">A carregar a pontuação…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

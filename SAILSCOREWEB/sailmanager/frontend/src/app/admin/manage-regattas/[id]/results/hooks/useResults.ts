@@ -97,6 +97,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   // ---- Dados base
   const [entryList, setEntryList] = useState<EntryWithStatus[]>([]);
   const [races, setRaces] = useState<Race[]>([]);
+  /** True until the first fetch of entries + races for this regatta finishes (avoids empty “select a race” flash on refresh). */
+  const [scoresBootstrapPending, setScoresBootstrapPending] = useState(true);
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null);
 
   const selectedRace = useMemo(
@@ -278,6 +280,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   useEffect(() => {
     let cancelled = false;
+    setScoresBootstrapPending(true);
     (async () => {
       try {
         const regatta = await apiGet<any>(`/regattas/${regattaId}`);
@@ -302,7 +305,10 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
           setRaces(rcs);
         }
       } catch {}
-    })();
+    })()
+      .finally(() => {
+        if (!cancelled) setScoresBootstrapPending(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -1453,6 +1459,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     setScoring,
     savingScoring,
     races,
+    scoresBootstrapPending,
     selectedRaceId,
     setSelectedRaceId,
     selectedClass,
