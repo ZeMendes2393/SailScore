@@ -172,11 +172,11 @@ export default function DecisionFormPage() {
       }
       navigateBackToNoticeBoard();
     } catch (e: any) {
-      setErr(e?.message || "Falha ao guardar decisão.");
+      setErr(e?.message || "Failed to save decision.");
     }
   }
 
-  if (loading) return <div className="p-4">A carregar…</div>;
+  if (loading) return <div className="p-4">Loading…</div>;
   if (err) return <div className="p-4 text-red-600">{err}</div>;
 
   return (

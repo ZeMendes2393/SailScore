@@ -119,7 +119,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
           )}
         </Link>
         <nav className="flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
-          <Link href={base} className={linkClass(isHome)} title="Vista principal da regata">
+          <Link href={base} className={linkClass(isHome)} title="Regatta home">
             Home
           </Link>
           <Link href={`${base}/form`} className={linkClass(isForm)}>

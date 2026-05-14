@@ -117,7 +117,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="pt">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}
       >
@@ -142,8 +142,8 @@ export default async function RootLayout({
             className: 'sailscore-toast',
             style: {
               borderRadius: '14px',
-              fontSize: '0.95rem',
-              padding: '12px 16px',
+              fontSize: '1.02rem',
+              padding: '14px 18px',
               boxShadow: '0 18px 40px rgba(7, 36, 73, 0.18)',
             },
           }}

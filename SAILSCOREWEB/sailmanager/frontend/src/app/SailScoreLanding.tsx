@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import BookDemoForm from '@/components/landing/BookDemoForm';
 
 export default function SailScoreLanding() {
   return (
@@ -23,7 +24,7 @@ export default function SailScoreLanding() {
             <a href="#social-proof">Use cases</a>
             <a href="#how-it-works">How it works</a>
             <a href="#faq">FAQ</a>
-            <a href="#final-cta">Contact</a>
+            <a href="#book-demo">Contact</a>
           </nav>
         </div>
       </header>
@@ -37,8 +38,9 @@ export default function SailScoreLanding() {
               SailScore helps clubs and race teams handle setup, entries, scoring, notices, and results in one structured workflow.
             </p>
             <div className="ss-hero-actions">
-              <a className="ss-btn ss-btn-primary" href="#final-cta">Book a Demo</a>
-              <a className="ss-btn ss-btn-secondary" href="#final-cta">Start Free Trial</a>
+              <a className="ss-btn ss-btn-primary" href="#book-demo">
+                Book a Demo
+              </a>
             </div>
             <p className="ss-microcopy">Built for real race-day pressure.</p>
           </div>
@@ -295,17 +297,12 @@ export default function SailScoreLanding() {
         </div>
       </section>
 
-      <section id="final-cta" className="ss-section ss-cta-band">
+      <section id="book-demo" className="ss-section ss-cta-band">
         <div className="ss-container ss-content-narrow ss-center">
           <h2 className="ss-h2">Ready for a more organized and faster race day?</h2>
           <p>See how SailScore fits your regatta workflow and helps your team deliver clear, trusted results.</p>
-          <div className="ss-hero-actions ss-center">
-            <a className="ss-btn ss-btn-primary" href="#hero">
-              Book a Demo
-            </a>
-            <a className="ss-btn ss-btn-secondary" href="/register">Start Free Trial</a>
-          </div>
-          <p className="ss-microcopy">No hard sell - just a practical walkthrough.</p>
+          <BookDemoForm />
+          <p className="ss-microcopy">No hard sell — just a practical walkthrough.</p>
         </div>
       </section>
 

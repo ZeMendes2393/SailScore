@@ -353,6 +353,58 @@ input.login-input:-webkit-autofill:focus {
 .sailscore-landing .ss-cta-band p { color: #e2e8f0; }
 .sailscore-landing .ss-center { text-align: center; margin-inline: auto; }
 
+.sailscore-landing .ss-cta-band .ss-demo-form {
+  max-width: 28rem;
+  margin: 1.75rem auto 0;
+  text-align: left;
+  position: relative;
+}
+.sailscore-landing .ss-demo-form-hp {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sailscore-landing .ss-demo-form .ss-field { margin-bottom: 1rem; }
+.sailscore-landing .ss-demo-form label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 0.35rem;
+}
+.sailscore-landing .ss-demo-form input,
+.sailscore-landing .ss-demo-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+}
+.sailscore-landing .ss-demo-form textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+}
+.sailscore-landing .ss-demo-actions { margin-top: 1.25rem; text-align: center; }
+.sailscore-landing .ss-demo-actions .ss-btn-primary {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+.sailscore-landing .ss-demo-actions .ss-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Discreet admin/staff entry — landing is English marketing copy */
 .sailscore-landing .ss-landing-staff-login {
   position: fixed;

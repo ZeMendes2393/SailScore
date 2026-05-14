@@ -450,3 +450,45 @@ export async function apiUpdateQuestion(
 ) {
   return apiPatch(`/regattas/${regattaId}/questions/${id}`, data);
 }
+
+/** Pedido de demo na landing (público, sem token). */
+export type DemoRequestPayload = {
+  full_name: string;
+  email: string;
+  club_name: string;
+  phone?: string;
+  message?: string;
+  /** Honeypot anti-bot: deve ficar vazio. */
+  company?: string;
+};
+
+export async function submitDemoRequest(
+  body: DemoRequestPayload
+): Promise<{ ok: boolean; emailed: boolean; id?: number }> {
+  return apiPost('/marketing/demo-request', body);
+}
+
+export type MarketingDemoRequestRow = {
+  id: number;
+  created_at: string;
+  full_name: string;
+  email: string;
+  club_name: string;
+  phone?: string | null;
+  message?: string | null;
+  notification_email_sent: boolean;
+};
+
+export async function apiListMarketingDemoRequests(
+  token: string,
+  params?: { limit?: number; offset?: number }
+): Promise<MarketingDemoRequestRow[]> {
+  const s = new URLSearchParams();
+  if (params?.limit != null) s.set('limit', String(params.limit));
+  if (params?.offset != null) s.set('offset', String(params.offset));
+  const q = s.toString();
+  return apiGet<MarketingDemoRequestRow[]>(
+    `/marketing/demo-requests${q ? `?${q}` : ''}`,
+    token
+  );
+}

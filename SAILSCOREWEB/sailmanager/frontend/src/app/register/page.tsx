@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getApiBaseUrl } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,7 +11,7 @@ export default function RegisterPage() {
     name: "",
     email: "",
     password: "",
-    role: "regatista", // ou "admin"
+    role: "regatista", // or "admin"
   });
 
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/register", {
+      const response = await fetch(`${getApiBaseUrl()}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -36,14 +37,14 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "Erro no registo");
+        throw new Error(errorData.detail || "Registration failed");
       }
 
       const data = await response.json();
-      console.log("✅ Registo bem-sucedido", data);
+      console.log("✅ Registration successful", data);
       router.push("/login");
     } catch (error: any) {
-      setErrorMsg(error.message || "Erro ao registar");
+      setErrorMsg(error.message || "Could not register");
     } finally {
       setLoading(false);
     }
@@ -51,11 +52,11 @@ export default function RegisterPage() {
 
   return (
     <div className="max-w-md mx-auto mt-10 bg-white p-8 rounded shadow">
-      <h1 className="text-2xl font-bold mb-4">Criar Conta</h1>
+      <h1 className="text-2xl font-bold mb-4">Create account</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           name="name"
-          placeholder="Nome"
+          placeholder="Name"
           value={form.name}
           onChange={handleChange}
           required
@@ -85,7 +86,7 @@ export default function RegisterPage() {
           onChange={handleChange}
           className="w-full border p-2 rounded"
         >
-          <option value="regatista">Regatista</option>
+          <option value="regatista">Sailor</option>
           <option value="admin">Admin</option>
           <option value="scorer">Scorer</option>
           
@@ -100,7 +101,7 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
         >
-          {loading ? "A criar conta..." : "Registar"}
+          {loading ? "Creating account..." : "Register"}
         </button>
       </form>
     </div>

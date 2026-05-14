@@ -17,7 +17,7 @@ export function useHearings(regattaId: number, status: "all"|"open"|"closed"="al
       const res = await apiGet<HearingsList>(`/hearings/${regattaId}?${qs.toString()}`);
       setData(res.items || []);
     } catch (e:any) {
-      setError(e?.message || "Erro a carregar hearings.");
+      setError(e?.message || "Failed to load hearings.");
       setData([]);
     } finally {
       setLoading(false);

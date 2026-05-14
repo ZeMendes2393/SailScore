@@ -96,23 +96,23 @@ export default function RaceResultsPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500">A carregar...</p>
+        <p className="text-gray-500">Loading...</p>
       ) : results.length === 0 ? (
-        <p className="text-gray-500">Sem resultados para esta corrida.</p>
+        <p className="text-gray-500">No results for this race yet.</p>
       ) : (
         <table className="table-auto w-full border mt-4">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border px-4 py-2">Posição</th>
-              <th className="border px-4 py-2">Número de Vela</th>
-              <th className="border px-4 py-2">Nome</th>
-              {isAdminRole(user?.role) && <th className="border px-4 py-2">Ações</th>}
+              <th className="border px-4 py-2">Pos</th>
+              <th className="border px-4 py-2">Sail number</th>
+              <th className="border px-4 py-2">Name</th>
+              {isAdminRole(user?.role) && <th className="border px-4 py-2">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {results.map((r) => (
               <tr key={r.id}>
-                <td className="border px-4 py-2">{r.position}º</td>
+                <td className="border px-4 py-2">{r.position}</td>
                 <td className="border px-4 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                 <td className="border px-4 py-2">{r.skipper_name}</td>
                 {isAdminRole(user?.role) && (
@@ -121,7 +121,7 @@ export default function RaceResultsPage() {
                       className="text-red-500 hover:text-red-700"
                       onClick={() => handleDelete(r.id)}
                     >
-                      Remover
+                      Remove
                     </button>
                   </td>
                 )}

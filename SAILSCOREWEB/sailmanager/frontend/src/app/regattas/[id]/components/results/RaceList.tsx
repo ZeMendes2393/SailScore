@@ -21,7 +21,7 @@ export default function RaceList({ races, regattaId }: Props) {
   if (races.length === 0) {
     return (
       <p className="text-gray-500">
-        Nenhuma corrida ainda foi criada para esta regata.
+        No races have been created for this regatta yet.
       </p>
     )
   }
@@ -41,7 +41,7 @@ export default function RaceList({ races, regattaId }: Props) {
         value={selectedRaceId ?? ''}
         onChange={(e) => setSelectedRaceId(Number(e.target.value))}
       >
-        <option value="">-- Escolher corrida --</option>
+        <option value="">-- Choose a race --</option>
         {races.map((race) => (
           <option key={race.id} value={race.id}>
             {race.name}

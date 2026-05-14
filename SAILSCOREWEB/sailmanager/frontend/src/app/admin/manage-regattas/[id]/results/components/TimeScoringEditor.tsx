@@ -820,7 +820,7 @@ export default function TimeScoringEditor({
                   <th className="border px-2 py-2 text-center">Delta</th>
                   <th className="border px-2 py-2 text-center">Points</th>
                   <th className="border px-2 py-2 text-center">Code</th>
-                  <th className="border px-2 py-2 text-center">Ações</th>
+                  <th className="border px-2 py-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -886,7 +886,7 @@ export default function TimeScoringEditor({
                             }
                           }}
                           className="w-12 border rounded px-1 py-0.5 text-center text-sm"
-                          aria-label="Dias após o start (0 = mesmo dia)"
+                          aria-label="Days after start (0 = same day)"
                         />
                       </td>
                       <td className="border px-1 py-1 text-center">

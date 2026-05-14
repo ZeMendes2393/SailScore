@@ -3,6 +3,26 @@
 import { useMemo } from 'react';
 import type { Race } from '../types';
 
+/** One line in the race dropdown: name + class, never duplicating "(class)" from `race.name`. */
+function raceSelectLabel(race: Race): string {
+  const cn = (race.class_name || '').trim();
+  const raw = (race.name || '').trim();
+  if (!cn) return raw || `Race ${race.id}`;
+
+  const escaped = cn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Strip one or more trailing "(class)" tails (case-insensitive), e.g. "2 (ANC A) (ANC A)" → "2"
+  const trailingClass = new RegExp(`(?:\\s*\\(\\s*${escaped}\\s*\\))+\\s*$`, 'i');
+  let nameOnly = raw.replace(trailingClass, '').trim();
+
+  if (!nameOnly) {
+    const beforeParen = raw.match(/^([^(]*)/);
+    const prefix = (beforeParen?.[1] ?? '').trim();
+    nameOnly = prefix || `Race ${race.id}`;
+  }
+
+  return `${nameOnly} (${cn})`;
+}
+
 interface Props {
   races: Race[];
   selectedRaceId: number | null;
@@ -40,7 +60,7 @@ export default function RaceSelector({ races, selectedRaceId, onSelect, onResetL
 
         {uniqueRaces.map((race) => (
           <option key={`race-${race.id}`} value={race.id}>
-            {race.name} ({race.class_name})
+            {raceSelectLabel(race)}
             {race.discardable === false ? ' — (non-discardable)' : ''}
           </option>
         ))}

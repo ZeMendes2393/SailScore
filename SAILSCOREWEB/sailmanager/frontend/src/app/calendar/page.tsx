@@ -93,7 +93,7 @@ function CalendarContent() {
               <div key={i} className="aspect-square animate-pulse rounded-md bg-gray-100" />
             ))}
           </div>
-          <p className="mt-6 text-sm text-gray-500">A carregar…</p>
+          <p className="mt-6 text-sm text-gray-500">Loading…</p>
         </div>
       </div>
     );
@@ -127,7 +127,7 @@ function CalendarContent() {
 
 export default function CalendarPage() {
   return (
-    <Suspense fallback={<div className="py-8 text-gray-500">A carregar…</div>}>
+    <Suspense fallback={<div className="py-8 text-gray-500">Loading…</div>}>
       <CalendarContent />
     </Suspense>
   );

@@ -394,7 +394,7 @@ export function useFleets() {
 
         return res;
       } catch (e: any) {
-        throw new Error(e?.message ?? 'Não foi possível criar Finals.');
+        throw new Error(e?.message ?? 'Could not create finals.');
       }
     },
     [regattaId, selectedClass, token, refreshSetsAndRaces]

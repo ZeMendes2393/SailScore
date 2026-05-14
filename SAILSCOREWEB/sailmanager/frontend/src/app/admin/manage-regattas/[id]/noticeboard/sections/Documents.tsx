@@ -37,7 +37,7 @@ export default function Documents({ regattaId }: { regattaId: number }) {
   return (
     <div className="space-y-6">
       <UploadNoticeForm regattaId={regattaId} onUploadSuccess={() => setJustUploaded(true)} />
-      {loading && <div className="text-gray-500">A carregar…</div>}
+      {loading && <div className="text-gray-500">Loading…</div>}
       {error && <div className="text-red-600">{String(error)}</div>}
       <AdminNoticeTable items={data} timezone={timezone} onChanged={refresh} />
     </div>

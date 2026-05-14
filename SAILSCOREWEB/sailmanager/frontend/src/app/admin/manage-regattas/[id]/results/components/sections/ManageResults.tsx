@@ -65,7 +65,7 @@ export default function ManageResults({ regattaId, onRaceCreated }: Props) {
 
   const promptRename = async (race: Race) => {
     const base = race.name.replace(` (${(race as any).class_name})`, '');
-    const name = prompt('Novo nome da corrida:', base);
+    const name = prompt('New race name:', base);
     if (name && name.trim()) await renameRace(race.id, name.trim());
   };
 
@@ -83,24 +83,24 @@ export default function ManageResults({ regattaId, onRaceCreated }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Criar Corrida */}
+      {/* Create race */}
       <div className="p-4 border rounded-2xl bg-white shadow-sm max-w-2xl">
-        <h4 className="text-lg font-semibold mb-3">Criar Corrida</h4>
+        <h4 className="text-lg font-semibold mb-3">Create race</h4>
         <RaceCreator
           regattaId={regattaId}
           defaultOpen={true}
           onRaceCreated={(race) => onRaceCreated?.(race as any)}
         />
         <p className="text-xs text-gray-500 mt-2">
-          Dica: podes criar várias corridas seguidas mantendo a mesma classe.
+          Tip: you can create several races in a row while keeping the same class.
         </p>
       </div>
 
-      {/* Gerir corridas existentes */}
+      {/* Manage existing races */}
       <div className="p-4 border rounded-2xl bg-white shadow-sm">
-        <h4 className="text-md font-semibold mb-3">Corridas da regata</h4>
+        <h4 className="text-md font-semibold mb-3">Regatta races</h4>
         {orderedRaces.length === 0 ? (
-          <p className="text-sm text-gray-500">Ainda não existem corridas.</p>
+          <p className="text-sm text-gray-500">No races yet.</p>
         ) : (
           <ul className="max-h-72 overflow-auto divide-y">
             {orderedRaces.map((r) => (
@@ -110,22 +110,22 @@ export default function ManageResults({ regattaId, onRaceCreated }: Props) {
                 </span>
                 <button
                   className="px-2 py-1 rounded border hover:bg-gray-50"
-                  title="Subir"
+                  title="Move up"
                   onClick={() => moveRaceUp(r.id)}
                 >↑</button>
                 <button
                   className="px-2 py-1 rounded border hover:bg-gray-50"
-                  title="Descer"
+                  title="Move down"
                   onClick={() => moveRaceDown(r.id)}
                 >↓</button>
                 <button
                   className="px-2 py-1 rounded border hover:bg-gray-50"
-                  title="Renomear"
+                  title="Rename"
                   onClick={() => promptRename(r as any)}
-                >Renomear</button>
+                >Rename</button>
                 <button
                   className="px-2 py-1 rounded border hover:bg-red-50 text-red-600"
-                  title="Eliminar"
+                  title="Delete"
                   onClick={() => confirmDelete(r as any)}
                 >🗑</button>
               </li>

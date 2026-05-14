@@ -119,7 +119,7 @@ export default function RegattaEntryPage() {
       </section>
       <div className="container-page py-8">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Entry List</h2>
-        {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+        {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
         {!loadingClasses && classesError && <p className="text-red-700">{classesError}</p>}
         {!loadingClasses && !classesError && availableClasses.length > 0 && (
           <div className="flex gap-2 mb-6 flex-wrap">

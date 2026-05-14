@@ -13,6 +13,8 @@ import TimeScoringEditor from './TimeScoringEditor';
 import ImportRaceCsvModal from './ImportRaceCsvModal';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { BASE_URL } from '@/lib/api';
+import { filenameFromContentDisposition } from '@/lib/filenameFromContentDisposition';
+import { safeRaceDownloadFilename } from '@/lib/safeRaceDownloadFilename';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
 
@@ -86,6 +88,7 @@ export default function RaceResultsManager({
 
     // fleets
     currentRace,
+    regattaNameForExport,
     fleetsForRace,
     entryIdToFleetName,
     selectedFleetId,
@@ -153,7 +156,7 @@ export default function RaceResultsManager({
 
         if (!res.ok) {
           const msg = await res.text().catch(() => '');
-          throw new Error(msg || `Erro ${res.status}`);
+          throw new Error(msg || `Error ${res.status}`);
         }
 
         // Força refresh para re-fetch do hook/route
@@ -447,7 +450,18 @@ export default function RaceResultsManager({
                               const blob = await res.blob();
                               const a = document.createElement('a');
                               a.href = URL.createObjectURL(blob);
-                              a.download = `one_design_race_${selectedRaceId}.csv`;
+                              const fromHeader = filenameFromContentDisposition(
+                                res.headers.get('Content-Disposition')
+                              );
+                              a.download =
+                                fromHeader ??
+                                safeRaceDownloadFilename(
+                                  regattaNameForExport,
+                                  (currentRace as { name?: string } | null)?.name,
+                                  selectedRaceId,
+                                  'csv',
+                                  (currentRace as { class_name?: string } | null)?.class_name
+                                );
                               a.click();
                               URL.revokeObjectURL(a.href);
                             } catch (e: any) {
@@ -481,7 +495,18 @@ export default function RaceResultsManager({
                             const blob = await res.blob();
                             const a = document.createElement('a');
                             a.href = URL.createObjectURL(blob);
-                            a.download = `race_${selectedRaceId}_results.pdf`;
+                            const fromHeader = filenameFromContentDisposition(
+                              res.headers.get('Content-Disposition')
+                            );
+                            a.download =
+                              fromHeader ??
+                              safeRaceDownloadFilename(
+                                regattaNameForExport,
+                                (currentRace as { name?: string } | null)?.name,
+                                selectedRaceId,
+                                'pdf',
+                                (currentRace as { class_name?: string } | null)?.class_name
+                              );
                             a.click();
                             URL.revokeObjectURL(a.href);
                           } catch (e: any) {

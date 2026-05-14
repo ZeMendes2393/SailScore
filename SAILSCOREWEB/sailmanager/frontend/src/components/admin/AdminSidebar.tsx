@@ -29,7 +29,9 @@ export default function AdminSidebar() {
   const isEmail = pathname?.startsWith('/admin/email');
   const isSettings = pathname?.startsWith('/admin/settings');
   const isOrganizations = pathname?.startsWith('/admin/organizations');
+  const isDemoRequests = pathname?.startsWith('/admin/demo-requests');
   const organizationsHref = hrefOrganizationsPage(user, isPlatformAdmin, orgSlug, withOrg);
+  const canViewDemoRequests = user?.role === 'platform_admin';
 
   return (
     <aside className="sticky top-0 h-screen w-72 overflow-y-auto bg-white/95 border-r border-gray-200 p-7 space-y-6 shadow-sm">
@@ -51,6 +53,11 @@ export default function AdminSidebar() {
         {canManageOrganizations && (
           <Link href={organizationsHref} className={itemClass(!!isOrganizations)}>
             Organizations
+          </Link>
+        )}
+        {canViewDemoRequests && (
+          <Link href="/admin/demo-requests" className={itemClass(!!isDemoRequests)}>
+            Demo requests
           </Link>
         )}
         <Link href={base('/admin/manage-regattas')} className={itemClass(!!isRegattas)}>

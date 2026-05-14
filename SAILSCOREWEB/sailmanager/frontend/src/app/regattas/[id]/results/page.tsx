@@ -52,7 +52,7 @@ export default function ResultsPage() {
           const txt = await res.text()
           console.error("❌ Erro ao carregar classes:", res.status, txt)
           setAvailableClasses([])
-          setClassesError("Não foi possível carregar as classes desta regata.")
+          setClassesError("Could not load classes for this regatta.")
           return
         }
         const data: unknown = await res.json()
@@ -63,7 +63,7 @@ export default function ResultsPage() {
       } catch (err) {
         console.error("❌ Erro de rede ao carregar classes:", err)
         setAvailableClasses([])
-        setClassesError("Erro de rede ao carregar classes.")
+        setClassesError("Network error while loading classes.")
       } finally {
         setLoadingClasses(false)
       }
@@ -90,8 +90,8 @@ export default function ResultsPage() {
       const s = new Date(start)
       const e = new Date(end)
       const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts)
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('en-GB', opts)
+      return `${s.toLocaleDateString('en-GB', opts)} – ${e.toLocaleDateString('en-GB', opts)}`
     } catch {
       return `${start} – ${end}`
     }
@@ -122,11 +122,11 @@ export default function ResultsPage() {
       )}
 
       <div className="container-page py-8">
-      {!regatta && <p className="py-8">A carregar regata...</p>}
+      {!regatta && <p className="py-8">Loading regatta...</p>}
 
       {/* Seletor de classes */}
       <div className="mb-6">
-        {loadingClasses && <p className="text-gray-500">A carregar classes…</p>}
+        {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
         {!loadingClasses && classesError && (
           <p className="text-red-700">{classesError}</p>
         )}

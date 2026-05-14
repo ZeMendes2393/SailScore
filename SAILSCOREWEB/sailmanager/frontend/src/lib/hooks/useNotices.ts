@@ -26,7 +26,7 @@ export function useNotices(regattaId: number) {
       const result = await api<Notice[]>(`/notices/${regattaId}?${params.toString()}`);
       setData(result);
     } catch (e: any) {
-      setError(e?.message || "Erro ao obter documentos.");
+      setError(e?.message || "Failed to load documents.");
     } finally {
       setLoading(false);
     }

@@ -268,7 +268,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         setClasses(data || []);
         if (data?.length) setSelectedClass((prev) => prev ?? data[0]);
       } catch {
-        setError('Erro ao carregar classes');
+        setError('Failed to load classes');
       } finally {
         setLoadingClasses(false);
       }
@@ -307,7 +307,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         const rows = Array.isArray(data) ? data : (data?.rows ?? []);
         setRawResults(rows);
       } catch {
-        setError('Erro ao carregar resultados');
+        setError('Failed to load results');
       } finally {
         setLoadingResults(false);
       }
@@ -550,7 +550,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Voltar ao menu da regata */}
+      {/* Back to regatta menu */}
       <div className="mb-4">
         <Link
           href={`${manageRegattaBasePath}/${regattaId}`}

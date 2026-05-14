@@ -157,17 +157,17 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
       {/* drawer */}
       <div className="absolute right-0 top-0 h-full w-full max-w-[520px] bg-white shadow-xl p-5 overflow-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Settings por Classe</h3>
-          <button onClick={onClose} className="px-3 py-1 rounded border hover:bg-gray-50">Fechar</button>
+          <h3 className="text-lg font-semibold">Class settings</h3>
+          <button onClick={onClose} className="px-3 py-1 rounded border hover:bg-gray-50">Close</button>
         </div>
 
         {!regattaId ? (
-          <p className="text-sm text-gray-600">Regata inválida.</p>
+          <p className="text-sm text-gray-600">Invalid regatta.</p>
         ) : (
           <>
             {/* Seletor de classe */}
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Classe</label>
+              <label className="block text-sm font-medium mb-1">Class</label>
               <div className="flex gap-2">
                 <select
                   value={selectedClass ?? ''}
@@ -180,7 +180,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
             </div>
 
             {loading ? (
-              <p className="text-sm text-gray-600">A carregar…</p>
+              <p className="text-sm text-gray-600">Loading…</p>
             ) : (
               <>
                 {/* DescARTES */}
@@ -193,7 +193,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                         inputMode="numeric"
                         value={dcInput}
                         onChange={e => setDcInput(e.target.value)}
-                        placeholder="(herdar)"
+                        placeholder="(inherit)"
                         className="border rounded px-3 py-2 w-full"
                       />
                     </div>
@@ -204,13 +204,13 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                         inputMode="numeric"
                         value={dtInput}
                         onChange={e => setDtInput(e.target.value)}
-                        placeholder="(herdar)"
+                        placeholder="(inherit)"
                         className="border rounded px-3 py-2 w-full"
                       />
                     </div>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Em uso: <b>{resolved?.discard_count ?? 0}</b> após <b>{resolved?.discard_threshold ?? 0}</b> regatas.
+                    In effect: <b>{resolved?.discard_count ?? 0}</b> after <b>{resolved?.discard_threshold ?? 0}</b> races.
                   </p>
                 </div>
 
@@ -218,7 +218,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium">Scoring codes (override)</h4>
-                    <button onClick={onAddCode} className="px-2 py-1 rounded border text-sm hover:bg-gray-50">+ Código</button>
+                    <button onClick={onAddCode} className="px-2 py-1 rounded border text-sm hover:bg-gray-50">+ Code</button>
                   </div>
                   <div className="space-y-2">
                     {codes.map((row, i) => (
@@ -232,15 +232,15 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                         <input
                           value={row.points}
                           onChange={e => onChangeCode(i, 'points', e.target.value)}
-                          placeholder="pontos"
+                          placeholder="points"
                           className="border rounded px-2 py-1 w-28"
                           inputMode="decimal"
                         />
-                        <button onClick={() => onRemoveCode(i)} className="px-2 py-1 rounded border hover:bg-red-50 text-red-600">Remover</button>
+                        <button onClick={() => onRemoveCode(i)} className="px-2 py-1 rounded border hover:bg-red-50 text-red-600">Remove</button>
                       </div>
                     ))}
                     {!codes.length && (
-                      <p className="text-xs text-gray-500">Vazio = herdar global</p>
+                      <p className="text-xs text-gray-500">Empty = inherit global</p>
                     )}
                   </div>
                 </div>
@@ -251,10 +251,10 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                     disabled={!canSave || saving}
                     className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-4 py-2 rounded"
                   >
-                    {saving ? 'A guardar…' : 'Guardar'}
+                    {saving ? 'Saving…' : 'Save'}
                   </button>
                   <button onClick={resetToInherit} className="px-3 py-2 rounded border hover:bg-gray-50">
-                    Repor para “herdar”
+                    Reset to inherit
                   </button>
                 </div>
               </>

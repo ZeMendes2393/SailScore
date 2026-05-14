@@ -57,7 +57,7 @@ export function useMyEntry(regattaId: number | null, token?: string) {
       );
       setEntry(Array.isArray(data) && data.length > 0 ? data[0] : null);
     } catch (e: any) {
-      setError(e?.message ?? 'Falha a carregar a tua inscrição.');
+      setError(e?.message ?? 'Failed to load your entry.');
       setEntry(null);
     } finally {
       setLoading(false);

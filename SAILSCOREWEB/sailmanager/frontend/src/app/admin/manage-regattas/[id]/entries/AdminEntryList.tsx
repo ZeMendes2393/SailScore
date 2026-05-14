@@ -367,7 +367,7 @@ export default function AdminEntryList({
           Public entry list columns per class{selectedClass ? ` (${selectedClass})` : ''}:
         </span>
         {!selectedClass && (
-          <span className="text-sm text-amber-800 w-full">Seleciona uma classe acima para alterar as colunas.</span>
+          <span className="text-sm text-amber-800 w-full">Select a class above to change the columns.</span>
         )}
         <span className="text-sm text-gray-600 w-full">
           Admin view always shows all columns; these options affect only the public entry list.
@@ -384,7 +384,7 @@ export default function AdminEntryList({
             {col.label}
           </label>
         ))}
-        {savingColumns && <span className="text-sm text-gray-500">A guardar…</span>}
+        {savingColumns && <span className="text-sm text-gray-500">Saving…</span>}
       </div>
 
       <div className="flex items-center gap-6 flex-wrap text-base text-gray-800">

@@ -91,6 +91,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   });
   const [savingScoring, setSavingScoring] = useState(false);
 
+  /** Regatta display name (for export filenames; matches backend Content-Disposition). */
+  const [regattaNameForExport, setRegattaNameForExport] = useState('');
+
   // ---- Dados base
   const [entryList, setEntryList] = useState<EntryWithStatus[]>([]);
   const [races, setRaces] = useState<Race[]>([]);
@@ -274,15 +277,19 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   }, [regattaId]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const regatta = await apiGet<any>(`/regattas/${regattaId}`);
-        setScoring({
-          discard_count: typeof regatta.discard_count === 'number' ? regatta.discard_count : 0,
-          discard_threshold:
-            typeof regatta.discard_threshold === 'number' ? regatta.discard_threshold : 4,
-          code_points: regatta.scoring_codes ?? {},
-        });
+        if (!cancelled) {
+          setRegattaNameForExport(String(regatta?.name ?? '').trim());
+          setScoring({
+            discard_count: typeof regatta.discard_count === 'number' ? regatta.discard_count : 0,
+            discard_threshold:
+              typeof regatta.discard_threshold === 'number' ? regatta.discard_threshold : 4,
+            code_points: regatta.scoring_codes ?? {},
+          });
+        }
       } catch {}
 
       try {
@@ -290,10 +297,15 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
           apiGet<EntryWithStatus[]>(`/entries/by_regatta/${regattaId}`),
           apiGet<Race[]>(`/races/by_regatta/${regattaId}`), // já vem ordenado
         ]);
-        setEntryList(entries);
-        setRaces(rcs);
+        if (!cancelled) {
+          setEntryList(entries);
+          setRaces(rcs);
+        }
       } catch {}
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [regattaId]);
 
   // Integrar nova corrida criada — não limpa drafts das outras races
@@ -1446,6 +1458,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     selectedClass,
     isHandicapClass,
     currentRace,
+    regattaNameForExport,
     existingResults,
     loadingExisting,
     availableEntries,

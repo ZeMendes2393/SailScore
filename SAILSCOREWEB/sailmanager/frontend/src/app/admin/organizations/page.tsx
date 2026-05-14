@@ -174,11 +174,11 @@ export default function OrganizationsPage() {
     const em = editAdminEmail.trim().toLowerCase();
     const pw = editAdminPassword.trim();
     if (pw && pw.length < 8) {
-      setError('A nova password deve ter pelo menos 8 caracteres.');
+      setError('The new password must be at least 8 characters.');
       return;
     }
     if (em && !pw && !editingOrg.admin_email) {
-      setError('Para adicionar admin, indica também a password (mín. 8 caracteres).');
+      setError('To set an admin, also enter the password (min. 8 characters).');
       return;
     }
     setSubmitting(true);

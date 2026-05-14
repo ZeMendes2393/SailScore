@@ -26,7 +26,7 @@ export default function FeatureCard({ title, description, href, enabled, cta }: 
         <button
           disabled
           className="inline-block mt-5 px-5 py-2.5 rounded-lg bg-gray-200 text-base font-medium text-gray-500 cursor-not-allowed"
-          title="Indisponível neste momento"
+          title="Unavailable at the moment"
         >
           {cta}
         </button>

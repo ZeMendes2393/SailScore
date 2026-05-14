@@ -89,28 +89,28 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             if (e.target === e.currentTarget) close(false);
           }}
         >
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden animate-[popIn_150ms_ease-out]">
-            <div className="px-6 pt-5 pb-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden animate-[popIn_150ms_ease-out]">
+            <div className="px-7 pt-6 pb-5">
               <h2
                 id="ss-confirm-title"
-                className="text-lg font-semibold tracking-tight text-gray-900"
+                className="text-xl font-semibold tracking-tight text-gray-900"
               >
                 {dialog.title}
               </h2>
               {dialog.description && (
                 <p
                   id="ss-confirm-desc"
-                  className="mt-2 text-sm leading-relaxed text-gray-600 whitespace-pre-line"
+                  className="mt-3 text-base leading-relaxed text-gray-600 whitespace-pre-line"
                 >
                   {dialog.description}
                 </p>
               )}
             </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-6 pb-5">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-7 pb-6">
               <button
                 type="button"
                 onClick={() => close(false)}
-                className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition"
               >
                 {dialog.cancelLabel ?? 'Cancel'}
               </button>
@@ -118,7 +118,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 ref={confirmBtnRef}
                 type="button"
                 onClick={() => close(true)}
-                className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 transition ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-3 text-base font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 transition ${
                   dialog.tone === 'danger'
                     ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500'
                     : dialog.tone === 'warning'

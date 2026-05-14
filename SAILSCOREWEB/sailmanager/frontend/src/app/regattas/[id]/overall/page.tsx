@@ -61,7 +61,7 @@ export default function OverallResultsPage() {
     const run = async () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}`)
-        if (!res.ok) throw new Error('Falha ao obter regata')
+        if (!res.ok) throw new Error('Failed to load regatta')
         const data = await res.json()
         setRegatta({
           id: data.id,
@@ -84,12 +84,12 @@ export default function OverallResultsPage() {
       setError(null)
       try {
         const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/classes`)
-        if (!res.ok) throw new Error('Falha ao obter classes da regata')
+        if (!res.ok) throw new Error('Failed to load regatta classes')
         const data: string[] = await res.json()
         setClasses(data || [])
         if (data?.length) setSelectedClass(prev => prev ?? data[0])
       } catch (e: any) {
-        setError(e?.message || 'Erro ao carregar classes')
+        setError(e?.message || 'Failed to load classes')
       } finally {
         setLoadingClasses(false)
       }
@@ -118,7 +118,7 @@ export default function OverallResultsPage() {
         setRawResults(rows)
         setPublishedAt(data?.published_at ?? null)
       } catch (e: any) {
-        setError(e?.message || 'Erro ao carregar resultados')
+        setError(e?.message || 'Failed to load results')
       } finally {
         setLoadingResults(false)
       }
@@ -211,7 +211,7 @@ export default function OverallResultsPage() {
       <div className="container-page py-8">
       <div className="p-6 max-w-6xl mx-auto text-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <h2 className="text-4xl font-bold tracking-tight"> Classificação Geral</h2>
+        <h2 className="text-4xl font-bold tracking-tight"> Overall standings</h2>
         <div className="flex flex-wrap items-center gap-2">
           {formattedPublishedAt && (
             <span className="text-lg bg-slate-100 text-slate-700 px-4 py-2 rounded-lg">
@@ -220,9 +220,9 @@ export default function OverallResultsPage() {
           )}
           {regatta && (
             <span className="text-lg bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
-            Descartes: <strong>{regatta.discard_count}</strong>
+            Discards: <strong>{regatta.discard_count}</strong>
             {regatta.discard_count > 0 && (
-              <> (após <strong>{regatta.discard_threshold}</strong> regatas)</>
+              <> (after <strong>{regatta.discard_threshold}</strong> races)</>
             )}
           </span>
         )}
@@ -237,9 +237,9 @@ export default function OverallResultsPage() {
 
       {/* Abas de classes */}
       {loadingClasses ? (
-        <p className="text-gray-500">A carregar classes…</p>
+        <p className="text-gray-500">Loading classes…</p>
       ) : classes.length === 0 ? (
-        <p className="text-gray-500">Sem classes configuradas para esta regata.</p>
+        <p className="text-gray-500">No classes configured for this regatta.</p>
       ) : (
         <div className="flex gap-2 mb-4 flex-wrap">
           {classes.map(cls => (
@@ -261,7 +261,7 @@ export default function OverallResultsPage() {
       {/* Tabela da classe selecionada */}
       {selectedClass && (
         <div className="mt-2">
-          <h3 className="text-2xl font-semibold mb-4">Classe: {selectedClass}</h3>
+          <h3 className="text-2xl font-semibold mb-4">Class: {selectedClass}</h3>
 
           {loadingResults ? (
             <p className="text-gray-500">Loading results…</p>

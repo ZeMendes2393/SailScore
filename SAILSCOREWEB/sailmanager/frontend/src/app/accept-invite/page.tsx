@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { getApiBaseUrl } from '@/lib/api'
 
 export default function AcceptInvitePage() {
   const params = useSearchParams()
@@ -14,7 +15,7 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     if (!token) {
       setStatus('error')
-      setMessage('Token em falta.')
+      setMessage('Missing token.')
     }
   }, [token])
 
@@ -22,7 +23,7 @@ export default function AcceptInvitePage() {
     e.preventDefault()
     setStatus('idle'); setMessage('')
     try {
-      const res = await fetch('http://localhost:8000/auth/accept-invite', {
+      const res = await fetch(`${getApiBaseUrl()}/auth/accept-invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
@@ -30,27 +31,27 @@ export default function AcceptInvitePage() {
       const data = await res.json()
       if (!res.ok) {
         setStatus('error')
-        setMessage(data.detail || 'Não foi possível aceitar o convite.')
+        setMessage(data.detail || 'Could not accept the invite.')
         return
       }
       setStatus('ok')
-      setMessage('Convite aceite. Já podes iniciar sessão.')
+      setMessage('Invite accepted. You can sign in now.')
     } catch {
       setStatus('error')
-      setMessage('Erro de rede.')
+      setMessage('Network error.')
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-6 rounded shadow w-full max-w-md">
-        <h1 className="text-xl font-semibold mb-4">Aceitar convite</h1>
-        {!token && <p className="text-red-600">Token em falta.</p>}
+        <h1 className="text-xl font-semibold mb-4">Accept invite</h1>
+        {!token && <p className="text-red-600">Missing token.</p>}
 
         <form onSubmit={submit} className="space-y-4">
           <input
             type="password"
-            placeholder="Define a tua palavra-passe (opcional)"
+            placeholder="Set your password (optional)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full px-4 py-2 border rounded"
@@ -60,7 +61,7 @@ export default function AcceptInvitePage() {
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
             disabled={!token}
           >
-            Aceitar convite
+            Accept invite
           </button>
         </form>
 
@@ -76,7 +77,7 @@ export default function AcceptInvitePage() {
               onClick={() => router.replace('/login')}
               className="w-full bg-gray-100 border px-3 py-2 rounded hover:bg-gray-200"
             >
-              Ir para login
+              Go to sign in
             </button>
           </div>
         )}
