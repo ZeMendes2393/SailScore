@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
+import SailScorePublicContact from '@/components/SailScorePublicContact';
 
 type FooterDesign = {
   footer_site_name: string | null;
@@ -89,21 +90,27 @@ export default function GlobalFooter({
             </div>
 
             <div className="space-y-1 text-sm text-slate-300">
-              {footer?.footer_contact_email && (
-                <p>
-                  <span className="font-medium">Email:</span>{' '}
-                  <a
-                    href={`mailto:${footer.footer_contact_email}`}
-                    className="text-sky-300 hover:text-sky-200 underline underline-offset-2"
-                  >
-                    {footer.footer_contact_email}
-                  </a>
-                </p>
-              )}
-              {footer?.footer_phone && (
-                <p>
-                  <span className="font-medium">Phone:</span> {footer.footer_phone}
-                </p>
+              {!effectiveOrg ? (
+                <SailScorePublicContact className="text-slate-300" />
+              ) : (
+                <>
+                  {footer?.footer_contact_email && (
+                    <p>
+                      <span className="font-medium">Email:</span>{' '}
+                      <a
+                        href={`mailto:${footer.footer_contact_email}`}
+                        className="text-sky-300 hover:text-sky-200 underline underline-offset-2"
+                      >
+                        {footer.footer_contact_email}
+                      </a>
+                    </p>
+                  )}
+                  {footer?.footer_phone && (
+                    <p>
+                      <span className="font-medium">Phone:</span> {footer.footer_phone}
+                    </p>
+                  )}
+                </>
               )}
               {footer?.footer_address && (
                 <p className="whitespace-pre-line">

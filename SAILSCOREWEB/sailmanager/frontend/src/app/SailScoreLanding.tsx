@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import BookDemoForm from '@/components/landing/BookDemoForm';
+import SailScorePublicContact from '@/components/SailScorePublicContact';
 
 export default function SailScoreLanding() {
   return (
@@ -305,6 +306,22 @@ export default function SailScoreLanding() {
           <p className="ss-microcopy">No hard sell — just a practical walkthrough.</p>
         </div>
       </section>
+
+      <footer
+        id="footer-contact"
+        className="border-t border-slate-800 bg-slate-900 text-slate-200"
+        aria-label="Contact"
+      >
+        <div className="ss-container py-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-8">
+          <div>
+            <p className="text-lg font-semibold text-white mb-1">SailScore</p>
+            <p className="text-sm text-slate-400 max-w-md">
+              Questions from clubs and race organisers — get in touch by email or phone.
+            </p>
+          </div>
+          <SailScorePublicContact className="text-slate-300 shrink-0" />
+        </div>
+      </footer>
 
       <div className="ss-landing-staff-login" aria-label="Staff access">
         <Link href="/admin/login">Staff sign-in</Link>

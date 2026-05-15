@@ -376,7 +376,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
 
                 return (
               <>
-                <div className="mb-3 flex flex-wrap items-center gap-3">
+                <div className="mb-3 flex flex-wrap items-center gap-3" translate="no">
                   <h3 className="text-lg font-bold">{selectedRaceForTimes}</h3>
                   {(meta?.race_date || startTime) && (
                     <span className="text-sm text-gray-600">
