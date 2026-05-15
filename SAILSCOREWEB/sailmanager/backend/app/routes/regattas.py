@@ -39,6 +39,7 @@ router = APIRouter(prefix="/regattas", tags=["regattas"])
 
 # ---------------- Regattas CRUD ----------------
 
+@router.get("", response_model=List[schemas.RegattaListRead], include_in_schema=False)
 @router.get("/", response_model=List[schemas.RegattaListRead])
 def list_regattas(
     organization_id: Optional[int] = Query(None, description="ID da organização"),
