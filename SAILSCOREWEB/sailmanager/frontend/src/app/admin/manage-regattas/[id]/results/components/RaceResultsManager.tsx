@@ -446,9 +446,12 @@ export default function RaceResultsManager({
                   })}
                 </div>
                 {selectedRaceId && (
-                  <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <div className="ml-auto flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     {currentRace && (
-                      <>
+                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5">
+                        <span className="px-2 text-[11px] lg:text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Actions
+                        </span>
                         <button
                           type="button"
                           onClick={async () => {
@@ -482,74 +485,71 @@ export default function RaceResultsManager({
                           }}
                           className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
                         >
-                          Export this race (CSV)
+                          Export CSV
                         </button>
                         <button
                           type="button"
                           onClick={() => setShowImportCsvModal(true)}
                           className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
                         >
-                          Import into this race (CSV)
+                          Import CSV
                         </button>
-                      </>
-                    )}
-                    {currentRace && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!selectedRaceId) return;
-                          try {
-                            const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/results/pdf`;
-                            const res = await fetch(url, {
-                              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                            });
-                            if (!res.ok) throw new Error(await res.text());
-                            const blob = await res.blob();
-                            const a = document.createElement('a');
-                            a.href = URL.createObjectURL(blob);
-                            const fromHeader = filenameFromContentDisposition(
-                              res.headers.get('Content-Disposition')
-                            );
-                            a.download =
-                              fromHeader ??
-                              safeRaceDownloadFilename(
-                                regattaNameForExport,
-                                (currentRace as { name?: string } | null)?.name,
-                                selectedRaceId,
-                                'pdf',
-                                (currentRace as { class_name?: string } | null)?.class_name
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!selectedRaceId) return;
+                            try {
+                              const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/results/pdf`;
+                              const res = await fetch(url, {
+                                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                              });
+                              if (!res.ok) throw new Error(await res.text());
+                              const blob = await res.blob();
+                              const a = document.createElement('a');
+                              a.href = URL.createObjectURL(blob);
+                              const fromHeader = filenameFromContentDisposition(
+                                res.headers.get('Content-Disposition')
                               );
-                            a.click();
-                            URL.revokeObjectURL(a.href);
-                          } catch (e: any) {
-                            notify.error(e?.message || 'PDF download failed.');
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
-                      >
-                        Download race PDF
-                      </button>
-                    )}
-                    {currentRace && (
-                      <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-xs lg:text-sm">
-                        <span className="text-gray-700">Discardable</span>
-                        <input
-                          type="checkbox"
-                          checked={!!(currentRace as any).discardable}
-                          disabled={savingRaceFlags}
-                          onChange={(e) => {
-                            const next = e.target.checked;
-                            (async () => {
-                              setSavingRaceFlags(true);
-                              try {
-                                await setRaceDiscardable(selectedRaceId, next);
-                              } finally {
-                                setSavingRaceFlags(false);
-                              }
-                            })();
+                              a.download =
+                                fromHeader ??
+                                safeRaceDownloadFilename(
+                                  regattaNameForExport,
+                                  (currentRace as { name?: string } | null)?.name,
+                                  selectedRaceId,
+                                  'pdf',
+                                  (currentRace as { class_name?: string } | null)?.class_name
+                                );
+                              a.click();
+                              URL.revokeObjectURL(a.href);
+                            } catch (e: any) {
+                              notify.error(e?.message || 'PDF download failed.');
+                            }
                           }}
-                        />
-                      </label>
+                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
+                        >
+                          Download PDF
+                        </button>
+                        <span className="mx-1 h-6 w-px bg-gray-200" aria-hidden />
+                        <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 bg-white text-xs lg:text-sm">
+                          <span className="text-gray-700">Discardable</span>
+                          <input
+                            type="checkbox"
+                            checked={!!(currentRace as any).discardable}
+                            disabled={savingRaceFlags}
+                            onChange={(e) => {
+                              const next = e.target.checked;
+                              (async () => {
+                                setSavingRaceFlags(true);
+                                try {
+                                  await setRaceDiscardable(selectedRaceId, next);
+                                } finally {
+                                  setSavingRaceFlags(false);
+                                }
+                              })();
+                            }}
+                          />
+                        </label>
+                      </div>
                     )}
                     <button
                       type="button"
