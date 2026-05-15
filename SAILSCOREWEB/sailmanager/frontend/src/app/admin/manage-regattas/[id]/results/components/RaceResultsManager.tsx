@@ -366,7 +366,7 @@ export default function RaceResultsManager({
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Toolbar sticky */}
-      <div className="sticky top-16 md:top-[4.75rem] z-30 border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="border-b bg-white">
         <div className="w-full px-6">
           <div className="py-3 flex flex-col gap-3">
             <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
