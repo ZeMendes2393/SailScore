@@ -5,23 +5,27 @@ export const BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 ).replace(/\/$/, '');
 
+const LOCAL_API_HOSTS = new Set(['localhost', '127.0.0.1']);
+
 /**
- * Resolve a URL da API em tempo de execução.
- * Em dev: se não houver env e a página estiver em localhost ou 127.0.0.1,
- * usa o mesmo hostname que o browser — evita misturar localhost com 127.0.0.1
- * (pedidos falham ou o Chrome mostra erro tipo CORS quando não há resposta HTTP).
+ * Em produção o browser chama `/api/backend/...` (rewrite Next → API real) para evitar CORS
+ * entre www.sailscore.online e api.sailscore.online. Em localhost mantém ligação directa.
  */
 export function getApiBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (env) return env;
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
-    // Mesmo host que a página, API na porta 8000 — funciona em localhost e em IP da LAN.
-    // Em produção com API noutro domínio, define NEXT_PUBLIC_API_URL.
-    if (hostname && hostname !== '0.0.0.0') {
+    if (env && !LOCAL_API_HOSTS.has(hostname)) {
+      return '/api/backend';
+    }
+    if (!env && hostname && hostname !== '0.0.0.0' && LOCAL_API_HOSTS.has(hostname)) {
+      return `${protocol}//${hostname}:8000`;
+    }
+    if (!env && hostname && hostname !== '0.0.0.0') {
       return `${protocol}//${hostname}:8000`;
     }
   }
+  if (env) return env;
   return BASE_URL;
 }
 

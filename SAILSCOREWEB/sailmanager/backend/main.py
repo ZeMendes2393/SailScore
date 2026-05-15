@@ -122,10 +122,15 @@ logger = logging.getLogger("sailscore")
 @app.exception_handler(Exception)
 def unhandled_exception_handler(request, exc: Exception):
     logger.exception("Unhandled exception: %s", exc)
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={"detail": str(exc), "type": type(exc).__name__},
     )
+    origin = request.headers.get("origin")
+    if origin and _origin_allowed(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 # ---------- Paths base ----------
 UPLOADS_DIR = Path("uploads").resolve()

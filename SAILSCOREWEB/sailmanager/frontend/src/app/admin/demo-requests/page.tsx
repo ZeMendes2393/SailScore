@@ -35,7 +35,12 @@ export default function DemoRequestsPage() {
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch (e: unknown) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load demo requests.');
+          const msg = e instanceof Error ? e.message : 'Failed to load demo requests.';
+          setError(
+            msg === 'Failed to fetch'
+              ? 'Could not reach the API. After deploying the latest frontend, refresh the page. If it persists, check that the API is running and that your account is platform_admin.'
+              : msg
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
