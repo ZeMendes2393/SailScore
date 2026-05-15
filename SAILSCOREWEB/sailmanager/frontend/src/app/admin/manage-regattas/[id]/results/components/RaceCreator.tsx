@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiSend } from '@/lib/api';
+import notify from '@/lib/notify';
 
 interface Props {
   regattaId: number;
@@ -30,7 +31,6 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
   const [loading, setLoading] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
 
   const canSubmit = useMemo(
     () => !!name.trim() && !!className && !!date && !loading && !loadingClasses,
@@ -43,7 +43,6 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
     (async () => {
       setLoadingClasses(true);
       setError(null);
-      setOk(null);
       try {
         const data = await apiGet<string[]>(`/regattas/${regattaId}/classes`, token ?? undefined);
         if (!mounted) return;
@@ -65,7 +64,6 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
     if (!canSubmit) return;
     setLoading(true);
     setError(null);
-    setOk(null);
     try {
       const payload = {
         regatta_id: regattaId,
@@ -75,11 +73,13 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
       };
       const newRace = await apiSend<Race>('/races', 'POST', payload, token ?? undefined);
       onRaceCreated(newRace);
-      setOk('Race created successfully!');
+      notify.success('Race created successfully!');
       // mantém a classe selecionada para criar várias de seguida
       setName('');
     } catch (e: any) {
-      setError(typeof e?.message === 'string' ? e.message : 'Error creating race.');
+      const msg = typeof e?.message === 'string' ? e.message : 'Error creating race.';
+      setError(msg);
+      notify.error(msg);
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,6 @@ export default function RaceCreator({ regattaId, onRaceCreated, defaultOpen = fa
         <div className="mt-3 space-y-2 text-sm">
           {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
           {!!error && <p className="text-red-600">{error}</p>}
-          {!!ok && <p className="text-green-700">{ok}</p>}
           {(!loadingClasses && classOptions.length === 0) && (
             <p className="text-gray-500">No classes configured for this regatta.</p>
           )}
