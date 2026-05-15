@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiSend, apiUpload, apiDelete, BASE_URL } from '@/lib/api';
+import { apiGet, apiSend, apiUpload, apiDelete, apiAssetUrl } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import notify from '@/lib/notify';
@@ -130,7 +130,7 @@ export default function AdminSponsorsPage() {
     }
   };
 
-  const imageSrc = (url: string) => (url.startsWith('http') ? url : `${BASE_URL}${url}`);
+  const imageSrc = (url: string) => apiAssetUrl(url);
   const byCategory = sponsors.reduce<Record<string, Sponsor[]>>((acc, s) => {
     const cat = s.category || 'Other';
     if (!acc[cat]) acc[cat] = [];

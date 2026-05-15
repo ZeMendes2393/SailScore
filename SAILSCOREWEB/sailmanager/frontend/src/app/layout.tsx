@@ -6,6 +6,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import ClientLayout from './ClientLayout';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
+import { getServerApiBaseUrl } from '@/lib/api';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -17,7 +18,7 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+const API = getServerApiBaseUrl();
 
 /** Homepage `/` sem /o/slug: usar a mesma org em todo o site (variável de ambiente). */
 const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;

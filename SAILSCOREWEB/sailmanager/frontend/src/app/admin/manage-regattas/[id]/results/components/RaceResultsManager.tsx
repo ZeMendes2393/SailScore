@@ -12,7 +12,7 @@ import DraftResultsEditor from './DraftResultsEditor';
 import TimeScoringEditor from './TimeScoringEditor';
 import ImportRaceCsvModal from './ImportRaceCsvModal';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
-import { BASE_URL } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api';
 import { filenameFromContentDisposition } from '@/lib/filenameFromContentDisposition';
 import { safeRaceDownloadFilename } from '@/lib/safeRaceDownloadFilename';
 import notify from '@/lib/notify';
@@ -125,7 +125,6 @@ export default function RaceResultsManager({
   // bloquear override enquanto guarda
   const [savingOverridePoints, setSavingOverridePoints] = useState(false);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
 
   // ✅ handler “Override points” com suporte a UNDO (points = null)
   const handleOverridePoints = useCallback(
@@ -145,7 +144,7 @@ export default function RaceResultsManager({
 
       setSavingOverridePoints(true);
       try {
-        const res = await fetch(`${apiBase}/results/${rowId}/override-points`, {
+        const res = await fetch(`${getApiBaseUrl()}/results/${rowId}/override-points`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -171,7 +170,7 @@ export default function RaceResultsManager({
         setSavingOverridePoints(false);
       }
     },
-    [apiBase, token, router, refreshExisting, selectedRaceId]
+    [token, router, refreshExisting, selectedRaceId]
   );
 
   // -----------------------------
@@ -455,7 +454,7 @@ export default function RaceResultsManager({
                           onClick={async () => {
                             if (!token || !selectedRaceId) return;
                             try {
-                              const url = `${BASE_URL}/results/races/${selectedRaceId}/export/csv`;
+                              const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/export/csv`;
                               const res = await fetch(url, {
                                 headers: { Authorization: `Bearer ${token}` },
                               });
@@ -500,7 +499,7 @@ export default function RaceResultsManager({
                         onClick={async () => {
                           if (!selectedRaceId) return;
                           try {
-                            const url = `${BASE_URL}/results/races/${selectedRaceId}/results/pdf`;
+                            const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/results/pdf`;
                             const res = await fetch(url, {
                               headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                             });

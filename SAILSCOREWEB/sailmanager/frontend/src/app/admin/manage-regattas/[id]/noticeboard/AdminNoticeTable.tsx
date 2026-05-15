@@ -1,7 +1,7 @@
 "use client";
 
 import { Notice } from "@/types/notice";
-import { BASE_URL as API_BASE, apiDelete } from "@/lib/api";
+import { getApiBaseUrl, apiDelete } from "@/lib/api";
 import notify from "@/lib/notify";
 import { useConfirm } from "@/components/ConfirmDialog";
 
@@ -65,7 +65,7 @@ export default function AdminNoticeTable({ items, timezone, onChanged }: Props) 
               <td className="p-3 text-right">
                 <div className="inline-flex gap-2">
                   <a
-                    href={`${API_BASE}/notices/${n.id}/download`}
+                    href={`${getApiBaseUrl()}/notices/${n.id}/download`}
                     className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
                   >
                     Download

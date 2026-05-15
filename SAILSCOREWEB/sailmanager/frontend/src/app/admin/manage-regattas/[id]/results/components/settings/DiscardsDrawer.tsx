@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import notify from '@/lib/notify';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
+import { getApiBaseUrl } from '@/lib/api';
 
 type Props = {
   regattaId: number;
@@ -79,7 +79,7 @@ export default function DiscardsDrawer({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, {
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/classes`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -99,7 +99,7 @@ export default function DiscardsDrawer({
     (async () => {
       try {
         const res = await fetch(
-          `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
+          `${getApiBaseUrl()}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
           {
             credentials: 'include',
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -142,7 +142,7 @@ export default function DiscardsDrawer({
     setSaving(true);
     try {
       const res = await fetch(
-        `${API_BASE}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
+        `${getApiBaseUrl()}/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass)}/discard-schedule`,
         {
           method: 'PUT',
           credentials: 'include',

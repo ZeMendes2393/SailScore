@@ -1,32 +1,68 @@
 import { buildSessionExpiredLoginUrl } from '@/lib/sessionExpiryLogin';
 
-/** Base URL fixa (env/build); prefere `getApiBaseUrl()` no browser em dev. */
-export const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
-).replace(/\/$/, '');
-
 const LOCAL_API_HOSTS = new Set(['localhost', '127.0.0.1']);
 
+/** Converte http→https fora de localhost (evita Mixed Content no admin). */
+export function normalizeApiBaseUrl(url: string): string {
+  const u = url.trim().replace(/\/$/, '');
+  if (!u.startsWith('http://')) return u;
+  try {
+    const { hostname } = new URL(u);
+    if (LOCAL_API_HOSTS.has(hostname)) return u;
+  } catch {
+    return u;
+  }
+  return `https://${u.slice('http://'.length)}`;
+}
+
+const RAW_API_ENV = (
+  process.env.NEXT_PUBLIC_API_URL?.trim() ||
+  (typeof process !== 'undefined' && process.env.VERCEL
+    ? 'https://api.sailscore.online'
+    : undefined)
+)?.replace(/\/$/, '');
+
+/** URL absoluta da API no servidor (SSR / layout). Sempre HTTPS fora de localhost. */
+export function getServerApiBaseUrl(): string {
+  if (RAW_API_ENV) return normalizeApiBaseUrl(RAW_API_ENV);
+  return 'http://127.0.0.1:8000';
+}
+
 /**
- * Em produção o browser chama `/api/backend/...` (rewrite Next → API real) para evitar CORS
- * entre www.sailscore.online e api.sailscore.online. Em localhost mantém ligação directa.
+ * Base URL dos pedidos no browser: proxy same-origin `/api/backend` em produção.
+ * Em localhost mantém ligação directa à API.
  */
+function isProductionWebHost(hostname: string): boolean {
+  if (LOCAL_API_HOSTS.has(hostname)) return false;
+  return /sailscore\.online$/i.test(hostname) || hostname.endsWith('.vercel.app');
+}
+
 export function getApiBaseUrl(): string {
-  const env = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
-    if (env && !LOCAL_API_HOSTS.has(hostname)) {
+    if (isProductionWebHost(hostname)) {
       return '/api/backend';
     }
-    if (!env && hostname && hostname !== '0.0.0.0' && LOCAL_API_HOSTS.has(hostname)) {
-      return `${protocol}//${hostname}:8000`;
-    }
-    if (!env && hostname && hostname !== '0.0.0.0') {
-      return `${protocol}//${hostname}:8000`;
-    }
+    const env = RAW_API_ENV ? normalizeApiBaseUrl(RAW_API_ENV) : undefined;
+    if (env) return env;
+    return `${protocol}//${hostname}:8000`;
   }
-  if (env) return env;
-  return BASE_URL;
+  return getServerApiBaseUrl();
+}
+
+/** @deprecated Usar `getApiBaseUrl()` — este valor era fixado em build e causava Mixed Content. */
+export function resolveApiBaseUrl(): string {
+  return getApiBaseUrl();
+}
+
+/** Caminhos relativos de uploads/media (logos, PDFs, etc.). */
+export function apiAssetUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) {
+    return path.startsWith('http://') ? normalizeApiBaseUrl(path) : path;
+  }
+  const base = getApiBaseUrl();
+  return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
 const buildUrl = (path: string) =>
@@ -293,7 +329,6 @@ export async function apiSwitchRegatta(regattaId: number) {
 }
 
 // ---- Tipos que já tinhas (sem alterações de lógica) ----
-// (mantive todos os teus tipos/exportações aqui…)
 export type ProtestType =
   | 'protest'
   | 'redress'
@@ -396,7 +431,7 @@ export interface ScoringRead extends ScoringCreate {
   decision_pdf_path?: string | null;
   created_at: string;
   updated_at: string;
-  response?: string | null; // 👈 NOVO
+  response?: string | null;
 }
 
 export type RequestRead = {

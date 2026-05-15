@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Entry } from '../types';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { TimeInput } from '@/components/ui/TimeInput';
-import { BASE_URL } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api';
 import notify from '@/lib/notify';
 
 type HandicapDraftRow = {
@@ -556,7 +556,7 @@ export default function TimeScoringEditor({
               </div>
             </div>
             <a
-              href={`${BASE_URL}/results/races/${raceId}/results/pdf`}
+              href={`${getApiBaseUrl()}/results/races/${raceId}/results/pdf`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-medium text-blue-700 hover:text-blue-800 underline"

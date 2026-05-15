@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
+import { apiGet, apiSend, apiUpload, apiAssetUrl } from '@/lib/api';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import RequireAuth from '@/components/RequireAuth';
 import AdminNoticeBoard from './noticeboard/AdminNoticeBoard';
@@ -944,7 +944,7 @@ export default function AdminRegattaPage() {
                       }}
                     >
                       <img
-                        src={img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`}
+                        src={apiAssetUrl(img.url)}
                         alt={`Hero ${idx + 1}`}
                         className="w-full h-full object-cover"
                         style={{
@@ -993,7 +993,7 @@ export default function AdminRegattaPage() {
               {listingLogoUrl && (
                 <div className="flex items-center gap-3 mt-2">
                   <img
-                    src={listingLogoUrl.startsWith('http') ? listingLogoUrl : `${BASE_URL}${listingLogoUrl}`}
+                    src={apiAssetUrl(listingLogoUrl)}
                     alt="Regatta listing logo"
                     className="h-16 w-auto object-contain border rounded bg-white p-1"
                     onError={(e) => (e.currentTarget.style.display = 'none')}

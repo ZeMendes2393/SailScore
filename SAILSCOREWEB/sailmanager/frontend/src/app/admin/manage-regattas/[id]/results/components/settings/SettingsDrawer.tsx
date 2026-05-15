@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import notify from '@/lib/notify';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
+import { getApiBaseUrl } from '@/lib/api';
 
 type Props = {
   onClose: () => void;
@@ -43,7 +43,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
     if (!regattaId) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, {
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/classes`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -61,7 +61,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
+        const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -111,7 +111,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
           .reduce((acc, cur) => ({ ...acc, [cur.code]: cur.points }), {} as Record<string, number>);
       const scoring_codes = Object.keys(codesObj).length ? codesObj : null;
 
-      const res = await fetch(`${API_BASE}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
+      const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: {
@@ -127,7 +127,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
       if (!res.ok) throw new Error(await res.text().catch(()=>''));
       await res.json();
       // refetch valores resolvidos
-      const ref = await fetch(`${API_BASE}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
+      const ref = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
         credentials: 'include',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });

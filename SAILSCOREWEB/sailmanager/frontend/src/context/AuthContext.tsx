@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { isTokenExpired } from '@/lib/api';
+import { getApiBaseUrl, isTokenExpired } from '@/lib/api';
 import { isAdminRole } from '@/lib/roles';
 import {
   buildSessionExpiredLoginUrl,
@@ -15,7 +15,6 @@ import {
   persistSailorOrgFromUser,
 } from '@/lib/sessionExpiryLogin';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 const AUTH_LOGOUT_BROADCAST_KEY = 'auth:logoutAt';
 
 type BaseUser = {
@@ -66,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const refreshMe = async (tok: string) => {
-    const res = await fetch(`${API_BASE}/auth/me`, {
+    const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
       headers: { Authorization: `Bearer ${tok}` },
       cache: 'no-store',
     });
@@ -269,7 +268,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const t = sessionStorage.getItem('token') || '';
     if (!t) throw new Error('No session');
 
-    const res = await fetch(`${API_BASE}/auth/switch-regatta?regatta_id=${regattaId}`, {
+    const res = await fetch(`${getApiBaseUrl()}/auth/switch-regatta?regatta_id=${regattaId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
     });

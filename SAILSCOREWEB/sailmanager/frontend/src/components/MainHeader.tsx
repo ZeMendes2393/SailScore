@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { apiGet, BASE_URL } from '@/lib/api';
+import { apiGet, apiAssetUrl } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
@@ -112,7 +112,7 @@ export default function MainHeader({
   const logoContent =
     showLogo && !logoFailed ? (
       <img
-        src={logoUrl!.startsWith('http') ? logoUrl! : `${BASE_URL}${logoUrl}`}
+        src={apiAssetUrl(logoUrl!)}
         alt="Club logo"
         className="max-h-[2.6rem] md:max-h-[3.2rem] w-auto h-auto object-contain object-left drop-shadow-sm"
         onError={() => setLogoFailed(true)}

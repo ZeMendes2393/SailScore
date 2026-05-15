@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
+import { apiGet, apiSend, apiUpload, apiAssetUrl } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import notify from '@/lib/notify';
@@ -421,7 +421,7 @@ export default function AdminDesignPage() {
                           }}
                         >
                           <img
-                            src={img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`}
+                            src={apiAssetUrl(img.url)}
                             alt={`Hero ${idx + 1}`}
                             className="w-full h-full object-cover"
                             style={{
@@ -501,7 +501,7 @@ export default function AdminDesignPage() {
                     {clubLogoUrl && (
                       <div className="flex items-center gap-3 mt-2">
                         <img
-                          src={clubLogoUrl.startsWith('http') ? clubLogoUrl : `${BASE_URL}${clubLogoUrl}`}
+                          src={apiAssetUrl(clubLogoUrl)}
                           alt="Club logo"
                           className="h-12 w-auto object-contain border rounded bg-white p-1"
                           onError={(e) => (e.currentTarget.style.display = 'none')}

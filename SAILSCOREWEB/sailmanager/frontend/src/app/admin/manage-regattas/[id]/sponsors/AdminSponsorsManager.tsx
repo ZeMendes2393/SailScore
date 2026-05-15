@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiGet, apiSend, apiUpload, BASE_URL } from '@/lib/api';
+import { apiGet, apiSend, apiUpload, apiAssetUrl } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -136,7 +136,7 @@ export default function AdminSponsorsManager({ regattaId }: { regattaId: number 
   };
 
   const imageSrc = (url: string) =>
-    url.startsWith('http') ? url : `${BASE_URL}${url}`;
+    apiAssetUrl(url);
 
   const globalSponsors = sponsors.filter((s) => s.regatta_id == null);
   const regattaSponsors = sponsors.filter((s) => s.regatta_id != null);

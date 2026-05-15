@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { BASE_URL } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api';
 
 type PreviewRow = Record<string, string | number | null | undefined>;
 
@@ -37,7 +37,7 @@ export default function ImportRaceCsvModal({
   const [validationOk, setValidationOk] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const url = `${BASE_URL}/results/races/${raceId}/import/csv`;
+  const url = `${getApiBaseUrl()}/results/races/${raceId}/import/csv`;
 
   const validateFile = async (): Promise<boolean> => {
     if (!file) {
