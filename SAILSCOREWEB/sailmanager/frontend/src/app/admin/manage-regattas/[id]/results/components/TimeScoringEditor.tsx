@@ -519,40 +519,25 @@ export default function TimeScoringEditor({
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-gray-700">
-        <p className="mb-1">
-          <strong>Time Scoring (Handicap)</strong> — insert times in HH:MM:SS format.
-        </p>
-        
-      </div>
-
       {raceId != null && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded bg-gray-50">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium">Scoring Method:</span>
-              <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => onPatchHandicapMethod(raceId, 'manual')}
-                className={`px-3 py-1.5 rounded text-sm ${method === 'manual' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                Manual
-              </button>
-              <button
-                type="button"
-                onClick={() => onPatchHandicapMethod(raceId, 'anc')}
-                className={`px-3 py-1.5 rounded text-sm ${method === 'anc' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                Simple Rating
-              </button>
-              <button
-                type="button"
-                onClick={() => onPatchHandicapMethod(raceId, 'orc')}
-                className={`px-3 py-1.5 rounded text-sm ${method === 'orc' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                ORC
-              </button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={method}
+                  onChange={(e) => onPatchHandicapMethod(raceId, e.target.value)}
+                  className="px-3 py-1.5 rounded border border-gray-300 bg-white text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Select scoring method"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="anc">Simple Rating</option>
+                  <option value="orc">ORC</option>
+                </select>
+                <span className="inline-flex items-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
+                  {method === 'manual' ? 'Manual' : method === 'anc' ? 'Simple Rating' : 'ORC'}
+                </span>
               </div>
             </div>
             <a
