@@ -2,9 +2,23 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { apiAssetUrl } from '@/lib/api';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+function parseApiDate(value: string): Date | null {
+  const v = (value || '').trim();
+  if (!v) return null;
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (ymd) {
+    const [, y, m, d] = ymd;
+    // Usa hora local ao meio-dia para evitar efeitos de timezone ao converter YYYY-MM-DD.
+    return new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0, 0);
+  }
+  const dt = new Date(v);
+  return Number.isFinite(dt.getTime()) ? dt : null;
+}
 
 export interface RegattaItem {
   id: number;
@@ -44,8 +58,9 @@ interface RegattaCalendarProps {
 
 /** Formats date range for the card display: "12-14 Apr" */
 function formatDateRangeShort(startDate: string, endDate: string): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = parseApiDate(startDate);
+  const end = parseApiDate(endDate);
+  if (!start || !end) return `${startDate} - ${endDate}`;
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
   if (sameMonth) {
     return `${start.getDate()}–${end.getDate()} ${MONTHS[start.getMonth()]}`;
@@ -55,14 +70,17 @@ function formatDateRangeShort(startDate: string, endDate: string): string {
 
 /** Returns true if the date string (YYYY-MM-DD) falls within any regatta's date range */
 function dateHasRegatta(dateStr: string, regattas: RegattaItem[]): boolean {
-  const d = new Date(dateStr);
+  const d = parseApiDate(dateStr);
+  if (!d) return false;
   d.setHours(0, 0, 0, 0);
   const t = d.getTime();
 
   for (const r of regattas) {
-    const start = new Date(r.start_date);
+    const start = parseApiDate(r.start_date);
+    if (!start) continue;
     start.setHours(0, 0, 0, 0);
-    const end = new Date(r.end_date);
+    const end = parseApiDate(r.end_date);
+    if (!end) continue;
     end.setHours(23, 59, 59, 999);
     if (t >= start.getTime() && t <= end.getTime()) return true;
   }
@@ -81,10 +99,6 @@ function getCalendarDays(year: number, month: number): (number | null)[] {
   for (let d = 1; d <= daysInMonth; d++) result.push(d);
   return result;
 }
-
-const API_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL)
-  ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
-  : 'http://127.0.0.1:8000';
 
 export function RegattaCalendar({
   regattas,
@@ -105,8 +119,9 @@ export function RegattaCalendar({
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 0);
     return regattas.filter((r) => {
-      const s = new Date(r.start_date);
-      const e = new Date(r.end_date);
+      const s = parseApiDate(r.start_date);
+      const e = parseApiDate(r.end_date);
+      if (!s || !e) return false;
       return s <= end && e >= start;
     });
   }, [regattas, year, month]);
@@ -233,7 +248,7 @@ export function RegattaCalendar({
                     {r.listing_logo_url && (
                       <div className="shrink-0 w-28 h-28 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
                         <img
-                          src={r.listing_logo_url.startsWith('http') ? r.listing_logo_url : `${API_BASE}${r.listing_logo_url}`}
+                          src={apiAssetUrl(r.listing_logo_url)}
                           alt=""
                           className="w-full h-full object-contain"
                           onError={(e) => (e.currentTarget.style.display = 'none')}
