@@ -77,7 +77,8 @@ def _normalize_name(name: str) -> str:
     return s
 
 
-@router.get("/", response_model=List[schemas.OrganizationRead])
+@router.get("", response_model=List[schemas.OrganizationRead])
+@router.get("/", response_model=List[schemas.OrganizationRead], include_in_schema=False)
 def list_organizations(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -143,7 +144,8 @@ def get_organization(
     }
 
 
-@router.post("/", response_model=schemas.OrganizationRead)
+@router.post("", response_model=schemas.OrganizationRead)
+@router.post("/", response_model=schemas.OrganizationRead, include_in_schema=False)
 def create_organization(
     body: schemas.OrganizationCreate,
     db: Session = Depends(get_db),
