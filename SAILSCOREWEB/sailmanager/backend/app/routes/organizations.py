@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +23,11 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _PROVISIONAL_ORG_MANAGEMENT_SLUGS = {"example-sailing-club"}
+_SUPER_ADMIN_MANAGER_EMAILS = {
+    e.strip().lower()
+    for e in os.getenv("SUPER_ADMIN_ORG_MANAGER_EMAILS", "jose.mendes2691@gmail.com").split(",")
+    if e.strip()
+}
 
 
 def _is_provisional_org_manager(db: Session, current_user: models.User) -> bool:
@@ -31,10 +37,17 @@ def _is_provisional_org_manager(db: Session, current_user: models.User) -> bool:
     return bool(org and org.slug in _PROVISIONAL_ORG_MANAGEMENT_SLUGS)
 
 
+def _is_super_admin_manager(current_user: models.User) -> bool:
+    email = (current_user.email or "").strip().lower()
+    return bool(email and email in _SUPER_ADMIN_MANAGER_EMAILS)
+
+
 def _require_platform_admin(db: Session, current_user: models.User) -> None:
     if current_user.role == "platform_admin":
         return
     if _is_provisional_org_manager(db, current_user):
+        return
+    if _is_super_admin_manager(current_user):
         return
     if current_user.role != "platform_admin":
         raise HTTPException(status_code=403, detail="Platform administrators only.")
@@ -70,7 +83,11 @@ def list_organizations(
     current_user: models.User = Depends(get_current_user),
 ):
     _require_staff(current_user)
-    if current_user.role == "platform_admin" or _is_provisional_org_manager(db, current_user):
+    if (
+        current_user.role == "platform_admin"
+        or _is_provisional_org_manager(db, current_user)
+        or _is_super_admin_manager(current_user)
+    ):
         return (
             db.query(models.Organization)
             .order_by(models.Organization.name.asc(), models.Organization.id.asc())
@@ -109,6 +126,7 @@ def get_organization(
         current_user.role == "admin"
         and current_user.organization_id != organization_id
         and not _is_provisional_org_manager(db, current_user)
+        and not _is_super_admin_manager(current_user)
     ):
         raise HTTPException(status_code=403, detail="Access denied for this organization.")
     admin = (

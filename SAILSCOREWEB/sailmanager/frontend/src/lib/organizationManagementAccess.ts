@@ -11,7 +11,7 @@ export function canAccessOrganizationManagement(
   if (!user) return false;
   const isGlobalPlatformAdmin = isPlatformAdmin && !orgSlug;
   const isProvisionalExampleOrgAdmin = user.role === 'admin' && orgSlug === 'example-sailing-club';
-  const isDedicatedSuperOrgAdmin = isPlatformAdmin && isSuperAdminOrganizationManager(user.email);
+  const isDedicatedSuperOrgAdmin = isSuperAdminOrganizationManager(user.email);
   return isGlobalPlatformAdmin || isProvisionalExampleOrgAdmin || isDedicatedSuperOrgAdmin;
 }
 
@@ -22,7 +22,10 @@ export function hrefOrganizationsPage(
   orgSlug: string | null,
   withOrg: (path: string, slug: string | null) => string
 ): string {
-  if (isPlatformAdmin && isSuperAdminOrganizationManager(user?.email)) {
+  if (isSuperAdminOrganizationManager(user?.email)) {
+    return '/admin/organizations';
+  }
+  if (isPlatformAdmin && !orgSlug) {
     return '/admin/organizations';
   }
   return withOrg('/admin/organizations', orgSlug);
