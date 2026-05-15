@@ -36,6 +36,18 @@ def _has_fk(bind, table: str, name: str) -> bool:
         return False
 
 
+def _has_unique_constraint(bind, table: str, name: str) -> bool:
+    insp = sa.inspect(bind)
+    try:
+        return name in {
+            uc.get("name")
+            for uc in insp.get_unique_constraints(table)
+            if uc.get("name")
+        }
+    except Exception:
+        return False
+
+
 def _ensure_results_class_name(bind) -> set[str]:
     """Garante coluna results.class_name (copia de boat_class se existir)."""
     cols = _cols(bind, "results")
@@ -52,9 +64,16 @@ def _ensure_results_class_name(bind) -> set[str]:
 def _skip_fd8eb4254add(bind) -> bool:
     """BD de produção já tem o efeito desta migration (criada fora do Alembic)."""
     tables = set(sa.inspect(bind).get_table_names())
+    if "regatta_classes" in tables and _has_unique_constraint(bind, "regatta_classes", "uq_regatta_class"):
+        return True
+    race_cols = _cols(bind, "races")
+    if "races" in tables and "order_index" in race_cols:
+        if _has_unique_constraint(bind, "races", "uq_race_regatta_class_order"):
+            return True
+        if _has_index(bind, "races", "ix_races_regatta_order"):
+            return True
     if "races" not in tables or "results" not in tables:
         return False
-    race_cols = _cols(bind, "races")
     result_cols = _cols(bind, "results")
     if "order_index" not in race_cols or "class_name" not in result_cols:
         return False
@@ -158,13 +177,6 @@ def upgrade() -> None:
                 batch_op.create_index(batch_op.f('ix_races_regatta_id'), ['regatta_id'], unique=False)
             if not _has_index(bind, "races", "ix_races_regatta_order"):
                 batch_op.create_index('ix_races_regatta_order', ['regatta_id', 'order_index'], unique=False)
-            try:
-                batch_op.create_unique_constraint(
-                    'uq_race_regatta_class_order',
-                    ['regatta_id', 'class_name', 'order_index'],
-                )
-            except Exception:
-                pass
             if not _has_fk(bind, "races", "fk_races_regatta_id_regattas"):
                 batch_op.create_foreign_key(
                     'fk_races_regatta_id_regattas',
@@ -172,22 +184,31 @@ def upgrade() -> None:
                     ondelete='CASCADE',
                 )
 
+        if not _has_unique_constraint(bind, "races", "uq_race_regatta_class_order"):
+            op.create_unique_constraint(
+                "uq_race_regatta_class_order",
+                "races",
+                ["regatta_id", "class_name", "order_index"],
+            )
+
     if "regatta_classes" in sa.inspect(bind).get_table_names():
         with op.batch_alter_table('regatta_classes', schema=None) as batch_op:
             if not _has_index(bind, "regatta_classes", "ix_regatta_classes_class_name"):
                 batch_op.create_index(batch_op.f('ix_regatta_classes_class_name'), ['class_name'], unique=False)
             if not _has_index(bind, "regatta_classes", "ix_regatta_classes_regatta_id"):
                 batch_op.create_index(batch_op.f('ix_regatta_classes_regatta_id'), ['regatta_id'], unique=False)
-            try:
-                batch_op.create_unique_constraint('uq_regatta_class', ['regatta_id', 'class_name'])
-            except Exception:
-                pass
             if not _has_fk(bind, "regatta_classes", "fk_regatta_classes_regatta_id_regattas"):
                 batch_op.create_foreign_key(
                     'fk_regatta_classes_regatta_id_regattas',
                     'regattas', ['regatta_id'], ['id'],
                     ondelete='CASCADE',
                 )
+        if not _has_unique_constraint(bind, "regatta_classes", "uq_regatta_class"):
+            op.create_unique_constraint(
+                "uq_regatta_class",
+                "regatta_classes",
+                ["regatta_id", "class_name"],
+            )
 
     if "regattas" in sa.inspect(bind).get_table_names():
         if not _has_index(bind, "regattas", "ix_regattas_name"):
