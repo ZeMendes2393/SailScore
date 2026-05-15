@@ -18,5 +18,4 @@ COPY . .
 # Com 3 workers: ~300-450MB total (memória OK em planos 512MB+).
 # Pool DB: 20 conexões por worker × 3 = 60 (Postgres aceita 100).
 # A outbox de emails arranca em apenas 1 worker (file lock em /tmp).
-# Migrações Alembic antes de arrancar (ex.: marketing_demo_requests em produção).
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-3}"]
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-3}"]

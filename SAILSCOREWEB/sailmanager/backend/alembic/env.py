@@ -1,19 +1,22 @@
 # alembic/env.py
 from logging.config import fileConfig
-import os
 import sys
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 # Tornar "app" importável
 BASE_DIR = Path(__file__).resolve().parents[1]  # .../backend
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-# Importa Base e regista modelos
-from app.database import Base  # noqa: E402
+# Importa Base e regista modelos (DATABASE_URL já normalizado como na app)
+from app.database import (  # noqa: E402
+    Base,
+    DATABASE_URL,
+    _sqlalchemy_connect_args,
+)
 import app.models  # noqa: F401,E402
 
 config = context.config
@@ -23,16 +26,9 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# URL da BD: env var > alembic.ini
-db_url = (
-    os.environ.get("SQLALCHEMY_DATABASE_URL")
-    or os.environ.get("DATABASE_URL")
-    or config.get_main_option("sqlalchemy.url")
-)
+db_url = DATABASE_URL
 config.set_main_option("sqlalchemy.url", db_url)
 
-# (Opcional) Ajuda de debug: ver o ficheiro que o Alembic vai tocar
-print("ALEMBIC URL:", config.get_main_option("sqlalchemy.url"))
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -40,29 +36,31 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,       # necessário para SQLite
+        render_as_batch=True,
         compare_type=True,
         compare_server_default=True,
     )
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section) or {},
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        db_url,
+        connect_args=_sqlalchemy_connect_args(db_url),
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,   # necessário para SQLite
+            render_as_batch=True,
             compare_type=True,
             compare_server_default=True,
         )
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
