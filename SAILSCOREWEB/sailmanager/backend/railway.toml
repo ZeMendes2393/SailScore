@@ -1,6 +1,6 @@
 # https://docs.railway.com/guides/config-as-code
 [deploy]
 # Corre migrations antes do deploy ficar live (não bloqueia o healthcheck do uvicorn).
-preDeployCommand = "alembic upgrade head"
+preDeployCommand = "python scripts/railway_migrate.py"
 healthcheckPath = "/health"
 healthcheckTimeout = 300

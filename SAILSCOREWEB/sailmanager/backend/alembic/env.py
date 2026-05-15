@@ -6,10 +6,12 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-# Tornar "app" importável
-BASE_DIR = Path(__file__).resolve().parents[1]  # .../backend
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+# Tornar "app" e migration_utils importáveis
+ALEMBIC_DIR = Path(__file__).resolve().parent
+BASE_DIR = ALEMBIC_DIR.parent  # .../backend
+for path in (BASE_DIR, ALEMBIC_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 # Importa Base e regista modelos (DATABASE_URL já normalizado como na app)
 from app.database import (  # noqa: E402
