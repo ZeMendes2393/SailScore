@@ -540,14 +540,6 @@ export default function TimeScoringEditor({
                 </span>
               </div>
             </div>
-            <a
-              href={`${getApiBaseUrl()}/results/races/${raceId}/results/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-blue-700 hover:text-blue-800 underline"
-            >
-              Download race PDF
-            </a>
           </div>
           {method === 'orc' && (
             <div className="flex flex-wrap items-center gap-3 mt-2 p-3 border rounded bg-gray-50">

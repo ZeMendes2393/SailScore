@@ -115,6 +115,7 @@ export default function RaceResultsManager({
   const [view, setView] = useState<View>('draft');
 
   const [showImportCsvModal, setShowImportCsvModal] = useState(false);
+  const [showActionsPanel, setShowActionsPanel] = useState(false);
 
   const lastAppliedInitialRaceIdRef = useRef<number | null>(null);
   const lastClassRef = useRef<string | null>(null);
@@ -124,6 +125,10 @@ export default function RaceResultsManager({
 
   // bloquear override enquanto guarda
   const [savingOverridePoints, setSavingOverridePoints] = useState(false);
+
+  useEffect(() => {
+    setShowActionsPanel(false);
+  }, [selectedRaceId]);
 
 
   // ✅ handler “Override points” com suporte a UNDO (points = null)
@@ -448,107 +453,116 @@ export default function RaceResultsManager({
                 {selectedRaceId && (
                   <div className="ml-auto flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     {currentRace && (
-                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5">
-                        <span className="px-2 text-[11px] lg:text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Actions
-                        </span>
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={async () => {
-                            if (!token || !selectedRaceId) return;
-                            try {
-                              const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/export/csv`;
-                              const res = await fetch(url, {
-                                headers: { Authorization: `Bearer ${token}` },
-                              });
-                              if (!res.ok) throw new Error(await res.text());
-                              const blob = await res.blob();
-                              const a = document.createElement('a');
-                              a.href = URL.createObjectURL(blob);
-                              const fromHeader = filenameFromContentDisposition(
-                                res.headers.get('Content-Disposition')
-                              );
-                              a.download =
-                                fromHeader ??
-                                safeRaceDownloadFilename(
-                                  regattaNameForExport,
-                                  (currentRace as { name?: string } | null)?.name,
-                                  selectedRaceId,
-                                  'csv',
-                                  (currentRace as { class_name?: string } | null)?.class_name
-                                );
-                              a.click();
-                              URL.revokeObjectURL(a.href);
-                            } catch (e: any) {
-                              notify.error(e?.message || 'Export failed.');
-                            }
-                          }}
-                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
+                          onClick={() => setShowActionsPanel((v) => !v)}
+                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm font-medium"
+                          aria-expanded={showActionsPanel}
                         >
-                          Export CSV
+                          {showActionsPanel ? 'Hide actions' : 'Actions'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowImportCsvModal(true)}
-                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
-                        >
-                          Import CSV
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!selectedRaceId) return;
-                            try {
-                              const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/results/pdf`;
-                              const res = await fetch(url, {
-                                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                              });
-                              if (!res.ok) throw new Error(await res.text());
-                              const blob = await res.blob();
-                              const a = document.createElement('a');
-                              a.href = URL.createObjectURL(blob);
-                              const fromHeader = filenameFromContentDisposition(
-                                res.headers.get('Content-Disposition')
-                              );
-                              a.download =
-                                fromHeader ??
-                                safeRaceDownloadFilename(
-                                  regattaNameForExport,
-                                  (currentRace as { name?: string } | null)?.name,
-                                  selectedRaceId,
-                                  'pdf',
-                                  (currentRace as { class_name?: string } | null)?.class_name
-                                );
-                              a.click();
-                              URL.revokeObjectURL(a.href);
-                            } catch (e: any) {
-                              notify.error(e?.message || 'PDF download failed.');
-                            }
-                          }}
-                          className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
-                        >
-                          Download PDF
-                        </button>
-                        <span className="mx-1 h-6 w-px bg-gray-200" aria-hidden />
-                        <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 bg-white text-xs lg:text-sm">
-                          <span className="text-gray-700">Discardable</span>
-                          <input
-                            type="checkbox"
-                            checked={!!(currentRace as any).discardable}
-                            disabled={savingRaceFlags}
-                            onChange={(e) => {
-                              const next = e.target.checked;
-                              (async () => {
-                                setSavingRaceFlags(true);
+                        {showActionsPanel && (
+                          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!token || !selectedRaceId) return;
                                 try {
-                                  await setRaceDiscardable(selectedRaceId, next);
-                                } finally {
-                                  setSavingRaceFlags(false);
+                                  const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/export/csv`;
+                                  const res = await fetch(url, {
+                                    headers: { Authorization: `Bearer ${token}` },
+                                  });
+                                  if (!res.ok) throw new Error(await res.text());
+                                  const blob = await res.blob();
+                                  const a = document.createElement('a');
+                                  a.href = URL.createObjectURL(blob);
+                                  const fromHeader = filenameFromContentDisposition(
+                                    res.headers.get('Content-Disposition')
+                                  );
+                                  a.download =
+                                    fromHeader ??
+                                    safeRaceDownloadFilename(
+                                      regattaNameForExport,
+                                      (currentRace as { name?: string } | null)?.name,
+                                      selectedRaceId,
+                                      'csv',
+                                      (currentRace as { class_name?: string } | null)?.class_name
+                                    );
+                                  a.click();
+                                  URL.revokeObjectURL(a.href);
+                                } catch (e: any) {
+                                  notify.error(e?.message || 'Export failed.');
                                 }
-                              })();
-                            }}
-                          />
-                        </label>
+                              }}
+                              className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
+                            >
+                              Export CSV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowImportCsvModal(true)}
+                              className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm"
+                            >
+                              Import CSV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!selectedRaceId) return;
+                                try {
+                                  const url = `${getApiBaseUrl()}/results/races/${selectedRaceId}/results/pdf`;
+                                  const res = await fetch(url, {
+                                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                                  });
+                                  if (!res.ok) throw new Error(await res.text());
+                                  const blob = await res.blob();
+                                  const a = document.createElement('a');
+                                  a.href = URL.createObjectURL(blob);
+                                  const fromHeader = filenameFromContentDisposition(
+                                    res.headers.get('Content-Disposition')
+                                  );
+                                  a.download =
+                                    fromHeader ??
+                                    safeRaceDownloadFilename(
+                                      regattaNameForExport,
+                                      (currentRace as { name?: string } | null)?.name,
+                                      selectedRaceId,
+                                      'pdf',
+                                      (currentRace as { class_name?: string } | null)?.class_name
+                                    );
+                                  a.click();
+                                  URL.revokeObjectURL(a.href);
+                                } catch (e: any) {
+                                  notify.error(e?.message || 'PDF download failed.');
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-full border border-gray-300 bg-white hover:bg-gray-50 text-xs lg:text-sm text-blue-700"
+                            >
+                              Download PDF
+                            </button>
+                            <span className="mx-1 h-6 w-px bg-gray-200" aria-hidden />
+                            <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 bg-white text-xs lg:text-sm">
+                              <span className="text-gray-700">Discardable</span>
+                              <input
+                                type="checkbox"
+                                checked={!!(currentRace as any).discardable}
+                                disabled={savingRaceFlags}
+                                onChange={(e) => {
+                                  const next = e.target.checked;
+                                  (async () => {
+                                    setSavingRaceFlags(true);
+                                    try {
+                                      await setRaceDiscardable(selectedRaceId, next);
+                                    } finally {
+                                      setSavingRaceFlags(false);
+                                    }
+                                  })();
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
                       </div>
                     )}
                     <button
