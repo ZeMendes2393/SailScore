@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
+from app import schemas
 from app.database import create_database
 from app.routes import (
     auth,
@@ -172,6 +173,15 @@ app.include_router(auth.router)
 app.include_router(metadata_routes.router)
 app.include_router(organizations.router)
 app.include_router(regattas.router)
+# Clientes/proxies enviam POST /regattas?org=... (sem barra antes da query). O router só tinha POST /regattas/.
+app.add_api_route(
+    "/regattas",
+    regattas.create_regatta,
+    methods=["POST"],
+    response_model=schemas.RegattaRead,
+    tags=["regattas"],
+    name="create_regatta_post_no_trailing_slash",
+)
 app.include_router(regatta_jury.router)
 app.include_router(regatta_finances_router)
 app.include_router(regatta_sponsors.router, tags=["regatta-sponsors"])
