@@ -143,7 +143,10 @@ def _fetch_text(url: str) -> tuple[str, Optional[str]]:
         headers={"User-Agent": _USER_AGENT, "Accept": "text/html,text/csv,*/*"},
     )
     resp.raise_for_status()
-    resp.encoding = resp.encoding or "utf-8"
+    if "csv" in (resp.headers.get("content-type") or "").lower():
+        resp.encoding = "utf-8"
+    else:
+        resp.encoding = resp.encoding or "utf-8"
     text = resp.text
     if not text or not text.strip():
         raise ValueError("The page returned empty content.")
@@ -353,5 +356,6 @@ def _parse_grid_rows(
 
 
 def import_placeholder_email(regatta_id: int, country_code: str, sail_number: str) -> str:
+    """Technical contact email on the entry row (not used for real mail on import)."""
     slug = re.sub(r"[^a-z0-9]+", "", f"{country_code}{sail_number}".lower()) or "entry"
-    return f"import.r{regatta_id}.{slug}@entry.sailscore.local"
+    return f"import.r{regatta_id}.{slug}@import.sailscore.online"
