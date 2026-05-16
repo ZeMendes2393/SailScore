@@ -949,7 +949,7 @@ def preview_entry_import(
     return schemas.EntryImportPreviewResponse(
         rows=schema_rows,
         warnings=warnings,
-        page_title=parsed_title or page_title,
+        page_title=parsed_title,
         duplicate_sails=duplicate_sails,
     )
 
