@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Step1 from './steps/Step1_Class';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -16,6 +16,8 @@ export interface MultiStepEntryFormProps {
 
 const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) => {
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   const [formData, setFormData] = useState<{
     [key: string]: any;
@@ -51,6 +53,8 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
   };
 
   const handleFinalSubmit = async () => {
+    if (isSubmitting || submitLockRef.current) return;
+
     const helm = formData.helm || {};
     const boat = formData.boat || {};
 
@@ -112,6 +116,8 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       federation_license: (helm.federation_license || '').trim() || undefined,
     };
 
+    submitLockRef.current = true;
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/entries/`, {
         method: 'POST',
@@ -143,12 +149,16 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Backend error:', errorData);
+        const detail =
+          typeof errorData?.detail === 'string'
+            ? errorData.detail
+            : 'Please review the form and try again.';
         notify.error({
-          title: 'Failed to submit entry',
+          title: res.status === 409 ? 'Entry already submitted' : 'Failed to submit entry',
           description:
-            typeof errorData?.detail === 'string'
-              ? errorData.detail
-              : 'Please review the form and try again.',
+            res.status === 409
+              ? 'This sail number is already registered in this class. If you already submitted, check your email for confirmation.'
+              : detail,
         });
       }
     } catch (error) {
@@ -157,6 +167,9 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
         title: 'Submission error',
         description: 'Something went wrong while submitting. Please try again.',
       });
+    } finally {
+      setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -210,6 +223,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
             data={{ ...formData.boat, fullForm: formData, class_type: formData.class_type }}
             onChange={(data) => handleChange('boat', data)}
             onSubmit={handleFinalSubmit}
+            isSubmitting={isSubmitting}
             onBack={() => {
               if (showCrewStep) setStep(3);
               else setStep(2);
@@ -233,7 +247,25 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       : [];
 
   return (
-    <div className="p-6 bg-white rounded shadow max-w-3xl mx-auto">
+    <div className="relative p-6 bg-white rounded shadow max-w-3xl mx-auto">
+      {isSubmitting && (
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded bg-white/95 px-6 text-center"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div
+            className="h-12 w-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"
+            aria-hidden="true"
+          />
+          <p className="mt-4 text-lg font-semibold text-gray-900">Submitting your entry…</p>
+          <p className="mt-2 max-w-sm text-sm text-gray-600">
+            Please wait while we process your registration and send your confirmation email. Do not
+            close this page or click submit again.
+          </p>
+        </div>
+      )}
       {sailorsSummary.length > 0 && (
         <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm">
           <span className="font-semibold text-gray-700">Sailors in this entry: </span>

@@ -6,8 +6,9 @@ from datetime import datetime
 import secrets, os
 import unicodedata
 import re
+import requests
 from traceback import print_exc
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 
 from app.database import SessionLocal
 from app import models, schemas
@@ -20,6 +21,11 @@ from utils.auth_utils import (
 from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_org_id
 from app.jury_scope import assert_jury_regatta_access
 from app.services.email import send_email, enqueue_email_send  # noqa: F401
+from app.services.entry_list_import import (
+    fetch_entry_list_html,
+    parse_entry_list_html,
+    import_placeholder_email,
+)
 
 router = APIRouter()
 
@@ -708,130 +714,333 @@ Login here: {login_url}"""
     return subject, body
 
 
-# ---------------- endpoints ----------------
+def _assert_entry_import_access(
+    db: Session, current_user: models.User, regatta_id: int
+) -> models.Regatta:
+    regatta = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    if current_user.role in ("admin", "platform_admin"):
+        assert_user_can_manage_org_id(current_user, regatta.organization_id)
+    elif current_user.role == "scorer":
+        assert_staff_regatta_access(db, current_user, regatta_id)
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return regatta
 
-@router.post("", status_code=status.HTTP_201_CREATED)
-@router.post("/", status_code=status.HTTP_201_CREATED)
-def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
-    try:
-        # === BLOQUEIO: inscrições fechadas ===
-        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
-        if not regatta:
-            raise HTTPException(status_code=404, detail="Regatta not found")
-        if regatta.online_entry_open is False:
-            raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
 
-        # Classe é obrigatória e tem de existir nesta regata
-        class_name = (entry.class_name or "").strip()
-        if not class_name:
-            raise HTTPException(status_code=400, detail="Class is required.")
-        if not _class_exists_in_regatta(db, entry.regatta_id, class_name):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Class '{class_name}' is not configured for this regatta.",
-            )
-        entry.class_name = class_name
+def _import_row_to_entry_create(
+    row: schemas.EntryImportRow,
+    *,
+    regatta_id: int,
+    class_name: str,
+    mark_paid: bool,
+    mark_confirmed: bool,
+) -> schemas.EntryCreate:
+    crew_members: Optional[List[Dict[str, Any]]] = None
+    if (row.crew_first_name or "").strip() or (row.crew_last_name or "").strip():
+        crew_member: Dict[str, Any] = {
+            "first_name": (row.crew_first_name or "").strip(),
+            "last_name": (row.crew_last_name or "").strip(),
+            "position": "Crew",
+        }
+        if row.crew_license:
+            crew_member["federation_license"] = row.crew_license.strip()
+        crew_members = [crew_member]
 
-        # Sail number normalizado/validado para evitar lixo (ex.: números enormes
-        # que rebentam o ORDER BY com overflow de INTEGER em PostgreSQL).
-        entry.sail_number = _sanitize_sail_number(entry.sail_number)
+    cc = (row.boat_country_code or "POR").strip().upper()
+    sail = (row.sail_number or "").strip()
+    return schemas.EntryCreate(
+        regatta_id=regatta_id,
+        class_name=class_name,
+        boat_country_code=cc,
+        boat_country=cc,
+        sail_number=sail,
+        first_name=(row.helm_first_name or "").strip(),
+        last_name=(row.helm_last_name or "").strip(),
+        club=(row.club or "").strip() or None,
+        federation_license=(row.helm_license or "").strip() or None,
+        email=import_placeholder_email(regatta_id, cc, sail),
+        helm_position="Skipper",
+        crew_members=crew_members,
+        paid=mark_paid,
+        confirmed=mark_confirmed,
+    )
 
-        # === LIMITE: waiting list ao invés de recusar ===
-        is_waiting = False
-        scope, lim = _online_entry_limit_context(regatta, (entry.class_name or "").strip())
-        if scope is not None and lim is not None:
-            current_count = _count_active_entries_for_limit(
-                db, entry.regatta_id, scope, entry.class_name or ""
-            )
-            if current_count >= lim:
-                is_waiting = True
 
-        user = _ensure_sailor_user_and_profile(db, entry, regatta=regatta)
+def _duplicate_sail_labels(
+    db: Session, regatta_id: int, class_name: str, rows: List[schemas.EntryImportRow]
+) -> List[str]:
+    dupes: List[str] = []
+    for row in rows:
+        cc = (row.boat_country_code or "").strip().upper()
+        sail = (row.sail_number or "").strip()
+        if not sail:
+            continue
+        if _entry_duplicate_sail(db, regatta_id, class_name, cc, sail, exclude_entry_id=None):
+            dupes.append(f"{cc} {sail}")
+    return dupes
 
-        # Duplicado = mesmo número de vela + mesmo country code na mesma classe (POR 1 + POR 1 não pode; POR 1 + GBR 1 pode)
-        if _entry_duplicate_sail(
-            db,
-            entry.regatta_id,
-            entry.class_name,
-            getattr(entry, "boat_country_code", None),
-            entry.sail_number,
-            exclude_entry_id=None,
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="Another entry in this class already uses the same sail number and boat country. Identical numbers are only allowed with different countries (e.g. POR 1, GBR 1).",
-            )
 
-        new_entry = models.Entry(
-            class_name=entry.class_name,
-            boat_country=entry.boat_country,
-            boat_country_code=getattr(entry, "boat_country_code", None),
-            sail_number=entry.sail_number,
-            bow_number=getattr(entry, "bow_number", None),
-            boat_name=entry.boat_name,
-            boat_model=entry.boat_model,
-            rating=entry.rating,
-            rating_type=getattr(entry, "rating_type", None),
-            orc_low=getattr(entry, "orc_low", None),
-            orc_medium=getattr(entry, "orc_medium", None),
-            orc_high=getattr(entry, "orc_high", None),
-            category=entry.category,
-            helm_position=getattr(entry, "helm_position", None),
-            date_of_birth=entry.date_of_birth,
-            gender=entry.gender,
-            first_name=entry.first_name,
-            last_name=entry.last_name,
-            helm_country=entry.helm_country,
-            territory=entry.territory,
-            club=entry.club,
-            email=(entry.email or "").strip().lower(),
-            contact_phone_1=entry.contact_phone_1,
-            contact_phone_2=entry.contact_phone_2,
-            address=entry.address,
-            zip_code=entry.zip_code,
-            town=entry.town,
-            helm_country_secondary=entry.helm_country_secondary,
-            federation_license=getattr(entry, "federation_license", None),
-            owner_first_name=getattr(entry, "owner_first_name", None),
-            owner_last_name=getattr(entry, "owner_last_name", None),
-            owner_email=getattr(entry, "owner_email", None),
-            regatta_id=entry.regatta_id,
-            user_id=user.id,
-            paid=bool(getattr(entry, "paid", False)),
-            crew_members=entry.crew_members if getattr(entry, "crew_members", None) else None,
-            created_at=datetime.utcnow(),
-            waiting_list=is_waiting,
+def _persist_new_entry(
+    db: Session,
+    entry: schemas.EntryCreate,
+    regatta: models.Regatta,
+    *,
+    background: Optional[BackgroundTasks] = None,
+    require_online_open: bool = True,
+    send_entry_email: bool = True,
+    confirmed: Optional[bool] = None,
+) -> dict:
+    if require_online_open and regatta.online_entry_open is False:
+        raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
+
+    class_name = (entry.class_name or "").strip()
+    if not class_name:
+        raise HTTPException(status_code=400, detail="Class is required.")
+    if not _class_exists_in_regatta(db, entry.regatta_id, class_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Class '{class_name}' is not configured for this regatta.",
         )
-        db.add(new_entry); db.commit(); db.refresh(new_entry)
+    entry.class_name = class_name
+    entry.sail_number = _sanitize_sail_number(entry.sail_number)
 
-        sailor_name = f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip() or (entry.email or "sailor")
-        helm_name = sailor_name
+    is_waiting = False
+    scope, lim = _online_entry_limit_context(regatta, class_name)
+    if scope is not None and lim is not None:
+        current_count = _count_active_entries_for_limit(db, entry.regatta_id, scope, class_name)
+        if current_count >= lim:
+            is_waiting = True
+
+    user = _ensure_sailor_user_and_profile(db, entry, regatta=regatta)
+
+    if _entry_duplicate_sail(
+        db,
+        entry.regatta_id,
+        entry.class_name,
+        getattr(entry, "boat_country_code", None),
+        entry.sail_number,
+        exclude_entry_id=None,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Another entry in this class already uses the same sail number and boat country.",
+        )
+
+    entry_confirmed = confirmed if confirmed is not None else bool(getattr(entry, "confirmed", False))
+
+    new_entry = models.Entry(
+        class_name=entry.class_name,
+        boat_country=entry.boat_country,
+        boat_country_code=getattr(entry, "boat_country_code", None),
+        sail_number=entry.sail_number,
+        bow_number=getattr(entry, "bow_number", None),
+        boat_name=entry.boat_name,
+        boat_model=entry.boat_model,
+        rating=entry.rating,
+        rating_type=getattr(entry, "rating_type", None),
+        orc_low=getattr(entry, "orc_low", None),
+        orc_medium=getattr(entry, "orc_medium", None),
+        orc_high=getattr(entry, "orc_high", None),
+        category=entry.category,
+        helm_position=getattr(entry, "helm_position", None),
+        date_of_birth=entry.date_of_birth,
+        gender=entry.gender,
+        first_name=entry.first_name,
+        last_name=entry.last_name,
+        helm_country=entry.helm_country,
+        territory=entry.territory,
+        club=entry.club,
+        email=(entry.email or "").strip().lower(),
+        contact_phone_1=entry.contact_phone_1,
+        contact_phone_2=entry.contact_phone_2,
+        address=entry.address,
+        zip_code=entry.zip_code,
+        town=entry.town,
+        helm_country_secondary=entry.helm_country_secondary,
+        federation_license=getattr(entry, "federation_license", None),
+        owner_first_name=getattr(entry, "owner_first_name", None),
+        owner_last_name=getattr(entry, "owner_last_name", None),
+        owner_email=getattr(entry, "owner_email", None),
+        regatta_id=entry.regatta_id,
+        user_id=user.id,
+        paid=bool(getattr(entry, "paid", False)),
+        confirmed=entry_confirmed,
+        crew_members=entry.crew_members if getattr(entry, "crew_members", None) else None,
+        created_at=datetime.utcnow(),
+        waiting_list=is_waiting,
+    )
+    db.add(new_entry)
+    db.commit()
+    db.refresh(new_entry)
+
+    if send_entry_email and background is not None:
+        sailor_name = (
+            f"{(entry.first_name or '').strip()} {(entry.last_name or '').strip()}".strip()
+            or (entry.email or "sailor")
+        )
         regatta_name = regatta.name if regatta else "Regatta"
-        temp_pwd = getattr(user, "_plaintext_password", None)
-        to_email = (entry.email or "").strip() or user.email
-
         org_id = regatta.organization_id if regatta else 1
         if _entry_email_enabled(db, org_id):
             _send_combined_entry_email(
                 background,
                 db,
                 organization_id=org_id,
-                to_email=to_email,
+                to_email=(entry.email or "").strip() or user.email,
                 sailor_name=sailor_name,
                 regatta_name=regatta_name,
                 class_name=entry.class_name or "",
                 boat_name=entry.boat_name or "",
                 sail_number=entry.sail_number or "",
-                helm_name=helm_name,
+                helm_name=sailor_name,
                 username=getattr(user, "username", None),
-                temp_password=temp_pwd,
+                temp_password=getattr(user, "_plaintext_password", None),
             )
-        return {
-            "message": "Entry created successfully",
-            "id": new_entry.id,
-            "user_id": user.id,
-            "waiting_list": is_waiting,
-        }
+
+    return {
+        "message": "Entry created successfully",
+        "id": new_entry.id,
+        "user_id": user.id,
+        "waiting_list": is_waiting,
+    }
+
+
+# ---------------- endpoints ----------------
+
+@router.post("/import/preview", response_model=schemas.EntryImportPreviewResponse)
+def preview_entry_import(
+    body: schemas.EntryImportPreviewRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    class_name = (body.class_name or "").strip()
+    if not class_name:
+        raise HTTPException(status_code=400, detail="Class is required.")
+    regatta = _assert_entry_import_access(db, current_user, body.regatta_id)
+    if not _class_exists_in_regatta(db, body.regatta_id, class_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Class '{class_name}' is not configured for this regatta.",
+        )
+    try:
+        html, page_title = fetch_entry_list_html(body.url)
+        parsed_rows, warnings, parsed_title = parse_entry_list_html(html)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"Could not fetch URL: {e}") from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    schema_rows = [
+        schemas.EntryImportRow(
+            row_number=r.row_number,
+            boat_country_code=r.boat_country_code,
+            sail_number=r.sail_number,
+            club=r.club,
+            helm_first_name=r.helm_first_name,
+            helm_last_name=r.helm_last_name,
+            helm_license=r.helm_license,
+            crew_first_name=r.crew_first_name,
+            crew_last_name=r.crew_last_name,
+            crew_license=r.crew_license,
+            registration_number=r.registration_number,
+        )
+        for r in parsed_rows
+    ]
+    duplicate_sails = _duplicate_sail_labels(db, body.regatta_id, class_name, schema_rows)
+    return schemas.EntryImportPreviewResponse(
+        rows=schema_rows,
+        warnings=warnings,
+        page_title=parsed_title or page_title,
+        duplicate_sails=duplicate_sails,
+    )
+
+
+@router.post("/import/confirm", response_model=schemas.EntryImportConfirmResponse)
+def confirm_entry_import(
+    body: schemas.EntryImportConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    class_name = (body.class_name or "").strip()
+    if not class_name:
+        raise HTTPException(status_code=400, detail="Class is required.")
+    if not body.rows:
+        raise HTTPException(status_code=400, detail="No rows to import.")
+    regatta = _assert_entry_import_access(db, current_user, body.regatta_id)
+    if not _class_exists_in_regatta(db, body.regatta_id, class_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Class '{class_name}' is not configured for this regatta.",
+        )
+
+    created = 0
+    skipped = 0
+    failed = 0
+    errors: List[str] = []
+    created_ids: List[int] = []
+
+    for row in body.rows:
+        cc = (row.boat_country_code or "").strip().upper()
+        sail = (row.sail_number or "").strip()
+        label = f"{cc} {sail}".strip() or f"row {row.row_number}"
+        if body.skip_duplicates and _entry_duplicate_sail(
+            db, body.regatta_id, class_name, cc, sail, exclude_entry_id=None
+        ):
+            skipped += 1
+            continue
+        try:
+            entry = _import_row_to_entry_create(
+                row,
+                regatta_id=body.regatta_id,
+                class_name=class_name,
+                mark_paid=body.mark_paid,
+                mark_confirmed=body.mark_confirmed,
+            )
+            result = _persist_new_entry(
+                db,
+                entry,
+                regatta,
+                background=None,
+                require_online_open=False,
+                send_entry_email=False,
+                confirmed=body.mark_confirmed,
+            )
+            created += 1
+            created_ids.append(int(result["id"]))
+        except HTTPException as e:
+            failed += 1
+            detail = e.detail if isinstance(e.detail, str) else str(e.detail)
+            errors.append(f"{label}: {detail}")
+        except Exception as e:
+            db.rollback()
+            failed += 1
+            errors.append(f"{label}: {e}")
+
+    return schemas.EntryImportConfirmResponse(
+        created=created,
+        skipped_duplicates=skipped,
+        failed=failed,
+        errors=errors,
+        created_entry_ids=created_ids,
+    )
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_entry(entry: schemas.EntryCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
+    try:
+        regatta = db.query(models.Regatta).filter(models.Regatta.id == entry.regatta_id).first()
+        if not regatta:
+            raise HTTPException(status_code=404, detail="Regatta not found")
+        return _persist_new_entry(
+            db,
+            entry,
+            regatta,
+            background=background,
+            require_online_open=True,
+            send_entry_email=True,
+        )
     except HTTPException:
         raise
     except Exception as e:

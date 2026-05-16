@@ -664,6 +664,50 @@ class EntryListRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class EntryImportRow(BaseModel):
+    row_number: int
+    boat_country_code: str
+    sail_number: str
+    club: Optional[str] = None
+    helm_first_name: str = ""
+    helm_last_name: str = ""
+    helm_license: Optional[str] = None
+    crew_first_name: Optional[str] = None
+    crew_last_name: Optional[str] = None
+    crew_license: Optional[str] = None
+    registration_number: Optional[str] = None
+
+
+class EntryImportPreviewRequest(BaseModel):
+    url: str
+    regatta_id: int
+    class_name: str
+
+
+class EntryImportPreviewResponse(BaseModel):
+    rows: List["EntryImportRow"]
+    warnings: List[str] = []
+    page_title: Optional[str] = None
+    duplicate_sails: List[str] = []
+
+
+class EntryImportConfirmRequest(BaseModel):
+    regatta_id: int
+    class_name: str
+    rows: List[EntryImportRow]
+    mark_paid: bool = False
+    mark_confirmed: bool = False
+    skip_duplicates: bool = True
+
+
+class EntryImportConfirmResponse(BaseModel):
+    created: int
+    skipped_duplicates: int
+    failed: int
+    errors: List[str] = []
+    created_entry_ids: List[int] = []
+
+
 # =========================
 # RACES
 # =========================

@@ -16,6 +16,7 @@ import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
+import ImportEntriesModal from '@/components/admin/ImportEntriesModal';
 
 interface RegattaForEntryList {
   id: number;
@@ -52,6 +53,7 @@ export default function AdminEntryList({
   const [limitDraft, setLimitDraft] = useState('');
   const [savingLimit, setSavingLimit] = useState(false);
   const [movingEntryId, setMovingEntryId] = useState<number | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const publicVisibleColumnIds = useMemo(
     () => getVisibleColumnsForClass(regatta?.entry_list_columns, selectedClass),
@@ -394,7 +396,29 @@ export default function AdminEntryList({
         <span>
           Waiting list: <b>{waitingEntries.length}</b>
         </span>
+        {selectedClass && token && (
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="ml-auto px-4 py-2 rounded-lg border border-blue-600 text-blue-700 text-sm font-medium hover:bg-blue-50"
+          >
+            Import from URL
+          </button>
+        )}
       </div>
+
+      {showImportModal && selectedClass && token && (
+        <ImportEntriesModal
+          regattaId={regattaId}
+          className={selectedClass}
+          token={token}
+          onClose={() => setShowImportModal(false)}
+          onImported={async () => {
+            const list = await loadEntries();
+            setEntries(list);
+          }}
+        />
+      )}
 
       <div className="rounded-lg border border-gray-200 p-4 sm:p-5 bg-gray-50 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">

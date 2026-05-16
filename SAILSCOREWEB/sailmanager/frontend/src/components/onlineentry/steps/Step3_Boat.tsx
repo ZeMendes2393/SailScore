@@ -31,9 +31,10 @@ interface Step3Props {
   onChange: (data: any) => void
   onSubmit: () => void
   onBack: () => void
+  isSubmitting?: boolean
 }
 
-export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) {
+export default function Step3({ data, onChange, onSubmit, onBack, isSubmitting = false }: Step3Props) {
   const [localData, setLocalData] = useState(data || {})
   const isHandicap = (data?.fullForm?.class_type || data?.class_type) === 'handicap'
 
@@ -50,6 +51,7 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
     onSubmit()
   }
 
@@ -136,9 +138,20 @@ export default function Step3({ data, onChange, onSubmit, onBack }: Step3Props) 
       </div>
 
       <div className="flex justify-between pt-2">
-        <button type="button" onClick={onBack} className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">Back</button>
-        <button type="submit" className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-          Submit entry
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={isSubmitting}
+          className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Back
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Submitting…' : 'Submit entry'}
         </button>
       </div>
     </form>
