@@ -223,6 +223,26 @@ export default function AdminDesignPage() {
     }
   };
 
+  const handleRemoveClubLogo = async () => {
+    if (!token) return;
+    setSavingHeader(true);
+    try {
+      await apiSend(
+        withOrg('/design/homepage', orgSlug),
+        'PUT',
+        { club_logo_url: null },
+        token
+      );
+      setClubLogoUrl('');
+      notify.success('Logo removed.');
+    } catch (e) {
+      console.error(e);
+      notify.error('Could not remove logo. Try again or use Save header.');
+    } finally {
+      setSavingHeader(false);
+    }
+  };
+
   const handleSaveHeader = async () => {
     if (!token) return;
     setSavingHeader(true);
@@ -508,10 +528,11 @@ export default function AdminDesignPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => setClubLogoUrl('')}
-                          className="text-sm text-red-600 hover:underline"
+                          onClick={() => void handleRemoveClubLogo()}
+                          disabled={savingHeader}
+                          className="text-sm text-red-600 hover:underline disabled:opacity-50"
                         >
-                          Remove logo
+                          {savingHeader ? 'Removing…' : 'Remove logo'}
                         </button>
                       </div>
                     )}

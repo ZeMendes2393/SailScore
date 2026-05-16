@@ -219,16 +219,24 @@ def set_homepage_design(
     organization = resolve_org(db, org_slug=org)
     assert_user_can_manage_organization(current_user, organization)
     row = _get_or_create_site_design(db, organization)
-    if body.home_images is not None:
-        row.home_images = body.home_images[:3]
-    if body.hero_title is not None:
-        row.hero_title = body.hero_title.strip() or None
-    if body.hero_subtitle is not None:
-        row.hero_subtitle = body.hero_subtitle.strip() or None
-    if body.club_logo_url is not None:
-        row.club_logo_url = body.club_logo_url.strip() or None
-    if body.club_logo_link is not None:
-        row.club_logo_link = body.club_logo_link.strip() or None
+    # Só actualizar campos enviados no body. Valores explícitos null devem limpar (ex.: remover logo).
+    # O antigo `if body.club_logo_url is not None` ignorava JSON `club_logo_url: null` e nunca apagava o logo.
+    data = body.model_dump(exclude_unset=True)
+    if "home_images" in data:
+        imgs = data["home_images"]
+        row.home_images = (imgs or [])[:3] if imgs is not None else []
+    if "hero_title" in data:
+        v = data["hero_title"]
+        row.hero_title = v.strip() or None if isinstance(v, str) else None
+    if "hero_subtitle" in data:
+        v = data["hero_subtitle"]
+        row.hero_subtitle = v.strip() or None if isinstance(v, str) else None
+    if "club_logo_url" in data:
+        v = data["club_logo_url"]
+        row.club_logo_url = v.strip() or None if isinstance(v, str) else None
+    if "club_logo_link" in data:
+        v = data["club_logo_link"]
+        row.club_logo_link = v.strip() or None if isinstance(v, str) else None
     db.commit()
     db.refresh(row)
     return HomepageOut(
