@@ -1,11 +1,13 @@
-"""Fetch and parse external regatta entry-list HTML (e.g. federation 'Lista de Inscritos')."""
+"""Fetch and parse external regatta entry lists (HTML tables or Google Sheets CSV)."""
 from __future__ import annotations
 
+import csv
+import io
 import ipaddress
 import re
 from dataclasses import dataclass, asdict
 from typing import Any, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -116,24 +118,68 @@ def _validate_public_url(url: str) -> str:
     return url.strip()
 
 
-def fetch_entry_list_html(url: str) -> tuple[str, Optional[str]]:
+def _google_sheets_csv_url(url: str) -> Optional[str]:
+    """Published Google Sheets pubhtml links load data in JS; CSV export works for the same sheet."""
+    parsed = urlparse((url or "").strip())
+    host = (parsed.hostname or "").lower()
+    if host not in ("docs.google.com", "www.docs.google.com"):
+        return None
+    m = re.search(r"/spreadsheets/d/e/([^/]+)", parsed.path or "")
+    if not m:
+        return None
+    sheet_key = m.group(1)
+    gid = parse_qs(parsed.query).get("gid", ["0"])[0]
+    return (
+        f"https://docs.google.com/spreadsheets/d/e/{sheet_key}/pub"
+        f"?gid={gid}&single=true&output=csv"
+    )
+
+
+def _fetch_text(url: str) -> tuple[str, Optional[str]]:
     safe_url = _validate_public_url(url)
     resp = requests.get(
         safe_url,
         timeout=_FETCH_TIMEOUT,
-        headers={"User-Agent": _USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+        headers={"User-Agent": _USER_AGENT, "Accept": "text/html,text/csv,*/*"},
     )
     resp.raise_for_status()
-    if not resp.text or not resp.text.strip():
+    resp.encoding = resp.encoding or "utf-8"
+    text = resp.text
+    if not text or not text.strip():
         raise ValueError("The page returned empty content.")
     title: Optional[str] = None
+    ctype = (resp.headers.get("content-type") or "").lower()
+    if "csv" not in ctype and "html" in ctype:
+        try:
+            soup = BeautifulSoup(text[:500000], "html.parser")
+            if soup.title and soup.title.string:
+                title = soup.title.string.strip()
+        except Exception:
+            pass
+    return text, title
+
+
+def fetch_entry_list_html(url: str) -> tuple[str, Optional[str]]:
+    """Backward-compatible fetch; prefer load_entry_list_from_url for parsing."""
+    return _fetch_text(url)
+
+
+def load_entry_list_from_url(url: str) -> tuple[list[ParsedEntryRow], list[str], Optional[str]]:
+    csv_url = _google_sheets_csv_url(url)
+    if csv_url:
+        csv_text, _ = _fetch_text(csv_url)
+        return parse_entry_list_csv(csv_text)
+    html, page_title = _fetch_text(url)
     try:
-        soup = BeautifulSoup(resp.text[:500000], "html.parser")
-        if soup.title and soup.title.string:
-            title = soup.title.string.strip()
-    except Exception:
-        pass
-    return resp.text, title
+        return parse_entry_list_html(html)
+    except ValueError as e:
+        if "No table found" in str(e):
+            raise ValueError(
+                "No entry table found on this page. "
+                "For Google Sheets, use a published link (File → Share → Publish to web). "
+                "The pubhtml link is supported automatically when the sheet is public."
+            ) from e
+        raise
 
 
 def _score_table(headers: list[str], row_count: int) -> int:
@@ -205,8 +251,49 @@ def parse_entry_list_html(html: str) -> tuple[list[ParsedEntryRow], list[str], O
             "'Identificação de Vela', 'Nome do Leme', 'Clube', etc."
         )
 
+    return _parse_grid_rows(best_rows, best_headers, page_title)
+
+
+def parse_entry_list_csv(csv_text: str) -> tuple[list[ParsedEntryRow], list[str], Optional[str]]:
+    reader = csv.reader(io.StringIO(csv_text.lstrip("\ufeff")))
+    all_rows: list[list[str]] = []
+    for row in reader:
+        cells = [(c or "").strip() for c in row]
+        if any(cells):
+            all_rows.append(cells)
+
+    if not all_rows:
+        raise ValueError("No data rows found in CSV.")
+
+    page_title: Optional[str] = None
+    header_idx: Optional[int] = None
+    best_headers: list[str] = []
+
+    for idx, row in enumerate(all_rows):
+        keys = {k for k in (_match_column(c) for c in row) if k}
+        if "sail" in keys and len(keys) >= 2:
+            header_idx = idx
+            best_headers = row
+            break
+        if len(row) == 1 and row[0] and "sail" not in keys:
+            page_title = row[0]
+
+    if header_idx is None:
+        raise ValueError(
+            "Could not find column headers in CSV. Expected 'Identificação de Vela', 'Nome do Leme', etc."
+        )
+
+    data_rows = all_rows[header_idx + 1 :]
+    return _parse_grid_rows(data_rows, best_headers, page_title)
+
+
+def _parse_grid_rows(
+    data_rows: list[list[str]],
+    headers: list[str],
+    page_title: Optional[str],
+) -> tuple[list[ParsedEntryRow], list[str], Optional[str]]:
     col_map: dict[str, int] = {}
-    for idx, header in enumerate(best_headers):
+    for idx, header in enumerate(headers):
         key = _match_column(header)
         if key and key not in col_map:
             col_map[key] = idx
@@ -217,7 +304,7 @@ def parse_entry_list_html(html: str) -> tuple[list[ParsedEntryRow], list[str], O
     warnings: list[str] = []
     parsed: list[ParsedEntryRow] = []
 
-    for i, row in enumerate(best_rows, start=1):
+    for i, row in enumerate(data_rows, start=1):
 
         def cell(key: str) -> str:
             idx = col_map.get(key)

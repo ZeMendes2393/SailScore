@@ -22,8 +22,7 @@ from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_or
 from app.jury_scope import assert_jury_regatta_access
 from app.services.email import send_email, enqueue_email_send  # noqa: F401
 from app.services.entry_list_import import (
-    fetch_entry_list_html,
-    parse_entry_list_html,
+    load_entry_list_from_url,
     import_placeholder_email,
 )
 
@@ -924,8 +923,7 @@ def preview_entry_import(
             detail=f"Class '{class_name}' is not configured for this regatta.",
         )
     try:
-        html, page_title = fetch_entry_list_html(body.url)
-        parsed_rows, warnings, parsed_title = parse_entry_list_html(html)
+        parsed_rows, warnings, parsed_title = load_entry_list_from_url(body.url)
     except requests.RequestException as e:
         raise HTTPException(status_code=400, detail=f"Could not fetch URL: {e}") from e
     except ValueError as e:

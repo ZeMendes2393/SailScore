@@ -136,7 +136,7 @@ export default function ImportEntriesModal({
               Import entries from URL
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              Class: <strong>{className}</strong> — reads federation-style tables (sail ID, club, helm, crew).
+              Class: <strong>{className}</strong> — HTML entry lists or published Google Sheets links (pubhtml).
             </p>
           </div>
           <button
