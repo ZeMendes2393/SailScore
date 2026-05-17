@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const MOBILE_MQ = '(max-width: 767px)';
 
@@ -18,11 +18,13 @@ type Options = {
  */
 export function useScrollHideHeader({
   forceVisible = false,
-  minScroll = 48,
-  threshold = 6,
+  minScroll = 64,
+  threshold = 12,
 }: Options = {}) {
   const [hidden, setHidden] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const lastYRef = useRef(0);
+  const hiddenRef = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_MQ);
@@ -30,28 +32,43 @@ export function useScrollHideHeader({
     syncMobile();
     mq.addEventListener('change', syncMobile);
 
-    let lastY = window.scrollY;
     let ticking = false;
+    lastYRef.current = window.scrollY;
+    hiddenRef.current = false;
+
+    const setHiddenSafe = (next: boolean) => {
+      if (hiddenRef.current === next) return;
+      hiddenRef.current = next;
+      setHidden(next);
+    };
 
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
+        const y = Math.max(window.scrollY, 0);
         if (!mq.matches || forceVisible) {
-          setHidden(false);
-          lastY = window.scrollY;
+          setHiddenSafe(false);
+          lastYRef.current = y;
           return;
         }
-        const y = window.scrollY;
+        const prevY = lastYRef.current;
+        const dy = y - prevY;
+        lastYRef.current = y;
+
         if (y <= minScroll) {
-          setHidden(false);
-        } else if (y > lastY + threshold) {
-          setHidden(true);
-        } else if (y < lastY - threshold) {
-          setHidden(false);
+          setHiddenSafe(false);
+          return;
         }
-        lastY = y;
+
+        if (dy > threshold && y > minScroll + 24) {
+          setHiddenSafe(true);
+          return;
+        }
+        if (dy < -threshold) {
+          setHiddenSafe(false);
+        }
       });
     };
 

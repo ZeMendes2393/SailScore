@@ -28,7 +28,7 @@ export default function LandingTopNav() {
           </nav>
         </div>
       </header>
-      <div className={`ss-top-nav-spacer${headerHidden ? ' is-collapsed' : ''}`} aria-hidden />
+      <div className="ss-top-nav-spacer" aria-hidden />
     </>
   );
 }

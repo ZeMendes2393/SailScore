@@ -151,7 +151,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
       </div>
     </header>
     <div
-      className={`app-site-header-spacer${headerHidden ? ' is-collapsed' : ''}`}
+      className="app-site-header-spacer"
       style={{ '--app-header-height': '8rem' } as CSSProperties}
       aria-hidden
     />

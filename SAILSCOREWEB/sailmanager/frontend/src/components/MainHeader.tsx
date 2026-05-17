@@ -260,7 +260,7 @@ export default function MainHeader({
         </div>
       )}
     </header>
-    <div className={`app-site-header-spacer${headerHidden ? ' is-collapsed' : ''}`} aria-hidden />
+    <div className="app-site-header-spacer" aria-hidden />
     </>
   );
 }
