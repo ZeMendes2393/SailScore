@@ -318,6 +318,11 @@ export default function HomePageClient({
                           <p className="text-sm text-gray-500 mt-1">
                             {formatRegattaDate(r.start_date, r.end_date)}
                           </p>
+                          {r.class_names && r.class_names.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Classes: {r.class_names.join(' • ')}
+                            </p>
+                          )}
                           <p className="text-xs mt-2 font-medium">
                             {r.online_entry_open !== false ? (
                               <span className="text-emerald-600">Entry open</span>

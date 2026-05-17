@@ -1,8 +1,10 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -102,9 +104,14 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const logoUrl = headerDesign?.club_logo_url?.trim();
   const brandText = orgDisplayName || organizationSlug || 'Regattas';
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
+  const { hidden: headerHidden } = useScrollHideHeader();
 
   return (
-    <header className="sticky top-0 z-[70] w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70">
+    <>
+    <header
+      className={`app-site-header w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
+      style={{ '--app-header-height': '8rem' } as CSSProperties}
+    >
       <div className="w-full min-h-[8rem] py-3 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-3 sm:px-4">
         <Link href={brandHref} className="shrink-0 hover:opacity-90 transition-opacity">
           {logoUrl && !logoFailed ? (
@@ -143,5 +150,11 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
         </Link>
       </div>
     </header>
+    <div
+      className={`app-site-header-spacer${headerHidden ? ' is-collapsed' : ''}`}
+      style={{ '--app-header-height': '8rem' } as CSSProperties}
+      aria-hidden
+    />
+    </>
   );
 }

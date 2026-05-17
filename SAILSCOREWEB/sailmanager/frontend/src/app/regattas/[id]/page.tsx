@@ -18,6 +18,7 @@ type Regatta = {
   location: string;
   start_date: string;
   end_date: string;
+  class_names?: string[];
   poster_url?: string | null;
   home_images?: HomeImage[] | null;
   organization_slug?: string | null;
@@ -178,6 +179,11 @@ export default function RegattaHomePage() {
           <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">
             {formatDateRange(regatta.start_date, regatta.end_date)}
           </p>
+          {regatta.class_names && regatta.class_names.length > 0 && (
+            <p className="text-sm md:text-base mt-2 opacity-90 drop-shadow">
+              Classes: {regatta.class_names.join(' • ')}
+            </p>
+          )}
         </div>
       </section>
 

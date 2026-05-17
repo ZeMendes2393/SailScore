@@ -39,6 +39,50 @@ body {
   font-family: var(--font-geist-sans), sans-serif;
 }
 
+/* Site headers: fixed on mobile; esconde ao scroll para baixo (.is-hidden) */
+.app-site-header {
+  --app-header-height: 4rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 70;
+  transition: transform 0.28s ease;
+  will-change: transform;
+}
+@media (max-width: 767px) {
+  .app-site-header.is-hidden {
+    transform: translateY(-100%);
+    pointer-events: none;
+  }
+}
+@media (min-width: 768px) {
+  .app-site-header {
+    position: -webkit-sticky;
+    position: sticky;
+    transition: none;
+    will-change: auto;
+  }
+}
+.app-site-header-spacer {
+  height: var(--app-header-height, 4rem);
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: height 0.28s ease;
+}
+@media (max-width: 767px) {
+  .app-site-header-spacer.is-collapsed {
+    height: 0;
+  }
+}
+@media (min-width: 768px) {
+  .app-site-header-spacer {
+    display: none;
+  }
+}
+
 /* Focus visible for accessibility */
 *:focus-visible {
   outline: 2px solid rgb(59 130 246);
@@ -127,6 +171,29 @@ input.login-input:-webkit-autofill:focus {
   background: rgba(243, 247, 252, 0.94);
   border-bottom: 1px solid var(--ss-border);
   box-shadow: 0 10px 24px rgba(7, 36, 73, 0.08);
+}
+@media (max-width: 767px) {
+  .sailscore-landing .ss-top-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    transition: transform 0.28s ease;
+    will-change: transform;
+  }
+  .sailscore-landing .ss-top-nav.is-hidden {
+    transform: translateY(-100%);
+    pointer-events: none;
+  }
+  .sailscore-landing .ss-top-nav-spacer {
+    height: 3.75rem;
+    width: 100%;
+    flex-shrink: 0;
+    transition: height 0.28s ease;
+  }
+  .sailscore-landing .ss-top-nav-spacer.is-collapsed {
+    height: 0;
+  }
 }
 .sailscore-landing .ss-top-nav-inner {
   display: flex;

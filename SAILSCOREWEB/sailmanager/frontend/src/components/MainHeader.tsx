@@ -7,6 +7,7 @@ import { apiGet, apiAssetUrl } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
 
 type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
 
@@ -31,6 +32,7 @@ export default function MainHeader({
   const [mounted, setMounted] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
 
   useEffect(() => {
     setMounted(true);
@@ -122,8 +124,9 @@ export default function MainHeader({
     );
 
   return (
+    <>
     <header
-      className="sticky top-0 z-[70] bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70"
+      className={`app-site-header bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
       suppressHydrationWarning
     >
       <div className="w-full min-h-[4rem] md:min-h-[4.75rem] py-2 sm:py-2.5 flex items-center justify-between px-3 sm:px-4 gap-2 md:gap-3 flex-wrap">
@@ -257,5 +260,7 @@ export default function MainHeader({
         </div>
       )}
     </header>
+    <div className={`app-site-header-spacer${headerHidden ? ' is-collapsed' : ''}`} aria-hidden />
+    </>
   );
 }

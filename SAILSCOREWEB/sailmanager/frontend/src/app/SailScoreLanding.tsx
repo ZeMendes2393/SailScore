@@ -1,34 +1,13 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import BookDemoForm from '@/components/landing/BookDemoForm';
+import LandingTopNav from '@/components/landing/LandingTopNav';
 import SailScorePublicContact from '@/components/SailScorePublicContact';
 
 export default function SailScoreLanding() {
   return (
     <div className="sailscore-landing">
-      <header className="ss-top-nav" aria-label="Page sections">
-        <div className="ss-container ss-top-nav-inner">
-          <a href="#hero" className="ss-top-brand" aria-label="SailScore home">
-            <Image
-              src="/sailscore-icon.png"
-              alt="SailScore"
-              width={40}
-              height={40}
-              priority
-            />
-            <span className="ss-top-brand-name">SailScore</span>
-          </a>
-          <nav className="ss-top-links" aria-label="Sections">
-            <a href="#platform">Platform</a>
-            <a href="#features">Features</a>
-            <a href="#benefits">Benefits</a>
-            <a href="#social-proof">Use cases</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#faq">FAQ</a>
-            <a href="#book-demo">Contact</a>
-          </nav>
-        </div>
-      </header>
+      <LandingTopNav />
 
       <section id="hero" className="ss-section ss-hero">
         <div className="ss-container ss-hero-grid">
