@@ -34,6 +34,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [headerDesign, setHeaderDesign] = useState<HeaderDesign | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (organizationSlugProp !== undefined) {
@@ -92,6 +93,10 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
     setLogoFailed(false);
   }, [headerDesign?.club_logo_url]);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   const sailorAccountHref = useMemo(() => {
     const p = new URLSearchParams({ regattaId: String(regattaId) });
     if (organizationSlug) p.set('org', organizationSlug);
@@ -104,7 +109,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
   const logoUrl = headerDesign?.club_logo_url?.trim();
   const brandText = orgDisplayName || organizationSlug || 'Regattas';
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
-  const { hidden: headerHidden } = useScrollHideHeader();
+  const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
 
   return (
     <>
@@ -125,7 +130,7 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
             <span className="text-2xl sm:text-3xl font-bold tracking-wide">{brandText}</span>
           )}
         </Link>
-        <nav className="flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
+        <nav className="hidden md:flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
           <Link href={base} className={linkClass(isHome)} title="Regatta home">
             Home
           </Link>
@@ -144,11 +149,53 @@ export default function RegattaHeader({ regattaId, organizationSlug: organizatio
         </nav>
         <Link
           href={sailorAccountHref}
-          className="shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
+          className="hidden md:inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
         >
           Sailor account
         </Link>
+        <div className="md:hidden ml-auto">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="inline-flex items-center justify-center rounded-xl px-3 py-2 bg-white/15 hover:bg-white/25 text-white transition"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-regatta-nav"
+          >
+            <span className="text-lg font-semibold leading-none">{mobileMenuOpen ? 'X' : 'Menu'}</span>
+          </button>
+        </div>
       </div>
+      {mobileMenuOpen && (
+        <div
+          id="mobile-regatta-nav"
+          className="md:hidden border-t border-white/20 bg-blue-900/85 backdrop-blur-md px-3 pb-3"
+        >
+          <nav className="flex flex-col gap-2 py-3 text-base font-semibold">
+            <Link href={base} className={linkClass(isHome)} title="Regatta home">
+              Home
+            </Link>
+            <Link href={`${base}/form`} className={linkClass(isForm)}>
+              Online Entry
+            </Link>
+            <Link href={`${base}/entry`} className={linkClass(isEntry)}>
+              Entry List
+            </Link>
+            <Link href={`${base}/notice`} className={linkClass(isNotice)}>
+              Notice Board
+            </Link>
+            <Link href={`${base}/results`} className={linkClass(isResults)}>
+              Results
+            </Link>
+            <Link
+              href={sailorAccountHref}
+              className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base font-semibold text-center transition"
+            >
+              Sailor account
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
     <div
       className="app-site-header-spacer"

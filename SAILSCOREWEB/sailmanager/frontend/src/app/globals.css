@@ -39,7 +39,7 @@ body {
   font-family: var(--font-geist-sans), sans-serif;
 }
 
-/* Site headers: fixed on mobile; esconde ao scroll para baixo (.is-hidden) */
+/* Site headers: fixed on mobile; sticky no desktop; escondem ao scroll */
 .app-site-header {
   --app-header-height: 4rem;
   position: fixed;
@@ -51,18 +51,14 @@ body {
   transition: transform 0.28s ease;
   will-change: transform;
 }
-@media (max-width: 767px) {
-  .app-site-header.is-hidden {
-    transform: translateY(-100%);
-    pointer-events: none;
-  }
+.app-site-header.is-hidden {
+  transform: translateY(-100%);
+  pointer-events: none;
 }
 @media (min-width: 768px) {
   .app-site-header {
     position: -webkit-sticky;
     position: sticky;
-    transition: none;
-    will-change: auto;
   }
 }
 .app-site-header-spacer {
@@ -178,12 +174,6 @@ input.login-input:-webkit-autofill:focus {
     left: 0;
     right: 0;
     width: 100%;
-    transition: transform 0.28s ease;
-    will-change: transform;
-  }
-  .sailscore-landing .ss-top-nav.is-hidden {
-    transform: translateY(-100%);
-    pointer-events: none;
   }
   .sailscore-landing .ss-top-nav-spacer {
     height: 3.75rem;
@@ -194,6 +184,14 @@ input.login-input:-webkit-autofill:focus {
   .sailscore-landing .ss-top-nav-spacer.is-collapsed {
     height: 0;
   }
+}
+.sailscore-landing .ss-top-nav {
+  transition: transform 0.28s ease;
+  will-change: transform;
+}
+.sailscore-landing .ss-top-nav.is-hidden {
+  transform: translateY(-100%);
+  pointer-events: none;
 }
 .sailscore-landing .ss-top-nav-inner {
   display: flex;

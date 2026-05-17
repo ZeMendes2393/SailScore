@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const MOBILE_MQ = '(max-width: 767px)';
-
 type Options = {
   /** Mantém o header visível (ex.: menu mobile aberto). */
   forceVisible?: boolean;
@@ -22,16 +20,10 @@ export function useScrollHideHeader({
   threshold = 12,
 }: Options = {}) {
   const [hidden, setHidden] = useState(false);
-  const [mobile, setMobile] = useState(false);
   const lastYRef = useRef(0);
   const hiddenRef = useRef(false);
 
   useEffect(() => {
-    const mq = window.matchMedia(MOBILE_MQ);
-    const syncMobile = () => setMobile(mq.matches);
-    syncMobile();
-    mq.addEventListener('change', syncMobile);
-
     let ticking = false;
     lastYRef.current = window.scrollY;
     hiddenRef.current = false;
@@ -48,7 +40,7 @@ export function useScrollHideHeader({
       requestAnimationFrame(() => {
         ticking = false;
         const y = Math.max(window.scrollY, 0);
-        if (!mq.matches || forceVisible) {
+        if (forceVisible) {
           setHiddenSafe(false);
           lastYRef.current = y;
           return;
@@ -75,11 +67,9 @@ export function useScrollHideHeader({
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      mq.removeEventListener('change', syncMobile);
       window.removeEventListener('scroll', onScroll);
     };
   }, [forceVisible, minScroll, threshold]);
 
-  const effectiveHidden = mobile && hidden && !forceVisible;
-  return { hidden: effectiveHidden, mobile };
+  return { hidden: hidden && !forceVisible };
 }
