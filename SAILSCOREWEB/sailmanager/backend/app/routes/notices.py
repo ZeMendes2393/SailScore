@@ -60,6 +60,11 @@ def map_notice_to_read(n: models.Notice) -> schemas.NoticeRead:
 
 # ------------------------ upload ------------------------
 @router.post(
+    "/upload",
+    response_model=schemas.NoticeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
     "/upload/",
     response_model=schemas.NoticeRead,
     status_code=status.HTTP_201_CREATED,
@@ -211,7 +216,7 @@ def get_notices_by_regatta(
 
 
 # ------------------------ detalhe ------------------------
-@router.get("/detail/{notice_id}", response_model=schemas.NoticeRead)
+@router.get("/detail/{notice_id:int}", response_model=schemas.NoticeRead)
 def get_notice_detail(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:
@@ -221,7 +226,7 @@ def get_notice_detail(notice_id: int, db: Session = Depends(get_db)):
 
 # ------------------------ delete ------------------------
 @router.delete(
-    "/{notice_id}",
+    "/{notice_id:int}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_notice(
@@ -255,7 +260,7 @@ class ImportantPatch(BaseModel):
 
 
 @router.patch(
-    "/{notice_id}/important",
+    "/{notice_id:int}/important",
     response_model=schemas.NoticeRead,
     status_code=status.HTTP_200_OK,
 )
@@ -290,7 +295,7 @@ def set_notice_important(
 from fastapi.responses import FileResponse
 from fastapi.responses import RedirectResponse
 
-@router.get("/{notice_id}/download")
+@router.get("/{notice_id:int}/download")
 def download_notice(notice_id: int, db: Session = Depends(get_db)):
     n = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
     if not n:

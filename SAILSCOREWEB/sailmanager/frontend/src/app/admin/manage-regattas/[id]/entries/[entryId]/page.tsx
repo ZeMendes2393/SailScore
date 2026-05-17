@@ -8,6 +8,7 @@ import { useEntry } from '@/lib/hooks/useEntry';
 import { apiGet, apiSend } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import { COUNTRIES_UNIQUE } from '@/utils/countries';
+import { sanitizeSailNumberInput } from '@/lib/sailNumberInput';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -424,8 +425,12 @@ export default function Page() {
                 <label className="text-gray-500">Sail number</label>
                 <input
                   className="border rounded px-2 py-1"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={form.sail_number ?? ''}
-                  onChange={(e) => onChange('sail_number', e.target.value)}
+                  onChange={(e) => onChange('sail_number', sanitizeSailNumberInput(e.target.value))}
+                  placeholder="e.g. 30275"
                 />
                 <label className="text-gray-500">Bow</label>
                 <input

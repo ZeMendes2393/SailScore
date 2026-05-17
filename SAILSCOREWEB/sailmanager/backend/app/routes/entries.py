@@ -24,6 +24,12 @@ from app.services.email import send_email, enqueue_email_send  # noqa: F401
 from app.services.entry_list_import import (
     load_entry_list_from_url,
     import_placeholder_email,
+    is_import_placeholder_email,
+)
+from app.utils.sail_number import (
+    SAIL_NUMBER_MAX_LEN,
+    normalize_sail_number_required,
+    normalize_sail_number_optional,
 )
 
 router = APIRouter()
@@ -82,24 +88,12 @@ def _count_active_entries_for_limit(
     return q.count()
 
 
-SAIL_NUMBER_MAX_LEN = 15
-
-
 def _sanitize_sail_number(raw: Optional[str]) -> str:
-    """Normaliza o sail number antes de gravar: trim, colapsa espaços, garante
-    comprimento razoável (<=15 chars). Aceita números puros ou alfanuméricos curtos
-    (ex.: "POR 1", "ILCA001"). Rebenta com 400 se exceder o limite ou se ficar vazio."""
-    s = (raw or "").strip()
-    if not s:
-        raise HTTPException(status_code=400, detail="Sail number is required.")
-    # Colapsa múltiplos espaços / tabs em 1 espaço
-    s = re.sub(r"\s+", " ", s)
-    if len(s) > SAIL_NUMBER_MAX_LEN:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Sail number is too long (max {SAIL_NUMBER_MAX_LEN} characters).",
-        )
-    return s
+    """Digits only; country code lives in boat_country_code."""
+    try:
+        return normalize_sail_number_required(raw)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 def _entry_list_order():
@@ -1132,13 +1126,10 @@ def _norm_sail(s: Optional[str]) -> Optional[str]:
     s = _norm_str(s)
     if not s:
         return None
-    s = re.sub(r"\s+", " ", s)
-    if len(s) > SAIL_NUMBER_MAX_LEN:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Sail number is too long (max {SAIL_NUMBER_MAX_LEN} characters).",
-        )
-    return s.upper()
+    try:
+        return normalize_sail_number_required(s)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 def _class_exists_in_regatta(db: Session, regatta_id: int, class_name: str) -> bool:
     # Preferir tabela RegattaClass se existir
@@ -1325,7 +1316,7 @@ def _send_confirmed_entry_email(
     if not to_email and entry.user_id:
         u = db.query(models.User).filter(models.User.id == entry.user_id).first()
         to_email = (u.email or "").strip() if u else ""
-    if not to_email:
+    if not to_email or is_import_placeholder_email(to_email):
         return
     subject, text = _build_confirmed_entry_email(
         db,
@@ -1384,6 +1375,17 @@ def send_confirmation_email(
             "entry_id": entry.id,
             "sent": False,
             "confirmed_email_sent_at": entry.confirmed_email_sent_at.isoformat(),
+        }
+
+    contact_email = (entry.email or "").strip()
+    if is_import_placeholder_email(contact_email):
+        return {
+            "message": (
+                "This entry was imported without a real email address. "
+                "Open the entry, add the sailor's email, then send the confirmation email."
+            ),
+            "entry_id": entry.id,
+            "sent": False,
         }
 
     user = _get_or_create_user_for_entry(db, entry)

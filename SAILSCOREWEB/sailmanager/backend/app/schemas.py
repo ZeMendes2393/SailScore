@@ -519,10 +519,10 @@ class EntryCreate(BaseModel):
     @field_validator("sail_number")
     @classmethod
     def sail_number_non_empty(cls, v: str) -> str:
-        s = _normalize_required_text(v, field_name="Sail number", max_len=_ENTRY_SAIL_NUMBER_MAX_LEN)
-        if len(s) > _ENTRY_SAIL_NUMBER_MAX_LEN:
-            raise ValueError(f"Sail number is too long (max {_ENTRY_SAIL_NUMBER_MAX_LEN} characters).")
-        return s
+        from app.utils.sail_number import normalize_sail_number_required
+
+        _normalize_required_text(v, field_name="Sail number", max_len=_ENTRY_SAIL_NUMBER_MAX_LEN)
+        return normalize_sail_number_required(v)
 
     @field_validator(
         "boat_country",
@@ -1270,11 +1270,11 @@ class EntryPatch(BaseModel):
     @field_validator("sail_number", mode="before")
     @classmethod
     def _v_sail_number(cls, v):
-        return _normalize_optional_text(
-            v,
-            field_name="Sail number",
-            max_len=_ENTRY_SAIL_NUMBER_MAX_LEN,
-        )
+        from app.utils.sail_number import normalize_sail_number_optional
+
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        return normalize_sail_number_optional(v)
 
     @field_validator(
         "boat_country",

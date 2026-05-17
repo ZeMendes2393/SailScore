@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Notice, NoticeSource } from "@/types/notice";
 import { apiGet, apiUpload } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 interface UploadNoticeFormProps {
   regattaId: number;
@@ -10,6 +11,7 @@ interface UploadNoticeFormProps {
 }
 
 export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadNoticeFormProps) {
+  const { token } = useAuth();
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<NoticeSource>("OTHER");
@@ -60,7 +62,7 @@ export default function UploadNoticeForm({ regattaId, onUploadSuccess }: UploadN
       fd.append("applies_to_all", String(true));
       fd.append("file", file);
 
-      await apiUpload<Notice>("/notices/upload/", fd);
+      await apiUpload<Notice>("/notices/upload", fd, token ?? undefined);
 
       // reset
       setTitle("");

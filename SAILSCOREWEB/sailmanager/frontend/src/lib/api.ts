@@ -273,6 +273,29 @@ export async function apiUpload<T>(
   return (await res.json()) as T;
 }
 
+/** Download a file from the API (follows redirects, uses auth when available). */
+export async function apiDownloadFile(
+  path: string,
+  filename: string,
+  token?: string
+): Promise<void> {
+  const res = await fetch(buildUrl(path), {
+    method: 'GET',
+    headers: { ...authHeader(token) },
+    cache: 'no-store',
+  });
+  await ensureOk(res);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'document.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // Açúcar
 export const apiPost = <T,>(path: string, body: unknown, token?: string) =>
   apiSend<T>(path, 'POST', body, token);

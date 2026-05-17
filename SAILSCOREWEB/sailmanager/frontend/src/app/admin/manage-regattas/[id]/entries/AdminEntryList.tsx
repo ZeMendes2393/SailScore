@@ -219,10 +219,14 @@ export default function AdminEntryList({
     );
   };
 
+  const isImportPlaceholderEmail = (email?: string | null) =>
+    !!email?.trim() && /@import\.sailscore\.online$/i.test(email.trim());
+
   const maybeSendConfirmedEmail = async (entryId: number, nextPaid: boolean, nextConfirmed: boolean) => {
     if (!token) return;
     const currentEntry = entries.find((e) => e.id === entryId);
     if (currentEntry?.confirmed_email_sent_at) return;
+    if (isImportPlaceholderEmail(currentEntry?.email)) return;
     const wasFullyConfirmed = entries.some((e) => e.id === entryId && e.paid && e.confirmed);
     const willBeFullyConfirmed = nextPaid && nextConfirmed;
     if (!willBeFullyConfirmed || wasFullyConfirmed) return;
@@ -248,7 +252,8 @@ export default function AdminEntryList({
         notify.success(res?.message || 'Confirmation email sent.');
       } else {
         notify.info(
-          res?.message || 'Confirmation email was already sent previously for this entry.'
+          res?.message ||
+            'Confirmation email was already sent previously for this entry.'
         );
       }
       const refreshed = await loadEntries();

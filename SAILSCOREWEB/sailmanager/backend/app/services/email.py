@@ -143,9 +143,18 @@ def process_email_outbox(max_items: int = 25) -> tuple[int, int]:
             if next_try_at > now:
                 remaining.append(rec)
                 continue
+            to_addr = str(rec.get("to") or "")
+            try:
+                from app.services.entry_list_import import is_import_placeholder_email
+
+                if is_import_placeholder_email(to_addr):
+                    print(f"[EMAIL OUTBOX] Dropped undeliverable import placeholder: {to_addr}")
+                    continue
+            except Exception:
+                pass
             try:
                 msg = _build_message(
-                    to=str(rec.get("to") or ""),
+                    to=to_addr,
                     subject=str(rec.get("subject") or ""),
                     html=rec.get("html"),
                     text=rec.get("text"),
@@ -266,6 +275,14 @@ def enqueue_email_send(
     """
     if not (to or "").strip():
         return
+    try:
+        from app.services.entry_list_import import is_import_placeholder_email
+
+        if is_import_placeholder_email(to):
+            print(f"[EMAIL QUEUED] skipped import placeholder address: {to}")
+            return
+    except Exception:
+        pass
     record = {
         "to": to,
         "subject": subject,

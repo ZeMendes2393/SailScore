@@ -1,9 +1,10 @@
 "use client";
 
 import { Notice } from "@/types/notice";
-import { getApiBaseUrl, apiDelete } from "@/lib/api";
+import { apiDelete, apiDownloadFile } from "@/lib/api";
 import notify from "@/lib/notify";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useAuth } from "@/context/AuthContext";
 
 type Props = { items: Notice[]; timezone?: string | null; onChanged: () => void };
 
@@ -27,6 +28,7 @@ function formatDate(iso: string | undefined, timezone?: string | null) {
 
 export default function AdminNoticeTable({ items, timezone, onChanged }: Props) {
   const confirm = useConfirm();
+  const { token } = useAuth();
   const del = async (id: number) => {
     const ok = await confirm({
       title: "Delete this document?",
@@ -64,12 +66,23 @@ export default function AdminNoticeTable({ items, timezone, onChanged }: Props) 
               </td>
               <td className="p-3 text-right">
                 <div className="inline-flex gap-2">
-                  <a
-                    href={`${getApiBaseUrl()}/notices/${n.id}/download`}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await apiDownloadFile(
+                          `/notices/${n.id}/download`,
+                          n.filename || `${n.title || 'document'}.pdf`,
+                          token ?? undefined
+                        );
+                      } catch (e: any) {
+                        notify.error(e?.message || 'Failed to download document.');
+                      }
+                    }}
                     className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
                   >
                     Download
-                  </a>
+                  </button>
                   <button
                     onClick={() => del(n.id)}
                     className="inline-flex items-center rounded-md border border-red-100 bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100"

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { COUNTRIES_UNIQUE } from '@/utils/countries'
+import { sanitizeSailNumberInput } from '@/lib/sailNumberInput'
 
 function Field({
   label,
@@ -44,7 +45,8 @@ export default function Step3({ data, onChange, onSubmit, onBack, isSubmitting =
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    const updated = { ...localData, [name]: value }
+    const nextValue = name === 'sail_number' ? sanitizeSailNumberInput(value) : value
+    const updated = { ...localData, [name]: nextValue }
     setLocalData(updated)
     onChange(updated)
   }
@@ -75,8 +77,18 @@ export default function Step3({ data, onChange, onSubmit, onBack, isSubmitting =
             ))}
           </select>
         </Field>
-        <Field label="Sail number" required hint="Race number on the mainsail (e.g. 47, 123)">
-          <input type="text" name="sail_number" placeholder="e.g. 47" value={localData.sail_number || ''} onChange={handleChange} className={inputClass} required />
+        <Field label="Sail number" required hint="Digits only — country is selected above (e.g. 30275)">
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            name="sail_number"
+            placeholder="e.g. 30275"
+            value={localData.sail_number || ''}
+            onChange={handleChange}
+            className={inputClass}
+            required
+          />
         </Field>
 
         {isHandicap && (

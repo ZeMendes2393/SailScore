@@ -12,6 +12,8 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from app.utils.sail_number import extract_sail_digits, parse_sail_identification
+
 _FETCH_TIMEOUT = 30
 _USER_AGENT = "SailScore-EntryImport/1.0 (+https://sailscore.online)"
 
@@ -84,18 +86,6 @@ def _split_person_name(full: str) -> tuple[str, str]:
     if len(parts) == 1:
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
-
-
-def _parse_sail_identification(raw: str) -> tuple[str, str]:
-    s = re.sub(r"\s+", " ", (raw or "").strip().upper())
-    if not s:
-        return "", ""
-    m = re.match(r"^([A-Z]{2,3})\s+(.+)$", s)
-    if m:
-        return m.group(1), m.group(2).strip()
-    if re.match(r"^[A-Z]{2,3}$", s):
-        return s, ""
-    return "POR", s
 
 
 def _validate_public_url(url: str) -> str:
@@ -355,7 +345,21 @@ def _parse_grid_rows(
     return parsed, warnings, page_title
 
 
+_IMPORT_EMAIL_DOMAIN = "@import.sailscore.online"
+_LEGACY_IMPORT_DOMAIN = "@entry.sailscore.local"
+
+
+def is_import_placeholder_email(email: Optional[str]) -> bool:
+    """True for technical emails generated during URL/CSV entry import (not deliverable)."""
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    return e.endswith(_IMPORT_EMAIL_DOMAIN) or e.endswith(_LEGACY_IMPORT_DOMAIN)
+
+
 def import_placeholder_email(regatta_id: int, country_code: str, sail_number: str) -> str:
     """Technical contact email on the entry row (not used for real mail on import)."""
-    slug = re.sub(r"[^a-z0-9]+", "", f"{country_code}{sail_number}".lower()) or "entry"
-    return f"import.r{regatta_id}.{slug}@import.sailscore.online"
+    sail_digits = extract_sail_digits(sail_number) or "0"
+    cc = re.sub(r"[^a-z0-9]+", "", (country_code or "por").lower())
+    slug = sail_digits
+    return f"import.r{regatta_id}.{cc}{slug}{_IMPORT_EMAIL_DOMAIN}"
