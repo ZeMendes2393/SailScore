@@ -75,7 +75,9 @@ export default function SailScoreLanding() {
             <article className="ss-module">
               <span className="ss-module-kicker">Capability 6</span>
               <h3 className="ss-h3">Sailor Access</h3>
-              <p>Give sailors and coaches a simple, role-based view of updates and results.</p>
+              <p>
+                Each sailor account has its own dashboard to file protests, scoring enquiries, requests, and more.
+              </p>
             </article>
           </div>
         </div>
