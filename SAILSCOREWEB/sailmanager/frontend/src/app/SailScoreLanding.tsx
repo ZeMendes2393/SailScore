@@ -91,28 +91,15 @@ export default function SailScoreLanding() {
                 Each event can have a clean public-facing page with key details, notice board access, and results visibility for sailors, coaches, and visitors.
               </p>
             </div>
-            <div className="ss-public-preview" aria-label="Public website style example">
-              <div className="ss-public-preview-top">
-                <span>Atlantic Regatta 2026</span>
-                <span className="ss-public-preview-badge">Public</span>
-              </div>
-              <div className="ss-public-preview-hero" />
-              <div className="ss-public-preview-tabs">
-                <span>Home</span>
-                <span>Notice Board</span>
-                <span className="is-active">Results</span>
-                <span>Entry List</span>
-              </div>
-              <div className="ss-public-preview-cards">
-                <div>May 14-18</div>
-                <div>Cascais</div>
-                <div>7 Classes</div>
-              </div>
-              <div className="ss-public-preview-table">
-                <div><span>1</span><span>POR 30275</span><span>18 pts</span></div>
-                <div><span>2</span><span>ESP 19822</span><span>22 pts</span></div>
-                <div><span>3</span><span>FRA 44109</span><span>24 pts</span></div>
-              </div>
+            <div className="ss-spotlight-visual">
+              <Image
+                src="/public-website-preview.png"
+                alt="Public regatta website preview showing event home page"
+                width={1600}
+                height={900}
+                quality={95}
+              />
+              <p className="ss-visual-note">Example public regatta website</p>
             </div>
           </div>
         </div>
