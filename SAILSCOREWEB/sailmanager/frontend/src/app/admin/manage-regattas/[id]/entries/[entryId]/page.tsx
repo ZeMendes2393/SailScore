@@ -90,6 +90,8 @@ export default function Page() {
   const [form, setForm] = useState<any>({});
   const [isDirty, setIsDirty] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [ratingInput, setRatingInput] = useState('');
   const [orcLowInput, setOrcLowInput] = useState('');
   const [orcMediumInput, setOrcMediumInput] = useState('');
@@ -129,11 +131,17 @@ export default function Page() {
 
   const onSave = async () => {
     if (!entry) return;
+    setSaveNotice(null);
     const changed: Record<string, any> = {};
     for (const k of Object.keys(form)) {
       if ((form as any)[k] !== (entry as any)[k]) changed[k] = (form as any)[k];
     }
-    if (Object.keys(changed).length === 0) return;
+    if (Object.keys(changed).length === 0) {
+      const msg = 'No changes to save.';
+      setSaveNotice({ type: 'info', message: msg });
+      notify.info(msg);
+      return;
+    }
 
     const touchingKeys = 'class_name' in changed || 'sail_number' in changed;
     const propagate = touchingKeys
@@ -147,6 +155,7 @@ export default function Page() {
       : false;
 
     try {
+      setSaving(true);
       const updated = await patch(changed, { propagate_keys: propagate });
       if (updated) {
         const wasFullyConfirmed = Boolean(entry.paid) && Boolean(entry.confirmed);
@@ -154,6 +163,7 @@ export default function Page() {
         setEntry(updated);
         setIsDirty(false);
         window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+        setSaveNotice({ type: 'success', message: 'Entry saved successfully.' });
         notify.success('Entry saved.');
         if (!wasFullyConfirmed && nowFullyConfirmed && token) {
           const ok = await confirm({
@@ -174,10 +184,15 @@ export default function Page() {
         }
       } else {
         window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+        setSaveNotice({ type: 'success', message: 'Entry saved successfully.' });
         notify.success('Entry saved.');
       }
     } catch (e: any) {
-      notify.error(e?.message ?? 'Failed to save entry.');
+      const msg = e?.message ?? 'Failed to save entry.';
+      setSaveNotice({ type: 'error', message: msg });
+      notify.error(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -347,12 +362,26 @@ export default function Page() {
             <button
               className="px-3 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
               onClick={onSave}
-              disabled={!entry || loading}
+              disabled={!entry || loading || saving}
             >
-              {loading ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
+
+        {saveNotice && (
+          <div
+            className={`mb-3 rounded border px-3 py-2 text-sm ${
+              saveNotice.type === 'success'
+                ? 'border-green-300 bg-green-50 text-green-800'
+                : saveNotice.type === 'error'
+                ? 'border-red-300 bg-red-50 text-red-700'
+                : 'border-blue-300 bg-blue-50 text-blue-800'
+            }`}
+          >
+            {saveNotice.message}
+          </div>
+        )}
 
         {error && <div className="text-red-600 mb-3">{error}</div>}
         {loading && <div className="text-gray-600">Loading…</div>}
@@ -908,16 +937,16 @@ function formatAttachmentDate(iso?: string | null, timezone?: string | null) {
   if (!Number.isFinite(d.getTime())) return '—';
   if (timezone) {
     try {
-      return new Intl.DateTimeFormat('pt-PT', {
+      return new Intl.DateTimeFormat('en-GB', {
         dateStyle: 'medium',
         timeStyle: 'short',
         timeZone: timezone,
       }).format(d);
     } catch {
-      return d.toLocaleString();
+      return d.toLocaleString('en-GB');
     }
   }
-  return d.toLocaleString();
+  return d.toLocaleString('en-GB');
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');

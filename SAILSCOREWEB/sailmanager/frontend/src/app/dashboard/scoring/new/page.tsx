@@ -8,6 +8,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import type { ScoringCreate } from '@/lib/api';
 import { formatSailNumber } from '@/utils/countries';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import notify from '@/lib/notify';
 
 type EntryOption = {
   id: number;
@@ -119,9 +120,12 @@ export default function NewScoringPage() {
     try {
       setSubmitting(true);
       await apiPost(`/regattas/${regattaId}/scoring`, payload, token);
+      notify.success('Scoring enquiry submitted successfully.');
       router.replace(withOrg('/dashboard/scoring'));
     } catch (e: any) {
-      setErr(e?.message || 'Failed to submit scoring enquiry.');
+      const msg = e?.message || 'Failed to submit scoring enquiry.';
+      setErr(msg);
+      notify.error(msg);
     } finally {
       setSubmitting(false);
     }

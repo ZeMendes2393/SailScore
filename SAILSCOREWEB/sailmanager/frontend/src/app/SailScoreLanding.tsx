@@ -25,7 +25,7 @@ export default function SailScoreLanding() {
             <p className="ss-microcopy">Built for real race-day pressure.</p>
           </div>
           <div className="ss-visual-card">
-            <p className="ss-visual-label">Main Dashboard Preview</p>
+            <p className="ss-visual-label">Admin Dashboard Preview</p>
             <Image
               className="ss-visual-block"
               src="/dashboard-preview.png"
@@ -77,6 +77,43 @@ export default function SailScoreLanding() {
               <h3 className="ss-h3">Sailor Access</h3>
               <p>Give sailors and coaches a simple, role-based view of updates and results.</p>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="public-look" className="ss-section">
+        <div className="ss-container">
+          <div className="ss-spotlight">
+            <div className="ss-spotlight-text">
+              <p className="ss-eyebrow">Public Website</p>
+              <h2 className="ss-h2">Example look for each regatta&apos;s public website</h2>
+              <p>
+                Each event can have a clean public-facing page with key details, notice board access, and results visibility for sailors, coaches, and visitors.
+              </p>
+            </div>
+            <div className="ss-public-preview" aria-label="Public website style example">
+              <div className="ss-public-preview-top">
+                <span>Atlantic Regatta 2026</span>
+                <span className="ss-public-preview-badge">Public</span>
+              </div>
+              <div className="ss-public-preview-hero" />
+              <div className="ss-public-preview-tabs">
+                <span>Home</span>
+                <span>Notice Board</span>
+                <span className="is-active">Results</span>
+                <span>Entry List</span>
+              </div>
+              <div className="ss-public-preview-cards">
+                <div>May 14-18</div>
+                <div>Cascais</div>
+                <div>7 Classes</div>
+              </div>
+              <div className="ss-public-preview-table">
+                <div><span>1</span><span>POR 30275</span><span>18 pts</span></div>
+                <div><span>2</span><span>ESP 19822</span><span>22 pts</span></div>
+                <div><span>3</span><span>FRA 44109</span><span>24 pts</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch, apiSend } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import notify from '@/lib/notify';
 
 // ----- Tipos -----
 export type ProtestType =
@@ -456,22 +457,27 @@ export default function useProtestPage(
     setSubmitting(true);
     setError(null);
     try {
+      const fail = (message: string) => {
+        setError(message);
+        notify.warning(message);
+        return false;
+      };
       if (!regattaId) return (setError('Could not identify the regatta.'), false);
       if (adminInitiatorFreeTextOnly) {
         if (!(initiatorPartyText || '').trim()) {
-          return (setError('Describe who is protesting (protestor / party).'), false);
+          return fail('Describe who is protesting (protestor / party).');
         }
       } else if (!initiatorEntryId) {
-        return (setError('Select the initiating boat.'), false);
+        return fail('Select the initiating boat.');
       }
-      if (respondents.length === 0) return (setError('Add at least one respondent.'), false);
+      if (respondents.length === 0) return fail('Add at least one respondent.');
 
       for (const r of respondents) {
         if (r.type === 'boat' && !r.entry_id) {
-          return (setError('Select the class and boat (sailor) being protested.'), false);
+          return fail('Select the class and boat (sailor) being protested.');
         }
         if (r.type === 'coach' && !r.name_text?.trim()) {
-          return (setError("Enter the coach's name."), false);
+          return fail("Enter the coach's name.");
         }
       }
       if (
@@ -479,7 +485,7 @@ export default function useProtestPage(
         initiatorEntryId &&
         respondents.some((r) => r.type === 'boat' && r.entry_id === initiatorEntryId)
       ) {
-        return (setError('The initiator cannot also be a respondent.'), false);
+        return fail('The initiator cannot also be a respondent.');
       }
 
       const respondentsApi: ProtestRespondentIn[] = respondents.map((r) => {
@@ -543,9 +549,12 @@ export default function useProtestPage(
         );
       }
 
+      notify.success(editProtestId ? 'Protest updated successfully.' : 'Protest submitted successfully.');
       return true;
     } catch (e: any) {
-      setError(e?.message || 'Failed to submit the protest.');
+      const msg = e?.message || 'Failed to submit the protest.';
+      setError(msg);
+      notify.error(msg);
       return false;
     } finally {
       setSubmitting(false);

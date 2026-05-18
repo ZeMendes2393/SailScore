@@ -8,7 +8,7 @@ import type { HearingItem, HearingStatus, HearingsList } from "@/types/hearings"
 import notify from "@/lib/notify";
 import { useConfirm } from "@/components/ConfirmDialog";
 
-/** `sch_date` vem como YYYY-MM-DD; mostrar dia–mês–ano (pt-PT), não ordem US tipo 03/24/2026. */
+/** `sch_date` vem como YYYY-MM-DD; mostrar dia–mês–ano (en-GB), não ordem US tipo 03/24/2026. */
 function formatHearingDate(iso: string | null | undefined): string {
   if (!iso || typeof iso !== "string") return "—";
   const t = iso.trim();
@@ -19,7 +19,7 @@ function formatHearingDate(iso: string | null | undefined): string {
     const d = Number(m[3]);
     const dt = new Date(y, mo, d);
     if (!Number.isFinite(dt.getTime())) return "—";
-    return new Intl.DateTimeFormat("pt-PT", {
+    return new Intl.DateTimeFormat("en-GB", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -27,7 +27,7 @@ function formatHearingDate(iso: string | null | undefined): string {
   }
   const dt = new Date(t);
   if (!Number.isFinite(dt.getTime())) return t || "—";
-  return new Intl.DateTimeFormat("pt-PT", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",

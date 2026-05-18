@@ -19,6 +19,15 @@ from utils.auth_utils import (
 from app.jury_scope import assert_jury_regatta_access
 
 
+def _class_names_for_regatta(regatta: models.Regatta) -> list[str]:
+    names = [
+        (c.class_name or "").strip()
+        for c in sorted(regatta.classes or [], key=lambda c: (c.class_name or "").lower())
+        if (c.class_name or "").strip()
+    ]
+    return names
+
+
 def _validate_regatta_timezone_country(country_code: str | None, timezone_str: str) -> None:
     """Validate that timezone is IANA-valid and belongs to the country. Raises HTTPException on failure."""
     if not timezone_str:
@@ -75,10 +84,7 @@ def list_regattas(
             start_date=r.start_date or "",
             end_date=r.end_date or "",
             online_entry_open=r.online_entry_open if r.online_entry_open is not None else True,
-            class_names=[
-                (c.class_name or "")
-                for c in sorted(r.classes or [], key=lambda c: (c.class_name or ""))
-            ],
+            class_names=_class_names_for_regatta(r),
             listing_logo_url=getattr(r, "listing_logo_url", None),
         )
         for r in regattas
@@ -128,15 +134,21 @@ def get_regatta(
 ):
     r = (
         db.query(models.Regatta)
-        .options(joinedload(models.Regatta.organization))
+        .options(
+            joinedload(models.Regatta.organization),
+            joinedload(models.Regatta.classes),
+        )
         .filter(models.Regatta.id == regatta_id)
         .first()
     )
     if not r:
         raise HTTPException(status_code=404, detail="Regatta not found")
     slug = r.organization.slug if r.organization else None
+    class_names = _class_names_for_regatta(r)
+    if not class_names:
+        class_names = get_classes_for_regatta(regatta_id, db)
     data = schemas.RegattaRead.model_validate(r, from_attributes=True)
-    return data.model_copy(update={"organization_slug": slug})
+    return data.model_copy(update={"organization_slug": slug, "class_names": class_names})
 
 @router.patch("/{regatta_id}", response_model=schemas.RegattaRead)
 def update_regatta(

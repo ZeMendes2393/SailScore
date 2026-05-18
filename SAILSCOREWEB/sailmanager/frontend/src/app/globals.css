@@ -363,6 +363,96 @@ input.login-input:-webkit-autofill:focus {
   border-radius: 12px;
   border: 1px solid #cbdaee;
 }
+.sailscore-landing .ss-public-preview {
+  background: var(--ss-surface);
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius);
+  padding: 0.75rem;
+  box-shadow: var(--ss-shadow);
+}
+.sailscore-landing .ss-public-preview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #cbdaee;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0d2f5e;
+}
+.sailscore-landing .ss-public-preview-badge {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid #90b3df;
+  background: #e8f1ff;
+  font-size: 0.74rem;
+}
+.sailscore-landing .ss-public-preview-hero {
+  margin-top: 0.65rem;
+  height: 130px;
+  border-radius: 10px;
+  border: 1px solid #b8cfea;
+  background:
+    linear-gradient(180deg, rgba(3, 92, 186, 0.18), rgba(0, 35, 90, 0.22)),
+    linear-gradient(120deg, #b8d3f5 0%, #d7edf8 40%, #b7d4ef 100%);
+}
+.sailscore-landing .ss-public-preview-tabs {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.sailscore-landing .ss-public-preview-tabs span {
+  border: 1px solid #ccdaec;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #274469;
+}
+.sailscore-landing .ss-public-preview-tabs .is-active {
+  background: #0f67de;
+  color: #fff;
+  border-color: #0f67de;
+}
+.sailscore-landing .ss-public-preview-cards {
+  margin-top: 0.65rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.sailscore-landing .ss-public-preview-cards div {
+  border: 1px solid #cbdaee;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.45rem 0.5rem;
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #29476e;
+}
+.sailscore-landing .ss-public-preview-table {
+  margin-top: 0.65rem;
+  border: 1px solid #cbdaee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sailscore-landing .ss-public-preview-table div {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.38rem 0.55rem;
+  font-size: 0.73rem;
+  color: #223d61;
+  background: #fff;
+}
+.sailscore-landing .ss-public-preview-table div:nth-child(2n) {
+  background: #f8fbff;
+}
 .sailscore-landing .ss-card,
 .sailscore-landing .ss-step {
   background: var(--ss-surface);

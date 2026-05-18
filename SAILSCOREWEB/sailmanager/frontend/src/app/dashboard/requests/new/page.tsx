@@ -7,6 +7,7 @@ import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet, apiPost } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
+import notify from '@/lib/notify';
 
 // Podemos reutilizar a tua hook useMyEntry ou chamar /entries?mine=1
 type EntryOption = { id: number; class_name?: string | null; sail_number?: string | null; boat_country_code?: string | null; first_name?: string | null; last_name?: string | null; email?: string | null; regatta_id?: number };
@@ -39,8 +40,17 @@ export default function NewRequestPage() {
 
   async function submit() {
     if (!regattaId || !token || !entryId || !text.trim()) return;
-    await apiPost(`/regattas/${regattaId}/requests`, { initiator_entry_id: Number(entryId), request_text: text.trim() }, token);
-    router.replace(withOrg('/dashboard/requests'));
+    try {
+      await apiPost(
+        `/regattas/${regattaId}/requests`,
+        { initiator_entry_id: Number(entryId), request_text: text.trim() },
+        token
+      );
+      notify.success('Request submitted successfully.');
+      router.replace(withOrg('/dashboard/requests'));
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to submit request.');
+    }
   }
 
   if (!regattaId || !token) return <div className="p-4">Initializing…</div>;

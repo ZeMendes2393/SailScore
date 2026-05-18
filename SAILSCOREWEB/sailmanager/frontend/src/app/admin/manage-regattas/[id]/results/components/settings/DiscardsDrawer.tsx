@@ -68,6 +68,7 @@ export default function DiscardsDrawer({
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [scheduleText, setScheduleText] = useState<string>(DEFAULT_DISCARD_SCHEDULE);
 
@@ -129,6 +130,7 @@ export default function DiscardsDrawer({
 
   const save = async () => {
     if (!selectedClass) return;
+    setSaveNotice(null);
 
     if (parsed.schedule.length === 0) {
       notify.warning('Schedule is empty. Use something like: 0,0,0,1,1,1');
@@ -158,10 +160,14 @@ export default function DiscardsDrawer({
         }
       );
       if (!res.ok) throw new Error(await res.text().catch(() => ''));
-      notify.success('Discard schedule saved.');
+      const msg = 'Discards guardados com sucesso.';
+      setSaveNotice({ type: 'success', text: msg });
+      notify.success(msg);
     } catch (e: any) {
       console.error('Error saving discard plan:', e);
-      notify.error(e?.message || 'Failed to save discard schedule.');
+      const msg = e?.message || 'Falha ao guardar discards.';
+      setSaveNotice({ type: 'error', text: msg });
+      notify.error(msg);
     } finally {
       setSaving(false);
     }
@@ -204,6 +210,18 @@ export default function DiscardsDrawer({
           <p className="text-sm text-gray-600">Loading…</p>
         ) : (
           <>
+            {saveNotice && (
+              <div
+                className={`mb-4 rounded border px-3 py-2 text-sm ${
+                  saveNotice.type === 'success'
+                    ? 'border-green-300 bg-green-50 text-green-800'
+                    : 'border-red-300 bg-red-50 text-red-700'
+                }`}
+              >
+                {saveNotice.text}
+              </div>
+            )}
+
             {/* Schedule */}
             <div className="mb-6">
               <label className="block text-sm font-medium mb-1">Schedule</label>

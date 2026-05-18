@@ -48,16 +48,16 @@ function fmtDate(s?: string | null, timezone?: string | null) {
   if (!Number.isFinite(d.getTime())) return '—';
   if (timezone) {
     try {
-      return new Intl.DateTimeFormat('pt-PT', {
+      return new Intl.DateTimeFormat('en-GB', {
         dateStyle: 'medium',
         timeStyle: 'short',
         timeZone: timezone,
       }).format(d);
     } catch {
-      return d.toLocaleString();
+      return d.toLocaleString('en-GB');
     }
   }
-  return d.toLocaleString();
+  return d.toLocaleString('en-GB');
 }
 
 export default function Page() {

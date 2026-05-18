@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { FileText, List, PenLine, Trophy } from 'lucide-react';
 
 import RegattaHeader from './components/RegattaHeader';
+import { formatDateRange } from '@/lib/formatDate';
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000');
@@ -42,6 +43,7 @@ export default function RegattaHomePage() {
   }, [id]);
 
   const [regatta, setRegatta] = useState<Regatta | null>(null);
+  const [classNames, setClassNames] = useState<string[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
 
   useEffect(() => {
@@ -54,6 +56,22 @@ export default function RegattaHomePage() {
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as Regatta;
         setRegatta(data);
+        const fromRegatta = (data.class_names ?? []).map((c) => c.trim()).filter(Boolean);
+        if (fromRegatta.length > 0) {
+          setClassNames(fromRegatta);
+        } else {
+          try {
+            const clsRes = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, { cache: 'no-store' });
+            if (clsRes.ok) {
+              const cls = (await clsRes.json()) as string[];
+              setClassNames(Array.isArray(cls) ? cls.map((c) => c.trim()).filter(Boolean) : []);
+            } else {
+              setClassNames([]);
+            }
+          } catch {
+            setClassNames([]);
+          }
+        }
 
         const newsQs = new URLSearchParams({ limit: '6', offset: '0' });
         if (data.organization_slug) {
@@ -110,26 +128,12 @@ export default function RegattaHomePage() {
       }
     : undefined;
 
-  const formatDateRange = (start: string, end: string) => {
-    try {
-      const s = new Date(start);
-      const e = new Date(end);
-      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-      if (s.getTime() === e.getTime()) {
-        return s.toLocaleDateString('pt-PT', opts);
-      }
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
-    } catch {
-      return `${start} – ${end}`;
-    }
-  };
-
   const imageSrc = (url: string | null) =>
     !url ? null : url.startsWith('http') ? url : `${API_BASE}${url}`;
 
   const formatNewsDate = (s: string) => {
     try {
-      return new Date(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
+      return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     } catch {
       return s;
     }
@@ -176,14 +180,14 @@ export default function RegattaHomePage() {
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
           <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
-          <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">
-            {formatDateRange(regatta.start_date, regatta.end_date)}
-          </p>
-          {regatta.class_names && regatta.class_names.length > 0 && (
-            <p className="text-sm md:text-base mt-2 opacity-90 drop-shadow">
-              Classes: {regatta.class_names.join(' • ')}
+          {classNames.length > 0 && (
+            <p className="text-xl md:text-2xl font-semibold mt-2 md:mt-3 opacity-95 drop-shadow tracking-tight">
+              {classNames.join(' • ')}
             </p>
           )}
+          <p className="text-base md:text-lg mt-2 md:mt-3 opacity-90 drop-shadow">
+            {formatDateRange(regatta.start_date, regatta.end_date)}
+          </p>
         </div>
       </section>
 

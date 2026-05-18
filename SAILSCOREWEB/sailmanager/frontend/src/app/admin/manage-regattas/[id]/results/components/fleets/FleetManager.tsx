@@ -35,6 +35,8 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
     racesAvailable,
     racesInSelectedSet,
     error,
+    successMessage,
+    clearSuccess,
     createQualifying,
     reshuffle,
     startFinals,
@@ -106,6 +108,14 @@ export default function FleetManager({ overall, regattaId }: FleetManagerProps) 
       {!!error && (
         <div className="text-sm text-red-600">
           {error instanceof Error ? error.message : String(error)}
+        </div>
+      )}
+      {successMessage && (
+        <div className="flex items-center justify-between rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+          <span>{successMessage}</span>
+          <button className="ml-3 rounded border border-green-400 px-2 py-0.5 text-xs hover:bg-green-100" onClick={clearSuccess}>
+            Fechar
+          </button>
         </div>
       )}
 

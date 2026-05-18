@@ -35,7 +35,7 @@ export default function NewsListPage() {
 
   const formatDate = (s: string) => {
     try {
-      return new Date(s).toLocaleDateString('pt-PT', {
+      return new Date(s).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import RegattaHeader from '../components/RegattaHeader';
 import EntryList from '../components/entrylist/EntryList';
 import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
+import { formatDateRange } from '@/lib/formatDate';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
@@ -83,18 +84,6 @@ export default function RegattaEntryPage() {
       }
     : undefined;
 
-  const formatDateRange = (start: string, end: string) => {
-    try {
-      const s = new Date(start);
-      const e = new Date(end);
-      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts);
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
-    } catch {
-      return `${start} – ${end}`;
-    }
-  };
-
   if (!regattaId) return <p className="p-8">Loading…</p>;
   if (!regatta) return <p className="p-8">Loading regatta…</p>;
 
@@ -112,6 +101,11 @@ export default function RegattaEntryPage() {
         <div className="absolute inset-0 bg-black/40" />
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
           <h1 className="text-3xl md:text-4xl font-extrabold mb-2 drop-shadow-lg">{regatta.name}</h1>
+          {availableClasses.length > 0 && (
+            <p className="text-lg md:text-xl font-semibold opacity-95 drop-shadow mb-1">
+              {availableClasses.join(' • ')}
+            </p>
+          )}
           <p className="text-base md:text-lg opacity-95 drop-shadow">
             {regatta.location} · {formatDateRange(regatta.start_date, regatta.end_date)}
           </p>

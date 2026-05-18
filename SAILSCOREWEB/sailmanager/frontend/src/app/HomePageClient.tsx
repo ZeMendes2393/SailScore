@@ -131,7 +131,7 @@ export default function HomePageClient({
 
   const formatNewsDate = (s: string) => {
     try {
-      return new Date(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
+      return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     } catch {
       return s;
     }
@@ -161,8 +161,8 @@ export default function HomePageClient({
       const s = new Date(start);
       const e = new Date(end);
       const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('pt-PT', opts);
-      return `${s.toLocaleDateString('pt-PT', opts)} – ${e.toLocaleDateString('pt-PT', opts)}`;
+      if (s.getTime() === e.getTime()) return s.toLocaleDateString('en-GB', opts);
+      return `${s.toLocaleDateString('en-GB', opts)} – ${e.toLocaleDateString('en-GB', opts)}`;
     } catch {
       return `${start} – ${end}`;
     }

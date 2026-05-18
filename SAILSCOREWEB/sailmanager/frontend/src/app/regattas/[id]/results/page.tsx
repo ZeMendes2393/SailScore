@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import RegattaHeader from "../components/RegattaHeader"
 import ResultsViewer from "../components/results/ResultsViewer"
+import { formatDateRange } from '@/lib/formatDate'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000'
 
@@ -85,18 +86,6 @@ export default function ResultsPage() {
       }
     : undefined
 
-  const formatDateRange = (start: string, end: string) => {
-    try {
-      const s = new Date(start)
-      const e = new Date(end)
-      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }
-      if (s.getTime() === e.getTime()) return s.toLocaleDateString('en-GB', opts)
-      return `${s.toLocaleDateString('en-GB', opts)} – ${e.toLocaleDateString('en-GB', opts)}`
-    } catch {
-      return `${start} – ${end}`
-    }
-  }
-
   return (
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader regattaId={id} />
@@ -116,6 +105,11 @@ export default function ResultsPage() {
             <Link href={`/regattas/${id}`} className="text-sm opacity-90 hover:opacity-100 mb-4 inline-block">← Back to regatta</Link>
             <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
             <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
+            {availableClasses.length > 0 && (
+              <p className="text-lg md:text-xl font-semibold mt-1 opacity-95 drop-shadow">
+                {availableClasses.join(' • ')}
+              </p>
+            )}
             <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">{formatDateRange(regatta.start_date, regatta.end_date)}</p>
           </div>
         </section>

@@ -158,7 +158,7 @@ export default function ExistingFleetSet({
         {selectedSet.published_at && (
           <p className="text-xs text-gray-500">
             Published on:{' '}
-            {new Date(selectedSet.published_at).toLocaleString()}
+            {new Date(selectedSet.published_at).toLocaleString('en-GB')}
           </p>
         )}
       </div>

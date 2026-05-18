@@ -120,8 +120,8 @@ function FragmentRow({
               <Field label="Requested score" value={fmtNum(r.requested_score)} />
               <Field label="Boat ahead" value={fmtText(r.boat_ahead)} />
               <Field label="Boat behind" value={fmtText(r.boat_behind)} />
-              <Field label="Created at" value={r.created_at ? new Date(r.created_at).toLocaleString() : '—'} />
-              <Field label="Updated at" value={r.updated_at ? new Date(r.updated_at).toLocaleString() : '—'} />
+              <Field label="Created at" value={r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : '—'} />
+              <Field label="Updated at" value={r.updated_at ? new Date(r.updated_at).toLocaleString('en-GB') : '—'} />
             </div>
           </td>
         </tr>

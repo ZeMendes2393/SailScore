@@ -412,10 +412,12 @@ export function useFleets() {
         );
 
         await refreshSetsAndRaces();
-        setSuccessMessage('Races updated successfully.');
+        const msg = 'Races atualizadas com sucesso.';
+        setSuccessMessage(msg);
+        notify.success(msg);
       } catch (err) {
         console.error('updateFleetSetRaces falhou:', err);
-        notify.error('Could not update races for this Fleet Set.');
+        notify.error('Nao foi possivel atualizar as races deste Fleet Set.');
       }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
@@ -423,37 +425,58 @@ export function useFleets() {
 
   const publishSet = useCallback(
     async (setId: number) => {
-      await apiSend(
-        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/publish`,
-        'POST'
-      );
-      await refreshSetsAndRaces();
-        setSuccessMessage('Fleet Set published successfully.');
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/publish`,
+          'POST'
+        );
+        await refreshSetsAndRaces();
+        const msg = 'Fleet Set publicado com sucesso.';
+        setSuccessMessage(msg);
+        notify.success(msg);
+      } catch (e: any) {
+        notify.error(e?.message ?? 'Falha ao publicar Fleet Set.');
+        throw e;
+      }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
 
   const unpublishSet = useCallback(
     async (setId: number) => {
-      await apiSend(
-        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/unpublish`,
-        'POST'
-      );
-      await refreshSetsAndRaces();
-        setSuccessMessage('Fleet Set unpublished successfully.');
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}/unpublish`,
+          'POST'
+        );
+        await refreshSetsAndRaces();
+        const msg = 'Fleet Set despublicado com sucesso.';
+        setSuccessMessage(msg);
+        notify.success(msg);
+      } catch (e: any) {
+        notify.error(e?.message ?? 'Falha ao despublicar Fleet Set.');
+        throw e;
+      }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
 
   const updateSetTitle = useCallback(
     async (setId: number, newTitle: string) => {
-      await apiSend(
-        `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}`,
-        'PATCH',
-        { public_title: newTitle }
-      );
-      await refreshSetsAndRaces();
-        setSuccessMessage('Title updated successfully.');
+      try {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(selectedClass!)}/fleet-sets/${setId}`,
+          'PATCH',
+          { public_title: newTitle }
+        );
+        await refreshSetsAndRaces();
+        const msg = 'Titulo do Fleet Set atualizado com sucesso.';
+        setSuccessMessage(msg);
+        notify.success(msg);
+      } catch (e: any) {
+        notify.error(e?.message ?? 'Falha ao atualizar titulo do Fleet Set.');
+        throw e;
+      }
     },
     [regattaId, selectedClass, refreshSetsAndRaces]
   );
@@ -501,8 +524,13 @@ export function useFleets() {
         await refreshSetsAndRaces();
         setSelectedSetId(null);
 
-        setSuccessMessage('Fleet Set deleted successfully.');
+        const msg = force
+          ? 'Fleet Set e resultados associados apagados com sucesso.'
+          : 'Fleet Set apagado com sucesso.';
+        setSuccessMessage(msg);
+        notify.success(msg);
       } catch (e: any) {
+        notify.error(e?.message ?? 'Falha ao apagar Fleet Set.');
         throw e;
       }
     },

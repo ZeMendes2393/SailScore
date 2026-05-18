@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPatch } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
+import notify from '@/lib/notify';
 
 type QuestionRead = {
   id: number;
@@ -48,10 +49,15 @@ export default function Questions({ regattaId }: { regattaId: number }) {
   useEffect(() => { fetchRows(); }, [listPath]);
 
   async function save(id: number) {
-    await apiPatch(`/regattas/${regattaId}/questions/${id}`, patch);
-    setEditingId(null);
-    setPatch({});
-    await fetchRows();
+    try {
+      await apiPatch(`/regattas/${regattaId}/questions/${id}`, patch);
+      setEditingId(null);
+      setPatch({});
+      notify.success('Question updated.');
+      await fetchRows();
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to update question.');
+    }
   }
 
   return (

@@ -97,7 +97,7 @@ export default function QuestionsPage() {
                     <span className="text-gray-500">—</span>
                   )}
                 </td>
-                <td className="p-2">{new Date(r.created_at).toLocaleString()}</td>
+                <td className="p-2">{new Date(r.created_at).toLocaleString('en-GB')}</td>
               </tr>
             ))}
             {!rows.length && !loading && (

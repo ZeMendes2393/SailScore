@@ -31,7 +31,7 @@ function formatDateDMY(iso: string): string {
   if (!m) return iso;
   const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   if (!Number.isFinite(dt.getTime())) return iso;
-  return new Intl.DateTimeFormat("pt-PT", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

@@ -318,6 +318,7 @@ class RegattaRead(RegattaBase):
     id: int
     organization_id: int
     organization_slug: Optional[str] = None  # slug público da org (multi-tenant)
+    class_names: List[str] = []
     scoring_codes: Optional[Dict[str, float]] = None
     # Por classe: Dict[class_name, List[column_id]]. Legado: List[str] (uma config para todas).
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None

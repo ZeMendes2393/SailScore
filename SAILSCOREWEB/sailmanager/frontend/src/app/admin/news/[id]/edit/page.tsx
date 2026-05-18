@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiGet, apiPatch } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
+import notify from '@/lib/notify';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -101,9 +102,12 @@ export default function EditNewsPage() {
         },
         token ?? undefined
       );
+      notify.success('News updated successfully.');
       router.push(withOrg('/admin/news', orgSlug));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save.');
+      const msg = err instanceof Error ? err.message : 'Failed to save.';
+      setError(msg);
+      notify.error(msg);
     } finally {
       setSaving(false);
     }

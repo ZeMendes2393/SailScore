@@ -7,6 +7,7 @@ import { useDashboardOrg } from '@/context/DashboardOrgContext';
 import { apiGet, apiPost } from '@/lib/api';
 import { useDashboardRegattaId } from '@/lib/dashboardRegattaScope';
 import { formatSailNumber } from '@/utils/countries';
+import notify from '@/lib/notify';
 
 type EntryOption = {
   id: number;
@@ -70,7 +71,10 @@ export default function NewQuestionPage() {
         token
       );
 
+      notify.success('Question submitted successfully.');
       router.replace(withOrg('/dashboard/questions'));
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to submit question.');
     } finally {
       setSubmitting(false);
     }
