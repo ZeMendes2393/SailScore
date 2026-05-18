@@ -10,15 +10,10 @@ export default function BookDemoForm() {
   const [clubName, setClubName] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
-  const [honeypot, setHoneypot] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (honeypot.trim()) {
-      toast.success('Thanks — we will get back to you.');
-      return;
-    }
     setLoading(true);
     try {
       const res = await submitDemoRequest({
@@ -48,18 +43,6 @@ export default function BookDemoForm() {
 
   return (
     <form className="ss-demo-form" onSubmit={onSubmit} noValidate>
-      <div className="ss-demo-form-hp" aria-hidden="true">
-        <label htmlFor="ss-demo-company">Company</label>
-        <input
-          id="ss-demo-company"
-          name="company"
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          value={honeypot}
-          onChange={(e) => setHoneypot(e.target.value)}
-        />
-      </div>
       <div className="ss-field">
         <label htmlFor="ss-demo-name">Your name</label>
         <input
