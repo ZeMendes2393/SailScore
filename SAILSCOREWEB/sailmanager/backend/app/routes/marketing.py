@@ -23,10 +23,21 @@ _WS = re.compile(r"\s+")
 
 
 def _notify_email() -> str:
-    return (
-        os.getenv("DEMO_REQUEST_NOTIFY_EMAIL", "").strip()
-        or os.getenv("DEFAULT_CLUB_REPLY_TO", "").strip()
-    )
+    # Destination mailbox for inbound marketing/demo requests.
+    # Never use "no-reply" addresses as recipients.
+    for key in (
+        "DEMO_REQUEST_NOTIFY_EMAIL",
+        "MARKETING_NOTIFY_EMAIL",
+        "SAILSCORE_PUBLIC_CONTACT_EMAIL",
+        "DEFAULT_CLUB_REPLY_TO",
+    ):
+        value = os.getenv(key, "").strip()
+        if not value:
+            continue
+        if value.lower().startswith("no-reply@"):
+            continue
+        return value
+    return ""
 
 
 class DemoRequestIn(BaseModel):
