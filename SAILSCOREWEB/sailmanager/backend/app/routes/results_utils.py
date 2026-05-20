@@ -127,10 +127,105 @@ def delete_results_for_entry(db: Session, entry: models.Entry) -> int:
     return len(to_delete)
 
 
-def sync_entry_results_eligibility(db: Session, entry: models.Entry) -> int:
-    """Remove resultados se a entry deixou de estar paid+confirmed."""
-    if entry_is_results_eligible(entry):
+def add_entry_results_as_dnc(
+    db: Session,
+    entry: models.Entry,
+    *,
+    only_scored_races: bool = True,
+) -> int:
+    """
+    Garante presença da entry nas races da classe/regata.
+    Se já houver resultados numa race e a entry não existir, cria DNC no fim.
+    """
+    if not entry_is_results_eligible(entry):
         return 0
+
+    class_name = (getattr(entry, "class_name", None) or "").strip()
+    sn_norm = _norm_sn(getattr(entry, "sail_number", None))
+    if not class_name or not sn_norm:
+        return 0
+
+    races = (
+        db.query(models.Race)
+        .filter(
+            models.Race.regatta_id == int(entry.regatta_id),
+            func.lower(func.trim(models.Race.class_name))
+            == func.lower(func.trim(class_name)),
+        )
+        .order_by(models.Race.order_index.asc(), models.Race.id.asc())
+        .all()
+    )
+
+    created_total = 0
+    entry_key = _fleet_assignment_key(sn_norm, getattr(entry, "boat_country_code", None))
+
+    for race in races:
+        if only_scored_races:
+            has_any = (
+                db.query(models.Result.id)
+                .filter(models.Result.race_id == int(race.id))
+                .first()
+            )
+            if not has_any:
+                continue
+
+        existing_rows = (
+            db.query(models.Result.sail_number, models.Result.boat_country_code)
+            .filter(models.Result.race_id == int(race.id))
+            .all()
+        )
+        existing_keys: Set[Tuple[str, str]] = set()
+        for sn_raw, cc_raw in existing_rows:
+            snn = _norm_sn(sn_raw)
+            if snn:
+                existing_keys.add(_fleet_assignment_key(snn, cc_raw))
+        if entry_key in existing_keys:
+            continue
+
+        ctx = _build_competitor_context_for_race(db, race)
+        pts = _auto_n_plus_one_points(ctx, sn_norm, getattr(entry, "boat_country_code", None))
+
+        max_pos = (
+            db.query(models.Result.position)
+            .filter(models.Result.race_id == int(race.id))
+            .order_by(models.Result.position.desc())
+            .first()
+        )
+        next_pos = int(max_pos[0]) + 1 if max_pos and max_pos[0] is not None else 1
+
+        skipper = f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip() or None
+
+        db.add(
+            models.Result(
+                regatta_id=int(race.regatta_id),
+                race_id=int(race.id),
+                sail_number=sn_norm,
+                boat_country_code=getattr(entry, "boat_country_code", None),
+                boat_name=getattr(entry, "boat_name", None),
+                class_name=str(race.class_name or class_name),
+                skipper_name=skipper,
+                rating=getattr(entry, "rating", None),
+                position=next_pos,
+                points=float(pts),
+                code="DNC",
+                points_override=None,
+            )
+        )
+        db.flush()
+        normalize_race_results(db, race)
+        created_total += 1
+
+    return created_total
+
+
+def sync_entry_results_eligibility(db: Session, entry: models.Entry) -> int:
+    """
+    Sincroniza resultados com estado da entry:
+    - paid+confirmed: garante DNC nas races já pontuadas onde faltava.
+    - caso contrário: remove resultados dessa entry.
+    """
+    if entry_is_results_eligible(entry):
+        return add_entry_results_as_dnc(db, entry, only_scored_races=True)
     return delete_results_for_entry(db, entry)
 
 

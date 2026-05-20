@@ -897,6 +897,10 @@ def _persist_new_entry(
     db.add(new_entry)
     db.commit()
     db.refresh(new_entry)
+    created_dnc = sync_entry_results_eligibility(db, new_entry)
+    if created_dnc:
+        db.commit()
+        db.refresh(new_entry)
 
     if send_entry_email and background is not None:
         sailor_name = (
