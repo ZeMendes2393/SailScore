@@ -306,7 +306,7 @@ def _parse_grid_rows(
             return (row[idx] or "").strip()
 
         sail_raw = cell("sail")
-        country, sail_num = _parse_sail_identification(sail_raw)
+        country, sail_num = parse_sail_identification(sail_raw)
         if not sail_num:
             warnings.append(f"Row {i}: skipped — missing sail number.")
             continue
