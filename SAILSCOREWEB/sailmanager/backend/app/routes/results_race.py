@@ -31,6 +31,7 @@ from app.routes.results_utils import (
     compute_points_for_code,
     ensure_missing_results_as_dnc,
     normalize_race_results,
+    filter_results_to_eligible_entries,
 )
 
 router = APIRouter()
@@ -121,11 +122,17 @@ def _build_result_identity_filter(
 
 @router.get("/races/{race_id}/results", response_model=List[schemas.ResultRead])
 def get_results_for_race(race_id: int, db: Session = Depends(get_db)):
-    return (
+    race = db.query(models.Race).filter(models.Race.id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    rows = (
         db.query(models.Result)
         .filter(models.Result.race_id == race_id)
         .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
+    )
+    return filter_results_to_eligible_entries(
+        db, int(race.regatta_id), rows, str(race.class_name or "")
     )
 
 
@@ -407,11 +414,16 @@ def get_race_results_pdf(
     if not regatta:
         raise HTTPException(status_code=404, detail="Regatta not found")
 
-    results = (
-        db.query(models.Result)
-        .filter(models.Result.race_id == race_id)
-        .order_by(models.Result.position.asc(), models.Result.id.asc())
-        .all()
+    results = filter_results_to_eligible_entries(
+        db,
+        int(race.regatta_id),
+        (
+            db.query(models.Result)
+            .filter(models.Result.race_id == race_id)
+            .order_by(models.Result.position.asc(), models.Result.id.asc())
+            .all()
+        ),
+        str(race.class_name or ""),
     )
     if not results:
         raise HTTPException(status_code=404, detail="No results for this race")

@@ -106,7 +106,8 @@ export default function Page() {
 
   useEffect(() => {
     if (entry) {
-      setForm(entry);
+      const normalizedSail = sanitizeSailNumberInput(entry.sail_number ?? '');
+      setForm({ ...entry, sail_number: normalizedSail });
       setIsDirty(false);
       setRatingInput(entry.rating != null ? String(entry.rating) : '');
       setOrcLowInput(entry.orc_low != null ? String(entry.orc_low) : '');
@@ -156,7 +157,12 @@ export default function Page() {
 
     try {
       setSaving(true);
-      const updated = await patch(changed, { propagate_keys: propagate });
+      const payload = {
+        ...changed,
+        sail_number: sanitizeSailNumberInput(form.sail_number ?? ''),
+        boat_country_code: (form.boat_country_code ?? '').toString().trim().toUpperCase() || undefined,
+      };
+      const updated = await patch(payload, { propagate_keys: propagate });
       if (updated) {
         const wasFullyConfirmed = Boolean(entry.paid) && Boolean(entry.confirmed);
         const nowFullyConfirmed = Boolean(updated.paid) && Boolean(updated.confirmed);

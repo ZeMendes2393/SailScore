@@ -16,6 +16,7 @@ from app.scoring.tiebreakers import (
     tie_signature_overall,       # ✅ NOVO (para ranks com empate 1,2,2,4)
 )
 from app.services.results_pdf import build_results_pdf
+from app.routes.results_utils import build_eligible_result_identities, result_row_identity
 
 router = APIRouter()
 
@@ -515,6 +516,18 @@ def get_overall_results_data(
                 "sail_number": r.sail_number,
                 "boat_country_code": getattr(r, "boat_country_code", None),
             }
+
+    # Só entradas existentes, paid+confirmed (resultados órfãos não aparecem)
+    eligible_identities = build_eligible_result_identities(db, regatta_id, class_name)
+    pr_rows = [r for r in pr_rows if result_row_identity(r) in eligible_identities]
+    per_race_map = {
+        k: v for k, v in per_race_map.items()
+        if (k[0].strip().lower(), k[1]) in eligible_identities
+    }
+    info_map = {
+        k: v for k, v in info_map.items()
+        if (k[0].strip().lower(), k[1]) in eligible_identities
+    }
 
     # Lookup boat_model e bow_number a partir das entries (para a resposta overall)
     entry_extra: dict[tuple[str, str], dict[str, object]] = {}

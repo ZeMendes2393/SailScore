@@ -52,6 +52,88 @@ def _fleet_assignment_key(sn_norm: Optional[str], boat_country_code: Optional[st
     return (sn, cc)
 
 
+def _sc_key(sail_number: Any, boat_country_code: Any) -> str:
+    sn = _norm_sn(sail_number) or ""
+    cc = (str(boat_country_code) if boat_country_code is not None else "").strip().upper()
+    return f"{sn}||{cc}"
+
+
+def _class_identity_key(class_name: Any) -> str:
+    return str(class_name or "").strip().lower()
+
+
+def result_row_identity(result: models.Result) -> Tuple[str, str]:
+    """(class_name_lower, sail||country) — mesma chave que entries elegíveis."""
+    return (_class_identity_key(result.class_name), _sc_key(result.sail_number, result.boat_country_code))
+
+
+def entry_result_identity(entry: models.Entry) -> Tuple[str, str]:
+    return (_class_identity_key(entry.class_name), _sc_key(entry.sail_number, entry.boat_country_code))
+
+
+def entry_is_results_eligible(entry: models.Entry) -> bool:
+    return bool(entry.paid) and bool(entry.confirmed)
+
+
+def build_eligible_result_identities(
+    db: Session,
+    regatta_id: int,
+    class_name: Optional[str] = None,
+) -> Set[Tuple[str, str]]:
+    """Conjunto de identidades (classe + vela + país) com entry paid+confirmed."""
+    q = db.query(models.Entry).filter(
+        models.Entry.regatta_id == regatta_id,
+        models.Entry.paid.is_(True),
+        models.Entry.confirmed.is_(True),
+    )
+    if class_name:
+        q = q.filter(
+            func.lower(func.trim(models.Entry.class_name))
+            == func.lower(func.trim(str(class_name)))
+        )
+    return {entry_result_identity(e) for e in q.all()}
+
+
+def filter_results_to_eligible_entries(
+    db: Session,
+    regatta_id: int,
+    results: List[models.Result],
+    class_name: Optional[str] = None,
+) -> List[models.Result]:
+    eligible = build_eligible_result_identities(db, regatta_id, class_name)
+    return [r for r in results if result_row_identity(r) in eligible]
+
+
+def delete_results_for_entry(db: Session, entry: models.Entry) -> int:
+    """Apaga todos os resultados desta identidade na regata e recompacta as provas."""
+    identity = entry_result_identity(entry)
+    regatta_id = int(entry.regatta_id)
+
+    rows = db.query(models.Result).filter(models.Result.regatta_id == regatta_id).all()
+    to_delete = [r for r in rows if result_row_identity(r) == identity]
+    if not to_delete:
+        return 0
+
+    race_ids = {int(r.race_id) for r in to_delete}
+    for r in to_delete:
+        db.delete(r)
+    db.flush()
+
+    for race_id in race_ids:
+        race = db.query(models.Race).filter(models.Race.id == race_id).first()
+        if race:
+            normalize_race_results(db, race)
+
+    return len(to_delete)
+
+
+def sync_entry_results_eligibility(db: Session, entry: models.Entry) -> int:
+    """Remove resultados se a entry deixou de estar paid+confirmed."""
+    if entry_is_results_eligible(entry):
+        return 0
+    return delete_results_for_entry(db, entry)
+
+
 # =========================================================
 # Handicap / Time Scoring helpers
 # =========================================================

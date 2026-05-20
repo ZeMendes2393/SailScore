@@ -28,8 +28,14 @@ from app.services.entry_list_import import (
 )
 from app.utils.sail_number import (
     SAIL_NUMBER_MAX_LEN,
+    extract_sail_digits,
     normalize_sail_number_required,
     normalize_sail_number_optional,
+    parse_sail_identification,
+)
+from app.routes.results_utils import (
+    delete_results_for_entry,
+    sync_entry_results_eligibility,
 )
 
 router = APIRouter()
@@ -239,6 +245,29 @@ def count_entries_by_regatta(
 def _norm_country_code(v: Optional[str]) -> str:
     return ((v or "").strip().upper() or "")
 
+
+def _coerce_stored_sail_number(entry: models.Entry) -> bool:
+    """Guarda só dígitos em sail_number; corrige imports antigos (ex. POR30275)."""
+    raw = (entry.sail_number or "").strip()
+    if not raw:
+        return False
+    digits = extract_sail_digits(raw)
+    if not digits:
+        return False
+    changed = False
+    if entry.sail_number != digits:
+        entry.sail_number = digits
+        changed = True
+    if not _norm_country_code(getattr(entry, "boat_country_code", None)):
+        country, _ = parse_sail_identification(raw)
+        if country:
+            entry.boat_country_code = country
+            if hasattr(entry, "boat_country"):
+                entry.boat_country = country
+            changed = True
+    return changed
+
+
 def _entry_duplicate_sail(
     db: Session,
     regatta_id: int,
@@ -251,11 +280,12 @@ def _entry_duplicate_sail(
     if not (class_name and (sail_number or "").strip()):
         return False
     code = _norm_country_code(boat_country_code)
+    sail_cmp = extract_sail_digits(sail_number) or (sail_number or "").strip()
     q = (
         db.query(models.Entry.id)
         .filter(models.Entry.regatta_id == regatta_id)
         .filter(func.lower(func.trim(models.Entry.class_name)) == func.lower(class_name.strip()))
-        .filter(func.lower(func.trim(models.Entry.sail_number)) == func.lower((sail_number or "").strip()))
+        .filter(func.lower(func.trim(models.Entry.sail_number)) == func.lower(sail_cmp))
     )
     if code:
         q = q.filter(func.upper(func.trim(models.Entry.boat_country_code)) == code)
@@ -742,7 +772,7 @@ def _import_row_to_entry_create(
         crew_members = [crew_member]
 
     cc = (row.boat_country_code or "POR").strip().upper()
-    sail = (row.sail_number or "").strip()
+    sail = extract_sail_digits((row.sail_number or "").strip()) or (row.sail_number or "").strip()
     return schemas.EntryCreate(
         regatta_id=regatta_id,
         class_name=class_name,
@@ -1094,6 +1124,9 @@ def get_entry_by_id(entry_id: int, db: Session = Depends(get_db)):
     entry = db.query(models.Entry).filter(models.Entry.id == entry_id).first()
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
+    if _coerce_stored_sail_number(entry):
+        db.commit()
+        db.refresh(entry)
     return entry
 
 
@@ -1111,6 +1144,7 @@ def delete_entry(
         raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
 
+    delete_results_for_entry(db, entry)
     db.delete(entry)
     db.commit()
     return {"message": "Entry deleted permanently.", "id": entry_id}
@@ -1279,6 +1313,8 @@ def patch_entry(
             # se a tabela não existir no projeto, ignorar silenciosamente
             pass
 
+    _coerce_stored_sail_number(entry)
+    sync_entry_results_eligibility(db, entry)
     db.commit()
     db.refresh(entry)
     return entry
@@ -1296,6 +1332,7 @@ def toggle_paid(
         raise HTTPException(status_code=404, detail="Entry not found")
     _assert_scorer_can_manage_entry(db, current_user, entry)
     entry.paid = not entry.paid
+    sync_entry_results_eligibility(db, entry)
     db.commit()
     return {"id": entry.id, "paid": entry.paid}
 

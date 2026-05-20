@@ -307,6 +307,7 @@ def _parse_grid_rows(
 
         sail_raw = cell("sail")
         country, sail_num = parse_sail_identification(sail_raw)
+        sail_num = extract_sail_digits(sail_num) or extract_sail_digits(sail_raw)
         if not sail_num:
             warnings.append(f"Row {i}: skipped — missing sail number.")
             continue

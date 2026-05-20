@@ -10,7 +10,7 @@ from app import models, schemas
 from app.org_scope import assert_user_can_manage_org_id
 from utils.auth_utils import get_current_user
 
-from app.routes.results_utils import _norm
+from app.routes.results_utils import _norm, filter_results_to_eligible_entries
 
 router = APIRouter()
 
@@ -64,4 +64,5 @@ def get_results_by_regatta(
     q = db.query(models.Result).filter(models.Result.regatta_id == regatta_id)
     if class_name:
         q = q.filter(models.Result.class_name == class_name)
-    return q.order_by(models.Result.position.asc()).all()
+    rows = q.order_by(models.Result.position.asc()).all()
+    return filter_results_to_eligible_entries(db, regatta_id, rows, class_name)

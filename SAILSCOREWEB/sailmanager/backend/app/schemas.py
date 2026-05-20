@@ -662,6 +662,20 @@ class EntryListRead(BaseModel):
     created_at: Optional[datetime] = None
     waiting_list: Optional[bool] = None
 
+    @field_validator("boat_country_code", mode="before")
+    @classmethod
+    def _v_list_boat_country_code(cls, v):
+        return _normalize_country_code(v)
+
+    @field_validator("sail_number", mode="before")
+    @classmethod
+    def _v_list_sail_number(cls, v):
+        from app.utils.sail_number import normalize_sail_number_optional
+
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        return normalize_sail_number_optional(v)
+
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -677,6 +691,18 @@ class EntryImportRow(BaseModel):
     crew_last_name: Optional[str] = None
     crew_license: Optional[str] = None
     registration_number: Optional[str] = None
+
+    @field_validator("boat_country_code", mode="before")
+    @classmethod
+    def _v_import_boat_country_code(cls, v):
+        return _normalize_country_code(v) or "POR"
+
+    @field_validator("sail_number", mode="before")
+    @classmethod
+    def _v_import_sail_number(cls, v):
+        from app.utils.sail_number import normalize_sail_number_required
+
+        return normalize_sail_number_required(v)
 
 
 class EntryImportPreviewRequest(BaseModel):
