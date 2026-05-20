@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import RegattaHeader from '../components/RegattaHeader';
+import RegattaHeader, { REGATTA_HERO_HEADER_PT } from '../components/RegattaHeader';
 import EntryList from '../components/entrylist/EntryList';
 import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
 import { formatDateRange } from '@/lib/formatDate';
@@ -89,9 +89,9 @@ export default function RegattaEntryPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <RegattaHeader regattaId={regattaId} />
+      <RegattaHeader regattaId={regattaId} overlayHero />
       <section
-        className="relative w-screen text-center py-16 md:py-20"
+        className={`relative w-screen text-center py-16 md:py-20 ${REGATTA_HERO_HEADER_PT}`}
         style={{
           marginLeft: 'calc(50% - 50vw)',
           marginRight: 'calc(50% - 50vw)',

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import RegattaHeader from "../components/RegattaHeader"
+import RegattaHeader, { REGATTA_HERO_HEADER_PT } from "../components/RegattaHeader"
 import ResultsViewer from "../components/results/ResultsViewer"
 import { formatDateRange } from '@/lib/formatDate'
 
@@ -88,12 +88,12 @@ export default function ResultsPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <RegattaHeader regattaId={id} />
+      <RegattaHeader regattaId={id} overlayHero />
 
       {/* Hero */}
       {regatta && (
         <section
-          className="relative w-screen text-center py-20 md:py-28"
+          className={`relative w-screen text-center py-20 md:py-28 ${REGATTA_HERO_HEADER_PT}`}
           style={{
             marginLeft: 'calc(50% - 50vw)',
             marginRight: 'calc(50% - 50vw)',

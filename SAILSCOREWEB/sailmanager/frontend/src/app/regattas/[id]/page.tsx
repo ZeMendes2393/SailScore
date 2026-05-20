@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { FileText, List, PenLine, Trophy } from 'lucide-react';
 
-import RegattaHeader from './components/RegattaHeader';
+import RegattaHeader, { REGATTA_HERO_HEADER_PT } from './components/RegattaHeader';
 import { formatDateRange } from '@/lib/formatDate';
 
 const API_BASE =
@@ -152,11 +152,15 @@ export default function RegattaHomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <RegattaHeader regattaId={regattaId} organizationSlug={regatta?.organization_slug} />
+      <RegattaHeader
+        regattaId={regattaId}
+        organizationSlug={regatta?.organization_slug}
+        overlayHero
+      />
 
       {/* Hero: carousel de até 3 imagens, rotação automática, focal point personalizado */}
       <section
-        className="relative w-full min-h-[70vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-14 md:py-20 overflow-hidden"
+        className={`relative w-full min-h-[70vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-14 md:py-20 overflow-hidden ${REGATTA_HERO_HEADER_PT}`}
         style={{
           ...(heroBgStyle ?? { background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)' }),
         }}

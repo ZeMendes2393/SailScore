@@ -550,13 +550,13 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Back to regatta menu */}
+      {/* Back to regatta */}
       <div className="mb-4">
         <Link
           href={`${manageRegattaBasePath}/${regattaId}`}
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
         >
-          ← Back to regatta menu
+          ← Back to regatta
         </Link>
       </div>
 
