@@ -46,6 +46,7 @@ interface Props {
   ) => void;
   onUpdateCode: (entryId: number, code: string | null) => void;
   onSave: () => void;
+  saving?: boolean;
 }
 
 // Códigos que retiram do ranking (N+1) — alinhado com o backend
@@ -305,6 +306,7 @@ export default function TimeScoringEditor({
   onUpdateField,
   onUpdateCode,
   onSave,
+  saving = false,
 }: Props) {
   const [filter, setFilter] = useState('');
   const [startTimeEdit, setStartTimeEdit] = useState(raceStartTime);
@@ -1008,11 +1010,11 @@ export default function TimeScoringEditor({
             <button
               type="button"
               onClick={onSave}
-              disabled={scoringLockedByMissingRating}
+              disabled={scoringLockedByMissingRating || saving}
               title={scoringLockedByMissingRating ? 'Scoring locked: complete all ratings first' : ''}
               className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Handicap results
+              {saving ? 'Saving results…' : 'Save Handicap results'}
             </button>
           </div>
         )}

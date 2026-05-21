@@ -11,7 +11,7 @@ import {
   AUTO_N_PLUS_ONE,
   AUTO_N_PLUS_ONE_DISCARDABLE,
   AUTO_N_PLUS_ONE_NON_DISCARDABLE,
-  PRP_CODE_PREFIX,
+  extractPrpName,
   formatDelta,
   getEffectiveHandicapRating,
   isAutoNPlusOne,
@@ -213,7 +213,7 @@ export default function ExistingResultsTable({
     return {
       autoDiscardable: [...AUTO_N_PLUS_ONE_DISCARDABLE],
       autoNonDiscardable: [...AUTO_N_PLUS_ONE_NON_DISCARDABLE],
-      adjustable: Array.from(new Set([...ADJUSTABLE_CODES, PRP_CODE_PREFIX])),
+      adjustable: [...ADJUSTABLE_CODES],
       custom,
     };
   }, [customMap]);
@@ -237,6 +237,11 @@ export default function ExistingResultsTable({
   const formatCodeWithValue = (row: ApiResult) => {
     const c = (row.code || '').toUpperCase();
     if (!c) return '';
+    if (c.startsWith('PRP')) {
+      const n = extractPrpName(row.code) || 'Penalty';
+      const ptsStr = Number.isFinite(Number(row.points)) ? String(row.points) : '';
+      return ptsStr ? `${n} ${ptsStr}` : n;
+    }
     const ptsStr = Number.isFinite(Number(row.points)) ? String(row.points) : '';
     return ptsStr ? `${c} ${ptsStr}` : c;
   };

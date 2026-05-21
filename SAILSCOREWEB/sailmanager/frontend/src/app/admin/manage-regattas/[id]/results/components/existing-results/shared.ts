@@ -21,6 +21,7 @@ export const AUTO_N_PLUS_ONE = new Set<string>([
 
 export const ADJUSTABLE_CODES = ['RDG', 'SCP', 'ZPF', 'DPI'] as const;
 export const PRP_CODE_PREFIX = 'PRP';
+export const PRP_TEMPLATE_CODE = '__PRP_TEMPLATE__';
 
 export const START_DAY = 0;
 
@@ -50,6 +51,16 @@ export const isAdjustable = (c: string | null | undefined) =>
 
 export const isPrpCode = (c: string | null | undefined) =>
   !!c && String(c).toUpperCase().startsWith(PRP_CODE_PREFIX);
+
+export const buildPrpCode = (name: string) => `${PRP_CODE_PREFIX}:${name.trim()}`;
+
+export const extractPrpName = (code: string | null | undefined): string => {
+  if (!isPrpCode(code)) return '';
+  const raw = String(code ?? '').trim();
+  const idx = raw.indexOf(':');
+  if (idx >= 0) return raw.slice(idx + 1).trim();
+  return raw.replace(/^PRP\b[:\s-]*/i, '').trim();
+};
 
 export const isAutoNPlusOne = (c: string | null | undefined) =>
   !!c && AUTO_N_PLUS_ONE.has(String(c).toUpperCase());

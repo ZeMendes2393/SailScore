@@ -125,6 +125,29 @@ export default function RaceResultsManager({
 
   // bloquear override enquanto guarda
   const [savingOverridePoints, setSavingOverridePoints] = useState(false);
+  const [savingBulkResults, setSavingBulkResults] = useState(false);
+  const [savingHandicapResults, setSavingHandicapResults] = useState(false);
+
+  const handleSaveBulk = useCallback(async () => {
+    if (savingBulkResults) return;
+    setSavingBulkResults(true);
+    try {
+      await saveBulk();
+    } finally {
+      setSavingBulkResults(false);
+    }
+  }, [saveBulk, savingBulkResults]);
+
+  const handleSaveHandicap = useCallback(async () => {
+    if (savingHandicapResults) return;
+    setSavingHandicapResults(true);
+    try {
+      const ok = await saveHandicap();
+      if (ok) setViewAndUrl('existing');
+    } finally {
+      setSavingHandicapResults(false);
+    }
+  }, [saveHandicap, savingHandicapResults]);
 
   useEffect(() => {
     setShowActionsPanel(false);
@@ -363,7 +386,7 @@ export default function RaceResultsManager({
           className="h-12 w-12 rounded-full border-[3px] border-slate-200 border-t-blue-600 animate-spin"
           aria-hidden
         />
-        <p className="text-base text-slate-600 font-medium text-center">A carregar a pontuação…</p>
+        <p className="text-base text-slate-600 font-medium text-center">Loading scoring…</p>
       </div>
     );
   }
@@ -648,7 +671,8 @@ export default function RaceResultsManager({
                     onAddEntry={addDraftEntry}
                     onMove={moveDraft}
                     onRemove={removeDraft}
-                    onSaveBulk={saveBulk}
+                    onSaveBulk={handleSaveBulk}
+                    savingBulk={savingBulkResults}
                     scoringCodes={scoringCodes ?? {}}
                     onSetDraftCode={onSetDraftCode}
                     onSetDraftPos={onSetDraftPos}
@@ -681,10 +705,8 @@ export default function RaceResultsManager({
                   onRemoveEntry={removeHandicapEntry}
                   onUpdateField={updateHandicapField}
                   onUpdateCode={updateHandicapCode}
-                  onSave={async () => {
-                    const ok = await saveHandicap();
-                    if (ok) setViewAndUrl('existing');
-                  }}
+                  onSave={handleSaveHandicap}
+                  saving={savingHandicapResults}
                 />
               </section>
             )}
@@ -701,11 +723,16 @@ export default function RaceResultsManager({
                 {(draft ?? []).length} in Score Race — confirm to save in bulk.
               </span>
               <div className="ml-auto flex items-center gap-2">
-                <button onClick={saveBulk} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">
-                  Save Results
+                <button
+                  onClick={handleSaveBulk}
+                  disabled={savingBulkResults}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {savingBulkResults ? 'Saving…' : 'Save Results'}
                 </button>
                 <button
                   onClick={() => (draft ?? []).forEach((d) => removeDraft(d.entryId))}
+                  disabled={savingBulkResults}
                   className="px-3 py-2 rounded-xl border hover:bg-gray-50"
                   title="Clear Score Race"
                 >

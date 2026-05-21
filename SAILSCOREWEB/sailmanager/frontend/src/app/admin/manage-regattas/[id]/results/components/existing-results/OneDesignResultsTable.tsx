@@ -2,8 +2,9 @@
 
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
-import { isAdjustable, isAutoNPlusOne, isPrpCode } from './shared';
+import { isAdjustable, isAutoNPlusOne, isPrpCode, PRP_TEMPLATE_CODE, buildPrpCode, extractPrpName } from './shared';
 import notify from '@/lib/notify';
+import { useState } from 'react';
 
 type CodeGroups = {
   autoDiscardable: string[];
@@ -68,6 +69,7 @@ export default function OneDesignResultsTable({
   onEditPos,
   onOverridePoints,
 }: Props) {
+  const [pendingPenaltyName, setPendingPenaltyName] = useState<Record<number, string>>({});
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
@@ -101,9 +103,9 @@ export default function OneDesignResultsTable({
               const rowBg =
                 idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60';
             const codeUpper = row.code ? row.code.toUpperCase() : null;
-            const showAdjustBox =
-              !!pendingCode[row.id] && (isAdjustable(pendingCode[row.id]) || isPrpCode(pendingCode[row.id]));
-            const isPrpPending = isPrpCode(pendingCode[row.id]);
+            const pending = pendingCode[row.id];
+            const isPrpPending = pending === PRP_TEMPLATE_CODE || isPrpCode(pending);
+            const showAdjustBox = !!pending && (isAdjustable(pending) || isPrpPending);
             const maxPos = sorted.length;
             const isChangeOpen = !!changeToOpen[row.id];
             const rawVal = changeToValue[row.id] ?? '';
@@ -112,6 +114,7 @@ export default function OneDesignResultsTable({
             const hasOverride = row.points_override != null;
             const lockedByCode = isAutoNPlusOne(codeUpper);
 
+            const selectValue = isPrpCode(row.code) ? PRP_TEMPLATE_CODE : (row.code ?? '');
             return (
               <tr key={row.id} className={rowBg}>
                 <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
@@ -156,17 +159,18 @@ export default function OneDesignResultsTable({
                     <div className="flex items-center gap-2">
                       <select
                         className="border rounded px-2 py-1"
-                        value={row.code ?? ''}
+                        value={selectValue}
                         disabled={loading}
                         onChange={(ev) => {
                           const raw = (ev.target.value || '').trim();
                           const next = raw ? raw.toUpperCase() : null;
                           clearPending(row.id);
+                          setPendingPenaltyName((p) => ({ ...p, [row.id]: extractPrpName(row.code) || '' }));
                           if (!next) {
                             onMarkCode(row.id, null, null);
                             return;
                           }
-                          if (isAdjustable(next) || isPrpCode(next)) {
+                          if (isAdjustable(next) || next === PRP_TEMPLATE_CODE || isPrpCode(next)) {
                             setPendingCode((p) => ({ ...p, [row.id]: next }));
                             setPendingPoints((p) => ({
                               ...p,
@@ -200,6 +204,9 @@ export default function OneDesignResultsTable({
                             </option>
                           ))}
                         </optgroup>
+                        <optgroup label="Penalty (name + percentage)">
+                          <option value={PRP_TEMPLATE_CODE}>Choose penalty name + percentage</option>
+                        </optgroup>
                         {codeGroups.custom.length > 0 && (
                           <optgroup label="Custom (fixed)">
                             {codeGroups.custom.map((c) => (
@@ -217,7 +224,16 @@ export default function OneDesignResultsTable({
                     </div>
                     {showAdjustBox && (
                       <div className="flex items-center gap-2 bg-gray-50 border rounded p-2">
-                        <span className="text-xs text-gray-600 w-20">{pendingCode[row.id]}</span>
+                        <span className="text-xs text-gray-600 w-20">{isPrpPending ? 'Penalty' : pendingCode[row.id]}</span>
+                        {isPrpPending && (
+                          <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-40"
+                            value={pendingPenaltyName[row.id] ?? ''}
+                            placeholder="Penalty name"
+                            onChange={(e) => setPendingPenaltyName((p) => ({ ...p, [row.id]: e.target.value }))}
+                          />
+                        )}
                         <input
                           type="number"
                           inputMode="decimal"
@@ -242,7 +258,16 @@ export default function OneDesignResultsTable({
                               );
                               return;
                             }
-                            onMarkCode(row.id, code, pts);
+                            if (isPrpPending) {
+                              const name = (pendingPenaltyName[row.id] ?? '').trim();
+                              if (!name) {
+                                notify.warning('Please set a penalty name.');
+                                return;
+                              }
+                              onMarkCode(row.id, buildPrpCode(name), pts);
+                            } else {
+                              onMarkCode(row.id, code, pts);
+                            }
                             clearPending(row.id);
                           }}
                         >

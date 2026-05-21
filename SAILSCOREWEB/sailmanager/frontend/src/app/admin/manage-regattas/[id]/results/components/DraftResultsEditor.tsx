@@ -15,6 +15,7 @@ interface Props {
   onMove: (index: number, dir: -1 | 1) => void;
   onRemove: (entryId: number) => void;
   onSaveBulk: () => void;
+  savingBulk?: boolean;
 
   scoringCodes: Record<string, number>;
   onSetDraftCode: (entryId: number, code: string | null) => void;
@@ -38,6 +39,7 @@ export default function DraftResultsEditor({
   onMove,
   onRemove,
   onSaveBulk,
+  savingBulk = false,
   scoringCodes,
   onSetDraftCode,
   onSetDraftPos,
@@ -207,8 +209,12 @@ export default function DraftResultsEditor({
             </ul>
 
             <div className="pt-2 text-right">
-              <button onClick={onSaveBulk} className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800">
-                💾 Save Results (bulk)
+              <button
+                onClick={onSaveBulk}
+                disabled={savingBulk}
+                className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {savingBulk ? 'Saving results…' : '💾 Save Results (bulk)'}
               </button>
             </div>
           </>
