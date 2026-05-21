@@ -30,6 +30,12 @@ interface ExistingResultsTableProps {
   onDelete: (rowId: number) => void;
 
   scoringCodes?: Record<string, number>;
+  scoringCodeDiscardable?: Record<string, boolean>;
+  onUpsertCustomCode?: (
+    name: string,
+    points: number,
+    discardable: boolean
+  ) => Promise<string | null>;
 
   onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
 
@@ -59,6 +65,8 @@ export default function ExistingResultsTable({
   loading,
   onEditPos,
   scoringCodes,
+  scoringCodeDiscardable,
+  onUpsertCustomCode,
   onMarkCode,
   onOverridePoints,
   isHandicapClass = false,
@@ -208,7 +216,15 @@ export default function ExistingResultsTable({
           !AUTO_N_PLUS_ONE.has(c) &&
           !(ADJUSTABLE_CODES as readonly string[]).includes(c)
       )
-      .sort();
+      .sort()
+      .map((code) => {
+        const pts = customMap[code];
+        const disc = scoringCodeDiscardable?.[code] !== false;
+        return {
+          code,
+          label: `${code} (${pts} pts${disc ? '' : ', no discard'})`,
+        };
+      });
 
     return {
       autoDiscardable: [...AUTO_N_PLUS_ONE_DISCARDABLE],
@@ -216,7 +232,7 @@ export default function ExistingResultsTable({
       adjustable: [...ADJUSTABLE_CODES],
       custom,
     };
-  }, [customMap]);
+  }, [customMap, scoringCodeDiscardable]);
 
   const [pendingCode, setPendingCode] = useState<Record<number, string>>({});
   const [pendingPoints, setPendingPoints] = useState<Record<number, string>>({});
@@ -419,6 +435,7 @@ export default function ExistingResultsTable({
         getHandicapEdit={getHandicapEdit}
         setHandicapEditField={setHandicapEditField}
         onMarkCode={onMarkCode}
+        onUpsertCustomCode={onUpsertCustomCode}
         onOverridePoints={onOverridePoints}
         onUpdateHandicapResult={onUpdateHandicapResult}
         resolveEffectiveRating={getEffectiveRatingForRow}
@@ -451,6 +468,7 @@ export default function ExistingResultsTable({
       setChangeToValue={setChangeToValue}
       setPointsValue={setPointsValue}
       onMarkCode={onMarkCode}
+      onUpsertCustomCode={onUpsertCustomCode}
       onEditPos={onEditPos}
       onOverridePoints={onOverridePoints}
     />

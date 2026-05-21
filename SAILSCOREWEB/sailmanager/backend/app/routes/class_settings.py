@@ -1,7 +1,7 @@
 # app/routes/class_settings.py
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Body, status
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ router = APIRouter(tags=["Class Settings"])
 class ClassSettingsUpdate(BaseModel):
     discard_count: Optional[int] = None
     discard_threshold: Optional[int] = None
-    scoring_codes: Optional[Dict[str, float]] = None  # ex.: {"DNF": 35, "UFD": 42}
+    scoring_codes: Optional[Dict[str, Union[float, Dict[str, Any]]]] = None
 
 class ClassSettingsOut(BaseModel):
     class_name: str
@@ -116,13 +116,24 @@ def upsert_class_settings(
     row = _get_settings_row(db, regatta_id, class_name)
 
     if row is None:
-        # criar overrides novos
+        normalized_create: Dict[str, Any] = {}
+        if body.scoring_codes is not None:
+            from app.services.scoring_code_map import (
+                normalize_custom_code_key,
+                parse_scoring_code_value,
+                serialize_scoring_code_entry,
+            )
+
+            for k, v in (body.scoring_codes or {}).items():
+                kk = normalize_custom_code_key(str(k))
+                pts, discardable = parse_scoring_code_value(v)
+                normalized_create[kk] = serialize_scoring_code_entry(pts, discardable)
         row = models.RegattaClassSettings(
             regatta_id=regatta_id,
             class_name=class_name,
             discard_count=body.discard_count,
             discard_threshold=body.discard_threshold,
-            scoring_codes=(body.scoring_codes or {}),
+            scoring_codes=normalized_create,
         )
         db.add(row)
     else:
@@ -132,7 +143,18 @@ def upsert_class_settings(
         if body.discard_threshold is not None:
             row.discard_threshold = body.discard_threshold
         if body.scoring_codes is not None:
-            row.scoring_codes = body.scoring_codes
+            from app.services.scoring_code_map import (
+                normalize_custom_code_key,
+                parse_scoring_code_value,
+                serialize_scoring_code_entry,
+            )
+
+            normalized: Dict[str, Any] = {}
+            for k, v in (body.scoring_codes or {}).items():
+                kk = normalize_custom_code_key(str(k))
+                pts, discardable = parse_scoring_code_value(v)
+                normalized[kk] = serialize_scoring_code_entry(pts, discardable)
+            row.scoring_codes = normalized
 
     db.commit()
     db.refresh(row)

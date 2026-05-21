@@ -6,6 +6,11 @@ import { apiGet, apiSend, apiDelete } from '@/lib/api';
 import type { Entry, Race, ApiResult, DraftResult, ScoringConfig } from '../types';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
+import {
+  buildScoringCodeMapEntry,
+  normalizeCustomCodeName,
+  parseScoringCodesMap,
+} from '../components/existing-results/scoringCodeMap';
 
 type EntryWithStatus = Entry & {
   paid?: boolean | null;
@@ -399,7 +404,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   const [classSettings, setClassSettings] = useState<{
     discard_count: number;
     discard_threshold: number;
-    scoring_codes: Record<string, number>;
+    scoring_codes: Record<string, unknown>;
   } | null>(null);
 
   useEffect(() => {
@@ -428,7 +433,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
               ? scoring.discard_threshold
               : 0
           ),
-          scoring_codes: resolved.scoring_codes ? resolved.scoring_codes : {},
+          scoring_codes: (resolved.scoring_codes ?? {}) as Record<string, unknown>,
         });
       } catch {
         setClassSettings(null);
@@ -439,19 +444,72 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   // *Merge* de códigos fixos: globais (regata) + override por classe (classe ganha)
   // ⚠️ estes são os "fixos" do mapping. Não incluem auto N+1 nem adjustable.
-  const scoringCodes = useMemo(() => {
-    const global = scoring.code_points ?? {};
-    const perClass = classSettings?.scoring_codes ?? {};
-    const merged: Record<string, number> = {};
-
-    for (const [k, v] of Object.entries(global)) merged[String(k).toUpperCase()] = Number(v);
-    for (const [k, v] of Object.entries(perClass)) merged[String(k).toUpperCase()] = Number(v);
-
-    return merged;
+  const { scoringCodes, scoringCodeDiscardable } = useMemo(() => {
+    const source = classSettings?.scoring_codes
+      ? classSettings.scoring_codes
+      : ((scoring.code_points ?? {}) as Record<string, unknown>);
+    const parsed = parseScoringCodesMap(source);
+    return {
+      scoringCodes: parsed.points,
+      scoringCodeDiscardable: parsed.discardable,
+    };
   }, [scoring.code_points, classSettings]);
 
   const effectiveDiscardCount = classSettings?.discard_count ?? scoring.discard_count ?? 0;
   const effectiveDiscardThreshold = classSettings?.discard_threshold ?? scoring.discard_threshold ?? 0;
+
+  const upsertCustomScoringCode = useCallback(
+    async (name: string, points: number, discardable: boolean) => {
+      if (!selectedClass || !token) {
+        notify.warning('Select a class first.');
+        return null;
+      }
+      let code: string;
+      try {
+        code = normalizeCustomCodeName(name);
+      } catch (e: unknown) {
+        notify.warning(e instanceof Error ? e.message : 'Invalid code name.');
+        return null;
+      }
+      if (!Number.isFinite(points) || points < 0) {
+        notify.warning('Invalid points value.');
+        return null;
+      }
+      try {
+        const res = await apiGet<{
+          overrides?: { scoring_codes?: Record<string, unknown> | null };
+        }>(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
+        const prev = (res?.overrides?.scoring_codes ?? {}) as Record<string, unknown>;
+        const entry = buildScoringCodeMapEntry(points, discardable);
+        const scoring_codes = { ...prev, [code]: entry };
+        await apiSend(
+          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`,
+          'PATCH',
+          { scoring_codes },
+          token
+        );
+        const refreshed = await apiGet<{
+          resolved?: {
+            discard_count?: number;
+            discard_threshold?: number;
+            scoring_codes?: Record<string, unknown>;
+          };
+        }>(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
+        const resolved = refreshed?.resolved ?? {};
+        setClassSettings({
+          discard_count: Number(resolved.discard_count ?? effectiveDiscardCount),
+          discard_threshold: Number(resolved.discard_threshold ?? effectiveDiscardThreshold),
+          scoring_codes: (resolved.scoring_codes ?? {}) as Record<string, unknown>,
+        });
+        notify.success(`Code ${code} saved for this class.`);
+        return code;
+      } catch (e: unknown) {
+        notify.error(e instanceof Error ? e.message : 'Could not save custom code.');
+        return null;
+      }
+    },
+    [selectedClass, token, regattaId, effectiveDiscardCount, effectiveDiscardThreshold]
+  );
 
   // ---------- Fleets para a corrida selecionada ----------
   const [fleetsForRace, setFleetsForRace] = useState<FleetLite[]>([]);
@@ -1493,7 +1551,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     setSelectedFleetId,
 
     // códigos e descartes efetivos (classe > global)
-    scoringCodes, // só mapping fixo
+    scoringCodes,
+    scoringCodeDiscardable,
+    upsertCustomScoringCode,
     effectiveDiscardCount,
     effectiveDiscardThreshold,
     classSettings,

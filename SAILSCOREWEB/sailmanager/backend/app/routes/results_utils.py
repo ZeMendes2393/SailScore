@@ -43,6 +43,29 @@ def is_prp_code(code: Optional[str]) -> bool:
     return bool(c and c.startswith(PRP_CODE_PREFIX))
 
 
+def extract_prp_display_name(code: Optional[str]) -> str:
+    """Nome visível da penalização PRP (sem o prefixo técnico PRP:)."""
+    if not is_prp_code(code):
+        return ""
+    raw = (code or "").strip()
+    idx = raw.find(":")
+    name = raw[idx + 1 :].strip() if idx >= 0 else raw[len(PRP_CODE_PREFIX) :].lstrip(":- ").strip()
+    if not name or name.upper() == PRP_CODE_PREFIX:
+        return "Penalty"
+    return name
+
+
+def format_result_code_display(code: Optional[str], points: float) -> str:
+    """Texto para grelhas overall/PDF: códigos normais em maiúsculas; PRP só com o nome."""
+    pts_s = f"{float(points):g}"
+    if not code:
+        return pts_s
+    if is_prp_code(code):
+        label = extract_prp_display_name(code)
+        return f"{label} {pts_s}"
+    return f"{_norm(code)} {pts_s}"
+
+
 def _norm_sn(sn: Optional[str]) -> Optional[str]:
     raw = (sn or "").strip()
     return raw.upper() if raw else None
@@ -401,10 +424,19 @@ class CodePatch(BaseModel):
 # =========================================================
 
 def get_scoring_map(db: Session, regatta_id: int, class_name: Optional[str]) -> Dict[str, float]:
+    points, _ = get_scoring_maps(db, regatta_id, class_name)
+    return points
+
+
+def get_scoring_maps(
+    db: Session, regatta_id: int, class_name: Optional[str]
+) -> Tuple[Dict[str, float], Dict[str, bool]]:
+    from app.services.scoring_code_map import merge_scoring_codes_dict, parse_scoring_codes_dict
+
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
-    base: Dict[str, float] = {}
+    layers: list = []
     if reg and isinstance(reg.scoring_codes, dict):
-        base = {str(k).upper(): float(v) for k, v in reg.scoring_codes.items()}
+        layers.append(reg.scoring_codes)
 
     if class_name:
         SettingsModel = getattr(models, "RegattaClassSettings", None)
@@ -418,10 +450,10 @@ def get_scoring_map(db: Session, regatta_id: int, class_name: Optional[str]) -> 
                 .first()
             )
             if cs and isinstance(getattr(cs, "scoring_codes", None), dict):
-                override = {str(k).upper(): float(v) for k, v in (cs.scoring_codes or {}).items()}
-                base = {**base, **override}
+                layers.append(cs.scoring_codes or {})
 
-    return base
+    merged = merge_scoring_codes_dict(*layers)
+    return parse_scoring_codes_dict(merged)
 
 
 # =========================================================

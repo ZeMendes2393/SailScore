@@ -134,17 +134,9 @@ def get_effective_scoring_map(db: Session, regatta_id: int, class_name: str, ctx
     else:
         raw = reg.scoring_codes or {}
 
-    mapping: dict[str, float] = {}
-    if isinstance(raw, dict):
-        for k, v in raw.items():
-            kk = norm_code(str(k))
-            if not kk:
-                continue
-            try:
-                mapping[kk] = float(v)
-            except Exception:
-                continue
+    from app.services.scoring_code_map import parse_scoring_codes_dict
 
+    mapping, _discardable = parse_scoring_codes_dict(raw if isinstance(raw, dict) else {})
     ctx.effective_map_cache[key] = mapping
     return mapping
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import notify from '@/lib/notify';
+import { buildScoringCodeMapEntry, parseScoringCodesMap } from '../existing-results/scoringCodeMap';
 
 import { getApiBaseUrl } from '@/lib/api';
 
@@ -78,20 +79,27 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
 
   const [dcInput, setDcInput] = useState<string>('');
   const [dtInput, setDtInput] = useState<string>('');
-  const [codes, setCodes] = useState<Array<{ code: string; points: string }>>([]);
+  const [codes, setCodes] = useState<Array<{ code: string; points: string; discardable: boolean }>>([]);
 
   // sincroniza inputs quando muda overrides/resolved
   useEffect(() => {
     if (!overrides || !resolved) return;
     setDcInput(overrides.discard_count === null || overrides.discard_count === undefined ? '' : String(overrides.discard_count));
     setDtInput(overrides.discard_threshold === null || overrides.discard_threshold === undefined ? '' : String(overrides.discard_threshold));
-    const toTable = (overrides.scoring_codes ?? resolved.scoring_codes ?? {});
-    setCodes(Object.entries(toTable).map(([k,v]) => ({ code: k, points: String(v) })));
+    const toTable = (overrides.scoring_codes ?? resolved.scoring_codes ?? {}) as Record<string, unknown>;
+    const parsed = parseScoringCodesMap(toTable);
+    setCodes(
+      Object.entries(parsed.points).map(([k, v]) => ({
+        code: k,
+        points: String(v),
+        discardable: parsed.discardable[k] !== false,
+      }))
+    );
   }, [overrides, resolved]);
 
-  const onAddCode = () => setCodes(prev => [...prev, { code: '', points: '' }]);
-  const onChangeCode = (i: number, field: 'code'|'points', value: string) => {
-    setCodes(prev => prev.map((row, idx) => idx === i ? { ...row, [field]: value } : row));
+  const onAddCode = () => setCodes((prev) => [...prev, { code: '', points: '', discardable: true }]);
+  const onChangeCode = (i: number, field: 'code' | 'points' | 'discardable', value: string | boolean) => {
+    setCodes((prev) => prev.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
   };
   const onRemoveCode = (i: number) => setCodes(prev => prev.filter((_, idx) => idx !== i));
 
@@ -104,11 +112,20 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
       const discard_threshold = dtInput === '' ? None : Number(dtInput);
 
       // normalizar codes (apenas válidos e uppercase)
-      const codesObj: Record<string, number> | null =
-        codes
-          .map(r => ({ code: (r.code || '').trim().toUpperCase(), points: Number(r.points) }))
-          .filter(r => r.code && Number.isFinite(r.points))
-          .reduce((acc, cur) => ({ ...acc, [cur.code]: cur.points }), {} as Record<string, number>);
+      const codesObj: Record<string, unknown> | null = codes
+        .map((r) => ({
+          code: (r.code || '').trim().toUpperCase(),
+          points: Number(r.points),
+          discardable: r.discardable !== false,
+        }))
+        .filter((r) => r.code && Number.isFinite(r.points))
+        .reduce(
+          (acc, cur) => ({
+            ...acc,
+            [cur.code]: buildScoringCodeMapEntry(cur.points, cur.discardable),
+          }),
+          {} as Record<string, unknown>
+        );
       const scoring_codes = Object.keys(codesObj).length ? codesObj : null;
 
       const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`, {
@@ -236,6 +253,14 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                           className="border rounded px-2 py-1 w-28"
                           inputMode="decimal"
                         />
+                        <label className="inline-flex items-center gap-1 text-xs text-gray-700 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={row.discardable}
+                            onChange={(e) => onChangeCode(i, 'discardable', e.target.checked)}
+                          />
+                          Discardable
+                        </label>
                         <button onClick={() => onRemoveCode(i)} className="px-2 py-1 rounded border hover:bg-red-50 text-red-600">Remove</button>
                       </div>
                     ))}

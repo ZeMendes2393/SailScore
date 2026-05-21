@@ -52,14 +52,23 @@ export const isAdjustable = (c: string | null | undefined) =>
 export const isPrpCode = (c: string | null | undefined) =>
   !!c && String(c).toUpperCase().startsWith(PRP_CODE_PREFIX);
 
-export const buildPrpCode = (name: string) => `${PRP_CODE_PREFIX}:${name.trim()}`;
+/** Evita nome vazio ou só "PRP", que gerava código PRP:PRP na grelha. */
+export const normalizePrpPenaltyName = (name: string): string => {
+  const n = name.trim();
+  if (!n || n.toUpperCase() === PRP_CODE_PREFIX) return 'Penalty';
+  return n;
+};
+
+export const buildPrpCode = (name: string) =>
+  `${PRP_CODE_PREFIX}:${normalizePrpPenaltyName(name)}`;
 
 export const extractPrpName = (code: string | null | undefined): string => {
   if (!isPrpCode(code)) return '';
   const raw = String(code ?? '').trim();
   const idx = raw.indexOf(':');
-  if (idx >= 0) return raw.slice(idx + 1).trim();
-  return raw.replace(/^PRP\b[:\s-]*/i, '').trim();
+  const name = idx >= 0 ? raw.slice(idx + 1).trim() : raw.replace(/^PRP\b[:\s-]*/i, '').trim();
+  if (!name || name.toUpperCase() === PRP_CODE_PREFIX) return 'Penalty';
+  return name;
 };
 
 export const isAutoNPlusOne = (c: string | null | undefined) =>

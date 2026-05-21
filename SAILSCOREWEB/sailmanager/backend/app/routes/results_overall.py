@@ -16,7 +16,11 @@ from app.scoring.tiebreakers import (
     tie_signature_overall,       # ✅ NOVO (para ranks com empate 1,2,2,4)
 )
 from app.services.results_pdf import build_results_pdf
-from app.routes.results_utils import build_eligible_result_identities, result_row_identity
+from app.routes.results_utils import (
+    build_eligible_result_identities,
+    format_result_code_display,
+    result_row_identity,
+)
 
 router = APIRouter()
 
@@ -190,11 +194,10 @@ def _schedule_discards_for_race_count(schedule: List[int], n_races: int) -> int:
     return max(0, int(schedule[-1]))
 
 
-def _is_discardable_code(code: Any) -> bool:
-    if not code:
-        return True
-    c = str(code).strip().upper()
-    return c not in _NON_DISCARDABLE_CODES
+def _is_discardable_code(code: Any, discardable_by_code: Optional[Dict[str, bool]] = None) -> bool:
+    from app.services.scoring_code_map import is_code_discardable_for_discards
+
+    return is_code_discardable_for_discards(code, discardable_by_code or {})
 
 
 def _compute_discards_fixed_count(
@@ -202,6 +205,7 @@ def _compute_discards_fixed_count(
     per_by_id: Dict[int, Dict[str, object]],
     discard_count: int,
     non_discardable_race_ids: set[int],
+    discardable_by_code: Optional[Dict[str, bool]] = None,
 ) -> set[int]:
     """
     Escolhe os 'discard_count' piores (maior pontuação) dentro da classe,
@@ -223,7 +227,7 @@ def _compute_discards_fixed_count(
         if rid not in per_by_id:
             continue
 
-        if not _is_discardable_code(per_by_id[rid].get("code")):
+        if not _is_discardable_code(per_by_id[rid].get("code"), discardable_by_code):
             continue
 
         try:
@@ -375,6 +379,16 @@ def get_overall_results_data(
                 for r in rows
                 if getattr(r, "class_name", None)
             }
+
+    from app.services.scoring_code_map import merge_scoring_codes_dict, parse_scoring_codes_dict
+
+    regatta_scoring_raw = getattr(reg, "scoring_codes", None) or {}
+    discardable_by_class: Dict[str, Dict[str, bool]] = {}
+    for cls in race_ids_by_class.keys():
+        cs = settings_by_class.get(cls)
+        override_raw = (getattr(cs, "scoring_codes", None) or {}) if cs else {}
+        merged_raw = merge_scoring_codes_dict(regatta_scoring_raw, override_raw)
+        _pts, discardable_by_class[cls] = parse_scoring_codes_dict(merged_raw)
 
     def _resolve_discard_count_for_class(cls: str, n_races_cls: int) -> int:
         cs = settings_by_class.get(cls)
@@ -610,6 +624,7 @@ def get_overall_results_data(
                 per_by_id,
                 D_cls,
                 non_discardable_race_ids,
+                discardable_by_class.get(cls, {}),
             )
 
             total_points = 0.0
@@ -636,8 +651,7 @@ def get_overall_results_data(
                 code = (str(code_raw).strip().upper() if code_raw else None)
                 per_race_code[name] = code
 
-                pts_s = f"{pts:g}"
-                display = f"{code} {pts_s}" if code else pts_s
+                display = format_result_code_display(code, pts)
 
                 if rid not in discarded_ids:
                     net_total += pts

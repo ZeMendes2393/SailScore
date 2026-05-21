@@ -17,6 +17,7 @@ import {
   type ResultsOverallColumnId,
 } from '@/lib/resultsOverallColumns';
 import RaceCreator from './RaceCreator';
+import { extractPrpName, isPrpCode } from './existing-results/shared';
 
 // Discards
 import DiscardsDrawer from './settings/DiscardsDrawer';
@@ -128,17 +129,20 @@ function formatPerRaceCell(
 
   if (!s) return '-';
 
-  // detectar se backend já vem como "(...)" para discard
   const isWrapped = s.startsWith('(') && s.endsWith(')');
+  let inner = isWrapped ? s.slice(1, -1).trim() : s;
 
-  // pointsStr: tenta isolar os pontos
-  let pointsStr = s;
+  // Backend antigo: "PRP:PRP 1.2" — mostrar só o nome + pontos
+  const prpInRaw = inner.match(/^PRP:([^0-9]+?)\s+([-+]?\d+(?:\.\d+)?)\s*$/i);
+  if (prpInRaw) {
+    const label = extractPrpName(`PRP:${prpInRaw[1].trim()}`) || 'Penalty';
+    const out = `${label} ${prpInRaw[2]}`;
+    return discarded ? `(${out})` : out;
+  }
+
+  let pointsStr = inner;
   let codeFromRaw: string | null = null;
 
-  // se vier "(10)" -> pointsStr "10"
-  if (isWrapped) pointsStr = s.slice(1, -1).trim();
-
-  // se vier "DNF(10)" ou "(DNF 10)" etc -> tenta extrair pontos
   const m1 = pointsStr.match(/^([A-Za-z]{2,6})\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*\)$/);
   if (m1) {
     codeFromRaw = m1[1].toUpperCase();
@@ -151,17 +155,20 @@ function formatPerRaceCell(
     pointsStr = m2[2];
   }
 
-  const c = code ? String(code).toUpperCase() : codeFromRaw;
+  const cRaw = code ?? codeFromRaw;
+  const displayCode = cRaw
+    ? isPrpCode(cRaw)
+      ? extractPrpName(cRaw) || 'Penalty'
+      : String(cRaw).toUpperCase()
+    : null;
 
-  // 🔹 NÃO descartado → sem parêntesis
   if (!discarded) {
-    if (c) return `${c} ${pointsStr}`;   // ex: DNF 10
+    if (displayCode) return `${displayCode} ${pointsStr}`;
     return pointsStr || '-';
   }
 
-  // 🔹 DESCARTADO → com parêntesis
-  if (c) return `(${c} ${pointsStr})`;   // ex: (DNF 10)
-  if (isWrapped) return s;               // se backend já mandou "(...)", mantém
+  if (displayCode) return `(${displayCode} ${pointsStr})`;
+  if (isWrapped) return s;
   return `(${pointsStr || '-'})`;
 }
 
