@@ -11,6 +11,7 @@ import {
   AUTO_N_PLUS_ONE,
   AUTO_N_PLUS_ONE_DISCARDABLE,
   AUTO_N_PLUS_ONE_NON_DISCARDABLE,
+  PRP_CODE_PREFIX,
   formatDelta,
   getEffectiveHandicapRating,
   isAutoNPlusOne,
@@ -212,7 +213,7 @@ export default function ExistingResultsTable({
     return {
       autoDiscardable: [...AUTO_N_PLUS_ONE_DISCARDABLE],
       autoNonDiscardable: [...AUTO_N_PLUS_ONE_NON_DISCARDABLE],
-      adjustable: [...ADJUSTABLE_CODES],
+      adjustable: Array.from(new Set([...ADJUSTABLE_CODES, PRP_CODE_PREFIX])),
       custom,
     };
   }, [customMap]);

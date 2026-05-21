@@ -42,6 +42,7 @@ const AUTO_N_PLUS_ONE_CODES = new Set([
 ]);
 
 const ADJUSTABLE_CODES = new Set(['RDG', 'SCP', 'ZPF', 'DPI']);
+const PRP_CODE_PREFIX = 'PRP';
 
 const normCode = (c?: string | null) => {
   const s = (c ?? '').trim().toUpperCase();
@@ -56,6 +57,10 @@ const isAutoNPlusOne = (c?: string | null) => {
 const isAdjustable = (c?: string | null) => {
   const k = normCode(c);
   return !!k && ADJUSTABLE_CODES.has(k);
+};
+const isPrpCode = (c?: string | null) => {
+  const k = normCode(c);
+  return !!k && k.startsWith(PRP_CODE_PREFIX);
 };
 
 // =====================================================
@@ -845,6 +850,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
         {
           code: normalized ?? '',
           points: isAdjustable(normalized) ? (points ?? null) : null,
+          prp_percent: isPrpCode(normalized) ? (points ?? null) : null,
         },
         token
       );

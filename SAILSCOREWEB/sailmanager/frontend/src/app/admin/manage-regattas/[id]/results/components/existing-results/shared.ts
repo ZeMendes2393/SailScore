@@ -20,6 +20,7 @@ export const AUTO_N_PLUS_ONE = new Set<string>([
 ]);
 
 export const ADJUSTABLE_CODES = ['RDG', 'SCP', 'ZPF', 'DPI'] as const;
+export const PRP_CODE_PREFIX = 'PRP';
 
 export const START_DAY = 0;
 
@@ -46,6 +47,9 @@ export function getEffectiveHandicapRating(
 
 export const isAdjustable = (c: string | null | undefined) =>
   !!c && (ADJUSTABLE_CODES as readonly string[]).includes(c);
+
+export const isPrpCode = (c: string | null | undefined) =>
+  !!c && String(c).toUpperCase().startsWith(PRP_CODE_PREFIX);
 
 export const isAutoNPlusOne = (c: string | null | undefined) =>
   !!c && AUTO_N_PLUS_ONE.has(String(c).toUpperCase());

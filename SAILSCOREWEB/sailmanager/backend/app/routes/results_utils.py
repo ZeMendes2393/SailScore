@@ -26,6 +26,7 @@ AUTO_N_PLUS_ONE_CODES = AUTO_N_PLUS_ONE_DISCARDABLE_CODES | AUTO_N_PLUS_ONE_NON_
 
 # Ajustáveis (manual points via body.points; NÃO inclui "MAN"!)
 ADJUSTABLE_CODES = {"RDG", "SCP", "ZPF", "DPI"}
+PRP_CODE_PREFIX = "PRP"
 
 
 # =========================================================
@@ -35,6 +36,11 @@ ADJUSTABLE_CODES = {"RDG", "SCP", "ZPF", "DPI"}
 def _norm(code: Optional[str]) -> Optional[str]:
     raw = (code or "").strip()
     return raw.upper() if raw else None
+
+
+def is_prp_code(code: Optional[str]) -> bool:
+    c = _norm(code)
+    return bool(c and c.startswith(PRP_CODE_PREFIX))
 
 
 def _norm_sn(sn: Optional[str]) -> Optional[str]:
@@ -387,6 +393,7 @@ class CodePatch(BaseModel):
     """
     code: Optional[str] = None
     points: Optional[float] = Field(default=None, ge=0)
+    prp_percent: Optional[float] = Field(default=None, ge=0)
 
 
 # =========================================================
@@ -577,6 +584,7 @@ def compute_points_for_code(
     scoring_map: Dict[str, float],
     ctx: Optional[Dict[str, Any]] = None,
     boat_country_code: Optional[str] = None,
+    base_points: Optional[float] = None,
 ) -> float:
     c = _norm(code)
     if not c:
@@ -584,6 +592,19 @@ def compute_points_for_code(
 
     if ctx is None:
         ctx = _build_competitor_context_for_race(db, race)
+
+    if is_prp_code(c):
+        percent = manual_points
+        if percent is None:
+            raise ValueError("PRP requires a percentage value.")
+        if base_points is None:
+            raise ValueError("PRP can only be applied to an existing scored result.")
+
+        base = max(0.0, float(base_points))
+        penalized = base * (1.0 + float(percent) / 100.0)
+        sn_norm = _norm_sn(sail_number) or ""
+        cap = _auto_n_plus_one_points(ctx, sn_norm, boat_country_code)
+        return round(min(float(penalized), float(cap)), 1)
 
     if c in AUTO_N_PLUS_ONE_CODES:
         sn_norm = _norm_sn(sail_number) or ""

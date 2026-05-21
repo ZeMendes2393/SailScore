@@ -2,7 +2,7 @@
 
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
-import { isAdjustable, isAutoNPlusOne } from './shared';
+import { isAdjustable, isAutoNPlusOne, isPrpCode } from './shared';
 import notify from '@/lib/notify';
 
 type CodeGroups = {
@@ -101,7 +101,9 @@ export default function OneDesignResultsTable({
               const rowBg =
                 idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60';
             const codeUpper = row.code ? row.code.toUpperCase() : null;
-            const showAdjustBox = !!pendingCode[row.id] && isAdjustable(pendingCode[row.id]);
+            const showAdjustBox =
+              !!pendingCode[row.id] && (isAdjustable(pendingCode[row.id]) || isPrpCode(pendingCode[row.id]));
+            const isPrpPending = isPrpCode(pendingCode[row.id]);
             const maxPos = sorted.length;
             const isChangeOpen = !!changeToOpen[row.id];
             const rawVal = changeToValue[row.id] ?? '';
@@ -164,11 +166,11 @@ export default function OneDesignResultsTable({
                             onMarkCode(row.id, null, null);
                             return;
                           }
-                          if (isAdjustable(next)) {
+                          if (isAdjustable(next) || isPrpCode(next)) {
                             setPendingCode((p) => ({ ...p, [row.id]: next }));
                             setPendingPoints((p) => ({
                               ...p,
-                              [row.id]: row.points != null ? String(row.points) : '',
+                              [row.id]: '',
                             }));
                             return;
                           }
@@ -222,7 +224,7 @@ export default function OneDesignResultsTable({
                           step="0.01"
                           className="border rounded px-2 py-1 w-32"
                           value={pendingPoints[row.id] ?? ''}
-                          placeholder="ex: 4.5"
+                          placeholder={isPrpPending ? 'ex: 20 (%)' : 'ex: 4.5'}
                           onChange={(e) =>
                             setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))
                           }
@@ -234,8 +236,10 @@ export default function OneDesignResultsTable({
                             const code = pendingCode[row.id];
                             const rawPts = (pendingPoints[row.id] ?? '').trim();
                             const pts = Number(rawPts);
-                            if (!Number.isFinite(pts)) {
-                              notify.warning('Invalid value (points).');
+                            if (!Number.isFinite(pts) || pts < 0) {
+                              notify.warning(
+                                isPrpPending ? 'Invalid value (percentage).' : 'Invalid value (points).'
+                              );
                               return;
                             }
                             onMarkCode(row.id, code, pts);

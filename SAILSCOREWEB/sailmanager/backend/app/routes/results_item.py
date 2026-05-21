@@ -14,6 +14,7 @@ from app.routes.results_utils import (
     PositionPatch,
     CodePatch,
     _norm,
+    is_prp_code,
     get_scoring_map,
     compute_points_for_code,
     removes_from_ranking,
@@ -196,6 +197,8 @@ def set_result_code(
         return row
 
     code = _norm(raw)
+    effective_points_arg = body.prp_percent if body.prp_percent is not None else body.points
+    base_points = row.points_override if getattr(row, "points_override", None) is not None else row.points
 
     try:
         pts = compute_points_for_code(
@@ -203,9 +206,10 @@ def set_result_code(
             race=race,
             sail_number=row.sail_number,
             code=code,
-            manual_points=body.points,
+            manual_points=effective_points_arg,
             scoring_map=scoring_map,
             boat_country_code=getattr(row, "boat_country_code", None),
+            base_points=base_points if is_prp_code(code) else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -11,6 +11,7 @@ from app.services.scoring_codes import (
     ADJUSTABLE_CODES,
     is_discardable,
 )
+from app.routes.results_utils import PRP_CODE_PREFIX
 
 router = APIRouter()
 
@@ -32,5 +33,16 @@ def scoring_code_presets(
 
     for c in sorted(ADJUSTABLE_CODES):
         out.append({"code": c, "mode": "adjustable", "discardable": is_discardable(c), "requires_value": True})
+
+    out.append(
+        {
+            "code": PRP_CODE_PREFIX,
+            "mode": "percentage_penalty",
+            "discardable": True,
+            "requires_value": True,
+            "value_kind": "percent",
+            "editable_name": True,
+        }
+    )
 
     return out
