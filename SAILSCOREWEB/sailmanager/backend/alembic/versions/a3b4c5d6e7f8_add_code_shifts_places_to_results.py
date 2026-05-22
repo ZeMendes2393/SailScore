@@ -1,7 +1,7 @@
 """add code_shifts_places to results
 
 Revision ID: a3b4c5d6e7f8
-Revises: cc7d549f37c4
+Revises: f2a3b4c5d6e7
 Create Date: 2026-05-21
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = "a3b4c5d6e7f8"
-down_revision: Union[str, Sequence[str], None] = "cc7d549f37c4"
+down_revision: Union[str, Sequence[str], None] = "f2a3b4c5d6e7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
