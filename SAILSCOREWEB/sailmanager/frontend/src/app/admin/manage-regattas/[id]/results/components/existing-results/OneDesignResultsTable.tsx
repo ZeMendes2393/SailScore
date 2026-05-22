@@ -253,15 +253,33 @@ export default function OneDesignResultsTable({
                           {isPrpPending ? 'Penalty' : isCustomPending ? 'Custom' : pendingCode[row.id]}
                         </span>
                         {isCustomPending && (
-                          <input
-                            type="text"
-                            className="border rounded px-2 py-1 w-36 uppercase"
-                            value={pendingCustomName[row.id] ?? ''}
-                            placeholder="Code name"
-                            onChange={(e) =>
-                              setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
-                            }
-                          />
+                          <>
+                            <input
+                              type="text"
+                              className="border rounded px-2 py-1 w-36 uppercase"
+                              value={pendingCustomName[row.id] ?? ''}
+                              placeholder="Code name"
+                              onChange={(e) =>
+                                setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
+                              }
+                            />
+                            <label
+                              className="inline-flex items-center gap-1 text-xs text-gray-700 max-w-[220px]"
+                              title="When enabled, this boat leaves the finish order and boats behind move up one place."
+                            >
+                              <input
+                                type="checkbox"
+                                checked={pendingCustomShifts[row.id] === true}
+                                onChange={(e) =>
+                                  setPendingCustomShifts((p) => ({
+                                    ...p,
+                                    [row.id]: e.target.checked,
+                                  }))
+                                }
+                              />
+                              Shift places behind
+                            </label>
+                          </>
                         )}
                         {isPrpPending && (
                           <input
