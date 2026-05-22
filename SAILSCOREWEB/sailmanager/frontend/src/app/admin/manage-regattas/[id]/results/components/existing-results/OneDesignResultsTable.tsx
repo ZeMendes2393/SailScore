@@ -259,7 +259,7 @@ export default function OneDesignResultsTable({
                             type="text"
                             className="border rounded px-2 py-1 w-40"
                             value={pendingPenaltyName[row.id] ?? ''}
-                            placeholder="Penalty name"
+                            placeholder="Name"
                             onChange={(e) => setPendingPenaltyName((p) => ({ ...p, [row.id]: e.target.value }))}
                           />
                         )}

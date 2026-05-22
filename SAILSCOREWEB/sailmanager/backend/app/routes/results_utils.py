@@ -43,36 +43,25 @@ def is_prp_code(code: Optional[str]) -> bool:
     return bool(c and c.startswith(PRP_CODE_PREFIX))
 
 
-def _is_generic_prp_suffix(name: str) -> bool:
-    n = (name or "").strip().upper()
-    return not n or n in (PRP_CODE_PREFIX, "PENALTY")
-
-
 def extract_prp_display_name(code: Optional[str]) -> str:
-    """Nome descritivo opcional; vazio se o código for só PRP (não mostrar Penalty)."""
+    """Nome visível = só o texto após PRP: (campo Name no admin)."""
     if not is_prp_code(code):
         return ""
     raw = (code or "").strip()
-    if raw.upper() == PRP_CODE_PREFIX:
-        return ""
     idx = raw.find(":")
     if idx < 0:
         return ""
-    name = raw[idx + 1 :].strip()
-    if _is_generic_prp_suffix(name):
-        return ""
-    return name
+    return raw[idx + 1 :].strip()
 
 
 def format_result_code_display(code: Optional[str], points: float) -> str:
-    """Texto para grelhas overall/PDF: PRP (nunca Penalty como etiqueta)."""
+    """Overall/PDF: penalização % mostra só o nome + pontos."""
     pts_s = f"{float(points):g}"
     if not code:
         return pts_s
     if is_prp_code(code):
         name = extract_prp_display_name(code)
-        label = f"{PRP_CODE_PREFIX} {name}".strip() if name else PRP_CODE_PREFIX
-        return f"{label} {pts_s}"
+        return f"{name} {pts_s}".strip() if name else pts_s
     return f"{_norm(code)} {pts_s}"
 
 
