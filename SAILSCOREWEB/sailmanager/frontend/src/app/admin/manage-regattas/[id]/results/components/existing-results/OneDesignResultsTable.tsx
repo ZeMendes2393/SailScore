@@ -31,6 +31,7 @@ interface Props {
   pointsValue: Record<number, string>;
   resolveCrew: (row: ApiResult) => string;
   formatCodeWithValue: (row: ApiResult) => string;
+  codeBadgeTitle?: (row: ApiResult) => string | undefined;
   clearPending: (rowId: number) => void;
   openChangeTo: (rowId: number, currentPos: number) => void;
   closeChangeTo: (rowId: number) => void;
@@ -64,6 +65,7 @@ export default function OneDesignResultsTable({
   pointsValue,
   resolveCrew,
   formatCodeWithValue,
+  codeBadgeTitle,
   clearPending,
   openChangeTo,
   closeChangeTo,
@@ -136,7 +138,7 @@ export default function OneDesignResultsTable({
                     {row.code ? (
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700"
-                        title="Code + value"
+                        title={codeBadgeTitle?.(row) ?? 'Code + value'}
                       >
                         {formatCodeWithValue(row)}
                       </span>

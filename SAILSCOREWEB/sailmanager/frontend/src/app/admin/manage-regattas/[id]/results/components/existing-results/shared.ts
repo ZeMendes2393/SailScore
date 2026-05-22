@@ -52,24 +52,50 @@ export const isAdjustable = (c: string | null | undefined) =>
 export const isPrpCode = (c: string | null | undefined) =>
   !!c && String(c).toUpperCase().startsWith(PRP_CODE_PREFIX);
 
-/** Evita nome vazio ou só "PRP", que gerava código PRP:PRP na grelha. */
-export const normalizePrpPenaltyName = (name: string): string => {
-  const n = name.trim();
-  if (!n || n.toUpperCase() === PRP_CODE_PREFIX) return 'Penalty';
-  return n;
+/** Nome vazio, PRP ou Penalty → guardar só o código PRP (badge mostra PRP, não Penalty). */
+export const isGenericPrpPenaltyName = (name: string): boolean => {
+  const n = name.trim().toUpperCase();
+  return !n || n === PRP_CODE_PREFIX || n === 'PENALTY';
 };
 
-export const buildPrpCode = (name: string) =>
-  `${PRP_CODE_PREFIX}:${normalizePrpPenaltyName(name)}`;
+export const buildPrpCode = (name: string): string => {
+  if (isGenericPrpPenaltyName(name)) return PRP_CODE_PREFIX;
+  return `${PRP_CODE_PREFIX}:${name.trim()}`;
+};
 
+/** Nome descritivo opcional (Late start…); vazio se for só PRP/Penalty. */
 export const extractPrpName = (code: string | null | undefined): string => {
   if (!isPrpCode(code)) return '';
   const raw = String(code ?? '').trim();
+  if (raw.toUpperCase() === PRP_CODE_PREFIX) return '';
   const idx = raw.indexOf(':');
-  const name = idx >= 0 ? raw.slice(idx + 1).trim() : raw.replace(/^PRP\b[:\s-]*/i, '').trim();
-  if (!name || name.toUpperCase() === PRP_CODE_PREFIX) return 'Penalty';
+  if (idx < 0) return '';
+  const name = raw.slice(idx + 1).trim();
+  if (isGenericPrpPenaltyName(name)) return '';
   return name;
 };
+
+/** Só o rótulo do código PRP (sem pontos): sempre PRP, ou PRP + nome se houver. */
+export function formatPrpCodeLabel(code: string | null | undefined): string {
+  const name = extractPrpName(code);
+  return name ? `${PRP_CODE_PREFIX} ${name}` : PRP_CODE_PREFIX;
+}
+
+/** Badge/grelha: mostrar PRP como código (ex. PRP 19.8), igual a RPR ou DNF. */
+export function formatPrpCodeWithValue(
+  code: string | null | undefined,
+  points: number | string | null | undefined
+): string {
+  const ptsStr = Number.isFinite(Number(points)) ? String(points) : '';
+  const label = formatPrpCodeLabel(code);
+  return ptsStr ? `${label} ${ptsStr}` : label;
+}
+
+export function prpCodeTooltip(code: string | null | undefined): string | undefined {
+  const name = extractPrpName(code);
+  if (!name) return 'Percentage penalty (PRP)';
+  return `Percentage penalty (PRP): ${name}`;
+}
 
 export const isAutoNPlusOne = (c: string | null | undefined) =>
   !!c && AUTO_N_PLUS_ONE.has(String(c).toUpperCase());

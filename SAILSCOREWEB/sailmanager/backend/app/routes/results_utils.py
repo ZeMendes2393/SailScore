@@ -43,25 +43,35 @@ def is_prp_code(code: Optional[str]) -> bool:
     return bool(c and c.startswith(PRP_CODE_PREFIX))
 
 
+def _is_generic_prp_suffix(name: str) -> bool:
+    n = (name or "").strip().upper()
+    return not n or n in (PRP_CODE_PREFIX, "PENALTY")
+
+
 def extract_prp_display_name(code: Optional[str]) -> str:
-    """Nome visível da penalização PRP (sem o prefixo técnico PRP:)."""
+    """Nome descritivo opcional; vazio se o código for só PRP (não mostrar Penalty)."""
     if not is_prp_code(code):
         return ""
     raw = (code or "").strip()
+    if raw.upper() == PRP_CODE_PREFIX:
+        return ""
     idx = raw.find(":")
-    name = raw[idx + 1 :].strip() if idx >= 0 else raw[len(PRP_CODE_PREFIX) :].lstrip(":- ").strip()
-    if not name or name.upper() == PRP_CODE_PREFIX:
-        return "Penalty"
+    if idx < 0:
+        return ""
+    name = raw[idx + 1 :].strip()
+    if _is_generic_prp_suffix(name):
+        return ""
     return name
 
 
 def format_result_code_display(code: Optional[str], points: float) -> str:
-    """Texto para grelhas overall/PDF: códigos normais em maiúsculas; PRP só com o nome."""
+    """Texto para grelhas overall/PDF: PRP (nunca Penalty como etiqueta)."""
     pts_s = f"{float(points):g}"
     if not code:
         return pts_s
     if is_prp_code(code):
-        label = extract_prp_display_name(code)
+        name = extract_prp_display_name(code)
+        label = f"{PRP_CODE_PREFIX} {name}".strip() if name else PRP_CODE_PREFIX
         return f"{label} {pts_s}"
     return f"{_norm(code)} {pts_s}"
 

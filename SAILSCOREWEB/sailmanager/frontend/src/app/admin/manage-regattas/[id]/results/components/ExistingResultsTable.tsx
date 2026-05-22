@@ -11,7 +11,9 @@ import {
   AUTO_N_PLUS_ONE,
   AUTO_N_PLUS_ONE_DISCARDABLE,
   AUTO_N_PLUS_ONE_NON_DISCARDABLE,
-  extractPrpName,
+  formatPrpCodeWithValue,
+  isPrpCode,
+  prpCodeTooltip,
   formatDelta,
   getEffectiveHandicapRating,
   isAutoNPlusOne,
@@ -253,14 +255,13 @@ export default function ExistingResultsTable({
   const formatCodeWithValue = (row: ApiResult) => {
     const c = (row.code || '').toUpperCase();
     if (!c) return '';
-    if (c.startsWith('PRP')) {
-      const n = extractPrpName(row.code) || 'Penalty';
-      const ptsStr = Number.isFinite(Number(row.points)) ? String(row.points) : '';
-      return ptsStr ? `${n} ${ptsStr}` : n;
-    }
+    if (isPrpCode(row.code)) return formatPrpCodeWithValue(row.code, row.points);
     const ptsStr = Number.isFinite(Number(row.points)) ? String(row.points) : '';
     return ptsStr ? `${c} ${ptsStr}` : c;
   };
+
+  const codeBadgeTitle = (row: ApiResult) =>
+    isPrpCode(row.code) ? prpCodeTooltip(row.code) : 'Code + value';
 
   // Change-to UI
   const [changeToOpen, setChangeToOpen] = useState<Record<number, boolean>>({});
@@ -458,6 +459,7 @@ export default function ExistingResultsTable({
       pointsValue={pointsValue}
       resolveCrew={resolveCrew}
       formatCodeWithValue={formatCodeWithValue}
+      codeBadgeTitle={codeBadgeTitle}
       clearPending={clearPending}
       openChangeTo={openChangeTo}
       closeChangeTo={closeChangeTo}

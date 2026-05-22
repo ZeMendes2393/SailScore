@@ -17,7 +17,7 @@ import {
   type ResultsOverallColumnId,
 } from '@/lib/resultsOverallColumns';
 import RaceCreator from './RaceCreator';
-import { extractPrpName, isPrpCode } from './existing-results/shared';
+import { formatPrpCodeLabel, formatPrpCodeWithValue, isPrpCode, PRP_CODE_PREFIX } from './existing-results/shared';
 
 // Discards
 import DiscardsDrawer from './settings/DiscardsDrawer';
@@ -133,10 +133,10 @@ function formatPerRaceCell(
   let inner = isWrapped ? s.slice(1, -1).trim() : s;
 
   // Backend antigo: "PRP:PRP 1.2" — mostrar só o nome + pontos
-  const prpInRaw = inner.match(/^PRP:([^0-9]+?)\s+([-+]?\d+(?:\.\d+)?)\s*$/i);
+  const prpInRaw = inner.match(/^PRP(?::([^0-9]+?))?\s+([-+]?\d+(?:\.\d+)?)\s*$/i);
   if (prpInRaw) {
-    const label = extractPrpName(`PRP:${prpInRaw[1].trim()}`) || 'Penalty';
-    const out = `${label} ${prpInRaw[2]}`;
+    const code = prpInRaw[1] ? `PRP:${prpInRaw[1].trim()}` : PRP_CODE_PREFIX;
+    const out = formatPrpCodeWithValue(code, prpInRaw[2]);
     return discarded ? `(${out})` : out;
   }
 
@@ -158,7 +158,7 @@ function formatPerRaceCell(
   const cRaw = code ?? codeFromRaw;
   const displayCode = cRaw
     ? isPrpCode(cRaw)
-      ? extractPrpName(cRaw) || 'Penalty'
+      ? formatPrpCodeLabel(cRaw)
       : String(cRaw).toUpperCase()
     : null;
 
