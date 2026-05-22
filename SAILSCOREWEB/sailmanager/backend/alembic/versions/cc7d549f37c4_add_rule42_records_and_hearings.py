@@ -5,15 +5,32 @@ Revises: 9f2738668e7a
 Create Date: 2025-09-09 11:35:14.762572
 """
 from typing import Sequence, Union
+from pathlib import Path
+import sys
 
 import sqlalchemy as sa
 from alembic import op
 
-from migration_utils import (
-    create_index_if_not_exists,
-    create_unique_constraint_if_not_exists,
-    has_table,
-)
+try:
+    from migration_utils import (
+        create_index_if_not_exists,
+        create_unique_constraint_if_not_exists,
+        has_table,
+        has_index,
+        has_unique_constraint,
+    )
+except ModuleNotFoundError:
+    # Railway/alembic runner may not include backend/alembic on sys.path.
+    alembic_dir = Path(__file__).resolve().parents[1]
+    if str(alembic_dir) not in sys.path:
+        sys.path.insert(0, str(alembic_dir))
+    from migration_utils import (  # type: ignore
+        create_index_if_not_exists,
+        create_unique_constraint_if_not_exists,
+        has_table,
+        has_index,
+        has_unique_constraint,
+    )
 
 # revision identifiers, used by Alembic.
 revision: str = "cc7d549f37c4"
@@ -83,8 +100,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    from migration_utils import has_index, has_unique_constraint
-
     if has_unique_constraint("hearings", "uq_hearing_case_per_regatta"):
         op.drop_constraint("uq_hearing_case_per_regatta", "hearings", type_="unique")
     if has_index("hearings", "ix_hearings_regatta_id"):
