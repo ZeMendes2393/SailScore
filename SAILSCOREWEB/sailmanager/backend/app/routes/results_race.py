@@ -28,6 +28,7 @@ from app.routes.results_utils import (
     compute_handicap_ranking,
     removes_from_ranking,
     get_scoring_map,
+    get_scoring_maps,
     compute_points_for_code,
     ensure_missing_results_as_dnc,
     normalize_race_results,
@@ -255,7 +256,9 @@ def add_single_result(
         else:
             assert_staff_regatta_access(db, current_user, regatta.id)
 
-    scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
+    scoring_map, _discardable, shift_by_code = get_scoring_maps(
+        db, int(race.regatta_id), str(race.class_name or "")
+    )
 
     code = _norm(payload.code)
     desired_pos = int(payload.desired_position)
@@ -305,8 +308,8 @@ def add_single_result(
     else:
         pts = float(payload.points if payload.points is not None else desired_pos)
 
-    # regra: se remover do ranking (AUTO N+1) -> põe no fim (não shift)
-    if removes_from_ranking(code):
+    # regra: se remover do ranking (AUTO N+1 ou custom shift) -> põe no fim
+    if removes_from_ranking(code, shift_by_code):
         max_pos = (
             db.query(models.Result.position)
             .filter(models.Result.race_id == race_id)

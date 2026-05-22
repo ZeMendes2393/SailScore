@@ -136,7 +136,7 @@ def get_effective_scoring_map(db: Session, regatta_id: int, class_name: str, ctx
 
     from app.services.scoring_code_map import parse_scoring_codes_dict
 
-    mapping, _discardable = parse_scoring_codes_dict(raw if isinstance(raw, dict) else {})
+    mapping, _discardable, _shift = parse_scoring_codes_dict(raw if isinstance(raw, dict) else {})
     ctx.effective_map_cache[key] = mapping
     return mapping
 

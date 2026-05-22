@@ -6,6 +6,12 @@ import type { ApiResult } from '../types';
 import type { Entry } from '../types';
 import HandicapResultsTable from './existing-results/HandicapResultsTable';
 import OneDesignResultsTable from './existing-results/OneDesignResultsTable';
+import CustomCodeDialog from './existing-results/CustomCodeDialog';
+import {
+  customCodeLabel,
+  isCustomMapCode,
+  type CustomCodeFormValues,
+} from './existing-results/scoringCodeMap';
 import {
   ADJUSTABLE_CODES,
   AUTO_N_PLUS_ONE,
@@ -33,10 +39,12 @@ interface ExistingResultsTableProps {
 
   scoringCodes?: Record<string, number>;
   scoringCodeDiscardable?: Record<string, boolean>;
+  scoringCodeShiftPositions?: Record<string, boolean>;
   onUpsertCustomCode?: (
     name: string,
     points: number,
-    discardable: boolean
+    discardable: boolean,
+    shiftPositions: boolean
   ) => Promise<string | null>;
 
   onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
@@ -68,6 +76,7 @@ export default function ExistingResultsTable({
   onEditPos,
   scoringCodes,
   scoringCodeDiscardable,
+  scoringCodeShiftPositions,
   onUpsertCustomCode,
   onMarkCode,
   onOverridePoints,
@@ -222,9 +231,10 @@ export default function ExistingResultsTable({
       .map((code) => {
         const pts = customMap[code];
         const disc = scoringCodeDiscardable?.[code] !== false;
+        const shift = scoringCodeShiftPositions?.[code] === true;
         return {
           code,
-          label: `${code} (${pts} pts${disc ? '' : ', no discard'})`,
+          label: customCodeLabel(code, pts, disc, shift),
         };
       });
 
@@ -234,7 +244,13 @@ export default function ExistingResultsTable({
       adjustable: [...ADJUSTABLE_CODES],
       custom,
     };
-  }, [customMap, scoringCodeDiscardable]);
+  }, [customMap, scoringCodeDiscardable, scoringCodeShiftPositions]);
+
+  const [customDialog, setCustomDialog] = useState<{
+    rowId: number;
+    initial?: Partial<CustomCodeFormValues>;
+  } | null>(null);
+  const [customSaving, setCustomSaving] = useState(false);
 
   const [pendingCode, setPendingCode] = useState<Record<number, string>>({});
   const [pendingPoints, setPendingPoints] = useState<Record<number, string>>({});
@@ -408,11 +424,67 @@ export default function ExistingResultsTable({
     });
   };
 
+  const openCustomDialog = (rowId: number) => {
+    const row = sorted.find((r) => r.id === rowId);
+    const code = row?.code && isCustomMapCode(row.code) ? row.code.toUpperCase() : '';
+    setCustomDialog({
+      rowId,
+      initial: code
+        ? {
+            codeName: code,
+            points: String(customMap[code] ?? row?.points ?? ''),
+            discardable: scoringCodeDiscardable?.[code] !== false,
+            shiftPositions: scoringCodeShiftPositions?.[code] === true,
+          }
+        : undefined,
+    });
+  };
+
+  const handleCustomSave = async (values: CustomCodeFormValues) => {
+    if (!onUpsertCustomCode) return null;
+    const pts = Number(values.points);
+    setCustomSaving(true);
+    try {
+      return await onUpsertCustomCode(
+        values.codeName,
+        pts,
+        values.discardable,
+        values.shiftPositions
+      );
+    } finally {
+      setCustomSaving(false);
+    }
+  };
+
   if (loading) return <p className="p-4 text-gray-500">Loading…</p>;
   if (sorted.length === 0) return <p className="p-4 text-gray-500">No saved results for this race.</p>;
 
+  const customDialogEl = (
+    <CustomCodeDialog
+      open={!!customDialog}
+      saving={customSaving}
+      initial={customDialog?.initial}
+      onClose={() => setCustomDialog(null)}
+      onSave={async (values) => {
+        const code = await handleCustomSave(values);
+        if (code) setCustomDialog(null);
+        return code;
+      }}
+      onSaveAndApply={async (values) => {
+        if (!customDialog) return;
+        const code = await handleCustomSave(values);
+        if (code) {
+          await onMarkCode(customDialog.rowId, code, null);
+          setCustomDialog(null);
+        }
+      }}
+    />
+  );
+
   if (isHandicapClass) {
     return (
+      <>
+      {customDialogEl}
       <HandicapResultsTable
         sorted={sorted}
         loading={loading}
@@ -436,15 +508,18 @@ export default function ExistingResultsTable({
         getHandicapEdit={getHandicapEdit}
         setHandicapEditField={setHandicapEditField}
         onMarkCode={onMarkCode}
-        onUpsertCustomCode={onUpsertCustomCode}
+        onOpenCustomCodeDialog={openCustomDialog}
         onOverridePoints={onOverridePoints}
         onUpdateHandicapResult={onUpdateHandicapResult}
         resolveEffectiveRating={getEffectiveRatingForRow}
       />
+      </>
     );
   }
 
   return (
+    <>
+    {customDialogEl}
     <OneDesignResultsTable
       sorted={sorted}
       loading={loading}
@@ -470,9 +545,10 @@ export default function ExistingResultsTable({
       setChangeToValue={setChangeToValue}
       setPointsValue={setPointsValue}
       onMarkCode={onMarkCode}
-      onUpsertCustomCode={onUpsertCustomCode}
+      onOpenCustomCodeDialog={openCustomDialog}
       onEditPos={onEditPos}
       onOverridePoints={onOverridePoints}
     />
+    </>
   );
 }

@@ -16,6 +16,7 @@ from app.routes.results_utils import (
     _norm,
     is_prp_code,
     get_scoring_map,
+    get_scoring_maps,
     compute_points_for_code,
     removes_from_ranking,
     normalize_race_results,
@@ -178,7 +179,9 @@ def set_result_code(
         else:
             assert_staff_regatta_access(db, current_user, regatta.id)
 
-    scoring_map = get_scoring_map(db, int(row.regatta_id), str(race.class_name or ""))
+    scoring_map, _discardable, shift_by_code = get_scoring_maps(
+        db, int(row.regatta_id), str(race.class_name or "")
+    )
 
     raw = (body.code or "").strip()
     if raw == "":
@@ -221,7 +224,7 @@ def set_result_code(
     if hasattr(row, "points_override"):
         row.points_override = None
 
-    if removes_from_ranking(code):
+    if removes_from_ranking(code, shift_by_code):
         row.position = 10**9
 
     db.flush()
