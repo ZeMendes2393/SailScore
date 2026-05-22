@@ -126,10 +126,8 @@ def upsert_class_settings(
 
             for k, v in (body.scoring_codes or {}).items():
                 kk = normalize_custom_code_key(str(k))
-                pts, discardable, shift_positions = parse_scoring_code_value(v)
-                normalized_create[kk] = serialize_scoring_code_entry(
-                    pts, discardable, shift_positions
-                )
+                pts, discardable = parse_scoring_code_value(v)
+                normalized_create[kk] = serialize_scoring_code_entry(pts, discardable)
         row = models.RegattaClassSettings(
             regatta_id=regatta_id,
             class_name=class_name,
@@ -154,10 +152,8 @@ def upsert_class_settings(
             normalized: Dict[str, Any] = {}
             for k, v in (body.scoring_codes or {}).items():
                 kk = normalize_custom_code_key(str(k))
-                pts, discardable, shift_positions = parse_scoring_code_value(v)
-                normalized[kk] = serialize_scoring_code_entry(
-                    pts, discardable, shift_positions
-                )
+                pts, discardable = parse_scoring_code_value(v)
+                normalized[kk] = serialize_scoring_code_entry(pts, discardable)
             row.scoring_codes = normalized
 
     db.commit()

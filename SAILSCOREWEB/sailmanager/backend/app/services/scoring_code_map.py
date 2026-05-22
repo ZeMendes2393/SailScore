@@ -1,5 +1,5 @@
 # app/services/scoring_code_map.py
-"""Parse e serialização do mapa scoring_codes (número simples ou objeto com metadados)."""
+"""Parse e serialização do mapa scoring_codes (número simples ou {points, discardable})."""
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
@@ -28,8 +28,7 @@ RESERVED_SCORING_CODES = frozenset(
 )
 
 
-def parse_scoring_code_value(raw: Any) -> Tuple[float, bool, bool]:
-    """points, discardable, shift_positions (lugares atrás sobem)."""
+def parse_scoring_code_value(raw: Any) -> Tuple[float, bool]:
     if isinstance(raw, dict):
         if "points" in raw:
             pts = float(raw["points"])
@@ -37,47 +36,33 @@ def parse_scoring_code_value(raw: Any) -> Tuple[float, bool, bool]:
             pts = float(raw["value"])
         else:
             raise ValueError("Custom scoring code entry requires 'points'.")
-        discardable = raw.get("discardable", True) is not False
-        shift = bool(raw.get("shift_positions", False))
-        return pts, discardable, shift
+        discardable = bool(raw.get("discardable", True))
+        return pts, discardable
     try:
-        return float(raw), True, False
+        return float(raw), True
     except (TypeError, ValueError) as e:
         raise ValueError("Invalid scoring code points value.") from e
 
 
-def parse_scoring_codes_dict(
-    raw: Any,
-) -> Tuple[Dict[str, float], Dict[str, bool], Dict[str, bool]]:
+def parse_scoring_codes_dict(raw: Any) -> Tuple[Dict[str, float], Dict[str, bool]]:
     points: Dict[str, float] = {}
     discardable: Dict[str, bool] = {}
-    shift_positions: Dict[str, bool] = {}
     if not isinstance(raw, dict):
-        return points, discardable, shift_positions
+        return points, discardable
     for k, v in raw.items():
         kk = norm_code(str(k))
         if not kk:
             continue
-        p, d, s = parse_scoring_code_value(v)
+        p, d = parse_scoring_code_value(v)
         points[kk] = p
         discardable[kk] = d
-        shift_positions[kk] = s
-    return points, discardable, shift_positions
+    return points, discardable
 
 
-def serialize_scoring_code_entry(
-    points: float,
-    discardable: bool = True,
-    shift_positions: bool = False,
-) -> Any:
-    if discardable and not shift_positions:
+def serialize_scoring_code_entry(points: float, discardable: bool = True) -> Any:
+    if discardable:
         return float(points)
-    out: Dict[str, Any] = {"points": float(points)}
-    if not discardable:
-        out["discardable"] = False
-    if shift_positions:
-        out["shift_positions"] = True
-    return out
+    return {"points": float(points), "discardable": False}
 
 
 def merge_scoring_codes_dict(*layers: Any) -> Dict[str, Any]:

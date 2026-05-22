@@ -388,7 +388,7 @@ def get_overall_results_data(
         cs = settings_by_class.get(cls)
         override_raw = (getattr(cs, "scoring_codes", None) or {}) if cs else {}
         merged_raw = merge_scoring_codes_dict(regatta_scoring_raw, override_raw)
-        _pts, discardable_by_class[cls], _shift = parse_scoring_codes_dict(merged_raw)
+        _pts, discardable_by_class[cls] = parse_scoring_codes_dict(merged_raw)
 
     def _resolve_discard_count_for_class(cls: str, n_races_cls: int) -> int:
         cs = settings_by_class.get(cls)

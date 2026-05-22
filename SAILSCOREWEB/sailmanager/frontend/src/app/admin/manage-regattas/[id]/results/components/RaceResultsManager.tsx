@@ -79,7 +79,6 @@ export default function RaceResultsManager({
     refreshExisting,
     scoringCodes,
     scoringCodeDiscardable,
-    scoringCodeShiftPositions,
     upsertCustomScoringCode,
     onSetDraftCode,
     onSetDraftPos,
@@ -643,7 +642,6 @@ export default function RaceResultsManager({
                     onDelete={deleteResult}
                     scoringCodes={scoringCodes ?? {}}
                     scoringCodeDiscardable={scoringCodeDiscardable}
-                    scoringCodeShiftPositions={scoringCodeShiftPositions}
                     onUpsertCustomCode={upsertCustomScoringCode}
                     onMarkCode={markCode}
                     onOverridePoints={handleOverridePoints}

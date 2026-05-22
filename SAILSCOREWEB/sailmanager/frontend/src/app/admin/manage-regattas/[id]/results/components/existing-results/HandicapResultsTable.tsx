@@ -62,7 +62,11 @@ interface Props {
     value: string
   ) => void;
   onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
-  onOpenCustomCodeDialog: (rowId: number) => void;
+  onUpsertCustomCode?: (
+    name: string,
+    points: number,
+    discardable: boolean
+  ) => Promise<string | null>;
   onOverridePoints: (rowId: number, points: number | null) => void;
   /** Rating efetivo (ANC/ORC + modo ORC); necessário quando `row.rating` não reflete ORC. */
   resolveEffectiveRating: (row: ApiResult) => number | null;
@@ -100,7 +104,7 @@ export default function HandicapResultsTable({
   getHandicapEdit,
   setHandicapEditField,
   onMarkCode,
-  onOpenCustomCodeDialog,
+  onUpsertCustomCode,
   onOverridePoints,
   resolveEffectiveRating,
   onUpdateHandicapResult,
@@ -108,6 +112,8 @@ export default function HandicapResultsTable({
   fleetLabelForRow,
 }: Props) {
   const [pendingPenaltyName, setPendingPenaltyName] = useState<Record<number, string>>({});
+  const [pendingCustomName, setPendingCustomName] = useState<Record<number, string>>({});
+  const [pendingCustomDiscardable, setPendingCustomDiscardable] = useState<Record<number, boolean>>({});
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
       <table className="min-w-full border-collapse text-xs text-slate-800">
@@ -138,7 +144,9 @@ export default function HandicapResultsTable({
           const codeUpper = row.code ? row.code.toUpperCase() : null;
           const pending = pendingCode[row.id];
           const isPrpPending = pending === PRP_TEMPLATE_CODE || isPrpCode(pending);
-          const showAdjustBox = !!pending && (isAdjustable(pending) || isPrpPending);
+          const isCustomPending = pending === CUSTOM_TEMPLATE_CODE;
+          const showAdjustBox =
+            !!pending && (isAdjustable(pending) || isPrpPending || isCustomPending);
           const ptsIsOpen = !!pointsOpen[row.id];
           const rawPtsVal = pointsValue[row.id] ?? '';
           const he = getHandicapEdit(row);
@@ -299,13 +307,17 @@ export default function HandicapResultsTable({
                           onMarkCode(row.id, null, null);
                           return;
                         }
-                        if (next === CUSTOM_TEMPLATE_CODE) {
-                          onOpenCustomCodeDialog(row.id);
-                          return;
-                        }
-                        if (isAdjustable(next) || next === PRP_TEMPLATE_CODE || isPrpCode(next)) {
+                        if (
+                          isAdjustable(next) ||
+                          next === PRP_TEMPLATE_CODE ||
+                          isPrpCode(next) ||
+                          next === CUSTOM_TEMPLATE_CODE
+                        ) {
                           setPendingCode((p) => ({ ...p, [row.id]: next }));
                           setPendingPoints((p) => ({ ...p, [row.id]: '' }));
+                          if (next === CUSTOM_TEMPLATE_CODE) {
+                            setPendingCustomDiscardable((p) => ({ ...p, [row.id]: true }));
+                          }
                           return;
                         }
                         if (codeGroups.custom.some((o) => o.code === next)) {
@@ -341,8 +353,8 @@ export default function HandicapResultsTable({
                       <optgroup label="Penalty (name + percentage)">
                         <option value={PRP_TEMPLATE_CODE}>Choose penalty name + percentage</option>
                       </optgroup>
-                      <optgroup label="Custom (fixed points)">
-                        <option value={CUSTOM_TEMPLATE_CODE}>Define custom code…</option>
+                      <optgroup label="Custom code (name + points)">
+                        <option value={CUSTOM_TEMPLATE_CODE}>Create custom code…</option>
                       </optgroup>
                       {codeGroups.custom.length > 0 && (
                         <optgroup label="Custom (saved)">
@@ -358,8 +370,34 @@ export default function HandicapResultsTable({
                   {showAdjustBox && (
                     <div className="flex flex-wrap items-center gap-2 bg-gray-50 border rounded p-2">
                       <span className="text-xs text-gray-600 w-20">
-                        {isPrpPending ? 'Penalty' : pendingCode[row.id]}
+                        {isPrpPending ? 'Penalty' : isCustomPending ? 'Custom' : pendingCode[row.id]}
                       </span>
+                      {isCustomPending && (
+                        <>
+                          <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-36 uppercase"
+                            value={pendingCustomName[row.id] ?? ''}
+                            placeholder="Code name"
+                            onChange={(e) =>
+                              setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
+                            }
+                          />
+                          <label className="inline-flex items-center gap-1 text-xs text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={pendingCustomDiscardable[row.id] !== false}
+                              onChange={(e) =>
+                                setPendingCustomDiscardable((p) => ({
+                                  ...p,
+                                  [row.id]: e.target.checked,
+                                }))
+                              }
+                            />
+                            Discardable
+                          </label>
+                        </>
+                      )}
                       {isPrpPending && (
                         <input
                           type="text"
@@ -375,7 +413,9 @@ export default function HandicapResultsTable({
                         step="0.01"
                         className="border rounded px-2 py-1 w-32"
                         value={pendingPoints[row.id] ?? ''}
-                        placeholder={isPrpPending ? 'ex: 20 (%)' : 'ex: 4.5'}
+                        placeholder={
+                          isPrpPending ? 'ex: 20 (%)' : isCustomPending ? 'ex: 10 (points)' : 'ex: 4.5'
+                        }
                         onChange={(e) => setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))}
                       />
                       <button
@@ -398,6 +438,19 @@ export default function HandicapResultsTable({
                               return;
                             }
                             onMarkCode(row.id, buildPrpCode(name), pts);
+                          } else if (isCustomPending) {
+                            const name = (pendingCustomName[row.id] ?? '').trim();
+                            if (!name) {
+                              notify.warning('Please set a code name.');
+                              return;
+                            }
+                            if (!onUpsertCustomCode) return;
+                            const saved = await onUpsertCustomCode(
+                              name,
+                              pts,
+                              pendingCustomDiscardable[row.id] !== false
+                            );
+                            if (saved) onMarkCode(row.id, saved, null);
                           } else {
                             onMarkCode(row.id, code, pts);
                           }

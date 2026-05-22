@@ -444,7 +444,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
 
   // *Merge* de códigos fixos: globais (regata) + override por classe (classe ganha)
   // ⚠️ estes são os "fixos" do mapping. Não incluem auto N+1 nem adjustable.
-  const { scoringCodes, scoringCodeDiscardable, scoringCodeShiftPositions } = useMemo(() => {
+  const { scoringCodes, scoringCodeDiscardable } = useMemo(() => {
     const source = classSettings?.scoring_codes
       ? classSettings.scoring_codes
       : ((scoring.code_points ?? {}) as Record<string, unknown>);
@@ -452,7 +452,6 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     return {
       scoringCodes: parsed.points,
       scoringCodeDiscardable: parsed.discardable,
-      scoringCodeShiftPositions: parsed.shiftPositions,
     };
   }, [scoring.code_points, classSettings]);
 
@@ -460,12 +459,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   const effectiveDiscardThreshold = classSettings?.discard_threshold ?? scoring.discard_threshold ?? 0;
 
   const upsertCustomScoringCode = useCallback(
-    async (
-      name: string,
-      points: number,
-      discardable: boolean,
-      shiftPositions: boolean
-    ) => {
+    async (name: string, points: number, discardable: boolean) => {
       if (!selectedClass || !token) {
         notify.warning('Select a class first.');
         return null;
@@ -486,7 +480,7 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
           overrides?: { scoring_codes?: Record<string, unknown> | null };
         }>(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
         const prev = (res?.overrides?.scoring_codes ?? {}) as Record<string, unknown>;
-        const entry = buildScoringCodeMapEntry(points, discardable, shiftPositions);
+        const entry = buildScoringCodeMapEntry(points, discardable);
         const scoring_codes = { ...prev, [code]: entry };
         await apiSend(
           `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`,
@@ -1559,7 +1553,6 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     // códigos e descartes efetivos (classe > global)
     scoringCodes,
     scoringCodeDiscardable,
-    scoringCodeShiftPositions,
     upsertCustomScoringCode,
     effectiveDiscardCount,
     effectiveDiscardThreshold,

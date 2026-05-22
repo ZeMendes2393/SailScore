@@ -79,9 +79,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
 
   const [dcInput, setDcInput] = useState<string>('');
   const [dtInput, setDtInput] = useState<string>('');
-  const [codes, setCodes] = useState<
-    Array<{ code: string; points: string; discardable: boolean; shiftPositions: boolean }>
-  >([]);
+  const [codes, setCodes] = useState<Array<{ code: string; points: string; discardable: boolean }>>([]);
 
   // sincroniza inputs quando muda overrides/resolved
   useEffect(() => {
@@ -95,18 +93,12 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
         code: k,
         points: String(v),
         discardable: parsed.discardable[k] !== false,
-        shiftPositions: parsed.shiftPositions[k] === true,
       }))
     );
   }, [overrides, resolved]);
 
-  const onAddCode = () =>
-    setCodes((prev) => [...prev, { code: '', points: '', discardable: true, shiftPositions: false }]);
-  const onChangeCode = (
-    i: number,
-    field: 'code' | 'points' | 'discardable' | 'shiftPositions',
-    value: string | boolean
-  ) => {
+  const onAddCode = () => setCodes((prev) => [...prev, { code: '', points: '', discardable: true }]);
+  const onChangeCode = (i: number, field: 'code' | 'points' | 'discardable', value: string | boolean) => {
     setCodes((prev) => prev.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
   };
   const onRemoveCode = (i: number) => setCodes(prev => prev.filter((_, idx) => idx !== i));
@@ -125,17 +117,12 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
           code: (r.code || '').trim().toUpperCase(),
           points: Number(r.points),
           discardable: r.discardable !== false,
-          shiftPositions: r.shiftPositions === true,
         }))
         .filter((r) => r.code && Number.isFinite(r.points))
         .reduce(
           (acc, cur) => ({
             ...acc,
-            [cur.code]: buildScoringCodeMapEntry(
-              cur.points,
-              cur.discardable,
-              cur.shiftPositions
-            ),
+            [cur.code]: buildScoringCodeMapEntry(cur.points, cur.discardable),
           }),
           {} as Record<string, unknown>
         );
@@ -272,15 +259,7 @@ export default function SettingsDrawer({ onClose, regattaId }: Props) {
                             checked={row.discardable}
                             onChange={(e) => onChangeCode(i, 'discardable', e.target.checked)}
                           />
-                          Discard
-                        </label>
-                        <label className="inline-flex items-center gap-1 text-xs text-gray-700 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={row.shiftPositions}
-                            onChange={(e) => onChangeCode(i, 'shiftPositions', e.target.checked)}
-                          />
-                          Shift places
+                          Discardable
                         </label>
                         <button onClick={() => onRemoveCode(i)} className="px-2 py-1 rounded border hover:bg-red-50 text-red-600">Remove</button>
                       </div>

@@ -357,19 +357,9 @@ def compute_handicap_ranking(
     return [result[i] for i in range(len(items))]  # type: ignore
 
 
-def removes_from_ranking(
-    code: Optional[str],
-    shift_by_code: Optional[Dict[str, bool]] = None,
-) -> bool:
-    """True = barco sai da ordem de chegada e os lugares atrás sobem (como DNF/DNC)."""
+def removes_from_ranking(code: Optional[str]) -> bool:
     c = _norm(code)
-    if not c:
-        return False
-    if c in AUTO_N_PLUS_ONE_CODES:
-        return True
-    if shift_by_code and shift_by_code.get(c):
-        return True
-    return False
+    return bool(c) and (c in AUTO_N_PLUS_ONE_CODES)
 
 
 def is_adjustable(code: Optional[str]) -> bool:
@@ -433,13 +423,13 @@ class CodePatch(BaseModel):
 # =========================================================
 
 def get_scoring_map(db: Session, regatta_id: int, class_name: Optional[str]) -> Dict[str, float]:
-    points, _, _ = get_scoring_maps(db, regatta_id, class_name)
+    points, _ = get_scoring_maps(db, regatta_id, class_name)
     return points
 
 
 def get_scoring_maps(
     db: Session, regatta_id: int, class_name: Optional[str]
-) -> Tuple[Dict[str, float], Dict[str, bool], Dict[str, bool]]:
+) -> Tuple[Dict[str, float], Dict[str, bool]]:
     from app.services.scoring_code_map import merge_scoring_codes_dict, parse_scoring_codes_dict
 
     reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
@@ -743,16 +733,9 @@ def ensure_missing_results_as_dnc(
 # NORMALIZE: compact + points + overrides
 # =========================================================
 
-def _normalize_group(
-    rows,
-    scoring_map,
-    ctx,
-    *,
-    is_handicap: bool = False,
-    shift_by_code: Optional[Dict[str, bool]] = None,
-):
-    ranked = [r for r in rows if not removes_from_ranking(r.code, shift_by_code)]
-    unranked = [r for r in rows if removes_from_ranking(r.code, shift_by_code)]
+def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
+    ranked = [r for r in rows if not removes_from_ranking(r.code)]
+    unranked = [r for r in rows if removes_from_ranking(r.code)]
 
     pos = 1
     if is_handicap:
@@ -845,9 +828,7 @@ def _normalize_group(
 
 
 def normalize_race_results(db: Session, race: models.Race) -> None:
-    scoring_map, _discardable, shift_by_code = get_scoring_maps(
-        db, int(race.regatta_id), str(race.class_name or "")
-    )
+    scoring_map = get_scoring_map(db, int(race.regatta_id), str(race.class_name or ""))
     ctx = _build_competitor_context_for_race(db, race)
 
     regatta_class = (
@@ -897,19 +878,7 @@ def normalize_race_results(db: Session, race: models.Race) -> None:
             by_fleet.setdefault(fid, []).append(r)
 
         for _fid, group in by_fleet.items():
-            _normalize_group(
-                group,
-                scoring_map,
-                ctx,
-                is_handicap=is_handicap,
-                shift_by_code=shift_by_code,
-            )
+            _normalize_group(group, scoring_map, ctx, is_handicap=is_handicap)
         return
 
-    _normalize_group(
-        rows,
-        scoring_map,
-        ctx,
-        is_handicap=is_handicap,
-        shift_by_code=shift_by_code,
-    )
+    _normalize_group(rows, scoring_map, ctx, is_handicap=is_handicap)
