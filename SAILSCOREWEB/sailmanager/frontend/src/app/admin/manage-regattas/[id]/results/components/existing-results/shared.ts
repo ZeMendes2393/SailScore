@@ -49,8 +49,21 @@ export function getEffectiveHandicapRating(
 export const isAdjustable = (c: string | null | undefined) =>
   !!c && (ADJUSTABLE_CODES as readonly string[]).includes(c);
 
+/** Penalização por % = PRP:nome. O código PRP sozinho é custom de pontos fixos. */
 export const isPrpCode = (c: string | null | undefined) =>
-  !!c && String(c).toUpperCase().startsWith(PRP_CODE_PREFIX);
+  !!c && String(c).toUpperCase().startsWith(`${PRP_CODE_PREFIX}:`);
+
+/** Custom inline (pontos por resultado, não auto/adjustable/PRP). */
+export const isCustomPenaltyCode = (c: string | null | undefined): boolean => {
+  const k = String(c || '')
+    .trim()
+    .toUpperCase();
+  if (!k) return false;
+  if (AUTO_N_PLUS_ONE.has(k)) return false;
+  if ((ADJUSTABLE_CODES as readonly string[]).includes(k)) return false;
+  if (isPrpCode(k)) return false;
+  return true;
+};
 
 /** Código interno PRP:nome — o nome visível é só o que o admin escreve no campo Name. */
 export const buildPrpCode = (name: string) => `${PRP_CODE_PREFIX}:${name.trim()}`;

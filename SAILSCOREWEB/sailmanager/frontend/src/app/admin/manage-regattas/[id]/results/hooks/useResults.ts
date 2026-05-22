@@ -6,11 +6,7 @@ import { apiGet, apiSend, apiDelete } from '@/lib/api';
 import type { Entry, Race, ApiResult, DraftResult, ScoringConfig } from '../types';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
-import {
-  buildScoringCodeMapEntry,
-  normalizeCustomCodeName,
-  parseScoringCodesMap,
-} from '../components/existing-results/scoringCodeMap';
+import { parseScoringCodesMap } from '../components/existing-results/scoringCodeMap';
 
 type EntryWithStatus = Entry & {
   paid?: boolean | null;
@@ -65,7 +61,7 @@ const isAdjustable = (c?: string | null) => {
 };
 const isPrpCode = (c?: string | null) => {
   const k = normCode(c);
-  return !!k && k.startsWith(PRP_CODE_PREFIX);
+  return !!k && k.startsWith(`${PRP_CODE_PREFIX}:`);
 };
 
 // =====================================================
@@ -458,59 +454,6 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   const effectiveDiscardCount = classSettings?.discard_count ?? scoring.discard_count ?? 0;
   const effectiveDiscardThreshold = classSettings?.discard_threshold ?? scoring.discard_threshold ?? 0;
 
-  const upsertCustomScoringCode = useCallback(
-    async (name: string, points: number, discardable: boolean) => {
-      if (!selectedClass || !token) {
-        notify.warning('Select a class first.');
-        return null;
-      }
-      let code: string;
-      try {
-        code = normalizeCustomCodeName(name);
-      } catch (e: unknown) {
-        notify.warning(e instanceof Error ? e.message : 'Invalid code name.');
-        return null;
-      }
-      if (!Number.isFinite(points) || points < 0) {
-        notify.warning('Invalid points value.');
-        return null;
-      }
-      try {
-        const res = await apiGet<{
-          overrides?: { scoring_codes?: Record<string, unknown> | null };
-        }>(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
-        const prev = (res?.overrides?.scoring_codes ?? {}) as Record<string, unknown>;
-        const entry = buildScoringCodeMapEntry(points, discardable);
-        const scoring_codes = { ...prev, [code]: entry };
-        await apiSend(
-          `/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`,
-          'PATCH',
-          { scoring_codes },
-          token
-        );
-        const refreshed = await apiGet<{
-          resolved?: {
-            discard_count?: number;
-            discard_threshold?: number;
-            scoring_codes?: Record<string, unknown>;
-          };
-        }>(`/regattas/${regattaId}/class-settings/${encodeURIComponent(selectedClass)}`);
-        const resolved = refreshed?.resolved ?? {};
-        setClassSettings({
-          discard_count: Number(resolved.discard_count ?? effectiveDiscardCount),
-          discard_threshold: Number(resolved.discard_threshold ?? effectiveDiscardThreshold),
-          scoring_codes: (resolved.scoring_codes ?? {}) as Record<string, unknown>,
-        });
-        notify.success(`Code ${code} saved for this class.`);
-        return code;
-      } catch (e: unknown) {
-        notify.error(e instanceof Error ? e.message : 'Could not save custom code.');
-        return null;
-      }
-    },
-    [selectedClass, token, regattaId, effectiveDiscardCount, effectiveDiscardThreshold]
-  );
-
   // ---------- Fleets para a corrida selecionada ----------
   const [fleetsForRace, setFleetsForRace] = useState<FleetLite[]>([]);
   const [fleetAssignments, setFleetAssignments] = useState<AssignmentLite[]>([]);
@@ -894,24 +837,47 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
   };
 
   // ---- EXISTENTES: aplicar code (agora aceita points opcional para RDG/SCP/ZPF/DPI)
-  const markCode = async (rowId: number, code: string | null, points?: number | null) => {
+  const markCode = async (
+    rowId: number,
+    code: string | null,
+    points?: number | null,
+    shiftsPlacesBehind?: boolean
+  ) => {
     if (!selectedRaceId || !token) return;
 
     const normalized = normCode(code);
 
-    setExistingResultsRaw((prev) => prev.map((r) => (r.id === rowId ? { ...r, code: normalized } : r)));
+    setExistingResultsRaw((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              code: normalized,
+              code_shifts_places:
+                shiftsPlacesBehind !== undefined ? !!shiftsPlacesBehind : r.code_shifts_places,
+            }
+          : r
+      )
+    );
 
     try {
-      await apiSend(
-        `/results/${rowId}/code`,
-        'PATCH',
-        {
-          code: normalized ?? '',
-          points: isAdjustable(normalized) ? (points ?? null) : null,
-          prp_percent: isPrpCode(normalized) ? (points ?? null) : null,
-        },
-        token
-      );
+      const manualPts =
+        points != null && Number.isFinite(points)
+          ? points
+          : null;
+      const body: Record<string, unknown> = {
+        code: normalized ?? '',
+        points: isPrpCode(normalized)
+          ? null
+          : isAdjustable(normalized) || manualPts != null
+            ? manualPts
+            : null,
+        prp_percent: isPrpCode(normalized) ? manualPts : null,
+      };
+      if (shiftsPlacesBehind !== undefined) {
+        body.shifts_places_behind = shiftsPlacesBehind;
+      }
+      await apiSend(`/results/${rowId}/code`, 'PATCH', body, token);
       await refreshExisting(selectedRaceId);
     } catch (err) {
       console.error('markCode falhou:', err);
@@ -1553,7 +1519,6 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     // códigos e descartes efetivos (classe > global)
     scoringCodes,
     scoringCodeDiscardable,
-    upsertCustomScoringCode,
     effectiveDiscardCount,
     effectiveDiscardThreshold,
     classSettings,

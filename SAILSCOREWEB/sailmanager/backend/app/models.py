@@ -440,6 +440,8 @@ class Result(Base):
     position = Column(Integer, nullable=False)
     points = Column(Float, nullable=False)
     code = Column(String, nullable=True)  # "DNF" | "DNC" | etc.
+    # Custom penalty: True = barco sai da ordem de chegada e os lugares atrás sobem
+    code_shifts_places = Column(Boolean, nullable=False, default=False, server_default="false")
     points_override = Column(Float, nullable=True)
 
     # Handicap / Time Scoring (nullable; one design usa só position/points)

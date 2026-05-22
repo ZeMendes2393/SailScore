@@ -622,7 +622,11 @@ def create_results_for_race(
     if is_handicap:
         ctx = _build_competitor_context_for_race(db, race)
         items = [
-            (_parse_time_to_seconds(getattr(r, "corrected_time", None)), _norm(getattr(r, "code", None)))
+            (
+                _parse_time_to_seconds(getattr(r, "corrected_time", None)),
+                _norm(getattr(r, "code", None)),
+                bool(getattr(r, "code_shifts_places", False)),
+            )
             for r in results
         ]
         rankings = compute_handicap_ranking(items, ctx["total_count"])

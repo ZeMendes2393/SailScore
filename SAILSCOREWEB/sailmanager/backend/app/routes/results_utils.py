@@ -39,8 +39,9 @@ def _norm(code: Optional[str]) -> Optional[str]:
 
 
 def is_prp_code(code: Optional[str]) -> bool:
-    c = _norm(code)
-    return bool(c and c.startswith(PRP_CODE_PREFIX))
+    """Penalização por % usa PRP:nome. O código simples PRP é custom de pontos fixos."""
+    c = (code or "").strip().upper()
+    return c.startswith(f"{PRP_CODE_PREFIX}:")
 
 
 def extract_prp_display_name(code: Optional[str]) -> str:
@@ -305,17 +306,17 @@ def _format_delta(seconds: float) -> str:
 
 
 def compute_handicap_ranking(
-    items: List[Tuple[Optional[float], Optional[str]]],
+    items: List[Tuple[Optional[float], Optional[str], bool]],
     total_competitors: int,
 ) -> List[Tuple[int, str, float]]:
     """
-    Given list of (corrected_time_seconds, code), return (position, delta_str, points).
+    Given list of (corrected_time_seconds, code, code_shifts_places), return (position, delta_str, points).
     Codes that remove from ranking go last. Low-point: ties share points.
     """
     rankable: List[Tuple[int, Optional[float], Optional[str]]] = []
     non_rankable: List[Tuple[int, Optional[str]]] = []
-    for i, (ct, code) in enumerate(items):
-        if code and removes_from_ranking(code):
+    for i, (ct, code, shifts) in enumerate(items):
+        if code and removes_from_ranking(code, shifts_places=shifts):
             non_rankable.append((i, code))
         else:
             rankable.append((i, ct, code))
@@ -357,9 +358,21 @@ def compute_handicap_ranking(
     return [result[i] for i in range(len(items))]  # type: ignore
 
 
-def removes_from_ranking(code: Optional[str]) -> bool:
+def removes_from_ranking(code: Optional[str], *, shifts_places: bool = False) -> bool:
+    """True = barco sai da ordem de chegada e os lugares atrás sobem (como DNF/DNC)."""
     c = _norm(code)
-    return bool(c) and (c in AUTO_N_PLUS_ONE_CODES)
+    if not c:
+        return False
+    if c in AUTO_N_PLUS_ONE_CODES:
+        return True
+    return bool(shifts_places)
+
+
+def result_removes_from_ranking(row: Any) -> bool:
+    return removes_from_ranking(
+        getattr(row, "code", None),
+        shifts_places=bool(getattr(row, "code_shifts_places", False)),
+    )
 
 
 def is_adjustable(code: Optional[str]) -> bool:
@@ -410,12 +423,14 @@ class PositionPatch(BaseModel):
 
 class CodePatch(BaseModel):
     """
-    Para codes ajustáveis (RDG/SCP/ZPF/DPI) o frontend envia points.
-    Para os outros, points pode vir null/omisso.
+    RDG/SCP/ZPF/DPI e customs: frontend envia points (valor deste resultado).
+    PRP: prp_percent. Auto N+1: points omitido.
+    shifts_places_behind: custom — lugares atrás sobem quando True.
     """
     code: Optional[str] = None
     points: Optional[float] = Field(default=None, ge=0)
     prp_percent: Optional[float] = Field(default=None, ge=0)
+    shifts_places_behind: Optional[bool] = None
 
 
 # =========================================================
@@ -648,9 +663,13 @@ def compute_points_for_code(
             raise ValueError(f"{c} requer points manual")
         return float(manual_points)
 
-    if c not in scoring_map:
-        raise ValueError(f"Code {c} has no defined score")
-    return float(scoring_map[c])
+    if manual_points is not None:
+        return float(manual_points)
+
+    if c in scoring_map:
+        return float(scoring_map[c])
+
+    raise ValueError(f"Code {c} has no defined score")
 
 
 # =========================================================
@@ -734,8 +753,8 @@ def ensure_missing_results_as_dnc(
 # =========================================================
 
 def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
-    ranked = [r for r in rows if not removes_from_ranking(r.code)]
-    unranked = [r for r in rows if removes_from_ranking(r.code)]
+    ranked = [r for r in rows if not result_removes_from_ranking(r)]
+    unranked = [r for r in rows if result_removes_from_ranking(r)]
 
     pos = 1
     if is_handicap:

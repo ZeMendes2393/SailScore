@@ -49,6 +49,8 @@ export interface ApiResult {
   position: number;
   points: number;
   code?: string | null;
+  /** Custom penalty: true = places behind move up in the finish order */
+  code_shifts_places?: boolean;
   points_override: number | null;
   /** Handicap / Time Scoring */
   rating?: number | null;

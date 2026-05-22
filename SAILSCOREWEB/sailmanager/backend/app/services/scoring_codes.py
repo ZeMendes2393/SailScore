@@ -312,8 +312,9 @@ def resolve_points(
             competitors_plus_one(db, regatta_id, race_id, class_name, sail_number, ctx)
         )
 
-    # custom map (override por classe ou regatta)
     mapping = get_effective_scoring_map(db, regatta_id, class_name, ctx)
+    if manual_points is not None:
+        return float(manual_points)
     if c in mapping:
         return float(mapping[c])
 

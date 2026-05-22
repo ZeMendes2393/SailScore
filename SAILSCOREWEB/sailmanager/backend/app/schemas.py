@@ -838,6 +838,7 @@ class ResultRead(BaseModel):
     position: int
     points: float
     code: Optional[str] = None
+    code_shifts_places: bool = False
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     points_override: Optional[float] = None
     rating: Optional[float] = None

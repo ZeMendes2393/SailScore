@@ -23,7 +23,6 @@ RESERVED_SCORING_CODES = frozenset(
         "SCP",
         "ZPF",
         "DPI",
-        "PRP",
     }
 )
 
@@ -84,10 +83,10 @@ def normalize_custom_code_key(name: str) -> str:
         raise ValueError("Code name must be at least 2 characters.")
     if len(key) > 16:
         raise ValueError("Code name must be at most 16 characters.")
+    if ":" in key:
+        raise ValueError("Code cannot contain ':' (reserved for percentage penalties).")
     if key in RESERVED_SCORING_CODES:
         raise ValueError(f"Code {key} is reserved.")
-    if key.startswith("PRP"):
-        raise ValueError("Code cannot start with PRP (reserved for percentage penalties).")
     return key
 
 
@@ -100,7 +99,7 @@ def is_code_discardable_for_discards(
     c = str(code).strip().upper()
     if c in {"DNE", "DGM"}:
         return False
-    if c.startswith("PRP"):
+    if c.startswith("PRP:"):
         return True
     if c in discardable_by_code:
         return bool(discardable_by_code[c])

@@ -2,18 +2,23 @@
 
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
-import { isAdjustable, isAutoNPlusOne, isPrpCode, PRP_TEMPLATE_CODE, buildPrpCode, extractPrpName } from './shared';
-import { CUSTOM_TEMPLATE_CODE } from './scoringCodeMap';
+import {
+  isAdjustable,
+  isAutoNPlusOne,
+  isCustomPenaltyCode,
+  isPrpCode,
+  PRP_TEMPLATE_CODE,
+  buildPrpCode,
+  extractPrpName,
+} from './shared';
+import { CUSTOM_TEMPLATE_CODE, normalizeCustomCodeName } from './scoringCodeMap';
 import notify from '@/lib/notify';
 import { useState } from 'react';
-
-type CustomCodeOption = { code: string; label: string };
 
 type CodeGroups = {
   autoDiscardable: string[];
   autoNonDiscardable: string[];
   adjustable: string[];
-  custom: CustomCodeOption[];
 };
 
 interface Props {
@@ -41,12 +46,12 @@ interface Props {
   setPendingPoints: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   setChangeToValue: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   setPointsValue: React.Dispatch<React.SetStateAction<Record<number, string>>>;
-  onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
-  onUpsertCustomCode?: (
-    name: string,
-    points: number,
-    discardable: boolean
-  ) => Promise<string | null>;
+  onMarkCode: (
+    rowId: number,
+    code: string | null,
+    points?: number | null,
+    shiftsPlacesBehind?: boolean
+  ) => void;
   onEditPos: (rowId: number, newPos: number) => void;
   onOverridePoints: (rowId: number, points: number | null) => void;
 }
@@ -76,13 +81,12 @@ export default function OneDesignResultsTable({
   setChangeToValue,
   setPointsValue,
   onMarkCode,
-  onUpsertCustomCode,
   onEditPos,
   onOverridePoints,
 }: Props) {
   const [pendingPenaltyName, setPendingPenaltyName] = useState<Record<number, string>>({});
   const [pendingCustomName, setPendingCustomName] = useState<Record<number, string>>({});
-  const [pendingCustomDiscardable, setPendingCustomDiscardable] = useState<Record<number, boolean>>({});
+  const [pendingCustomShifts, setPendingCustomShifts] = useState<Record<number, boolean>>({});
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
@@ -185,23 +189,26 @@ export default function OneDesignResultsTable({
                             onMarkCode(row.id, null, null);
                             return;
                           }
-                          if (
-                            isAdjustable(next) ||
-                            next === PRP_TEMPLATE_CODE ||
-                            isPrpCode(next) ||
-                            next === CUSTOM_TEMPLATE_CODE
-                          ) {
-                            setPendingCode((p) => ({ ...p, [row.id]: next }));
-                            setPendingPoints((p) => ({ ...p, [row.id]: '' }));
-                            if (next === CUSTOM_TEMPLATE_CODE) {
-                              setPendingCustomDiscardable((p) => ({ ...p, [row.id]: true }));
+                            if (
+                              isAdjustable(next) ||
+                              next === PRP_TEMPLATE_CODE ||
+                              isPrpCode(next) ||
+                              next === CUSTOM_TEMPLATE_CODE
+                            ) {
+                              setPendingCode((p) => ({ ...p, [row.id]: next }));
+                              setPendingPoints((p) => ({ ...p, [row.id]: '' }));
+                              if (next === CUSTOM_TEMPLATE_CODE) {
+                                setPendingCustomName((p) => ({
+                                  ...p,
+                                  [row.id]: isCustomPenaltyCode(row.code) ? (row.code ?? '') : '',
+                                }));
+                                setPendingCustomShifts((p) => ({
+                                  ...p,
+                                  [row.id]: !!row.code_shifts_places,
+                                }));
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          if (codeGroups.custom.some((o) => o.code === next)) {
-                            onMarkCode(row.id, next, null);
-                            return;
-                          }
                           onMarkCode(row.id, next, null);
                         }}
                         aria-label="Scoring code"
@@ -231,18 +238,9 @@ export default function OneDesignResultsTable({
                         <optgroup label="Penalty (name + percentage)">
                           <option value={PRP_TEMPLATE_CODE}>Choose penalty name + percentage</option>
                         </optgroup>
-                        <optgroup label="Custom code (name + points)">
+                        <optgroup label="Custom (name + points per result)">
                           <option value={CUSTOM_TEMPLATE_CODE}>Create custom code…</option>
                         </optgroup>
-                        {codeGroups.custom.length > 0 && (
-                          <optgroup label="Custom (saved)">
-                            {codeGroups.custom.map((c) => (
-                              <option key={c.code} value={c.code}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
                       </select>
                       <span className="text-xs text-gray-500">
                         points: <b>{row.points}</b>
@@ -255,30 +253,15 @@ export default function OneDesignResultsTable({
                           {isPrpPending ? 'Penalty' : isCustomPending ? 'Custom' : pendingCode[row.id]}
                         </span>
                         {isCustomPending && (
-                          <>
-                            <input
-                              type="text"
-                              className="border rounded px-2 py-1 w-36 uppercase"
-                              value={pendingCustomName[row.id] ?? ''}
-                              placeholder="Code name"
-                              onChange={(e) =>
-                                setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
-                              }
-                            />
-                            <label className="inline-flex items-center gap-1 text-xs text-gray-700">
-                              <input
-                                type="checkbox"
-                                checked={pendingCustomDiscardable[row.id] !== false}
-                                onChange={(e) =>
-                                  setPendingCustomDiscardable((p) => ({
-                                    ...p,
-                                    [row.id]: e.target.checked,
-                                  }))
-                                }
-                              />
-                              Discardable
-                            </label>
-                          </>
+                          <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-36 uppercase"
+                            value={pendingCustomName[row.id] ?? ''}
+                            placeholder="Code name"
+                            onChange={(e) =>
+                              setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
+                            }
+                          />
                         )}
                         {isPrpPending && (
                           <input
@@ -328,13 +311,21 @@ export default function OneDesignResultsTable({
                                 notify.warning('Please set a code name.');
                                 return;
                               }
-                              if (!onUpsertCustomCode) return;
-                              const saved = await onUpsertCustomCode(
-                                name,
+                              let code: string;
+                              try {
+                                code = normalizeCustomCodeName(name);
+                              } catch (e: unknown) {
+                                notify.warning(
+                                  e instanceof Error ? e.message : 'Invalid code name.'
+                                );
+                                return;
+                              }
+                              onMarkCode(
+                                row.id,
+                                code,
                                 pts,
-                                pendingCustomDiscardable[row.id] !== false
+                                pendingCustomShifts[row.id] === true
                               );
-                              if (saved) onMarkCode(row.id, saved, null);
                             } else {
                               onMarkCode(row.id, code, pts);
                             }

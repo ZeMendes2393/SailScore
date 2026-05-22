@@ -13,21 +13,19 @@ import {
   extractPrpName,
   isAdjustable,
   isAutoNPlusOne,
+  isCustomPenaltyCode,
   isPrpCode,
   PRP_TEMPLATE_CODE,
   parseElapsedToSeconds,
   timeStringToSeconds,
 } from './shared';
-import { CUSTOM_TEMPLATE_CODE } from './scoringCodeMap';
+import { CUSTOM_TEMPLATE_CODE, normalizeCustomCodeName } from './scoringCodeMap';
 import { useState } from 'react';
-
-type CustomCodeOption = { code: string; label: string };
 
 type CodeGroups = {
   autoDiscardable: string[];
   autoNonDiscardable: string[];
   adjustable: string[];
-  custom: CustomCodeOption[];
 };
 
 type HandicapEdit = {
@@ -61,12 +59,12 @@ interface Props {
     field: 'finish_day' | 'finish_time' | 'elapsed_time' | 'corrected_time',
     value: string
   ) => void;
-  onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
-  onUpsertCustomCode?: (
-    name: string,
-    points: number,
-    discardable: boolean
-  ) => Promise<string | null>;
+  onMarkCode: (
+    rowId: number,
+    code: string | null,
+    points?: number | null,
+    shiftsPlacesBehind?: boolean
+  ) => void;
   onOverridePoints: (rowId: number, points: number | null) => void;
   /** Rating efetivo (ANC/ORC + modo ORC); necessário quando `row.rating` não reflete ORC. */
   resolveEffectiveRating: (row: ApiResult) => number | null;
@@ -104,7 +102,6 @@ export default function HandicapResultsTable({
   getHandicapEdit,
   setHandicapEditField,
   onMarkCode,
-  onUpsertCustomCode,
   onOverridePoints,
   resolveEffectiveRating,
   onUpdateHandicapResult,
@@ -113,7 +110,7 @@ export default function HandicapResultsTable({
 }: Props) {
   const [pendingPenaltyName, setPendingPenaltyName] = useState<Record<number, string>>({});
   const [pendingCustomName, setPendingCustomName] = useState<Record<number, string>>({});
-  const [pendingCustomDiscardable, setPendingCustomDiscardable] = useState<Record<number, boolean>>({});
+  const [pendingCustomShifts, setPendingCustomShifts] = useState<Record<number, boolean>>({});
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
       <table className="min-w-full border-collapse text-xs text-slate-800">
@@ -316,12 +313,15 @@ export default function HandicapResultsTable({
                           setPendingCode((p) => ({ ...p, [row.id]: next }));
                           setPendingPoints((p) => ({ ...p, [row.id]: '' }));
                           if (next === CUSTOM_TEMPLATE_CODE) {
-                            setPendingCustomDiscardable((p) => ({ ...p, [row.id]: true }));
+                            setPendingCustomName((p) => ({
+                              ...p,
+                              [row.id]: isCustomPenaltyCode(row.code) ? (row.code ?? '') : '',
+                            }));
+                            setPendingCustomShifts((p) => ({
+                              ...p,
+                              [row.id]: !!row.code_shifts_places,
+                            }));
                           }
-                          return;
-                        }
-                        if (codeGroups.custom.some((o) => o.code === next)) {
-                          onMarkCode(row.id, next, null);
                           return;
                         }
                         onMarkCode(row.id, next, null);
@@ -353,18 +353,9 @@ export default function HandicapResultsTable({
                       <optgroup label="Penalty (name + percentage)">
                         <option value={PRP_TEMPLATE_CODE}>Choose penalty name + percentage</option>
                       </optgroup>
-                      <optgroup label="Custom code (name + points)">
+                      <optgroup label="Custom (name + points per result)">
                         <option value={CUSTOM_TEMPLATE_CODE}>Create custom code…</option>
                       </optgroup>
-                      {codeGroups.custom.length > 0 && (
-                        <optgroup label="Custom (saved)">
-                          {codeGroups.custom.map((c) => (
-                            <option key={c.code} value={c.code}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
                     </select>
                   </div>
                   {showAdjustBox && (
@@ -383,18 +374,21 @@ export default function HandicapResultsTable({
                               setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
                             }
                           />
-                          <label className="inline-flex items-center gap-1 text-xs text-gray-700">
+                          <label
+                            className="inline-flex items-center gap-1 text-xs text-gray-700 max-w-[220px]"
+                            title="When enabled, this boat leaves the finish order and boats behind move up one place."
+                          >
                             <input
                               type="checkbox"
-                              checked={pendingCustomDiscardable[row.id] !== false}
+                              checked={pendingCustomShifts[row.id] === true}
                               onChange={(e) =>
-                                setPendingCustomDiscardable((p) => ({
+                                setPendingCustomShifts((p) => ({
                                   ...p,
                                   [row.id]: e.target.checked,
                                 }))
                               }
                             />
-                            Discardable
+                            Shift places behind
                           </label>
                         </>
                       )}
@@ -444,13 +438,21 @@ export default function HandicapResultsTable({
                               notify.warning('Please set a code name.');
                               return;
                             }
-                            if (!onUpsertCustomCode) return;
-                            const saved = await onUpsertCustomCode(
-                              name,
+                            let code: string;
+                            try {
+                              code = normalizeCustomCodeName(name);
+                            } catch (e: unknown) {
+                              notify.warning(
+                                e instanceof Error ? e.message : 'Invalid code name.'
+                              );
+                              return;
+                            }
+                            onMarkCode(
+                              row.id,
+                              code,
                               pts,
-                              pendingCustomDiscardable[row.id] !== false
+                              pendingCustomShifts[row.id] === true
                             );
-                            if (saved) onMarkCode(row.id, saved, null);
                           } else {
                             onMarkCode(row.id, code, pts);
                           }

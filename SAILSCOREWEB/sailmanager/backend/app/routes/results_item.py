@@ -11,12 +11,15 @@ from app.org_scope import assert_staff_regatta_access, assert_user_can_manage_or
 from utils.auth_utils import get_current_user
 
 from app.routes.results_utils import (
+    AUTO_N_PLUS_ONE_CODES,
     PositionPatch,
     CodePatch,
     _norm,
+    is_adjustable,
     is_prp_code,
     get_scoring_map,
     compute_points_for_code,
+    result_removes_from_ranking,
     removes_from_ranking,
     normalize_race_results,
     _parse_time_to_seconds,
@@ -97,7 +100,7 @@ def change_result_position(
             assert_staff_regatta_access(db, current_user, regatta.id)
 
     # se este code remove do ranking, não faz sentido mover
-    if removes_from_ranking(getattr(row, "code", None)):
+    if result_removes_from_ranking(row):
         raise HTTPException(
             status_code=400,
             detail="This result cannot be moved (status code is outside the ranking).",
@@ -189,6 +192,8 @@ def set_result_code(
         # ✅ se existia override manual, apaga (faz sentido)
         if hasattr(row, "points_override"):
             row.points_override = None
+        if hasattr(row, "code_shifts_places"):
+            row.code_shifts_places = False
 
         db.flush()
         normalize_race_results(db, race)
@@ -221,7 +226,14 @@ def set_result_code(
     if hasattr(row, "points_override"):
         row.points_override = None
 
-    if removes_from_ranking(code):
+    if hasattr(row, "code_shifts_places"):
+        if body.shifts_places_behind is not None:
+            row.code_shifts_places = bool(body.shifts_places_behind)
+        elif code in AUTO_N_PLUS_ONE_CODES or is_prp_code(code) or is_adjustable(code):
+            row.code_shifts_places = False
+        # custom sem flag explícito: mantém valor anterior ou False
+
+    if result_removes_from_ranking(row):
         row.position = 10**9
 
     db.flush()
@@ -270,7 +282,7 @@ def patch_handicap_fields(
     if corrected_time and _parse_time_to_seconds(corrected_time) is None:
         raise HTTPException(status_code=400, detail="corrected_time must be HH:MM:SS")
 
-    if not removes_from_ranking(getattr(row, "code", None)) and not corrected_time:
+    if not result_removes_from_ranking(row) and not corrected_time:
         raise HTTPException(
             status_code=400,
             detail="corrected_time is required for ranked results",
@@ -314,7 +326,7 @@ def override_points(
             assert_staff_regatta_access(db, current_user, regatta.id)
 
     # não faz sentido override em resultados fora do ranking (DNF/DNC/etc)
-    if removes_from_ranking(getattr(row, "code", None)):
+    if result_removes_from_ranking(row):
         raise HTTPException(
             status_code=400,
             detail="This result is outside the ranking (DNF/DNC/etc.). Points override is not applied here.",

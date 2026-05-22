@@ -4,11 +4,7 @@ export const CUSTOM_TEMPLATE_CODE = '__CUSTOM_CODE__';
 
 export type ScoringCodeMapValue = number | { points: number; discardable?: boolean };
 
-const RESERVED = new Set<string>([
-  ...AUTO_N_PLUS_ONE,
-  ...ADJUSTABLE_CODES,
-  PRP_CODE_PREFIX,
-]);
+const RESERVED = new Set<string>([...AUTO_N_PLUS_ONE, ...ADJUSTABLE_CODES]);
 
 export function parseScoringCodesMap(raw: Record<string, unknown> | null | undefined): {
   points: Record<string, number>;
@@ -49,14 +45,14 @@ export function normalizeCustomCodeName(name: string): string {
     .replace(/\s+/g, '');
   if (key.length < 2) throw new Error('Code name must be at least 2 characters.');
   if (key.length > 16) throw new Error('Code name must be at most 16 characters.');
+  if (key.includes(':')) throw new Error("Code cannot contain ':' (reserved for percentage penalties).");
   if (RESERVED.has(key)) throw new Error(`Code ${key} is reserved.`);
-  if (key.startsWith(PRP_CODE_PREFIX)) throw new Error('Code cannot start with PRP.');
   return key;
 }
 
 export function isCustomMapCode(code: string | null | undefined): boolean {
   const c = String(code || '').trim().toUpperCase();
-  if (!c || c.startsWith(PRP_CODE_PREFIX)) return false;
+  if (!c || c.startsWith(`${PRP_CODE_PREFIX}:`)) return false;
   if (AUTO_N_PLUS_ONE.has(c)) return false;
   if ((ADJUSTABLE_CODES as readonly string[]).includes(c)) return false;
   return true;
