@@ -51,6 +51,8 @@ export interface ApiResult {
   code?: string | null;
   /** Custom penalty: true = places behind move up in the finish order */
   code_shifts_places?: boolean;
+  /** Per-result override for overall discards; null/undefined = use code default */
+  code_discardable?: boolean | null;
   points_override: number | null;
   /** Handicap / Time Scoring */
   rating?: number | null;

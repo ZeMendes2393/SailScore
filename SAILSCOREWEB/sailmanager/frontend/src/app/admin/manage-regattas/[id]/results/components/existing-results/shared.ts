@@ -22,6 +22,16 @@ export const AUTO_N_PLUS_ONE = new Set<string>([
 export const ADJUSTABLE_CODES = ['RDG', 'SCP', 'ZPF', 'DPI'] as const;
 export const PRP_CODE_PREFIX = 'PRP';
 export const PRP_TEMPLATE_CODE = '__PRP_TEMPLATE__';
+/** Escolher categoria N+1 antes do código concreto */
+export const AUTO_N1_DISCARDABLE_TEMPLATE = '__AUTO_N1_DISCARDABLE__';
+export const AUTO_N1_NON_DISCARDABLE_TEMPLATE = '__AUTO_N1_NON_DISCARDABLE__';
+
+export const isAutoN1DiscardableTemplate = (c: string | null | undefined) =>
+  c === AUTO_N1_DISCARDABLE_TEMPLATE;
+export const isAutoN1NonDiscardableTemplate = (c: string | null | undefined) =>
+  c === AUTO_N1_NON_DISCARDABLE_TEMPLATE;
+export const isAutoN1TemplatePending = (c: string | null | undefined) =>
+  isAutoN1DiscardableTemplate(c) || isAutoN1NonDiscardableTemplate(c);
 
 export const START_DAY = 0;
 

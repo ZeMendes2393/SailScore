@@ -65,7 +65,7 @@ export default function RegattaSponsorsFooter({ regattaId }: { regattaId: number
                       <img
                         src={imageSrc(s.image_url) ?? ''}
                         alt={category}
-                        className="max-h-32 max-w-[280px] object-contain"
+                        className="max-h-16 sm:max-h-24 md:max-h-32 w-auto max-w-[min(100%,220px)] sm:max-w-[280px] object-contain"
                       />
                     </Wrapper>
                   );

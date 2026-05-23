@@ -2,18 +2,9 @@
 
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { ApiResult } from '../../types';
-import {
-  isAdjustable,
-  isAutoNPlusOne,
-  isCustomPenaltyCode,
-  isPrpCode,
-  PRP_TEMPLATE_CODE,
-  buildPrpCode,
-  extractPrpName,
-} from './shared';
-import { CUSTOM_TEMPLATE_CODE, normalizeCustomCodeName } from './scoringCodeMap';
+import { isAutoNPlusOne } from './shared';
+import ScoringCodeSelector from './ScoringCodeSelector';
 import notify from '@/lib/notify';
-import { useState } from 'react';
 
 type CodeGroups = {
   autoDiscardable: string[];
@@ -50,7 +41,8 @@ interface Props {
     rowId: number,
     code: string | null,
     points?: number | null,
-    shiftsPlacesBehind?: boolean
+    shiftsPlacesBehind?: boolean,
+    discardable?: boolean
   ) => void;
   onEditPos: (rowId: number, newPos: number) => void;
   onOverridePoints: (rowId: number, points: number | null) => void;
@@ -84,9 +76,6 @@ export default function OneDesignResultsTable({
   onEditPos,
   onOverridePoints,
 }: Props) {
-  const [pendingPenaltyName, setPendingPenaltyName] = useState<Record<number, string>>({});
-  const [pendingCustomName, setPendingCustomName] = useState<Record<number, string>>({});
-  const [pendingCustomShifts, setPendingCustomShifts] = useState<Record<number, boolean>>({});
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
@@ -119,362 +108,179 @@ export default function OneDesignResultsTable({
             {sorted.map((row, idx) => {
               const rowBg =
                 idx % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60';
-            const codeUpper = row.code ? row.code.toUpperCase() : null;
-            const pending = pendingCode[row.id];
-            const isPrpPending = pending === PRP_TEMPLATE_CODE || isPrpCode(pending);
-            const isCustomPending = pending === CUSTOM_TEMPLATE_CODE;
-            const showAdjustBox =
-              !!pending && (isAdjustable(pending) || isPrpPending || isCustomPending);
-            const maxPos = sorted.length;
-            const isChangeOpen = !!changeToOpen[row.id];
-            const rawVal = changeToValue[row.id] ?? '';
-            const ptsIsOpen = !!pointsOpen[row.id];
-            const rawPtsVal = pointsValue[row.id] ?? '';
-            const hasOverride = row.points_override != null;
-            const lockedByCode = isAutoNPlusOne(codeUpper);
-
-            const selectValue = isPrpCode(row.code) ? PRP_TEMPLATE_CODE : (row.code ?? '');
-            return (
-              <tr key={row.id} className={rowBg}>
-                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
-                  <div className="flex items-center gap-2">
-                    <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
-                    {row.code ? (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700"
-                        title={codeBadgeTitle?.(row) ?? 'Code + value'}
-                      >
-                        {formatCodeWithValue(row)}
-                      </span>
-                    ) : null}
-                    {hasOverride ? (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-900 border border-yellow-200"
-                        title="Points override"
-                      >
-                        OVR
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-                {showFleetColumn ? (
-                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-sm text-gray-800 font-medium">
-                    {fleetLabelForRow?.(row) ?? '—'}
-                  </td>
-                ) : null}
-                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">{resolveCrew(row)}</td>
-                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-center">
-                  <input
-                    type="number"
-                    min={1}
-                    className="w-24 border rounded px-2 py-1 text-center"
-                    value={row.position}
-                    disabled
-                    readOnly
-                  />
-                </td>
-                <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
-                  <div className="flex flex-col gap-2">
+              const codeUpper = row.code ? row.code.trim().toUpperCase() : null;
+              const maxPos = sorted.length;
+              const isChangeOpen = !!changeToOpen[row.id];
+              const rawVal = changeToValue[row.id] ?? '';
+              const ptsIsOpen = !!pointsOpen[row.id];
+              const rawPtsVal = pointsValue[row.id] ?? '';
+              const hasOverride = row.points_override != null;
+              const lockedByCode = isAutoNPlusOne(codeUpper);
+              return (
+                <tr key={row.id} className={rowBg}>
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
                     <div className="flex items-center gap-2">
-                      <select
-                        className="border rounded px-2 py-1"
-                        value={selectValue}
-                        disabled={loading}
-                        onChange={(ev) => {
-                          const raw = (ev.target.value || '').trim();
-                          const next = raw ? raw.toUpperCase() : null;
-                          clearPending(row.id);
-                          setPendingPenaltyName((p) => ({ ...p, [row.id]: extractPrpName(row.code) || '' }));
-                          if (!next) {
-                            onMarkCode(row.id, null, null);
-                            return;
-                          }
-                            if (
-                              isAdjustable(next) ||
-                              next === PRP_TEMPLATE_CODE ||
-                              isPrpCode(next) ||
-                              next === CUSTOM_TEMPLATE_CODE
-                            ) {
-                              setPendingCode((p) => ({ ...p, [row.id]: next }));
-                              setPendingPoints((p) => ({ ...p, [row.id]: '' }));
-                              if (next === CUSTOM_TEMPLATE_CODE) {
-                                setPendingCustomName((p) => ({
-                                  ...p,
-                                  [row.id]: isCustomPenaltyCode(row.code) ? (row.code ?? '') : '',
-                                }));
-                                setPendingCustomShifts((p) => ({
-                                  ...p,
-                                  [row.id]: !!row.code_shifts_places,
-                                }));
-                              }
-                              return;
-                            }
-                          onMarkCode(row.id, next, null);
-                        }}
-                        aria-label="Scoring code"
-                      >
-                        <option value="">(none)</option>
-                        <optgroup label="Auto (N+1) — discardable">
-                          {codeGroups.autoDiscardable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Auto (N+1) — non-discardable">
-                          {codeGroups.autoNonDiscardable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Adjustable (requires value)">
-                          {codeGroups.adjustable.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Penalty (name + percentage)">
-                          <option value={PRP_TEMPLATE_CODE}>Choose penalty name + percentage</option>
-                        </optgroup>
-                        <optgroup label="Custom (name + points per result)">
-                          <option value={CUSTOM_TEMPLATE_CODE}>Create custom code…</option>
-                        </optgroup>
-                      </select>
-                      <span className="text-xs text-gray-500">
-                        points: <b>{row.points}</b>
-                        {hasOverride ? <span className="ml-1">(override: {row.points_override})</span> : null}
-                      </span>
-                    </div>
-                    {showAdjustBox && (
-                      <div className="flex flex-wrap items-center gap-2 bg-gray-50 border rounded p-2">
-                        <span className="text-xs text-gray-600 w-20">
-                          {isPrpPending ? 'Penalty' : isCustomPending ? 'Custom' : pendingCode[row.id]}
+                      <SailNumberDisplay countryCode={row.boat_country_code} sailNumber={row.sail_number} />
+                      {row.code ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700"
+                          title={codeBadgeTitle?.(row) ?? 'Code + value'}
+                        >
+                          {formatCodeWithValue(row)}
                         </span>
-                        {isCustomPending && (
-                          <>
-                            <input
-                              type="text"
-                              className="border rounded px-2 py-1 w-36 uppercase"
-                              value={pendingCustomName[row.id] ?? ''}
-                              placeholder="Code name"
-                              onChange={(e) =>
-                                setPendingCustomName((p) => ({ ...p, [row.id]: e.target.value }))
-                              }
-                            />
-                            <label
-                              className="inline-flex items-center gap-1 text-xs text-gray-700 max-w-[220px]"
-                              title="When enabled, this boat leaves the finish order and boats behind move up one place."
-                            >
-                              <input
-                                type="checkbox"
-                                checked={pendingCustomShifts[row.id] === true}
-                                onChange={(e) =>
-                                  setPendingCustomShifts((p) => ({
-                                    ...p,
-                                    [row.id]: e.target.checked,
-                                  }))
-                                }
-                              />
-                              Shift places behind
-                            </label>
-                          </>
-                        )}
-                        {isPrpPending && (
+                      ) : null}
+                      {hasOverride ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-900 border border-yellow-200"
+                          title="Points override"
+                        >
+                          OVR
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  {showFleetColumn ? (
+                    <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-sm text-gray-800 font-medium">
+                      {fleetLabelForRow?.(row) ?? '—'}
+                    </td>
+                  ) : null}
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle">{resolveCrew(row)}</td>
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-center">
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-24 border rounded px-2 py-1 text-center"
+                      value={row.position}
+                      disabled
+                      readOnly
+                    />
+                  </td>
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle">
+                    <ScoringCodeSelector
+                      row={row}
+                      loading={loading}
+                      codeGroups={codeGroups}
+                      pendingCode={pendingCode}
+                      pendingPoints={pendingPoints}
+                      setPendingCode={setPendingCode}
+                      setPendingPoints={setPendingPoints}
+                      clearPending={clearPending}
+                      onMarkCode={onMarkCode}
+                      showPointsSummary
+                    />
+                  </td>
+                  <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-right">
+                    <div className="inline-flex gap-2 items-center">
+                      {!isChangeOpen ? (
+                        <button
+                          disabled={loading || lockedByCode}
+                          onClick={() => openChangeTo(row.id, row.position)}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
+                          title="Move this result to a specific position"
+                        >
+                          Change to
+                        </button>
+                      ) : (
+                        <div className="inline-flex items-center gap-1">
                           <input
-                            type="text"
-                            className="border rounded px-2 py-1 w-40"
-                            value={pendingPenaltyName[row.id] ?? ''}
-                            placeholder="Name"
-                            onChange={(e) => setPendingPenaltyName((p) => ({ ...p, [row.id]: e.target.value }))}
+                            type="number"
+                            min={1}
+                            max={maxPos}
+                            className="w-16 border rounded px-2 py-1 text-center text-xs"
+                            value={rawVal}
+                            onChange={(e) =>
+                              setChangeToValue((p) => ({ ...p, [row.id]: e.target.value }))
+                            }
                           />
-                        )}
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          className="border rounded px-2 py-1 w-32"
-                          value={pendingPoints[row.id] ?? ''}
-                          placeholder={
-                            isPrpPending ? 'ex: 20 (%)' : isCustomPending ? 'ex: 10 (points)' : 'ex: 4.5'
-                          }
-                          onChange={(e) =>
-                            setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))
-                          }
-                        />
+                          <button
+                            type="button"
+                            disabled={loading}
+                            className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
+                            onClick={() => {
+                              const v = Math.max(1, Math.min(maxPos, Number(rawVal) || 1));
+                              onEditPos(row.id, v);
+                              closeChangeTo(row.id);
+                            }}
+                          >
+                            Apply
+                          </button>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
+                            onClick={() => closeChangeTo(row.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                      {!ptsIsOpen ? (
                         <button
-                          type="button"
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700"
-                          onClick={async () => {
-                            const code = pendingCode[row.id];
-                            const rawPts = (pendingPoints[row.id] ?? '').trim();
-                            const pts = Number(rawPts);
-                            if (!Number.isFinite(pts) || pts < 0) {
-                              notify.warning(
-                                isPrpPending ? 'Invalid value (percentage).' : 'Invalid value (points).'
-                              );
-                              return;
+                          disabled={loading || lockedByCode}
+                          onClick={() => openPoints(row)}
+                          className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
+                          title="Manually set points without changing positions"
+                        >
+                          {hasOverride ? 'Edit override' : 'Override points'}
+                        </button>
+                      ) : (
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            className="w-20 border rounded px-2 py-1 text-center text-xs"
+                            value={rawPtsVal}
+                            onChange={(e) =>
+                              setPointsValue((p) => ({ ...p, [row.id]: e.target.value }))
                             }
-                            if (isPrpPending) {
-                              const name = (pendingPenaltyName[row.id] ?? '').trim();
-                              if (!name) {
-                                notify.warning('Please set a penalty name.');
+                          />
+                          <button
+                            type="button"
+                            disabled={loading}
+                            className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
+                            onClick={() => {
+                              const raw = (rawPtsVal ?? '').trim();
+                              const pts = Number(raw);
+                              if (!Number.isFinite(pts) || pts < 0) {
+                                notify.warning('Invalid value (points).');
                                 return;
                               }
-                              onMarkCode(row.id, buildPrpCode(name), pts);
-                            } else if (isCustomPending) {
-                              const name = (pendingCustomName[row.id] ?? '').trim();
-                              if (!name) {
-                                notify.warning('Please set a code name.');
-                                return;
-                              }
-                              let code: string;
-                              try {
-                                code = normalizeCustomCodeName(name);
-                              } catch (e: unknown) {
-                                notify.warning(
-                                  e instanceof Error ? e.message : 'Invalid code name.'
-                                );
-                                return;
-                              }
-                              onMarkCode(
-                                row.id,
-                                code,
-                                pts,
-                                pendingCustomShifts[row.id] === true
-                              );
-                            } else {
-                              onMarkCode(row.id, code, pts);
-                            }
-                            clearPending(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          type="button"
-                          className="ml-auto px-2 py-1 rounded border text-xs hover:bg-gray-100"
-                          onClick={() => clearPending(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="border-b border-slate-100 px-3 py-2.5 align-middle text-right">
-                  <div className="inline-flex gap-2 items-center">
-                    {!isChangeOpen ? (
-                      <button
-                        disabled={loading || lockedByCode}
-                        onClick={() => openChangeTo(row.id, row.position)}
-                        className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
-                        title="Move this result to a specific position"
-                      >
-                        Change to
-                      </button>
-                    ) : (
-                      <div className="inline-flex items-center gap-1">
-                        <input
-                          type="number"
-                          min={1}
-                          max={maxPos}
-                          className="w-16 border rounded px-2 py-1 text-center text-xs"
-                          value={rawVal}
-                          onChange={(e) =>
-                            setChangeToValue((p) => ({ ...p, [row.id]: e.target.value }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => {
-                            const v = Math.max(1, Math.min(maxPos, Number(rawVal) || 1));
-                            onEditPos(row.id, v);
-                            closeChangeTo(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => closeChangeTo(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                    {!ptsIsOpen ? (
-                      <button
-                        disabled={loading || lockedByCode}
-                        onClick={() => openPoints(row)}
-                        className="px-2 py-1 rounded border hover:bg-gray-100 disabled:opacity-50 text-xs"
-                        title="Manually set points without changing positions"
-                      >
-                        {hasOverride ? 'Edit override' : 'Override points'}
-                      </button>
-                    ) : (
-                      <div className="inline-flex items-center gap-1">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          className="w-20 border rounded px-2 py-1 text-center text-xs"
-                          value={rawPtsVal}
-                          onChange={(e) =>
-                            setPointsValue((p) => ({ ...p, [row.id]: e.target.value }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => {
-                            const raw = (rawPtsVal ?? '').trim();
-                            const pts = Number(raw);
-                            if (!Number.isFinite(pts) || pts < 0) {
-                              notify.warning('Invalid value (points).');
-                              return;
-                            }
-                            onOverridePoints(row.id, pts);
-                            closePoints(row.id);
-                          }}
-                        >
-                          Apply
-                        </button>
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => {
-                            onOverridePoints(row.id, null);
-                            closePoints(row.id);
-                          }}
-                          title="Remove override and go back to normal scoring"
-                        >
-                          Undo
-                        </button>
-                        <button
-                          type="button"
-                          disabled={loading}
-                          className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
-                          onClick={() => closePoints(row.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                              onOverridePoints(row.id, pts);
+                              closePoints(row.id);
+                            }}
+                          >
+                            Apply
+                          </button>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
+                            onClick={() => {
+                              onOverridePoints(row.id, null);
+                              closePoints(row.id);
+                            }}
+                            title="Remove override and go back to normal scoring"
+                          >
+                            Undo
+                          </button>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            className="px-2 py-1 rounded border text-xs hover:bg-gray-100 disabled:opacity-50"
+                            onClick={() => closePoints(row.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </>
   );

@@ -73,6 +73,34 @@ body {
   }
 }
 
+/* Regatta public pages — mobile/iOS */
+.regatta-site-header {
+  --app-header-height: 4.25rem;
+}
+.regatta-mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  border: 0;
+  background: rgba(15, 23, 42, 0.45);
+  cursor: pointer;
+}
+.regatta-mobile-menu-panel {
+  position: fixed;
+  top: var(--app-header-height, 4.25rem);
+  left: 0;
+  right: 0;
+  z-index: 75;
+  max-height: calc(100dvh - var(--app-header-height, 4.25rem));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 767px) {
+  html:has(.regatta-site-header) {
+    overflow-x: hidden;
+  }
+}
+
 /* Focus visible for accessibility */
 *:focus-visible {
   outline: 2px solid rgb(59 130 246);

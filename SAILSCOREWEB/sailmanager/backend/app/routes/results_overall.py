@@ -194,9 +194,15 @@ def _schedule_discards_for_race_count(schedule: List[int], n_races: int) -> int:
     return max(0, int(schedule[-1]))
 
 
-def _is_discardable_code(code: Any, discardable_by_code: Optional[Dict[str, bool]] = None) -> bool:
+def _is_discardable_code(
+    code: Any,
+    discardable_by_code: Optional[Dict[str, bool]] = None,
+    row_discardable_override: Optional[bool] = None,
+) -> bool:
     from app.services.scoring_code_map import is_code_discardable_for_discards
 
+    if row_discardable_override is not None:
+        return bool(row_discardable_override)
     return is_code_discardable_for_discards(code, discardable_by_code or {})
 
 
@@ -227,7 +233,11 @@ def _compute_discards_fixed_count(
         if rid not in per_by_id:
             continue
 
-        if not _is_discardable_code(per_by_id[rid].get("code"), discardable_by_code):
+        if not _is_discardable_code(
+            per_by_id[rid].get("code"),
+            discardable_by_code,
+            per_by_id[rid].get("code_discardable"),
+        ):
             continue
 
         try:
@@ -516,6 +526,7 @@ def get_overall_results_data(
             "base_points": float(r.points),
             "multiplier": mult,
             "code": getattr(r, "code", None),
+            "code_discardable": getattr(r, "code_discardable", None),
             "finish_time": getattr(r, "finish_time", None),
             "elapsed_time": getattr(r, "elapsed_time", None),
             "corrected_time": getattr(r, "corrected_time", None),

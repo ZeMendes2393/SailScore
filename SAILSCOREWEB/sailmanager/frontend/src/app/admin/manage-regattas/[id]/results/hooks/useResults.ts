@@ -841,7 +841,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
     rowId: number,
     code: string | null,
     points?: number | null,
-    shiftsPlacesBehind?: boolean
+    shiftsPlacesBehind?: boolean,
+    discardable?: boolean
   ) => {
     if (!selectedRaceId || !token) return;
 
@@ -855,6 +856,8 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
               code: normalized,
               code_shifts_places:
                 shiftsPlacesBehind !== undefined ? !!shiftsPlacesBehind : r.code_shifts_places,
+              code_discardable:
+                discardable !== undefined ? !!discardable : r.code_discardable,
             }
           : r
       )
@@ -876,6 +879,9 @@ export function useResults(regattaId: number, token?: string, newlyCreatedRace?:
       };
       if (shiftsPlacesBehind !== undefined) {
         body.shifts_places_behind = shiftsPlacesBehind;
+      }
+      if (discardable !== undefined) {
+        body.discardable = discardable;
       }
       await apiSend(`/results/${rowId}/code`, 'PATCH', body, token);
       await refreshExisting(selectedRaceId);

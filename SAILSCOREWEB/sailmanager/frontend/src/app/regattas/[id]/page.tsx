@@ -160,7 +160,7 @@ export default function RegattaHomePage() {
 
       {/* Hero: carousel de até 3 imagens, rotação automática, focal point personalizado */}
       <section
-        className={`relative w-full min-h-[70vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-14 md:py-20 overflow-hidden ${REGATTA_HERO_HEADER_PT}`}
+        className={`relative w-full min-h-[52vh] sm:min-h-[60vh] md:min-h-[80vh] flex flex-col items-center justify-center text-center py-10 sm:py-14 md:py-20 overflow-hidden ${REGATTA_HERO_HEADER_PT}`}
         style={{
           ...(heroBgStyle ?? { background: 'linear-gradient(135deg, #1e40af 0%, #0ea5e9 100%)' }),
         }}
@@ -181,9 +181,11 @@ export default function RegattaHomePage() {
             ))}
           </div>
         )}
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
-          <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
+        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-white">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold mb-2 sm:mb-3 drop-shadow-lg leading-tight">
+            {regatta.name}
+          </h1>
+          <p className="text-base sm:text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
           {classNames.length > 0 && (
             <p className="text-xl md:text-2xl font-semibold mt-2 md:mt-3 opacity-95 drop-shadow tracking-tight">
               {classNames.join(' • ')}
@@ -196,8 +198,38 @@ export default function RegattaHomePage() {
       </section>
 
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-8">
-      {/* Navegação rápida: botões abaixo da imagem, antes das notícias */}
-      <section className="mb-12">
+      {/* Mobile: atalhos compactos (desktop usa grelha maior abaixo) */}
+      <section className="mb-6 md:hidden">
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href={`/regattas/${regattaId}/form`}
+            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+          >
+            Online Entry
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/entry`}
+            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+          >
+            Entry List
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/notice`}
+            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+          >
+            Notice Board
+          </Link>
+          <Link
+            href={`/regattas/${regattaId}/results`}
+            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+          >
+            Results
+          </Link>
+        </div>
+      </section>
+
+      {/* Navegação rápida: botões grandes no desktop */}
+      <section className="mb-12 hidden md:block">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link
             href={`/regattas/${regattaId}/form`}

@@ -194,6 +194,8 @@ def set_result_code(
             row.points_override = None
         if hasattr(row, "code_shifts_places"):
             row.code_shifts_places = False
+        if hasattr(row, "code_discardable"):
+            row.code_discardable = None
 
         db.flush()
         normalize_race_results(db, race)
@@ -232,6 +234,13 @@ def set_result_code(
         elif code in AUTO_N_PLUS_ONE_CODES or is_prp_code(code) or is_adjustable(code):
             row.code_shifts_places = False
         # custom sem flag explícito: mantém valor anterior ou False
+
+    if hasattr(row, "code_discardable"):
+        if body.discardable is not None:
+            row.code_discardable = bool(body.discardable)
+        elif code in AUTO_N_PLUS_ONE_CODES or is_prp_code(code) or is_adjustable(code):
+            row.code_discardable = None
+        # custom sem flag explícita: mantém valor anterior ou None
 
     if result_removes_from_ranking(row):
         row.position = 10**9

@@ -426,11 +426,13 @@ class CodePatch(BaseModel):
     RDG/SCP/ZPF/DPI e customs: frontend envia points (valor deste resultado).
     PRP: prp_percent. Auto N+1: points omitido.
     shifts_places_behind: custom — lugares atrás sobem quando True.
+    discardable: custom — força se este resultado pode ser descartado no overall.
     """
     code: Optional[str] = None
     points: Optional[float] = Field(default=None, ge=0)
     prp_percent: Optional[float] = Field(default=None, ge=0)
     shifts_places_behind: Optional[bool] = None
+    discardable: Optional[bool] = None
 
 
 # =========================================================

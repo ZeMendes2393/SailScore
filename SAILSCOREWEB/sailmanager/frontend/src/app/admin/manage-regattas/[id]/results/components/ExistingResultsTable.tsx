@@ -31,7 +31,13 @@ interface ExistingResultsTableProps {
   onEditPos: (rowId: number, newPos: number) => void;
   onDelete: (rowId: number) => void;
 
-  onMarkCode: (rowId: number, code: string | null, points?: number | null) => void;
+  onMarkCode: (
+    rowId: number,
+    code: string | null,
+    points?: number | null,
+    shiftsPlacesBehind?: boolean,
+    discardable?: boolean
+  ) => void;
 
   // ✅ agora permite null para UNDO
   onOverridePoints: (rowId: number, points: number | null) => void;

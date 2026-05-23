@@ -9,8 +9,8 @@ import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
-/** Padding-top para heros por baixo do header fixo no mobile. */
-export const REGATTA_HERO_HEADER_PT = 'pt-20 md:pt-0';
+/** Hero full-bleed no desktop; no mobile o spacer do header trata do offset. */
+export const REGATTA_HERO_HEADER_PT = '';
 
 type RegattaHeaderProps = {
   regattaId: number;
@@ -123,23 +123,25 @@ export default function RegattaHeader({
   return (
     <>
     <header
-      className={`app-site-header w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
-      style={{ '--app-header-height': '5rem' } as CSSProperties}
+      className={`app-site-header regatta-site-header w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
+      style={{ '--app-header-height': '4.25rem' } as CSSProperties}
     >
-      <div className="w-full min-h-[5rem] md:min-h-[8rem] py-3 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-3 sm:px-4">
-        <Link href={brandHref} className="shrink-0 hover:opacity-90 transition-opacity">
+      <div className="w-full h-[4.25rem] md:min-h-[5rem] md:h-auto md:py-3 flex flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 max-md:overflow-hidden">
+        <Link href={brandHref} className="shrink-0 min-w-0 max-w-[52%] hover:opacity-90 transition-opacity">
           {logoUrl && !logoFailed ? (
             <img
               src={logoUrl.startsWith('http') ? logoUrl : `${API_BASE}${logoUrl}`}
               alt={brandText}
-              className="max-h-[3.25rem] w-auto object-contain object-left"
+              className="max-h-10 sm:max-h-12 md:max-h-[3.25rem] w-auto max-w-full object-contain object-left"
               onError={() => setLogoFailed(true)}
             />
           ) : (
-            <span className="text-2xl sm:text-3xl font-bold tracking-wide">{brandText}</span>
+            <span className="text-lg sm:text-2xl md:text-3xl font-bold tracking-wide truncate block">
+              {brandText}
+            </span>
           )}
         </Link>
-        <nav className="hidden md:flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
+        <nav className="max-md:hidden md:flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
           <Link href={base} className={linkClass(isHome)} title="Regatta home">
             Home
           </Link>
@@ -158,11 +160,11 @@ export default function RegattaHeader({
         </nav>
         <Link
           href={sailorAccountHref}
-          className="hidden md:inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
+          className="max-md:hidden md:inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
         >
           Sailor account
         </Link>
-        <div className="md:hidden ml-auto">
+        <div className="max-md:flex md:hidden ml-auto shrink-0">
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
@@ -199,10 +201,18 @@ export default function RegattaHeader({
           </button>
         </div>
       </div>
-      {mobileMenuOpen && (
+    </header>
+    {mobileMenuOpen && (
+      <>
+        <button
+          type="button"
+          className="regatta-mobile-menu-backdrop md:hidden"
+          aria-label="Close menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
         <div
           id="mobile-regatta-nav"
-          className="md:hidden border-t border-white/20 bg-blue-900/85 backdrop-blur-md px-3 pb-3"
+          className="regatta-mobile-menu-panel md:hidden border-t border-white/20 bg-blue-900/95 backdrop-blur-md px-3 pb-4 shadow-lg"
         >
           <nav className="flex flex-col gap-2 py-3 text-base font-semibold">
             <Link href={base} className={linkClass(isHome)} title="Regatta home">
@@ -228,15 +238,13 @@ export default function RegattaHeader({
             </Link>
           </nav>
         </div>
-      )}
-    </header>
-    {!overlayHero && (
-      <div
-        className="app-site-header-spacer"
-        style={{ '--app-header-height': '5rem' } as CSSProperties}
-        aria-hidden
-      />
+      </>
     )}
+    <div
+      className={`app-site-header-spacer max-md:block ${overlayHero ? 'md:hidden' : ''}`}
+      style={{ '--app-header-height': '4.25rem' } as CSSProperties}
+      aria-hidden
+    />
     </>
   );
 }
