@@ -351,10 +351,21 @@ def compute_handicap_ranking(
         pos += tie_count
         idx += tie_count
 
-    # Non-rankable: position = n_rankable + 1, etc.; points = N+1 (N = competidores válidos na corrida)
+    # Non-rankable:
+    # - códigos AUTO N+1 empatam na melhor posição dos não-rankeáveis
+    # - continuam com points N+1
+    # - outros não-rankeáveis mantêm progressão normal de posição
     n_plus_one = total_competitors + 1
-    for orig_i, _ in non_rankable:
-        result[orig_i] = (n_plus_one, "—", float(n_plus_one))
+    non_rank_pos = pos
+    auto_n1_count = sum(1 for _orig_i, c in non_rankable if _norm(c) in AUTO_N_PLUS_ONE_CODES)
+    next_non_auto_pos = non_rank_pos + auto_n1_count
+    for orig_i, code in non_rankable:
+        c = _norm(code)
+        if c in AUTO_N_PLUS_ONE_CODES:
+            result[orig_i] = (non_rank_pos, "—", float(n_plus_one))
+        else:
+            result[orig_i] = (next_non_auto_pos, "—", float(n_plus_one))
+            next_non_auto_pos += 1
 
     return [result[i] for i in range(len(items))]  # type: ignore
 
@@ -934,23 +945,28 @@ def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
             pos += 1
 
     unranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
-    for r in unranked:
+    auto_n1_rows = [r for r in unranked if _norm(getattr(r, "code", None)) in AUTO_N_PLUS_ONE_CODES]
+    other_unranked_rows = [r for r in unranked if _norm(getattr(r, "code", None)) not in AUTO_N_PLUS_ONE_CODES]
+
+    # AUTO N+1 empatam todos na melhor posição do grupo unranked (ex.: 28, 28, 28)
+    auto_n1_pos = pos
+    for r in auto_n1_rows:
+        r.position = auto_n1_pos
+        sn_norm = _norm_sn(r.sail_number) or ""
+        r.points = float(
+            _auto_n_plus_one_points(
+                ctx,
+                sn_norm,
+                getattr(r, "boat_country_code", None),
+            )
+        )
+
+    # Os restantes unranked seguem depois do "bloco" empatado AUTO N+1
+    pos = auto_n1_pos + len(auto_n1_rows)
+    for r in other_unranked_rows:
         r.position = pos
         c = _norm(getattr(r, "code", None))
-        if c in AUTO_N_PLUS_ONE_CODES:
-            # Para códigos auto N+1 (DNC, DNF, DNS, etc.), usar sempre N+1,
-            # tanto em One Design como em Handicap.
-            sn_norm = _norm_sn(r.sail_number) or ""
-            r.points = float(
-                _auto_n_plus_one_points(
-                    ctx,
-                    sn_norm,
-                    getattr(r, "boat_country_code", None),
-                )
-            )
-        else:
-            r.points = float(scoring_map.get(c, r.points))
-        # unranked não deve ter override a “mandar” na prática, mas se tiver, ignora
+        r.points = float(scoring_map.get(c, r.points))
         pos += 1
 
 
