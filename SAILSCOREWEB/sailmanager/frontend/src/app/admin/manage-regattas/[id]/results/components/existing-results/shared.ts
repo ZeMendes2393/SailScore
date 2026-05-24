@@ -104,8 +104,8 @@ export function formatPrpCodeWithValue(
 
 export function prpCodeTooltip(code: string | null | undefined): string | undefined {
   const name = extractPrpName(code);
-  if (!name) return 'Percentage penalty';
-  return `Percentage penalty: ${name}`;
+  if (!name) return 'Adds % of N+1 points to finish score (capped at N+1)';
+  return `Penalty ${name}: adds % of N+1 to finish score (capped at N+1)`;
 }
 
 export const isAutoNPlusOne = (c: string | null | undefined) =>

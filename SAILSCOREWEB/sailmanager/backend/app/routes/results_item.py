@@ -17,6 +17,7 @@ from app.routes.results_utils import (
     _norm,
     is_adjustable,
     is_prp_code,
+    prp_scored_base_points,
     get_scoring_map,
     compute_points_for_code,
     result_removes_from_ranking,
@@ -205,7 +206,7 @@ def set_result_code(
 
     code = _norm(raw)
     effective_points_arg = body.prp_percent if body.prp_percent is not None else body.points
-    base_points = row.points_override if getattr(row, "points_override", None) is not None else row.points
+    base_points = prp_scored_base_points(row) if is_prp_code(code) else None
 
     try:
         pts = compute_points_for_code(
@@ -216,7 +217,7 @@ def set_result_code(
             manual_points=effective_points_arg,
             scoring_map=scoring_map,
             boat_country_code=getattr(row, "boat_country_code", None),
-            base_points=base_points if is_prp_code(code) else None,
+            base_points=base_points,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

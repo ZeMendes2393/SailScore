@@ -280,7 +280,7 @@ export default function ScoringCodeSelector({
             className="border rounded px-2 py-1 w-32"
             value={pendingPoints[row.id] ?? ''}
             placeholder={
-              isPrpPending ? 'ex: 20 (%)' : isCustomPending ? 'ex: 10 (points)' : 'ex: 4.5'
+              isPrpPending ? 'ex: 50 (% of N+1 to add)' : isCustomPending ? 'ex: 10 (points)' : 'ex: 4.5'
             }
             onChange={(e) => setPendingPoints((p) => ({ ...p, [row.id]: e.target.value }))}
           />

@@ -424,7 +424,7 @@ class PositionPatch(BaseModel):
 class CodePatch(BaseModel):
     """
     RDG/SCP/ZPF/DPI e customs: frontend envia points (valor deste resultado).
-    PRP: prp_percent. Auto N+1: points omitido.
+    PRP: prp_percent (% de N+1 a somar ao scored). Auto N+1: points omitido.
     shifts_places_behind: custom — lugares atrás sobem quando True.
     discardable: custom — força se este resultado pode ser descartado no overall.
     """
@@ -619,6 +619,36 @@ def _rdg_to_int_position(manual_points: Optional[float]) -> int:
     return pos
 
 
+def prp_scored_base_points(row) -> float:
+    """Pontos do resultado scored usados como base da penalização PRP."""
+    po = getattr(row, "points_override", None)
+    if po is not None:
+        return float(po)
+    prev_code = _norm(getattr(row, "code", None))
+    if not is_prp_code(prev_code):
+        return float(row.points)
+    pos = int(row.position or 0)
+    if 0 < pos < 10**9 and not result_removes_from_ranking(row):
+        return float(pos)
+    return float(row.points)
+
+
+def compute_prp_points(
+    scored_points: float,
+    percent: float,
+    n_plus_one_points: float,
+) -> float:
+    """
+    Penalização PRP: pontos scored + (percentagem/100 × N+1), limitado a N+1.
+    Ex.: 10.º lugar (10 pts), 50%, fleet N+1=21 → 10 + 10.5 = 20.5
+    """
+    base = max(0.0, float(scored_points))
+    n1 = max(0.0, float(n_plus_one_points))
+    pct = max(0.0, float(percent))
+    penalized = base + n1 * (pct / 100.0)
+    return round(min(penalized, n1), 1)
+
+
 # =========================================================
 # Points for code
 # =========================================================
@@ -648,11 +678,9 @@ def compute_points_for_code(
         if base_points is None:
             raise ValueError("PRP can only be applied to an existing scored result.")
 
-        base = max(0.0, float(base_points))
-        penalized = base * (1.0 + float(percent) / 100.0)
         sn_norm = _norm_sn(sail_number) or ""
-        cap = _auto_n_plus_one_points(ctx, sn_norm, boat_country_code)
-        return round(min(float(penalized), float(cap)), 1)
+        n1 = _auto_n_plus_one_points(ctx, sn_norm, boat_country_code)
+        return compute_prp_points(base_points, float(percent), n1)
 
     if c in AUTO_N_PLUS_ONE_CODES:
         sn_norm = _norm_sn(sail_number) or ""
