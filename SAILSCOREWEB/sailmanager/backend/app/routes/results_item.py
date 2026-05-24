@@ -14,7 +14,9 @@ from app.routes.results_utils import (
     AUTO_N_PLUS_ONE_CODES,
     PositionPatch,
     CodePatch,
+    UNRANKED_POSITION,
     _norm,
+    capture_finish_position_before_unrank,
     is_adjustable,
     is_prp_code,
     prp_scored_base_points,
@@ -23,6 +25,7 @@ from app.routes.results_utils import (
     result_removes_from_ranking,
     removes_from_ranking,
     normalize_race_results,
+    shift_finish_positions,
     _parse_time_to_seconds,
 )
 
@@ -149,6 +152,9 @@ def change_result_position(
         )
 
     row.position = new_pos
+    if hasattr(row, "finish_position"):
+        shift_finish_positions(db, int(row.race_id), int(row.id), old_pos, new_pos)
+        row.finish_position = new_pos
 
     db.flush()
     normalize_race_results(db, race)
@@ -186,17 +192,14 @@ def set_result_code(
 
     raw = (body.code or "").strip()
     if raw == "":
-        # limpar code => volta a ser "normal"
+        # limpar code => re-rank por finish_position (One Design) ou tempo (Handicap)
         row.code = None
-        row.position = 10**9
-        row.points = float(row.position)  # placeholder
-        # ✅ se existia override manual, apaga (faz sentido)
-        if hasattr(row, "points_override"):
-            row.points_override = None
         if hasattr(row, "code_shifts_places"):
             row.code_shifts_places = False
         if hasattr(row, "code_discardable"):
             row.code_discardable = None
+        if hasattr(row, "points_override"):
+            row.points_override = None
 
         db.flush()
         normalize_race_results(db, race)
@@ -244,7 +247,8 @@ def set_result_code(
         # custom sem flag explícita: mantém valor anterior ou None
 
     if result_removes_from_ranking(row):
-        row.position = 10**9
+        capture_finish_position_before_unrank(row)
+        row.position = UNRANKED_POSITION
 
     db.flush()
     normalize_race_results(db, race)

@@ -27,6 +27,7 @@ AUTO_N_PLUS_ONE_CODES = AUTO_N_PLUS_ONE_DISCARDABLE_CODES | AUTO_N_PLUS_ONE_NON_
 # Ajustáveis (manual points via body.points; NÃO inclui "MAN"!)
 ADJUSTABLE_CODES = {"RDG", "SCP", "ZPF", "DPI"}
 PRP_CODE_PREFIX = "PRP"
+UNRANKED_POSITION = 10**9
 
 
 # =========================================================
@@ -375,6 +376,78 @@ def result_removes_from_ranking(row: Any) -> bool:
     )
 
 
+def is_ranked_position(pos: Optional[int]) -> bool:
+    if pos is None:
+        return False
+    return int(pos) < UNRANKED_POSITION
+
+
+def capture_finish_position_before_unrank(row: Any) -> None:
+    """Guarda ordem de chegada antes de OCS/DNF/etc. retirarem o barco do ranking."""
+    if getattr(row, "finish_position", None) is not None:
+        return
+    pos = int(getattr(row, "position", 0) or 0)
+    if is_ranked_position(pos):
+        row.finish_position = pos
+
+
+def finish_order_sort_key(row: Any) -> Tuple[int, int]:
+    """Chave de ordenação One Design: finish_position (chegada) com fallback a position."""
+    fp = getattr(row, "finish_position", None)
+    if fp is not None:
+        return (int(fp), int(getattr(row, "id", 0) or 0))
+    pos = int(getattr(row, "position", 0) or 0)
+    if is_ranked_position(pos):
+        return (pos, int(getattr(row, "id", 0) or 0))
+    return (UNRANKED_POSITION, int(getattr(row, "id", 0) or 0))
+
+
+def shift_finish_positions(
+    db: Session,
+    race_id: int,
+    exclude_id: int,
+    old_pos: int,
+    new_pos: int,
+) -> None:
+    """Espelha o shift de position no finish_position (Change to manual)."""
+    if new_pos == old_pos:
+        return
+    if new_pos < old_pos:
+        db.query(models.Result).filter(
+            models.Result.race_id == race_id,
+            models.Result.id != exclude_id,
+            models.Result.finish_position.isnot(None),
+            models.Result.finish_position >= new_pos,
+            models.Result.finish_position < old_pos,
+        ).update(
+            {models.Result.finish_position: models.Result.finish_position + 1},
+            synchronize_session=False,
+        )
+    else:
+        db.query(models.Result).filter(
+            models.Result.race_id == race_id,
+            models.Result.id != exclude_id,
+            models.Result.finish_position.isnot(None),
+            models.Result.finish_position > old_pos,
+            models.Result.finish_position <= new_pos,
+        ).update(
+            {models.Result.finish_position: models.Result.finish_position - 1},
+            synchronize_session=False,
+        )
+
+
+def shift_finish_positions_open_slot(db: Session, race_id: int, at_pos: int) -> None:
+    """Abre slot em at_pos na ordem de chegada (novo resultado ranked)."""
+    db.query(models.Result).filter(
+        models.Result.race_id == race_id,
+        models.Result.finish_position.isnot(None),
+        models.Result.finish_position >= at_pos,
+    ).update(
+        {models.Result.finish_position: models.Result.finish_position + 1},
+        synchronize_session=False,
+    )
+
+
 def is_adjustable(code: Optional[str]) -> bool:
     return (_norm(code) or "") in ADJUSTABLE_CODES
 
@@ -628,7 +701,7 @@ def prp_scored_base_points(row) -> float:
     if not is_prp_code(prev_code):
         return float(row.points)
     pos = int(row.position or 0)
-    if 0 < pos < 10**9 and not result_removes_from_ranking(row):
+    if 0 < pos < UNRANKED_POSITION and not result_removes_from_ranking(row):
         return float(pos)
     return float(row.points)
 
@@ -832,9 +905,14 @@ def _normalize_group(rows, scoring_map, ctx, *, is_handicap: bool = False):
             pos += tie_count
             i += tie_count
     else:
-        ranked.sort(key=lambda r: (int(r.position or 0), int(r.id)))
+        # One Design: ranked ordenados por finish_position (ordem de chegada)
+        ranked.sort(key=finish_order_sort_key)
 
         for r in ranked:
+            fp = getattr(r, "finish_position", None)
+            if fp is None and is_ranked_position(int(getattr(r, "position", 0) or 0)):
+                r.finish_position = int(r.position)
+
             r.position = pos
             c = _norm(getattr(r, "code", None))
 

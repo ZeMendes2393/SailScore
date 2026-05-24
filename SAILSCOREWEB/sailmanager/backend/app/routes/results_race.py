@@ -32,6 +32,8 @@ from app.routes.results_utils import (
     ensure_missing_results_as_dnc,
     normalize_race_results,
     filter_results_to_eligible_entries,
+    shift_finish_positions_open_slot,
+    result_removes_from_ranking,
 )
 
 router = APIRouter()
@@ -216,6 +218,7 @@ def upsert_single_result(
         boat_name=payload.boat_name,
         skipper_name=payload.helm_name,
         position=int(payload.position),
+        finish_position=int(payload.position),
         points=float(payload.points),
         class_name=race.class_name,
     )
@@ -325,6 +328,7 @@ def add_single_result(
             {models.Result.position: models.Result.position + 1},
             synchronize_session=False,
         )
+        shift_finish_positions_open_slot(db, race_id, desired_pos)
         pos = desired_pos
 
     boat_cc_res = payload_cc or (_norm_cc(getattr(entry_res, "boat_country_code", None)) if entry_res else None)
@@ -338,6 +342,7 @@ def add_single_result(
         class_name=race.class_name,
         skipper_name=payload.helm_name,
         position=pos,
+        finish_position=None if removes_from_ranking(code) else pos,
         points=float(pts),
         code=code,
     )
@@ -384,6 +389,8 @@ def reorder_race_results(
     pos_map = {rid: i + 1 for i, rid in enumerate(body.ordered_ids)}
     for r in rows:
         r.position = pos_map[r.id]
+        if not result_removes_from_ranking(r):
+            r.finish_position = pos_map[r.id]
 
     db.flush()
     normalize_race_results(db, race)
@@ -613,6 +620,7 @@ def create_results_for_race(
                 class_name=race.class_name,
                 skipper_name=r.helm_name,
                 position=int(r.position) if r.position is not None else 1,
+                finish_position=None if removes_from_ranking(code) else int(r.position or 1),
                 points=float(pts),
                 code=code,
             )

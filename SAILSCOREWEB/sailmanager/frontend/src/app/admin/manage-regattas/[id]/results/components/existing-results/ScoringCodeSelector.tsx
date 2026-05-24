@@ -144,6 +144,11 @@ export default function ScoringCodeSelector({
       ? codeGroups.autoNonDiscardable
       : [];
 
+  const showFinishOrder =
+    !!codeUpper &&
+    (isAutoNPlusOne(codeUpper) || row.code_shifts_places) &&
+    row.finish_position != null;
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -184,6 +189,12 @@ export default function ScoringCodeSelector({
           </span>
         ) : null}
       </div>
+
+      {showFinishOrder ? (
+        <span className="text-[10px] text-gray-500" title="Ordem de chegada guardada — usada ao retirar o code">
+          Chegada: {row.finish_position}
+        </span>
+      ) : null}
 
       {isAutoN1Pending && (
         <div className="flex flex-wrap items-center gap-2 bg-gray-50 border rounded p-2">

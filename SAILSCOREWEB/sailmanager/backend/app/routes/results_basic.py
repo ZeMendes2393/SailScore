@@ -46,6 +46,7 @@ def create_result(
         class_name=race.class_name,
         skipper_name=result.helm_name,
         position=int(result.position),
+        finish_position=int(result.position),
         points=pts,
         code=code,
     )

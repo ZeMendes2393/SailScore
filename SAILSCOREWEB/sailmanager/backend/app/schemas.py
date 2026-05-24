@@ -836,6 +836,7 @@ class ResultRead(BaseModel):
     class_name: Optional[str] = None
     skipper_name: Optional[str] = None
     position: int
+    finish_position: Optional[int] = None
     points: float
     code: Optional[str] = None
     code_shifts_places: bool = False

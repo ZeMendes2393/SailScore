@@ -438,6 +438,8 @@ class Result(Base):
     class_name = Column(String, nullable=False, index=True)
     skipper_name = Column(String, nullable=True)
     position = Column(Integer, nullable=False)
+    # Ordem de chegada (One Design); mantém-se ao aplicar OCS/DNF para restore por re-rank
+    finish_position = Column(Integer, nullable=True)
     points = Column(Float, nullable=False)
     code = Column(String, nullable=True)  # "DNF" | "DNC" | etc.
     # Custom penalty: True = barco sai da ordem de chegada e os lugares atrás sobem

@@ -47,6 +47,8 @@ export interface ApiResult {
   class_name: string;
   skipper_name: string | null;
   position: number;
+  /** Ordem de chegada (One Design); usada para restaurar posição ao retirar OCS/DNF */
+  finish_position?: number | null;
   points: number;
   code?: string | null;
   /** Custom penalty: true = places behind move up in the finish order */
