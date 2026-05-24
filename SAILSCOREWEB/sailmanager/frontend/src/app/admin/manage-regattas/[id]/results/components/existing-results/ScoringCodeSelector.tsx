@@ -73,11 +73,14 @@ export default function ScoringCodeSelector({
     !!pending && (isAdjustable(pending) || isPrpPending || isCustomPending);
   const hasOverride = row.points_override != null;
 
+  const activePrpCode = isPrpCode(row.code) ? String(row.code).trim() : null;
+  const activePrpLabel = activePrpCode ? extractPrpName(activePrpCode) || activePrpCode : null;
+
   const selectValue = (() => {
     if (isAutoN1TemplatePending(pending)) return pending!;
     if (pending === CUSTOM_TEMPLATE_CODE) return CUSTOM_TEMPLATE_CODE;
     if (pending === PRP_TEMPLATE_CODE || isPrpCode(pending)) return PRP_TEMPLATE_CODE;
-    if (isPrpCode(codeUpper)) return PRP_TEMPLATE_CODE;
+    if (activePrpCode) return activePrpCode;
     return codeUpper ?? '';
   })();
 
@@ -152,6 +155,9 @@ export default function ScoringCodeSelector({
           aria-label="Scoring code"
         >
           <option value="">(none)</option>
+          {activePrpCode && activePrpLabel ? (
+            <option value={activePrpCode}>{activePrpLabel}</option>
+          ) : null}
           {showCurrentCodeAsOption ? <option value={codeUpper!}>{codeUpper}</option> : null}
           <optgroup label="Auto (N+1)">
             <option value={AUTO_N1_DISCARDABLE_TEMPLATE}>N+1 — discardable…</option>
