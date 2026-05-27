@@ -191,8 +191,8 @@ export default function ScoringCodeSelector({
       </div>
 
       {showFinishOrder ? (
-        <span className="text-[10px] text-gray-500" title="Ordem de chegada guardada — usada ao retirar o code">
-          Chegada: {row.finish_position}
+        <span className="text-[10px] text-gray-500" title="Stored finish order — used when the code is removed">
+          Finish: {row.finish_position}
         </span>
       ) : null}
 

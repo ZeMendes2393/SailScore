@@ -99,8 +99,23 @@ export default function ExistingFleetSet({
               }
 
               if (selectedSet.is_published) {
+                const ok = await confirm({
+                  title: 'Unpublish this Fleet Set?',
+                  description:
+                    'It will no longer appear on the public regatta website. You can publish it again later.',
+                  tone: 'warning',
+                  confirmLabel: 'Unpublish',
+                });
+                if (!ok) return;
                 await unpublishSet(selectedSet.id);
               } else {
+                const ok = await confirm({
+                  title: 'Publish this Fleet Set?',
+                  description: `“${localTitle.trim() || selectedSet.label}” will be visible on the public regatta website.`,
+                  tone: 'warning',
+                  confirmLabel: 'Publish',
+                });
+                if (!ok) return;
                 await publishSet(selectedSet.id);
               }
             }}

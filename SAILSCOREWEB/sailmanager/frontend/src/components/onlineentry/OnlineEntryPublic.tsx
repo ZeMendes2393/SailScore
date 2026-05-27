@@ -7,7 +7,8 @@ import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
 type RegattaLite = {
   id: number;
   name: string;
-  online_entry_open?: boolean; // default true for backward compatibility
+  online_entry_open?: boolean;
+  online_entry_field_required?: Record<string, boolean> | null;
 };
 
 export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) {
@@ -50,5 +51,10 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
     );
   }
 
-  return <MultiStepEntryForm regattaId={regattaId} />;
+  return (
+    <MultiStepEntryForm
+      regattaId={regattaId}
+      fieldRequiredOverrides={reg?.online_entry_field_required}
+    />
+  );
 }

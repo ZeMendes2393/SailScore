@@ -26,6 +26,11 @@ from app.services.entry_list_import import (
     import_placeholder_email,
     is_import_placeholder_email,
 )
+from app.services.online_entry_fields import (
+    resolve_class_context,
+    sanitize_overrides,
+    validate_online_entry_fields,
+)
 from app.utils.sail_number import (
     SAIL_NUMBER_MAX_LEN,
     extract_sail_digits,
@@ -828,6 +833,15 @@ def _persist_new_entry(
         )
     entry.class_name = class_name
     entry.sail_number = _sanitize_sail_number(entry.sail_number)
+
+    if require_online_open:
+        class_type, sailors_per_boat = resolve_class_context(db, entry.regatta_id, class_name)
+        validate_online_entry_fields(
+            entry,
+            regatta,
+            class_type=class_type,
+            sailors_per_boat=sailors_per_boat,
+        )
 
     is_waiting = False
     scope, lim = _online_entry_limit_context(regatta, class_name)

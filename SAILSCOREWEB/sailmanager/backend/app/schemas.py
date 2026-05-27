@@ -306,6 +306,8 @@ class RegattaBase(BaseModel):
     # Limites por classe:
     # { "<class_name>": { "enabled": bool, "limit": int|null } }
     online_entry_limits_by_class: Optional[Dict[str, Dict[str, Any]]] = None
+    # Overrides for configurable online entry fields: field_id -> required (bool)
+    online_entry_field_required: Optional[Dict[str, bool]] = None
     country_code: Optional[str] = None  # ISO 3166-1 alpha-2, ex: PT, ES
     timezone: Optional[str] = None  # IANA, ex: Europe/Lisbon
 
@@ -362,6 +364,7 @@ class RegattaUpdate(BaseModel):
     online_entry_limit_enabled: Optional[bool] = None
     online_entry_limit: Optional[int] = None
     online_entry_limits_by_class: Optional[Dict[str, Dict[str, Any]]] = None
+    online_entry_field_required: Optional[Dict[str, bool]] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
 

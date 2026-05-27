@@ -95,6 +95,8 @@ class Regatta(Base):
     # Per-class online entry limits:
     # { "<class_name>": { "enabled": true|false, "limit": number|null } }
     online_entry_limits_by_class = Column(JSON, nullable=True)
+    # Per-field required overrides for public online entry: { "gender": true, "club": false, ... }
+    online_entry_field_required = Column(JSON, nullable=True)
 
     # Regras de descarte
     discard_count = Column(Integer, nullable=False, default=0)

@@ -9,12 +9,18 @@ import Step2Crew from './steps/Step2_Crew';
 import Step3 from './steps/Step3_Boat';
 import { boatClasses } from '@/utils/boatClasses';
 import notify from '@/lib/notify';
+import { createRequiredChecker, mergeEffectiveRequired, validateEntryAgainstRequired } from '@/lib/onlineEntryFields';
 
 export interface MultiStepEntryFormProps {
   regattaId: number;
+  /** Per-regatta overrides from regatta.online_entry_field_required */
+  fieldRequiredOverrides?: Record<string, boolean> | null;
 }
 
-const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) => {
+const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
+  regattaId,
+  fieldRequiredOverrides,
+}) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
@@ -52,6 +58,18 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
+  const crewCount =
+    formData.class_type === 'one_design' && formData.sailors_per_boat != null && formData.sailors_per_boat > 0
+      ? formData.sailors_per_boat
+      : (boatClasses[formData.class_name] ?? 1);
+  const showCrewStep = crewCount >= 2;
+  const classType =
+    formData.class_type === 'handicap' ? 'handicap' : ('one_design' as const);
+  const isRequired = React.useMemo(
+    () => createRequiredChecker(fieldRequiredOverrides, classType, showCrewStep),
+    [fieldRequiredOverrides, classType, showCrewStep]
+  );
+
   const handleFinalSubmit = async () => {
     if (isSubmitting || submitLockRef.current) return;
 
@@ -77,6 +95,24 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
       )
       .map((c: any) => ({ ...c, position: c.position || 'Crew' }));
     const helm_position = (formData.helm && formData.helm.position) || 'Skipper';
+
+    const validationError = validateEntryAgainstRequired(
+      {
+        ...helm,
+        ...boat,
+        helm_position,
+      },
+      mergeEffectiveRequired(fieldRequiredOverrides),
+      {
+        classType,
+        multiCrew: showCrewStep,
+        crewMembers: crew_members,
+      }
+    );
+    if (validationError) {
+      notify.warning(validationError);
+      return;
+    }
 
     const payload = {
       regatta_id: formData.regatta_id,
@@ -173,12 +209,6 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
     }
   };
 
-  const crewCount =
-    formData.class_type === 'one_design' && formData.sailors_per_boat != null && formData.sailors_per_boat > 0
-      ? formData.sailors_per_boat
-      : (boatClasses[formData.class_name] ?? 1);
-  const showCrewStep = crewCount >= 2;
-
   const renderStep = () => {
     switch (step) {
       case 1:
@@ -204,6 +234,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
               else setStep(4);
             }}
             onBack={prevStep}
+            isRequired={isRequired}
           />
         );
       case 3:
@@ -215,6 +246,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
             onChange={(data) => handleChange('crew', data)}
             onNext={nextStep}
             onBack={prevStep}
+            isRequired={isRequired}
           />
         );
       case 4:
@@ -224,6 +256,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({ regattaId }) =>
             onChange={(data) => handleChange('boat', data)}
             onSubmit={handleFinalSubmit}
             isSubmitting={isSubmitting}
+            isRequired={isRequired}
             onBack={() => {
               if (showCrewStep) setStep(3);
               else setStep(2);

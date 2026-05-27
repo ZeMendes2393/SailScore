@@ -12,6 +12,7 @@ import AdminEntryList from './entries/AdminEntryList';
 import AdminSponsorsManager from './sponsors/AdminSponsorsManager';
 import JuryCredentialsPanel from './JuryCredentialsPanel';
 import AdminRegattaFinances from './AdminRegattaFinances';
+import AdminOnlineEntryFieldsOverview from './components/AdminOnlineEntryFieldsOverview';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
 
@@ -29,6 +30,7 @@ interface Regatta {
   online_entry_limit_enabled?: boolean;
   online_entry_limit?: number | null;
   online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
+  online_entry_field_required?: Record<string, boolean> | null;
   country_code?: string | null;
   timezone?: string | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
@@ -697,6 +699,15 @@ export default function AdminRegattaPage() {
                 </p>
               </div>
 
+              <AdminOnlineEntryFieldsOverview
+                regattaId={regattaId}
+                overrides={regatta.online_entry_field_required}
+                onSaved={(payload) =>
+                  setRegatta((prev) =>
+                    prev ? { ...prev, online_entry_field_required: payload } : prev
+                  )
+                }
+              />
             </div>
           )}
 

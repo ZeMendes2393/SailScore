@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Globe } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { apiGet, apiSend } from '@/lib/api';
 import notify from '@/lib/notify';
 
@@ -21,6 +22,7 @@ type PublicationOut = {
 
 export default function PublishDrawer({ regattaId, class_name, onClose, races }: Props) {
   const { token } = useAuth();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentK, setCurrentK] = useState(0);
@@ -48,6 +50,21 @@ export default function PublishDrawer({ regattaId, class_name, onClose, races }:
   }, [regattaId, class_name, token]);
 
   const handleSave = async () => {
+    const raceLabel =
+      selectedK === 0
+        ? 'no races'
+        : selectedK === 1
+          ? 'race 1 only'
+          : `races 1–${selectedK}`;
+
+    const ok = await confirm({
+      title: 'Save public results publication?',
+      description: `Class ${class_name} will show ${raceLabel} on the public website. Sailors and coaches will see the updated standings immediately.`,
+      tone: 'warning',
+      confirmLabel: 'Save publication',
+    });
+    if (!ok) return;
+
     setSaving(true);
     try {
       await apiSend(
@@ -55,6 +72,11 @@ export default function PublishDrawer({ regattaId, class_name, onClose, races }:
         'PUT',
         { published_races_count: selectedK },
         token ?? undefined
+      );
+      notify.success(
+        selectedK === 0
+          ? 'Public results hidden for this class.'
+          : `Public results updated (up to race ${selectedK}).`
       );
       onClose();
     } catch (e: any) {
