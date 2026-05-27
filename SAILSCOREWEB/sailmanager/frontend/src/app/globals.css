@@ -761,3 +761,27 @@ input.login-input:-webkit-autofill:focus {
     max-width: 100%;
   }
 }
+
+/* Hard override: mobile header starts closed (links only inside drawer) */
+@media (max-width: 767px) {
+  .sailscore-landing .ss-top-links-desktop {
+    display: none !important;
+  }
+  .sailscore-landing .ss-top-menu-btn {
+    display: inline-flex !important;
+  }
+  .sailscore-landing .ss-top-mobile-panel[hidden] {
+    display: none !important;
+  }
+  .sailscore-landing .ss-top-mobile-panel.is-open {
+    display: block !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .sailscore-landing .ss-top-menu-btn,
+  .sailscore-landing .ss-top-mobile-panel,
+  .sailscore-landing .ss-top-nav-backdrop {
+    display: none !important;
+  }
+}
