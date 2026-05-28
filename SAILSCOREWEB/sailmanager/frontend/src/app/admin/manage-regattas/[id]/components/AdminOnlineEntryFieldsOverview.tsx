@@ -9,10 +9,12 @@ import {
   ONLINE_ENTRY_FIELDS,
   ONLINE_ENTRY_NOT_IN_PUBLIC_FORM,
   ONLINE_ENTRY_SECTIONS,
+  computeVisibilityOverridesFromEffective,
   computeOverridesFromEffective,
+  defaultVisibleForField,
   defaultRequiredForField,
-  fieldAppliesToContext,
   isFieldConfigurable,
+  mergeEffectiveVisibility,
   mergeEffectiveRequired,
   type OnlineEntryAppliesTo,
   type OnlineEntryFieldDef,
@@ -22,8 +24,12 @@ type FilterApplies = 'all' | OnlineEntryAppliesTo;
 
 type Props = {
   regattaId: number;
-  overrides?: Record<string, boolean> | null;
-  onSaved?: (overrides: Record<string, boolean>) => void;
+  requiredOverrides?: Record<string, boolean> | null;
+  visibilityOverrides?: Record<string, boolean> | null;
+  onSaved?: (payload: {
+    required: Record<string, boolean>;
+    visibility: Record<string, boolean>;
+  }) => void;
 };
 
 function AppliesBadge({ applies }: { applies: OnlineEntryAppliesTo[] }) {
@@ -80,13 +86,17 @@ function RequiredToggle({
 function FieldRow({
   field,
   required,
+  visible,
   configurable,
-  onToggle,
+  onToggleRequired,
+  onToggleVisible,
 }: {
   field: OnlineEntryFieldDef;
   required: boolean;
+  visible: boolean;
   configurable: boolean;
-  onToggle?: (fieldId: string, next: boolean) => void;
+  onToggleRequired?: (fieldId: string, next: boolean) => void;
+  onToggleVisible?: (fieldId: string, next: boolean) => void;
 }) {
   const locked = field.lockedCore || field.requiredBackend;
 
@@ -105,9 +115,19 @@ function FieldRow({
       <td className="py-2 pr-3 align-top">
         <div className="flex items-center gap-2">
           <RequiredToggle
+            checked={visible}
+            disabled={locked}
+            onChange={(next) => onToggleVisible?.(field.id, next)}
+          />
+          <span className="text-xs text-gray-600">{visible ? 'Visible' : 'Hidden'}</span>
+        </div>
+      </td>
+      <td className="py-2 pr-3 align-top">
+        <div className="flex items-center gap-2">
+          <RequiredToggle
             checked={required}
-            disabled={!configurable}
-            onChange={(next) => onToggle?.(field.id, next)}
+            disabled={!configurable || !visible}
+            onChange={(next) => onToggleRequired?.(field.id, next)}
           />
           <span className="text-xs text-gray-600">{required ? 'Required' : 'Optional'}</span>
         </div>
@@ -119,23 +139,50 @@ function FieldRow({
 
 export default function AdminOnlineEntryFieldsOverview({
   regattaId,
-  overrides,
+  requiredOverrides,
+  visibilityOverrides,
   onSaved,
 }: Props) {
   const { token } = useAuth();
   const [filter, setFilter] = useState<FilterApplies>('all');
-  const [draft, setDraft] = useState<Record<string, boolean>>(() =>
-    mergeEffectiveRequired(overrides)
+  const [requiredDraft, setRequiredDraft] = useState<Record<string, boolean>>(() =>
+    mergeEffectiveRequired(requiredOverrides)
+  );
+  const [visibleDraft, setVisibleDraft] = useState<Record<string, boolean>>(() =>
+    mergeEffectiveVisibility(visibilityOverrides)
   );
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  useEffect(() => {
-    setDraft(mergeEffectiveRequired(overrides));
-    setDirty(false);
-  }, [overrides]);
+  const savedRequired = useMemo(
+    () => mergeEffectiveRequired(requiredOverrides),
+    [requiredOverrides]
+  );
+  const savedVisible = useMemo(
+    () => mergeEffectiveVisibility(visibilityOverrides),
+    [visibilityOverrides]
+  );
 
-  const savedEffective = useMemo(() => mergeEffectiveRequired(overrides), [overrides]);
+  const recomputeDirty = useCallback(
+    (nextRequired: Record<string, boolean>, nextVisible: Record<string, boolean>) => {
+      const nextReqOverrides = computeOverridesFromEffective(nextRequired);
+      const currReqOverrides = computeOverridesFromEffective(savedRequired);
+      const nextVisOverrides = computeVisibilityOverridesFromEffective(nextVisible);
+      const currVisOverrides = computeVisibilityOverridesFromEffective(savedVisible);
+      const sameRequired = JSON.stringify(nextReqOverrides) === JSON.stringify(currReqOverrides);
+      const sameVisible = JSON.stringify(nextVisOverrides) === JSON.stringify(currVisOverrides);
+      setDirty(!(sameRequired && sameVisible));
+    },
+    [savedRequired, savedVisible]
+  );
+
+  useEffect(() => {
+    const nextRequired = mergeEffectiveRequired(requiredOverrides);
+    const nextVisible = mergeEffectiveVisibility(visibilityOverrides);
+    setRequiredDraft(nextRequired);
+    setVisibleDraft(nextVisible);
+    setDirty(false);
+  }, [requiredOverrides, visibilityOverrides]);
 
   const visibleFields = useMemo(() => {
     const base =
@@ -161,28 +208,46 @@ export default function AdminOnlineEntryFieldsOverview({
   }, [visibleFields]);
 
   const handleToggle = useCallback((fieldId: string, next: boolean) => {
-    setDraft((prev) => {
+    setRequiredDraft((prev) => {
       const updated = { ...prev, [fieldId]: next };
-      const newOverrides = computeOverridesFromEffective(updated);
-      const oldOverrides = computeOverridesFromEffective(savedEffective);
-      setDirty(JSON.stringify(newOverrides) !== JSON.stringify(oldOverrides));
+      const nextVisible = visibleDraft;
+      recomputeDirty(updated, nextVisible);
       return updated;
     });
-  }, [savedEffective]);
+  }, [recomputeDirty, visibleDraft]);
+
+  const handleToggleVisible = useCallback((fieldId: string, next: boolean) => {
+    setVisibleDraft((prevVisible) => {
+      const updatedVisible = { ...prevVisible, [fieldId]: next };
+      setRequiredDraft((prevRequired) => {
+        const updatedRequired = { ...prevRequired };
+        if (!next) {
+          updatedRequired[fieldId] = false;
+        }
+        recomputeDirty(updatedRequired, updatedVisible);
+        return updatedRequired;
+      });
+      return updatedVisible;
+    });
+  }, [recomputeDirty]);
 
   const handleSave = async () => {
     if (!token) return;
-    const payload = computeOverridesFromEffective(draft);
+    const requiredPayload = computeOverridesFromEffective(requiredDraft);
+    const visibilityPayload = computeVisibilityOverridesFromEffective(visibleDraft);
     setSaving(true);
     try {
       await apiSend(
         `/regattas/${regattaId}`,
         'PATCH',
-        { online_entry_field_required: payload },
+        {
+          online_entry_field_required: requiredPayload,
+          online_entry_field_visibility: visibilityPayload,
+        },
         token
       );
       notify.success('Online entry field settings saved.');
-      onSaved?.(payload);
+      onSaved?.({ required: requiredPayload, visibility: visibilityPayload });
       setDirty(false);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to save field settings.';
@@ -193,23 +258,27 @@ export default function AdminOnlineEntryFieldsOverview({
   };
 
   const handleReset = () => {
-    const defaults: Record<string, boolean> = {};
+    const defaultsRequired: Record<string, boolean> = {};
+    const defaultsVisible: Record<string, boolean> = {};
     for (const f of CONFIGURABLE_ONLINE_ENTRY_FIELDS) {
-      defaults[f.id] = defaultRequiredForField(f);
+      defaultsRequired[f.id] = defaultRequiredForField(f);
+      defaultsVisible[f.id] = defaultVisibleForField(f);
     }
-    setDraft(defaults);
-    const newOverrides = computeOverridesFromEffective(defaults);
-    const oldOverrides = computeOverridesFromEffective(savedEffective);
-    setDirty(JSON.stringify(newOverrides) !== JSON.stringify(oldOverrides));
+    setRequiredDraft(defaultsRequired);
+    setVisibleDraft(defaultsVisible);
+    recomputeDirty(defaultsRequired, defaultsVisible);
   };
 
   const stats = useMemo(
     () => ({
       configurable: CONFIGURABLE_ONLINE_ENTRY_FIELDS.length,
-      requiredNow: CONFIGURABLE_ONLINE_ENTRY_FIELDS.filter((f) => draft[f.id]).length,
+      visibleNow: CONFIGURABLE_ONLINE_ENTRY_FIELDS.filter((f) => visibleDraft[f.id] !== false).length,
+      requiredNow: CONFIGURABLE_ONLINE_ENTRY_FIELDS.filter(
+        (f) => visibleDraft[f.id] !== false && requiredDraft[f.id]
+      ).length,
       core: ONLINE_ENTRY_FIELDS.filter((f) => f.lockedCore).length,
     }),
-    [draft]
+    [requiredDraft, visibleDraft]
   );
 
   return (
@@ -218,9 +287,9 @@ export default function AdminOnlineEntryFieldsOverview({
         <div>
           <h3 className="text-base font-semibold text-gray-900">Form fields</h3>
           <p className="text-sm text-gray-600 mt-1">
-            Toggle which fields are <strong>required</strong> or <strong>optional</strong> on the
-            public online entry form. Core fields (class, name, email, sail number…) cannot be
-            changed. Settings apply to new submissions immediately.
+            Toggle which fields are <strong>visible</strong> and/or <strong>required</strong> on
+            the public online entry form. Core fields (class, name, email, sail number...) stay
+            visible and required. Settings apply to new submissions immediately.
           </p>
         </div>
         <div className="flex gap-2">
@@ -246,6 +315,9 @@ export default function AdminOnlineEntryFieldsOverview({
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
           {stats.configurable} configurable
+        </span>
+        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-900 border border-indigo-100">
+          {stats.visibleNow} visible
         </span>
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-900 border border-blue-100">
           {stats.requiredNow} required (configurable)
@@ -293,6 +365,7 @@ export default function AdminOnlineEntryFieldsOverview({
                   <th className="px-4 py-2 font-medium">Label</th>
                   <th className="px-4 py-2 font-medium">API key</th>
                   <th className="px-4 py-2 font-medium">Applies to</th>
+                  <th className="px-4 py-2 font-medium">Visible</th>
                   <th className="px-4 py-2 font-medium">Required</th>
                   <th className="px-4 py-2 font-medium">Notes</th>
                 </tr>
@@ -300,18 +373,25 @@ export default function AdminOnlineEntryFieldsOverview({
               <tbody className="px-4">
                 {section.fields.map((field) => {
                   const configurable = isFieldConfigurable(field);
+                  const visible = field.lockedCore
+                    ? true
+                    : configurable
+                      ? visibleDraft[field.id] !== false
+                      : field.inPublicForm;
                   const required = field.lockedCore
                     ? true
                     : configurable
-                      ? !!draft[field.id]
+                      ? !!requiredDraft[field.id]
                       : field.requiredUi || field.requiredBackend;
                   return (
                     <FieldRow
                       key={field.id}
                       field={field}
+                      visible={visible}
                       required={required}
                       configurable={configurable}
-                      onToggle={handleToggle}
+                      onToggleRequired={handleToggle}
+                      onToggleVisible={handleToggleVisible}
                     />
                   );
                 })}

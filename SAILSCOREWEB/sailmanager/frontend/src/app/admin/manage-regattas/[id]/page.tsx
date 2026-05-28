@@ -31,6 +31,7 @@ interface Regatta {
   online_entry_limit?: number | null;
   online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
   online_entry_field_required?: Record<string, boolean> | null;
+  online_entry_field_visibility?: Record<string, boolean> | null;
   country_code?: string | null;
   timezone?: string | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
@@ -701,10 +702,17 @@ export default function AdminRegattaPage() {
 
               <AdminOnlineEntryFieldsOverview
                 regattaId={regattaId}
-                overrides={regatta.online_entry_field_required}
+                requiredOverrides={regatta.online_entry_field_required}
+                visibilityOverrides={regatta.online_entry_field_visibility}
                 onSaved={(payload) =>
                   setRegatta((prev) =>
-                    prev ? { ...prev, online_entry_field_required: payload } : prev
+                    prev
+                      ? {
+                          ...prev,
+                          online_entry_field_required: payload.required,
+                          online_entry_field_visibility: payload.visibility,
+                        }
+                      : prev
                   )
                 }
               />

@@ -28,7 +28,6 @@ from app.services.entry_list_import import (
 )
 from app.services.online_entry_fields import (
     resolve_class_context,
-    sanitize_overrides,
     validate_online_entry_fields,
 )
 from app.utils.sail_number import (

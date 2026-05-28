@@ -9,17 +9,26 @@ import Step2Crew from './steps/Step2_Crew';
 import Step3 from './steps/Step3_Boat';
 import { boatClasses } from '@/utils/boatClasses';
 import notify from '@/lib/notify';
-import { createRequiredChecker, mergeEffectiveRequired, validateEntryAgainstRequired } from '@/lib/onlineEntryFields';
+import {
+  createRequiredChecker,
+  createVisibleChecker,
+  mergeEffectiveRequired,
+  mergeEffectiveVisibility,
+  validateEntryAgainstRequired,
+} from '@/lib/onlineEntryFields';
 
 export interface MultiStepEntryFormProps {
   regattaId: number;
   /** Per-regatta overrides from regatta.online_entry_field_required */
   fieldRequiredOverrides?: Record<string, boolean> | null;
+  /** Per-regatta visibility overrides from regatta.online_entry_field_visibility */
+  fieldVisibilityOverrides?: Record<string, boolean> | null;
 }
 
 const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
   regattaId,
   fieldRequiredOverrides,
+  fieldVisibilityOverrides,
 }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,6 +78,10 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
     () => createRequiredChecker(fieldRequiredOverrides, classType, showCrewStep),
     [fieldRequiredOverrides, classType, showCrewStep]
   );
+  const isVisible = React.useMemo(
+    () => createVisibleChecker(fieldVisibilityOverrides, classType, showCrewStep),
+    [fieldVisibilityOverrides, classType, showCrewStep]
+  );
 
   const handleFinalSubmit = async () => {
     if (isSubmitting || submitLockRef.current) return;
@@ -103,6 +116,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         helm_position,
       },
       mergeEffectiveRequired(fieldRequiredOverrides),
+      mergeEffectiveVisibility(fieldVisibilityOverrides),
       {
         classType,
         multiCrew: showCrewStep,
@@ -235,6 +249,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             }}
             onBack={prevStep}
             isRequired={isRequired}
+            isVisible={isVisible}
           />
         );
       case 3:
@@ -247,6 +262,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             onNext={nextStep}
             onBack={prevStep}
             isRequired={isRequired}
+            isVisible={isVisible}
           />
         );
       case 4:
@@ -257,6 +273,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             onSubmit={handleFinalSubmit}
             isSubmitting={isSubmitting}
             isRequired={isRequired}
+            isVisible={isVisible}
             onBack={() => {
               if (showCrewStep) setStep(3);
               else setStep(2);

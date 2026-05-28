@@ -34,9 +34,18 @@ interface Step3Props {
   onBack: () => void
   isSubmitting?: boolean
   isRequired: (fieldId: string) => boolean
+  isVisible: (fieldId: string) => boolean
 }
 
-export default function Step3({ data, onChange, onSubmit, onBack, isSubmitting = false, isRequired }: Step3Props) {
+export default function Step3({
+  data,
+  onChange,
+  onSubmit,
+  onBack,
+  isSubmitting = false,
+  isRequired,
+  isVisible,
+}: Step3Props) {
   const [localData, setLocalData] = useState(data || {})
   const isHandicap = (data?.fullForm?.class_type || data?.class_type) === 'handicap'
 
@@ -67,87 +76,105 @@ export default function Step3({ data, onChange, onSubmit, onBack, isSubmitting =
 
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1">Boat identification</h3>
-        <Field label="Boat name" required={isRequired('boat_name')} hint="Official name or how the boat is known">
-          <input type="text" name="boat_name" placeholder="e.g. Northern Wind" value={localData.boat_name || ''} onChange={handleChange} className={inputClass} required={isRequired('boat_name')} />
-        </Field>
-        <Field label="Country code" required={isRequired('boat_country_code')} hint="Country of registration (required)">
-          <select name="boat_country_code" value={localData.boat_country_code || ''} onChange={handleChange} className={inputClass} required={isRequired('boat_country_code')}>
-            <option value="">Select</option>
-            {COUNTRIES_UNIQUE.map((c) => (
-              <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Sail number" required={isRequired('sail_number')} hint="Digits only — country is selected above (e.g. 30275)">
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            name="sail_number"
-            placeholder="e.g. 30275"
-            value={localData.sail_number || ''}
-            onChange={handleChange}
-            className={inputClass}
-            required={isRequired('sail_number')}
-          />
-        </Field>
+        {isVisible('boat_name') && (
+          <Field label="Boat name" required={isRequired('boat_name')} hint="Official name or how the boat is known">
+            <input type="text" name="boat_name" placeholder="e.g. Northern Wind" value={localData.boat_name || ''} onChange={handleChange} className={inputClass} required={isRequired('boat_name')} />
+          </Field>
+        )}
+        {isVisible('boat_country_code') && (
+          <Field label="Country code" required={isRequired('boat_country_code')} hint="Country of registration (required)">
+            <select name="boat_country_code" value={localData.boat_country_code || ''} onChange={handleChange} className={inputClass} required={isRequired('boat_country_code')}>
+              <option value="">Select</option>
+              {COUNTRIES_UNIQUE.map((c) => (
+                <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {isVisible('sail_number') && (
+          <Field label="Sail number" required={isRequired('sail_number')} hint="Digits only — country is selected above (e.g. 30275)">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              name="sail_number"
+              placeholder="e.g. 30275"
+              value={localData.sail_number || ''}
+              onChange={handleChange}
+              className={inputClass}
+              required={isRequired('sail_number')}
+            />
+          </Field>
+        )}
 
         {isHandicap && (
           <>
-            <Field label="Boat model" hint="Boat brand and model" required={isRequired('boat_model')}>
-              <input
-                type="text"
-                name="boat_model"
-                placeholder="e.g. Beneteau First 36.7"
-                value={localData.boat_model || ''}
-                onChange={handleChange}
-                className={inputClass}
-                required={isRequired('boat_model')}
-              />
-            </Field>
-            <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1 mt-4">
-              Boat owner
-            </h3>
-            <p className="text-xs text-gray-600">Owner details (handicap).</p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Owner first name" required={isRequired('owner_first_name')}>
+            {isVisible('boat_model') && (
+              <Field label="Boat model" hint="Boat brand and model" required={isRequired('boat_model')}>
                 <input
                   type="text"
-                  name="owner_first_name"
-                  placeholder="e.g. John"
-                  value={localData.owner_first_name || ''}
+                  name="boat_model"
+                  placeholder="e.g. Beneteau First 36.7"
+                  value={localData.boat_model || ''}
                   onChange={handleChange}
                   className={inputClass}
-                  required={isRequired('owner_first_name')}
+                  required={isRequired('boat_model')}
                 />
               </Field>
-              <Field label="Owner last name" required={isRequired('owner_last_name')}>
-                <input
-                  type="text"
-                  name="owner_last_name"
-                  placeholder="e.g. Smith"
-                  value={localData.owner_last_name || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                  required={isRequired('owner_last_name')}
-                />
-              </Field>
-              <Field label="Owner email" required={isRequired('owner_email')}>
-                <input
-                  type="email"
-                  name="owner_email"
-                  placeholder="e.g. john@example.com"
-                  value={localData.owner_email || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                  required={isRequired('owner_email')}
-                />
-              </Field>
-            </div>
+            )}
+            {(isVisible('owner_first_name') || isVisible('owner_last_name') || isVisible('owner_email')) && (
+              <>
+                <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-1 mt-4">
+                  Boat owner
+                </h3>
+                <p className="text-xs text-gray-600">Owner details (handicap).</p>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {isVisible('owner_first_name') && (
+                    <Field label="Owner first name" required={isRequired('owner_first_name')}>
+                      <input
+                        type="text"
+                        name="owner_first_name"
+                        placeholder="e.g. John"
+                        value={localData.owner_first_name || ''}
+                        onChange={handleChange}
+                        className={inputClass}
+                        required={isRequired('owner_first_name')}
+                      />
+                    </Field>
+                  )}
+                  {isVisible('owner_last_name') && (
+                    <Field label="Owner last name" required={isRequired('owner_last_name')}>
+                      <input
+                        type="text"
+                        name="owner_last_name"
+                        placeholder="e.g. Smith"
+                        value={localData.owner_last_name || ''}
+                        onChange={handleChange}
+                        className={inputClass}
+                        required={isRequired('owner_last_name')}
+                      />
+                    </Field>
+                  )}
+                  {isVisible('owner_email') && (
+                    <Field label="Owner email" required={isRequired('owner_email')}>
+                      <input
+                        type="email"
+                        name="owner_email"
+                        placeholder="e.g. john@example.com"
+                        value={localData.owner_email || ''}
+                        onChange={handleChange}
+                        className={inputClass}
+                        required={isRequired('owner_email')}
+                      />
+                    </Field>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
 
-        {!isHandicap && (
+        {!isHandicap && isVisible('category') && (
           <Field label="Category" hint="e.g. Men, Women, Mixed" required={isRequired('category')}>
             <input type="text" name="category" placeholder="e.g. Mixed" value={localData.category || ''} onChange={handleChange} className={inputClass} required={isRequired('category')} />
           </Field>

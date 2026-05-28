@@ -1,6 +1,6 @@
 /**
- * Catálogo dos campos da online entry (formulário público).
- * Fonte de verdade para o painel admin e, no futuro, configuração por regata.
+ * Online entry field catalog (public form).
+ * Source of truth for the admin panel and per-regatta configuration.
  */
 
 export type OnlineEntrySectionId =
@@ -14,25 +14,22 @@ export type OnlineEntryAppliesTo =
   | 'all'
   | 'one_design'
   | 'handicap'
-  | 'multi_crew'; // sailors_per_boat >= 2 (passo crew)
+  | 'multi_crew'; // sailors_per_boat >= 2 (crew step)
 
 export interface OnlineEntryFieldDef {
   id: string;
   section: OnlineEntrySectionId;
   label: string;
-  /** Chave enviada na API POST /entries/ (ou dentro de crew_members). */
+  /** Key sent in POST /entries/ (or inside crew_members). */
   apiKey: string;
   appliesTo: OnlineEntryAppliesTo[];
-  /** Aparece no formulário público actual. */
+  /** Shown on the public form. */
   inPublicForm: boolean;
-  /** Obrigatório no HTML / validação frontend antes de submit. */
+  /** Required in HTML / frontend validation before submit. */
   requiredUi: boolean;
-  /** Obrigatório no backend (schema ou regra de negócio). */
+  /** Required on the backend (schema or business rule). */
   requiredBackend: boolean;
-  /**
-   * Campos que no futuro não poderão ser desactivados na config por regata.
-   * (Apenas documentação por agora — ainda não há config editável.)
-   */
+  /** Cannot be turned off in per-regatta config. */
   lockedCore: boolean;
   notes?: string;
 }
@@ -47,31 +44,31 @@ export const ONLINE_ENTRY_SECTIONS: {
     id: 'step1_class',
     title: 'Step 1 — Select class',
     step: 1,
-    description: 'Escolha da classe (One Design ou Handicap).',
+    description: 'Class selection (One Design or Handicap).',
   },
   {
     id: 'step2_helm',
     title: 'Step 2 — Skipper details',
     step: 2,
-    description: 'Dados do skipper / helm (sempre).',
+    description: 'Skipper / helm details (always shown).',
   },
   {
     id: 'step2_crew',
     title: 'Step 2b — Crew members',
     step: 2,
-    description: 'Só quando a classe tem 2+ sailors (sailors_per_boat).',
+    description: 'Only when the class has 2+ sailors (sailors_per_boat).',
   },
   {
     id: 'step3_boat',
     title: 'Step 3 — Boat details',
     step: 3,
-    description: 'Barco; campos extra em Handicap vs One Design.',
+    description: 'Boat fields; extra fields for Handicap vs One Design.',
   },
   {
     id: 'payload_only',
     title: 'Sent on submit (not a form field)',
     step: null,
-    description: 'Valores derivados ou só no payload; não há input dedicado.',
+    description: 'Derived values or payload-only; no dedicated input.',
   },
 ];
 
@@ -87,7 +84,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: true,
     requiredBackend: true,
     lockedCore: true,
-    notes: 'Lista vem das classes da regata (GET /regattas/{id}/classes/detailed).',
+    notes: 'List comes from regatta classes (GET /regattas/{id}/classes/detailed).',
   },
 
   // —— Step 2 Helm ——
@@ -101,7 +98,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: false,
     requiredBackend: false,
     lockedCore: false,
-    notes: 'Default Skipper; guardado como helm_position no payload.',
+    notes: 'Default Skipper; stored as helm_position in payload.',
   },
   {
     id: 'first_name',
@@ -168,7 +165,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: true,
     requiredBackend: true,
     lockedCore: true,
-    notes: 'Obrigatório para criar conta sailor e emails de confirmação.',
+    notes: 'Required to create sailor account and send confirmation emails.',
   },
   {
     id: 'contact_phone_1',
@@ -314,7 +311,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: false,
     requiredBackend: false,
     lockedCore: false,
-    notes: 'Só entra no array se tiver nome, apelido ou email preenchido.',
+    notes: 'Included in the array only if first name, last name, or email is filled.',
   },
   {
     id: 'crew_federation_license',
@@ -348,7 +345,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: false,
     requiredBackend: false,
     lockedCore: false,
-    notes: 'UI crew não inclui telefone, morada nem licença extra além das listadas.',
+    notes: 'Crew UI does not include phone, address, or extra fields beyond those listed.',
   },
 
   // —— Step 3 Boat ——
@@ -384,7 +381,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: true,
     requiredBackend: true,
     lockedCore: true,
-    notes: 'Validação extra no submit (notify) além do HTML required.',
+    notes: 'Extra validation on submit (notify) in addition to HTML required.',
   },
   {
     id: 'boat_model',
@@ -440,7 +437,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: false,
     requiredBackend: false,
     lockedCore: false,
-    notes: 'Não enviado em handicap (payload força undefined).',
+    notes: 'Not sent for handicap (payload sets undefined).',
   },
 
   // —— Payload only ——
@@ -465,7 +462,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     requiredUi: false,
     requiredBackend: false,
     lockedCore: false,
-    notes: 'Preenchido a partir de boat_country_code no submit.',
+    notes: 'Filled from boat_country_code on submit.',
   },
   {
     id: 'crew_members',
@@ -480,14 +477,14 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
   },
 ];
 
-/** Campos no schema EntryCreate que ainda não estão no formulário público. */
+/** EntryCreate schema fields not on the public online form. */
 export const ONLINE_ENTRY_NOT_IN_PUBLIC_FORM: {
   apiKey: string;
   label: string;
   notes: string;
 }[] = [
   { apiKey: 'bow_number', label: 'Bow number', notes: 'Admin / import only.' },
-  { apiKey: 'rating', label: 'Rating (ANC)', notes: 'Handicap admin; não no online entry.' },
+  { apiKey: 'rating', label: 'Rating (ANC)', notes: 'Handicap admin only; not on online entry.' },
   { apiKey: 'rating_type', label: 'Rating type', notes: 'orc | anc — admin.' },
   { apiKey: 'orc_low / orc_medium / orc_high', label: 'ORC ratings', notes: 'Admin only.' },
   { apiKey: 'paid', label: 'Paid', notes: 'Admin default false.' },
@@ -505,6 +502,10 @@ export function countByAppliesTo(applies: OnlineEntryAppliesTo): number {
 /** Default required for configurable fields (same as requiredUi in catalog). */
 export function defaultRequiredForField(field: OnlineEntryFieldDef): boolean {
   return field.requiredUi;
+}
+
+export function defaultVisibleForField(field: OnlineEntryFieldDef): boolean {
+  return field.inPublicForm;
 }
 
 export function isFieldConfigurable(field: OnlineEntryFieldDef): boolean {
@@ -526,12 +527,38 @@ export function mergeEffectiveRequired(
   return out;
 }
 
+export function mergeEffectiveVisibility(
+  overrides?: Record<string, boolean> | null
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const field of CONFIGURABLE_ONLINE_ENTRY_FIELDS) {
+    out[field.id] =
+      overrides && typeof overrides[field.id] === 'boolean'
+        ? overrides[field.id]
+        : defaultVisibleForField(field);
+  }
+  return out;
+}
+
 export function computeOverridesFromEffective(
   effective: Record<string, boolean>
 ): Record<string, boolean> {
   const overrides: Record<string, boolean> = {};
   for (const field of CONFIGURABLE_ONLINE_ENTRY_FIELDS) {
     const def = defaultRequiredForField(field);
+    if (effective[field.id] !== def) {
+      overrides[field.id] = effective[field.id];
+    }
+  }
+  return overrides;
+}
+
+export function computeVisibilityOverridesFromEffective(
+  effective: Record<string, boolean>
+): Record<string, boolean> {
+  const overrides: Record<string, boolean> = {};
+  for (const field of CONFIGURABLE_ONLINE_ENTRY_FIELDS) {
+    const def = defaultVisibleForField(field);
     if (effective[field.id] !== def) {
       overrides[field.id] = effective[field.id];
     }
@@ -573,6 +600,7 @@ export function isCoreRequiredField(fieldId: string): boolean {
 export function validateEntryAgainstRequired(
   payload: Record<string, unknown>,
   requiredMap: Record<string, boolean>,
+  visibleMap: Record<string, boolean>,
   opts: {
     classType?: 'one_design' | 'handicap';
     multiCrew: boolean;
@@ -584,6 +612,7 @@ export function validateEntryAgainstRequired(
   const check = (fieldId: string, value: unknown): string | null => {
     const field = ONLINE_ENTRY_FIELDS.find((f) => f.id === fieldId);
     if (!field || !requiredMap[fieldId]) return null;
+    if (visibleMap[fieldId] === false) return null;
     if (!fieldAppliesToContext(field, classType, multiCrew)) return null;
     const filled =
       value != null && (typeof value !== 'string' || value.trim() !== '');
@@ -644,5 +673,20 @@ export function createRequiredChecker(
     if (field.lockedCore || field.requiredBackend) return true;
     if (!fieldAppliesToContext(field, classType, multiCrew)) return false;
     return !!requiredMap[fieldId];
+  };
+}
+
+export function createVisibleChecker(
+  overrides?: Record<string, boolean> | null,
+  classType?: 'one_design' | 'handicap',
+  multiCrew = false
+): (fieldId: string) => boolean {
+  const visibleMap = mergeEffectiveVisibility(overrides);
+  return (fieldId: string) => {
+    const field = ONLINE_ENTRY_FIELDS.find((f) => f.id === fieldId);
+    if (!field) return true;
+    if (field.lockedCore || field.requiredBackend) return true;
+    if (!fieldAppliesToContext(field, classType, multiCrew)) return false;
+    return visibleMap[fieldId] !== false;
   };
 }

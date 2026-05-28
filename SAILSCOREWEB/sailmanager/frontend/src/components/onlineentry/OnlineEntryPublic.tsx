@@ -9,6 +9,7 @@ type RegattaLite = {
   name: string;
   online_entry_open?: boolean;
   online_entry_field_required?: Record<string, boolean> | null;
+  online_entry_field_visibility?: Record<string, boolean> | null;
 };
 
 export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) {
@@ -55,6 +56,7 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
     <MultiStepEntryForm
       regattaId={regattaId}
       fieldRequiredOverrides={reg?.online_entry_field_required}
+      fieldVisibilityOverrides={reg?.online_entry_field_visibility}
     />
   );
 }

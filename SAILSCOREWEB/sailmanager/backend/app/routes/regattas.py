@@ -17,7 +17,7 @@ from utils.auth_utils import (
     get_current_regatta_id_optional,
 )
 from app.jury_scope import assert_jury_regatta_access
-from app.services.online_entry_fields import sanitize_overrides
+from app.services.online_entry_fields import normalize_field_overrides
 
 
 def _class_names_for_regatta(regatta: models.Regatta) -> list[str]:
@@ -177,15 +177,23 @@ def update_regatta(
             "online_entry_limit",
             "online_entry_limits_by_class",
             "online_entry_field_required",
+            "online_entry_field_visibility",
             "entry_list_columns",
             "results_overall_columns",
         }
         data = {k: v for k, v in data.items() if k in scorer_allowed_fields}
         if not data:
             raise HTTPException(status_code=403, detail="Access denied")
-    if "online_entry_field_required" in data:
+    if "online_entry_field_required" in data or "online_entry_field_visibility" in data:
         try:
-            data["online_entry_field_required"] = sanitize_overrides(data["online_entry_field_required"])
+            required, visibility = normalize_field_overrides(
+                data.get("online_entry_field_required", getattr(reg, "online_entry_field_required", None)),
+                data.get("online_entry_field_visibility", getattr(reg, "online_entry_field_visibility", None)),
+            )
+            if "online_entry_field_required" in data:
+                data["online_entry_field_required"] = required
+            if "online_entry_field_visibility" in data:
+                data["online_entry_field_visibility"] = visibility
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     if "organization_id" in data:

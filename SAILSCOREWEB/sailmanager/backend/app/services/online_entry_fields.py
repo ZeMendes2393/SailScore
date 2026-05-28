@@ -1,17 +1,17 @@
 """
-Online entry field catalog and per-regatta required/optional configuration.
-Mirrors frontend lib/onlineEntryFields.ts (field ids and defaults must stay in sync).
+Online entry field catalog and per-regatta public form configuration.
+Mirrors frontend `src/lib/onlineEntryFields.ts` for IDs/defaults.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
 from app import models, schemas
 
-# Field ids that are always required and cannot be changed per regatta.
-LOCKED_CORE_FIELD_IDS: Set[str] = {
+# Fields that are always visible/required on public online entry.
+LOCKED_CORE_FIELD_IDS = {
     "class_name",
     "first_name",
     "last_name",
@@ -22,7 +22,7 @@ LOCKED_CORE_FIELD_IDS: Set[str] = {
 }
 
 # Default required flag for configurable fields (matches requiredUi in frontend catalog).
-_CONFIGURABLE_DEFAULTS: Dict[str, bool] = {
+_CONFIGURABLE_REQUIRED_DEFAULTS: Dict[str, bool] = {
     "helm_position": False,
     "date_of_birth": False,
     "gender": True,
@@ -48,6 +48,11 @@ _CONFIGURABLE_DEFAULTS: Dict[str, bool] = {
     "owner_last_name": False,
     "owner_email": False,
     "category": False,
+}
+
+# Default visibility for configurable fields.
+_CONFIGURABLE_VISIBLE_DEFAULTS: Dict[str, bool] = {
+    field_id: True for field_id in _CONFIGURABLE_REQUIRED_DEFAULTS
 }
 
 # field_id -> EntryCreate attribute (helm / boat)
@@ -98,21 +103,17 @@ _APPLIES_MULTI_CREW = {
 }
 
 
-def configurable_field_ids() -> List[str]:
-    return list(_CONFIGURABLE_DEFAULTS.keys())
-
-
-def sanitize_overrides(raw: Any) -> Dict[str, bool]:
+def _sanitize_bool_map(raw: Any, *, field_name: str, allowed_ids: set[str]) -> Dict[str, bool]:
     if raw is None:
         return {}
     if not isinstance(raw, dict):
-        raise ValueError("online_entry_field_required must be an object.")
+        raise ValueError(f"{field_name} must be an object.")
     out: Dict[str, bool] = {}
     for key, val in raw.items():
         if not isinstance(key, str):
             continue
         fid = key.strip()
-        if fid not in _CONFIGURABLE_DEFAULTS:
+        if fid not in allowed_ids:
             continue
         if not isinstance(val, bool):
             raise ValueError(f"Field '{fid}' must be true or false.")
@@ -120,22 +121,71 @@ def sanitize_overrides(raw: Any) -> Dict[str, bool]:
     return out
 
 
-def compute_overrides_from_effective(effective: Dict[str, bool]) -> Dict[str, bool]:
-    """Store only values that differ from catalog defaults."""
-    overrides: Dict[str, bool] = {}
-    for fid, default in _CONFIGURABLE_DEFAULTS.items():
-        if fid in effective and effective[fid] != default:
-            overrides[fid] = effective[fid]
-    return overrides
+def sanitize_required_overrides(raw: Any) -> Dict[str, bool]:
+    return _sanitize_bool_map(
+        raw,
+        field_name="online_entry_field_required",
+        allowed_ids=set(_CONFIGURABLE_REQUIRED_DEFAULTS),
+    )
+
+
+def sanitize_visibility_overrides(raw: Any) -> Dict[str, bool]:
+    return _sanitize_bool_map(
+        raw,
+        field_name="online_entry_field_visibility",
+        allowed_ids=set(_CONFIGURABLE_VISIBLE_DEFAULTS),
+    )
+
+
+# Backward compatibility for older imports.
+def sanitize_overrides(raw: Any) -> Dict[str, bool]:
+    return sanitize_required_overrides(raw)
 
 
 def merge_effective_required(overrides: Optional[Dict[str, bool]]) -> Dict[str, bool]:
-    merged = dict(_CONFIGURABLE_DEFAULTS)
+    merged = dict(_CONFIGURABLE_REQUIRED_DEFAULTS)
     if overrides:
-        for k, v in overrides.items():
-            if k in merged and isinstance(v, bool):
-                merged[k] = v
+        for key, val in overrides.items():
+            if key in merged and isinstance(val, bool):
+                merged[key] = val
     return merged
+
+
+def merge_effective_visibility(overrides: Optional[Dict[str, bool]]) -> Dict[str, bool]:
+    merged = dict(_CONFIGURABLE_VISIBLE_DEFAULTS)
+    if overrides:
+        for key, val in overrides.items():
+            if key in merged and isinstance(val, bool):
+                merged[key] = val
+    return merged
+
+
+def normalize_field_overrides(
+    required_raw: Any,
+    visibility_raw: Any,
+) -> Tuple[Dict[str, bool], Dict[str, bool]]:
+    """
+    Returns compact override maps normalized against defaults.
+    Also enforces: hidden fields cannot remain required.
+    """
+    required_eff = merge_effective_required(sanitize_required_overrides(required_raw))
+    visibility_eff = merge_effective_visibility(sanitize_visibility_overrides(visibility_raw))
+
+    for field_id, visible in visibility_eff.items():
+        if not visible:
+            required_eff[field_id] = False
+
+    required_compact: Dict[str, bool] = {}
+    for field_id, default in _CONFIGURABLE_REQUIRED_DEFAULTS.items():
+        if required_eff.get(field_id, default) != default:
+            required_compact[field_id] = required_eff[field_id]
+
+    visibility_compact: Dict[str, bool] = {}
+    for field_id, default in _CONFIGURABLE_VISIBLE_DEFAULTS.items():
+        if visibility_eff.get(field_id, default) != default:
+            visibility_compact[field_id] = visibility_eff[field_id]
+
+    return required_compact, visibility_compact
 
 
 def field_applies(
@@ -150,7 +200,7 @@ def field_applies(
         return class_type != "handicap"
     if field_id in _APPLIES_MULTI_CREW:
         return multi_crew
-    return field_id in _CONFIGURABLE_DEFAULTS
+    return field_id in _CONFIGURABLE_REQUIRED_DEFAULTS
 
 
 def _is_filled(value: Any) -> bool:
@@ -175,13 +225,19 @@ def validate_online_entry_fields(
     class_type: str,
     sailors_per_boat: int,
 ) -> None:
-    overrides = sanitize_overrides(getattr(regatta, "online_entry_field_required", None))
-    required_map = merge_effective_required(overrides)
+    required_map = merge_effective_required(
+        sanitize_required_overrides(getattr(regatta, "online_entry_field_required", None))
+    )
+    visibility_map = merge_effective_visibility(
+        sanitize_visibility_overrides(getattr(regatta, "online_entry_field_visibility", None))
+    )
     multi_crew = sailors_per_boat >= 2
     errors: List[str] = []
 
     for field_id, is_required in required_map.items():
         if not is_required:
+            continue
+        if not visibility_map.get(field_id, True):
             continue
         if not field_applies(field_id, class_type=class_type, multi_crew=multi_crew):
             continue

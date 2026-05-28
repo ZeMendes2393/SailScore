@@ -53,6 +53,7 @@ interface Step2CrewProps {
   onNext: () => void;
   onBack: () => void;
   isRequired: (fieldId: string) => boolean;
+  isVisible: (fieldId: string) => boolean;
 }
 
 const inputClass =
@@ -63,7 +64,16 @@ function sailorLabel(m: { first_name?: string; last_name?: string }) {
   return n || '—';
 }
 
-export default function Step2Crew({ data, helm, sailorsPerBoat, onChange, onNext, onBack, isRequired }: Step2CrewProps) {
+export default function Step2Crew({
+  data,
+  helm,
+  sailorsPerBoat,
+  onChange,
+  onNext,
+  onBack,
+  isRequired,
+  isVisible,
+}: Step2CrewProps) {
   const crewList: CrewMember[] = Array.isArray(data) && data.length > 0 ? data : [];
   const maxCrew = Math.max(0, (sailorsPerBoat || 2) - 1);
 
@@ -139,81 +149,95 @@ export default function Step2Crew({ data, helm, sailorsPerBoat, onChange, onNext
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Position">
-                <select
-                  value={member.position || 'Crew'}
-                  onChange={(e) => updateCrewAt(index, { position: e.target.value })}
-                  className={inputClass}
-                >
-                  <option value="Skipper">Skipper</option>
-                  <option value="Crew">Crew</option>
-                </select>
-              </Field>
-              <Field label="First name" required={isRequired('crew_first_name')}>
-                <input
-                  type="text"
-                  value={member.first_name || ''}
-                  onChange={(e) => updateCrewAt(index, { first_name: e.target.value })}
-                  placeholder="e.g. Jane"
-                  className={inputClass}
-                  required={isRequired('crew_first_name')}
-                />
-              </Field>
-              <Field label="Last name" required={isRequired('crew_last_name')}>
-                <input
-                  type="text"
-                  value={member.last_name || ''}
-                  onChange={(e) => updateCrewAt(index, { last_name: e.target.value })}
-                  placeholder="e.g. Smith"
-                  className={inputClass}
-                  required={isRequired('crew_last_name')}
-                />
-              </Field>
-              <Field label="Email" required={isRequired('crew_email')}>
-                <input
-                  type="email"
-                  value={member.email || ''}
-                  onChange={(e) => updateCrewAt(index, { email: e.target.value })}
-                  placeholder="e.g. jane@example.com"
-                  className={inputClass}
-                  required={isRequired('crew_email')}
-                />
-              </Field>
-              <Field label="Federation license" hint="Optional for each crew member" required={isRequired('crew_federation_license')}>
-                <input
-                  type="text"
-                  value={member.federation_license || ''}
-                  onChange={(e) => updateCrewAt(index, { federation_license: e.target.value })}
-                  placeholder="e.g. 12345"
-                  className={inputClass}
-                  required={isRequired('crew_federation_license')}
-                />
-              </Field>
-              <Field label="Gender" hint="Male or Female" required={isRequired('crew_gender')}>
-                <select
-                  value={member.gender || ''}
-                  onChange={(e) => updateCrewAt(index, { gender: e.target.value })}
-                  className={inputClass}
-                  required={isRequired('crew_gender')}
-                >
-                  <option value="">—</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </Field>
-              <Field label="Country" required={isRequired('crew_helm_country')}>
-                <select
-                  value={member.helm_country || ''}
-                  onChange={(e) => updateCrewAt(index, { helm_country: e.target.value })}
-                  className={inputClass}
-                  required={isRequired('crew_helm_country')}
-                >
-                  <option value="">—</option>
-                  {COUNTRIES_UNIQUE.map((c) => (
-                    <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
-                  ))}
-                </select>
-              </Field>
+              {isVisible('crew_position') && (
+                <Field label="Position">
+                  <select
+                    value={member.position || 'Crew'}
+                    onChange={(e) => updateCrewAt(index, { position: e.target.value })}
+                    className={inputClass}
+                  >
+                    <option value="Skipper">Skipper</option>
+                    <option value="Crew">Crew</option>
+                  </select>
+                </Field>
+              )}
+              {isVisible('crew_first_name') && (
+                <Field label="First name" required={isRequired('crew_first_name')}>
+                  <input
+                    type="text"
+                    value={member.first_name || ''}
+                    onChange={(e) => updateCrewAt(index, { first_name: e.target.value })}
+                    placeholder="e.g. Jane"
+                    className={inputClass}
+                    required={isRequired('crew_first_name')}
+                  />
+                </Field>
+              )}
+              {isVisible('crew_last_name') && (
+                <Field label="Last name" required={isRequired('crew_last_name')}>
+                  <input
+                    type="text"
+                    value={member.last_name || ''}
+                    onChange={(e) => updateCrewAt(index, { last_name: e.target.value })}
+                    placeholder="e.g. Smith"
+                    className={inputClass}
+                    required={isRequired('crew_last_name')}
+                  />
+                </Field>
+              )}
+              {isVisible('crew_email') && (
+                <Field label="Email" required={isRequired('crew_email')}>
+                  <input
+                    type="email"
+                    value={member.email || ''}
+                    onChange={(e) => updateCrewAt(index, { email: e.target.value })}
+                    placeholder="e.g. jane@example.com"
+                    className={inputClass}
+                    required={isRequired('crew_email')}
+                  />
+                </Field>
+              )}
+              {isVisible('crew_federation_license') && (
+                <Field label="Federation license" hint="Optional for each crew member" required={isRequired('crew_federation_license')}>
+                  <input
+                    type="text"
+                    value={member.federation_license || ''}
+                    onChange={(e) => updateCrewAt(index, { federation_license: e.target.value })}
+                    placeholder="e.g. 12345"
+                    className={inputClass}
+                    required={isRequired('crew_federation_license')}
+                  />
+                </Field>
+              )}
+              {isVisible('crew_gender') && (
+                <Field label="Gender" hint="Male or Female" required={isRequired('crew_gender')}>
+                  <select
+                    value={member.gender || ''}
+                    onChange={(e) => updateCrewAt(index, { gender: e.target.value })}
+                    className={inputClass}
+                    required={isRequired('crew_gender')}
+                  >
+                    <option value="">—</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </Field>
+              )}
+              {isVisible('crew_helm_country') && (
+                <Field label="Country" required={isRequired('crew_helm_country')}>
+                  <select
+                    value={member.helm_country || ''}
+                    onChange={(e) => updateCrewAt(index, { helm_country: e.target.value })}
+                    className={inputClass}
+                    required={isRequired('crew_helm_country')}
+                  >
+                    <option value="">—</option>
+                    {COUNTRIES_UNIQUE.map((c) => (
+                      <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
             </div>
           </div>
         ))}
