@@ -47,6 +47,29 @@ def _validate_regatta_timezone_country(country_code: str | None, timezone_str: s
 
 router = APIRouter(prefix="/regattas", tags=["regattas"])
 
+
+def _normalize_online_entry_mode_and_url(
+    mode: str | None,
+    url: str | None,
+) -> tuple[str, str | None]:
+    normalized_mode = (mode or "internal").strip().lower()
+    if normalized_mode not in {"internal", "external_link"}:
+        raise HTTPException(status_code=400, detail="online_entry_mode must be 'internal' or 'external_link'.")
+
+    normalized_url = (url or "").strip() or None
+    if normalized_mode == "external_link":
+        if not normalized_url:
+            raise HTTPException(
+                status_code=400,
+                detail="online_entry_url is required when online_entry_mode is 'external_link'.",
+            )
+        if not (normalized_url.startswith("http://") or normalized_url.startswith("https://")):
+            raise HTTPException(
+                status_code=400,
+                detail="online_entry_url must start with http:// or https://.",
+            )
+    return normalized_mode, normalized_url
+
 # ---------------- Regattas CRUD ----------------
 
 @router.get("", response_model=List[schemas.RegattaListRead], include_in_schema=False)
@@ -118,6 +141,9 @@ def create_regatta(
     assert_user_can_manage_org_id(current_user, org_id)
     data = regatta.model_dump(exclude={"organization_id"})
     data["organization_id"] = org_id
+    mode, url = _normalize_online_entry_mode_and_url(data.get("online_entry_mode"), data.get("online_entry_url"))
+    data["online_entry_mode"] = mode
+    data["online_entry_url"] = url
     cc = data.get("country_code")
     tz = data.get("timezone")
     if tz:
@@ -173,6 +199,8 @@ def update_regatta(
     if current_user.role == "scorer":
         scorer_allowed_fields = {
             "online_entry_open",
+            "online_entry_mode",
+            "online_entry_url",
             "online_entry_limit_enabled",
             "online_entry_limit",
             "online_entry_limits_by_class",
@@ -184,6 +212,15 @@ def update_regatta(
         data = {k: v for k, v in data.items() if k in scorer_allowed_fields}
         if not data:
             raise HTTPException(status_code=403, detail="Access denied")
+    if "online_entry_mode" in data or "online_entry_url" in data:
+        mode, url = _normalize_online_entry_mode_and_url(
+            data.get("online_entry_mode", getattr(reg, "online_entry_mode", None)),
+            data.get("online_entry_url", getattr(reg, "online_entry_url", None)),
+        )
+        if "online_entry_mode" in data:
+            data["online_entry_mode"] = mode
+        if "online_entry_url" in data:
+            data["online_entry_url"] = url
     if "online_entry_field_required" in data or "online_entry_field_visibility" in data:
         try:
             required, visibility = normalize_field_overrides(

@@ -86,6 +86,8 @@ class Regatta(Base):
     notice_board_url = Column(String, nullable=True)
     entry_list_url = Column(String, nullable=True)
     online_entry_url = Column(String, nullable=True)
+    # internal = built-in SailScore form | external_link = redirect/button to external form
+    online_entry_mode = Column(String(32), nullable=False, server_default=sa.text("'internal'"))
     # Postgres exige literal boolean (true/false). "1"/"0" quebra DDL.
     online_entry_open = Column(Boolean, nullable=False, server_default=sa.text("true"))  # default True
 

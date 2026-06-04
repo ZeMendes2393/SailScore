@@ -19,6 +19,8 @@ type Regatta = {
   poster_url?: string | null;
   home_images?: HomeImage[] | null;
   online_entry_open?: boolean;
+  online_entry_mode?: 'internal' | 'external_link';
+  online_entry_url?: string | null;
 };
 
 export default function RegattaFormPage() {

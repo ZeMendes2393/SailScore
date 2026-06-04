@@ -27,6 +27,8 @@ interface Regatta {
   start_date: string;
   end_date: string;
   online_entry_open?: boolean;
+  online_entry_mode?: 'internal' | 'external_link';
+  online_entry_url?: string | null;
   online_entry_limit_enabled?: boolean;
   online_entry_limit?: number | null;
   online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
@@ -92,6 +94,7 @@ export default function AdminRegattaPage() {
   const [timezoneOptions, setTimezoneOptions] = useState<string[]>([]);
   const [timezone, setTimezone] = useState('');
   const [loadingTimezones, setLoadingTimezones] = useState(false);
+  const [onlineEntryExternalUrl, setOnlineEntryExternalUrl] = useState('');
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -123,6 +126,7 @@ export default function AdminRegattaPage() {
         const tz = (r as { timezone?: string | null }).timezone ?? '';
         setCountryCode(cc);
         setTimezone(tz);
+        setOnlineEntryExternalUrl((r as { online_entry_url?: string | null }).online_entry_url ?? '');
       }
     };
 
@@ -523,6 +527,24 @@ export default function AdminRegattaPage() {
     }
   }
 
+  async function updateOnlineEntrySettings(payload: Partial<Pick<Regatta, 'online_entry_mode' | 'online_entry_url'>>) {
+    if (!token) {
+      notify.error('Session missing. Please log in as admin.');
+      router.push(withOrg('/admin/login', orgSlug));
+      return;
+    }
+    const prev = regatta;
+    setRegatta((r) => (r ? { ...r, ...payload } : r));
+    try {
+      const patched = await apiSend<Regatta>(`/regattas/${regattaId}`, 'PATCH', payload, token);
+      setRegatta((r) => (r ? { ...r, ...patched } : r));
+      notify.success('Online entry settings saved.');
+    } catch (e: any) {
+      setRegatta(prev);
+      notify.error(e?.message || 'Failed to save online entry settings.');
+    }
+  }
+
   return (
     <RequireAuth roles={['admin', 'scorer']}>
       {!regatta ? (
@@ -698,6 +720,57 @@ export default function AdminRegattaPage() {
                     </Link>
                   )}
                 </p>
+              </div>
+
+              <div className="rounded border p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-800">Public form mode</h3>
+                <p className="text-xs text-gray-500">
+                  Configure this event to use the built-in form or an external registration link.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="online-entry-mode"
+                      checked={(regatta.online_entry_mode ?? 'internal') === 'internal'}
+                      onChange={() => updateOnlineEntrySettings({ online_entry_mode: 'internal' })}
+                    />
+                    Built-in SailScore form
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="online-entry-mode"
+                      checked={(regatta.online_entry_mode ?? 'internal') === 'external_link'}
+                      onChange={() => {
+                        const url = onlineEntryExternalUrl.trim();
+                        if (!url) {
+                          notify.warning('Add the external URL first.');
+                          return;
+                        }
+                        updateOnlineEntrySettings({ online_entry_mode: 'external_link', online_entry_url: url });
+                      }}
+                    />
+                    External link
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">External form URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={onlineEntryExternalUrl}
+                      onChange={(e) => setOnlineEntryExternalUrl(e.target.value)}
+                      onBlur={(e) =>
+                        updateOnlineEntrySettings({
+                          online_entry_url: e.target.value.trim() || null,
+                        })
+                      }
+                      className="w-full border rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               <AdminOnlineEntryFieldsOverview

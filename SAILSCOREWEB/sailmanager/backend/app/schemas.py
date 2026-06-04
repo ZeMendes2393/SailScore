@@ -293,6 +293,7 @@ class RegattaBase(BaseModel):
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
+    online_entry_mode: Literal["internal", "external_link"] = "internal"
 
     # scoring / descartes
     discard_count: int = 0
@@ -360,6 +361,7 @@ class RegattaUpdate(BaseModel):
     notice_board_url: Optional[str] = None
     entry_list_url: Optional[str] = None
     online_entry_url: Optional[str] = None
+    online_entry_mode: Optional[Literal["internal", "external_link"]] = None
 
     # PATCH opcional (por classe: Dict[class_name, List[column_id]])
     online_entry_open: Optional[bool] = None

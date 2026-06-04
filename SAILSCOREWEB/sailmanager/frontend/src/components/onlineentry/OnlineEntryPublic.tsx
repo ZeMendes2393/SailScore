@@ -8,6 +8,8 @@ type RegattaLite = {
   id: number;
   name: string;
   online_entry_open?: boolean;
+  online_entry_mode?: 'internal' | 'external_link';
+  online_entry_url?: string | null;
   online_entry_field_required?: Record<string, boolean> | null;
   online_entry_field_visibility?: Record<string, boolean> | null;
 };
@@ -27,6 +29,7 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
           setReg({
             ...r,
             online_entry_open: r.online_entry_open ?? true,
+            online_entry_mode: r.online_entry_mode ?? 'internal',
           });
         }
       } catch (e: any) {
@@ -48,6 +51,36 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
         <p className="text-gray-600">
           Online entries are currently disabled for this regatta.
         </p>
+      </div>
+    );
+  }
+
+  if ((reg.online_entry_mode ?? 'internal') === 'external_link') {
+    const externalUrl = (reg.online_entry_url ?? '').trim();
+    if (!externalUrl) {
+      return (
+        <div className="max-w-3xl mx-auto p-6 bg-white rounded border">
+          <h2 className="text-xl font-semibold mb-2">Entry link unavailable</h2>
+          <p className="text-gray-600">
+            This event is configured to use an external form, but no link is currently available.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="max-w-3xl mx-auto p-6 bg-white rounded border">
+        <h2 className="text-xl font-semibold mb-2">External online entry</h2>
+        <p className="text-gray-600 mb-4">
+          This event uses an external form for registration.
+        </p>
+        <a
+          href={externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+        >
+          Open entry form
+        </a>
       </div>
     );
   }
