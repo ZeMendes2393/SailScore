@@ -52,6 +52,7 @@ COLUMN_LABELS: dict[str, str] = {
     "sail_no": "Sail #",
     "boat": "Boat",
     "skipper": "Skipper",
+    "club": "Club",
     "class": "Class",
     "model": "Model",
     "bow": "Bow",
@@ -65,6 +66,7 @@ COLUMN_WIDTH_WEIGHTS: dict[str, float] = {
     "sail_no": 1.45,
     "boat": 1.55,
     "skipper": 1.75,
+    "club": 1.35,
     "class": 1.10,
     "model": 1.10,
     "bow": 0.80,
@@ -78,6 +80,7 @@ COLUMN_MAX_GROWTH: dict[str, float] = {
     "sail_no": 1.55,  # allow more growth for flag + "XXX 9999"
     "boat": 1.50,
     "skipper": 1.55,
+    "club": 1.40,
     "class": 1.25,
     "model": 1.20,
     "bow": 1.0,
@@ -371,6 +374,8 @@ def _overall_cell_text(row: dict[str, Any], col_id: str, row_index: int) -> str:
         return str(row.get("boat_name") or "—")
     if col_id == "skipper":
         return str(row.get("skipper_name") or "—")
+    if col_id == "club":
+        return str(row.get("club") or "—")
     if col_id == "class":
         return str(row.get("class_name") or "—")
     if col_id == "model":
@@ -472,7 +477,7 @@ def _compute_column_widths(
         needed = min_allowed
         content_max = max_allowed
         flag_reserve = 0.0
-        if h in {"boat", "skipper"}:
+        if h in {"boat", "skipper", "club"}:
             content_max = min(max_allowed, 42 * mm)
         elif h in {"class", "model"}:
             content_max = min(max_allowed, 30 * mm)
@@ -1145,6 +1150,7 @@ def build_race_results_pdf(
         "sail_no": "Sail #",
         "boat": "Boat",
         "skipper": "Skipper",
+        "club": "Club",
         "class": "Class",
         "model": "Model",
         "bow": "Bow",

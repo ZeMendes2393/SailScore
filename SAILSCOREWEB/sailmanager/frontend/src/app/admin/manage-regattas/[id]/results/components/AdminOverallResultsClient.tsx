@@ -57,6 +57,7 @@ type OverallResult = {
 
   boat_model?: string | null;
   bow_number?: string | null;
+  club?: string | null;
 };
 type RegattaEntryLite = {
   first_name?: string | null;
@@ -794,6 +795,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   if (id === 'sail_no') return <td key={id} className="border px-3 py-2"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>;
                   if (id === 'boat') return <td key={id} className="border px-3 py-2">{r.boat_name}</td>;
                   if (id === 'skipper') return <td key={id} className="border px-3 py-2">{getCrewForResult(r)}</td>;
+                  if (id === 'club') return <td key={id} className="border px-3 py-2">{r.club ?? '—'}</td>;
                   if (id === 'class') return <td key={id} className="border px-3 py-2">{r.class_name}</td>;
                   if (id === 'model') return <td key={id} className="border px-3 py-2">{r.boat_model ?? '—'}</td>;
                   if (id === 'bow') return <td key={id} className="border px-3 py-2">{r.bow_number ?? '—'}</td>;

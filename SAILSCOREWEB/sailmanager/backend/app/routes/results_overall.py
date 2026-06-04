@@ -565,6 +565,7 @@ def get_overall_results_data(
         entry_extra[(snn, cc)] = {
             "boat_model": getattr(e, "boat_model", None),
             "bow_number": getattr(e, "bow_number", None),
+            "club": getattr(e, "club", None),
         }
 
     overall: list[dict] = []
@@ -608,6 +609,7 @@ def get_overall_results_data(
                     "skipper_name": skipper,
                     "boat_model": getattr(e, "boat_model", None),
                     "bow_number": getattr(e, "bow_number", None),
+                    "club": getattr(e, "club", None),
                     "total_points": 0.0,
                     "net_points": 0.0,
                     "per_race": per_race_named,
@@ -705,6 +707,7 @@ def get_overall_results_data(
                     "skipper_name": info.get("skipper_name"),
                     "boat_model": extra.get("boat_model"),
                     "bow_number": extra.get("bow_number"),
+                    "club": extra.get("club"),
                     "total_points": float(total_points),
                     "net_points": float(net_total),
                     "per_race": per_race_named,

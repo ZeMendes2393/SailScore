@@ -302,6 +302,7 @@ export default function OverallResultsPage() {
                       if (id === 'sail_no') return <td key={id} className="border-b border-slate-100 px-4 py-3"><SailNumberDisplay countryCode={r.boat_country_code} sailNumber={r.sail_number} /></td>
                       if (id === 'boat') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.boat_name}</td>
                       if (id === 'skipper') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.skipper_name}</td>
+                      if (id === 'club') return <td key={id} className="border-b border-slate-100 px-4 py-3">{(r as any).club ?? '—'}</td>
                       if (id === 'class') return <td key={id} className="border-b border-slate-100 px-4 py-3">{r.class_name}</td>
                       if (id === 'model') return <td key={id} className="border-b border-slate-100 px-4 py-3">{(r as any).boat_model ?? '—'}</td>
                       if (id === 'bow') return <td key={id} className="border-b border-slate-100 px-4 py-3">{(r as any).bow_number ?? '—'}</td>
