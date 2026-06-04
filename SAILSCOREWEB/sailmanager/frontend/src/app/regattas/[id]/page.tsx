@@ -150,6 +150,11 @@ export default function RegattaHomePage() {
     return `${text.slice(0, maxLen - 1)}…`;
   };
 
+  const quickLinkMobileClass =
+    'rounded-lg bg-slate-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide border border-slate-700 hover:bg-slate-900 transition';
+  const quickLinkDesktopClass =
+    'flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-slate-800 text-white border border-slate-700 hover:bg-slate-900 transition shadow-md';
+
   return (
     <main className="min-h-screen bg-gray-50">
       <RegattaHeader
@@ -203,25 +208,25 @@ export default function RegattaHomePage() {
         <div className="grid grid-cols-2 gap-2">
           <Link
             href={`/regattas/${regattaId}/form`}
-            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+            className={quickLinkMobileClass}
           >
             Online Entry
           </Link>
           <Link
             href={`/regattas/${regattaId}/entry`}
-            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+            className={quickLinkMobileClass}
           >
             Entry List
           </Link>
           <Link
             href={`/regattas/${regattaId}/notice`}
-            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+            className={quickLinkMobileClass}
           >
             Notice Board
           </Link>
           <Link
             href={`/regattas/${regattaId}/results`}
-            className="rounded-lg bg-amber-800 text-white text-center py-3 px-2 text-xs font-semibold uppercase tracking-wide"
+            className={quickLinkMobileClass}
           >
             Results
           </Link>
@@ -233,28 +238,28 @@ export default function RegattaHomePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link
             href={`/regattas/${regattaId}/form`}
-            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+            className={quickLinkDesktopClass}
           >
             <PenLine className="w-8 h-8" strokeWidth={2} />
             <span className="font-semibold text-sm uppercase tracking-wide">Online Entry</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/entry`}
-            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+            className={quickLinkDesktopClass}
           >
             <List className="w-8 h-8" strokeWidth={2} />
             <span className="font-semibold text-sm uppercase tracking-wide">Entry List</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/notice`}
-            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+            className={quickLinkDesktopClass}
           >
             <FileText className="w-8 h-8" strokeWidth={2} />
             <span className="font-semibold text-sm uppercase tracking-wide">Notice Board</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/results`}
-            className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-lg bg-amber-800 text-white hover:bg-amber-900 transition shadow-md"
+            className={quickLinkDesktopClass}
           >
             <Trophy className="w-8 h-8" strokeWidth={2} />
             <span className="font-semibold text-sm uppercase tracking-wide">Results</span>
