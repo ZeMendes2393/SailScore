@@ -14,6 +14,7 @@ export type EntryImportRow = {
   helm_license?: string | null;
   crew_first_name?: string | null;
   crew_last_name?: string | null;
+  crew_club?: string | null;
   crew_license?: string | null;
   registration_number?: string | null;
 };
@@ -233,6 +234,7 @@ export default function ImportEntriesModal({
                       <th className="text-left p-2">Sail</th>
                       <th className="text-left p-2">Helm</th>
                       <th className="text-left p-2">Crew</th>
+                      <th className="text-left p-2">Crew club</th>
                       <th className="text-left p-2">Club</th>
                     </tr>
                   </thead>
@@ -248,6 +250,7 @@ export default function ImportEntriesModal({
                         <td className="p-2">
                           {[r.crew_first_name, r.crew_last_name].filter(Boolean).join(' ') || '—'}
                         </td>
+                        <td className="p-2">{r.crew_club || '—'}</td>
                         <td className="p-2">{r.club || '—'}</td>
                       </tr>
                     ))}

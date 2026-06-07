@@ -314,6 +314,17 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     notes: 'Included in the array only if first name, last name, or email is filled.',
   },
   {
+    id: 'crew_club',
+    section: 'step2_crew',
+    label: 'Club',
+    apiKey: 'crew_members[].club',
+    appliesTo: ['multi_crew'],
+    inPublicForm: true,
+    requiredUi: false,
+    requiredBackend: false,
+    lockedCore: false,
+  },
+  {
     id: 'crew_federation_license',
     section: 'step2_crew',
     label: 'Federation license',
@@ -632,6 +643,7 @@ export function validateEntryAgainstRequired(
     crew_first_name: 'first_name',
     crew_last_name: 'last_name',
     crew_email: 'email',
+    crew_club: 'club',
     crew_federation_license: 'federation_license',
     crew_gender: 'gender',
     crew_helm_country: 'helm_country',
@@ -646,7 +658,10 @@ export function validateEntryAgainstRequired(
         (m) =>
           (typeof m.first_name === 'string' && m.first_name.trim()) ||
           (typeof m.last_name === 'string' && m.last_name.trim()) ||
-          (typeof m.email === 'string' && m.email.trim())
+          (typeof m.email === 'string' && m.email.trim()) ||
+          (typeof m.club === 'string' && m.club.trim()) ||
+          (typeof m.federation_license === 'string' && m.federation_license.trim()) ||
+          (typeof m.helm_country === 'string' && m.helm_country.trim())
       );
       if (activeMembers.length === 0) {
         return 'At least one crew member is required for this class.';

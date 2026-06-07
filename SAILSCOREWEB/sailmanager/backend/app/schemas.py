@@ -697,6 +697,7 @@ class EntryImportRow(BaseModel):
     helm_license: Optional[str] = None
     crew_first_name: Optional[str] = None
     crew_last_name: Optional[str] = None
+    crew_club: Optional[str] = None
     crew_license: Optional[str] = None
     registration_number: Optional[str] = None
 

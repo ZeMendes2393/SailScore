@@ -40,6 +40,7 @@ _CONFIGURABLE_REQUIRED_DEFAULTS: Dict[str, bool] = {
     "crew_first_name": False,
     "crew_last_name": False,
     "crew_email": False,
+    "crew_club": False,
     "crew_federation_license": False,
     "crew_gender": False,
     "crew_helm_country": False,
@@ -85,6 +86,7 @@ _CREW_ATTR = {
     "crew_first_name": "first_name",
     "crew_last_name": "last_name",
     "crew_email": "email",
+    "crew_club": "club",
     "crew_federation_license": "federation_license",
     "crew_gender": "gender",
     "crew_helm_country": "helm_country",
@@ -97,6 +99,7 @@ _APPLIES_MULTI_CREW = {
     "crew_first_name",
     "crew_last_name",
     "crew_email",
+    "crew_club",
     "crew_federation_license",
     "crew_gender",
     "crew_helm_country",
@@ -212,7 +215,7 @@ def _is_filled(value: Any) -> bool:
 
 
 def _crew_member_has_data(member: dict) -> bool:
-    for key in ("first_name", "last_name", "email"):
+    for key in ("first_name", "last_name", "email", "club", "federation_license", "helm_country"):
         if _is_filled(member.get(key)):
             return True
     return False

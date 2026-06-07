@@ -197,6 +197,18 @@ export default function Step2Crew({
                   />
                 </Field>
               )}
+              {isVisible('crew_club') && (
+                <Field label="Club" required={isRequired('crew_club')}>
+                  <input
+                    type="text"
+                    value={member.club || ''}
+                    onChange={(e) => updateCrewAt(index, { club: e.target.value })}
+                    placeholder="e.g. Royal Yacht Club"
+                    className={inputClass}
+                    required={isRequired('crew_club')}
+                  />
+                </Field>
+              )}
               {isVisible('crew_federation_license') && (
                 <Field label="Federation license" hint="Optional for each crew member" required={isRequired('crew_federation_license')}>
                   <input

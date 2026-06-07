@@ -714,6 +714,16 @@ export default function Page() {
                           }}
                         />
                         <input
+                          className="border rounded px-2 py-1 w-32"
+                          placeholder="Club"
+                          value={c.club ?? ''}
+                          onChange={(e) => {
+                            const next = [...(form.crew_members as any[])];
+                            next[i] = { ...next[i], club: e.target.value };
+                            onChange('crew_members', next);
+                          }}
+                        />
+                        <input
                           className="border rounded px-2 py-1 w-28"
                           placeholder="Federation license"
                           value={c.federation_license ?? ''}
@@ -740,7 +750,19 @@ export default function Page() {
                 <button
                   type="button"
                   className="text-sm text-blue-600 hover:underline"
-                  onClick={() => onChange('crew_members', [...(form.crew_members || []), { position: 'Crew', first_name: '', last_name: '', email: '', federation_license: '' }])}
+                  onClick={() =>
+                    onChange('crew_members', [
+                      ...(form.crew_members || []),
+                      {
+                        position: 'Crew',
+                        first_name: '',
+                        last_name: '',
+                        email: '',
+                        club: '',
+                        federation_license: '',
+                      },
+                    ])
+                  }
                 >
                   + Add crew member
                 </button>

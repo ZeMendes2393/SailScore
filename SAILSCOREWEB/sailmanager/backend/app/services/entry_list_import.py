@@ -39,6 +39,7 @@ _HEADER_ALIASES: dict[str, list[str]] = {
     "helm_name": ["nome do leme", "leme", "helm", "skipper", "timoneiro"],
     "helm_license": ["ld do leme", "licença leme", "licenca leme", "helm license", "ld leme"],
     "crew_name": ["nome do proa", "proa", "crew", "tripulante"],
+    "crew_club": ["clube do proa", "clube proa", "crew club", "club crew", "clube tripulante", "tripulante clube"],
     "crew_license": ["ld do proa", "licença proa", "licenca proa", "crew license", "ld proa"],
 }
 
@@ -54,6 +55,7 @@ class ParsedEntryRow:
     helm_license: Optional[str] = None
     crew_first_name: Optional[str] = None
     crew_last_name: Optional[str] = None
+    crew_club: Optional[str] = None
     crew_license: Optional[str] = None
     registration_number: Optional[str] = None
 
@@ -335,6 +337,7 @@ def _parse_grid_rows(
                 helm_license=cell("helm_license") or None,
                 crew_first_name=crew_first_val,
                 crew_last_name=crew_last_val,
+                crew_club=cell("crew_club") or None,
                 crew_license=cell("crew_license") or None,
                 registration_number=cell("registration") or None,
             )

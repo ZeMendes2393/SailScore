@@ -104,7 +104,10 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         (c: any) =>
           (c?.first_name && c.first_name.trim()) ||
           (c?.last_name && c.last_name.trim()) ||
-          (c?.email && c.email.trim())
+          (c?.email && c.email.trim()) ||
+          (c?.club && c.club.trim()) ||
+          (c?.federation_license && c.federation_license.trim()) ||
+          (c?.helm_country && c.helm_country.trim())
       )
       .map((c: any) => ({ ...c, position: c.position || 'Crew' }));
     const helm_position = (formData.helm && formData.helm.position) || 'Skipper';

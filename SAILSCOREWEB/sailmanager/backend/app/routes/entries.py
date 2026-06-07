@@ -771,6 +771,8 @@ def _import_row_to_entry_create(
             "last_name": (row.crew_last_name or "").strip(),
             "position": "Crew",
         }
+        if row.crew_club:
+            crew_member["club"] = row.crew_club.strip()
         if row.crew_license:
             crew_member["federation_license"] = row.crew_license.strip()
         crew_members = [crew_member]
@@ -981,6 +983,7 @@ def preview_entry_import(
             helm_license=r.helm_license,
             crew_first_name=r.crew_first_name,
             crew_last_name=r.crew_last_name,
+            crew_club=r.crew_club,
             crew_license=r.crew_license,
             registration_number=r.registration_number,
         )
