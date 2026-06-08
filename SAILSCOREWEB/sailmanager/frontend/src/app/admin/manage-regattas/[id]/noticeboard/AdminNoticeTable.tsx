@@ -1,7 +1,7 @@
 "use client";
 
 import { Notice } from "@/types/notice";
-import { apiDelete, apiDownloadFile } from "@/lib/api";
+import { apiDelete, getApiBaseUrl } from "@/lib/api";
 import notify from "@/lib/notify";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useAuth } from "@/context/AuthContext";
@@ -68,16 +68,9 @@ export default function AdminNoticeTable({ items, timezone, onChanged }: Props) 
                 <div className="inline-flex gap-2">
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await apiDownloadFile(
-                          `/notices/${n.id}/download`,
-                          n.filename || `${n.title || 'document'}.pdf`,
-                          token ?? undefined
-                        );
-                      } catch (e: any) {
-                        notify.error(e?.message || 'Failed to download document.');
-                      }
+                    onClick={() => {
+                      const href = `${getApiBaseUrl()}/notices/${n.id}/download`;
+                      window.open(href, "_blank", "noopener,noreferrer");
                     }}
                     className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
                   >

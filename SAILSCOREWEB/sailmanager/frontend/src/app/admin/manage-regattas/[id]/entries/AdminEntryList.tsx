@@ -54,6 +54,8 @@ export default function AdminEntryList({
   const [savingLimit, setSavingLimit] = useState(false);
   const [movingEntryId, setMovingEntryId] = useState<number | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPublicColumnsPanel, setShowPublicColumnsPanel] = useState(false);
+  const [showClassLimitPanel, setShowClassLimitPanel] = useState(false);
 
   const publicVisibleColumnIds = useMemo(
     () => getVisibleColumnsForClass(regatta?.entry_list_columns, selectedClass),
@@ -368,30 +370,40 @@ export default function AdminEntryList({
 
   return (
     <div className="space-y-5">
-      {/* Seletor de colunas: definido aqui e usado apenas na lista pública */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 sm:p-5 bg-gray-50 rounded-lg border border-gray-200">
-        <span className="text-base font-semibold text-gray-800 w-full sm:w-auto">
-          Public entry list columns per class{selectedClass ? ` (${selectedClass})` : ''}:
-        </span>
-        {!selectedClass && (
-          <span className="text-sm text-amber-800 w-full">Select a class above to change the columns.</span>
+      <div className="rounded-lg border border-gray-200 bg-gray-50">
+        <button
+          type="button"
+          onClick={() => setShowPublicColumnsPanel((v) => !v)}
+          className="w-full flex items-center justify-between px-4 sm:px-5 py-3 text-left"
+        >
+          <span className="text-base font-semibold text-gray-800">
+            Public entry list columns per class{selectedClass ? ` (${selectedClass})` : ''}
+          </span>
+          <span className="text-sm text-gray-600">{showPublicColumnsPanel ? 'Hide' : 'Show'}</span>
+        </button>
+        {showPublicColumnsPanel && (
+          <div className="border-t border-gray-200 px-4 sm:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {!selectedClass && (
+              <span className="text-sm text-amber-800 w-full">Select a class above to change the columns.</span>
+            )}
+            <span className="text-sm text-gray-600 w-full">
+              Admin view always shows all columns; these options affect only the public entry list.
+            </span>
+            {ENTRY_LIST_COLUMNS.map((col) => (
+              <label key={col.id} className="inline-flex items-center gap-2 cursor-pointer text-base">
+                <input
+                  type="checkbox"
+                  checked={publicVisibleColumnIds.includes(col.id)}
+                  onChange={() => toggleColumn(col.id)}
+                  disabled={savingColumns || !selectedClass}
+                  className="rounded border-gray-300 size-4"
+                />
+                {col.label}
+              </label>
+            ))}
+            {savingColumns && <span className="text-sm text-gray-500">Saving…</span>}
+          </div>
         )}
-        <span className="text-sm text-gray-600 w-full">
-          Admin view always shows all columns; these options affect only the public entry list.
-        </span>
-        {ENTRY_LIST_COLUMNS.map((col) => (
-          <label key={col.id} className="inline-flex items-center gap-2 cursor-pointer text-base">
-            <input
-              type="checkbox"
-              checked={publicVisibleColumnIds.includes(col.id)}
-              onChange={() => toggleColumn(col.id)}
-              disabled={savingColumns || !selectedClass}
-              className="rounded border-gray-300 size-4"
-            />
-            {col.label}
-          </label>
-        ))}
-        {savingColumns && <span className="text-sm text-gray-500">Saving…</span>}
       </div>
 
       <div className="flex items-center gap-6 flex-wrap text-base text-gray-800">
@@ -425,67 +437,78 @@ export default function AdminEntryList({
         />
       )}
 
-      <div className="rounded-lg border border-gray-200 p-4 sm:p-5 bg-gray-50 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-base font-semibold text-gray-900">
-              Class entry limit{selectedClass ? ` (${selectedClass})` : ''}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              When enabled, extra entries for this class go to waiting list.
-            </p>
-          </div>
-          <label className="inline-flex items-center gap-3 cursor-pointer">
-            <span className="text-base font-medium">Enabled</span>
-            <button
-              type="button"
-              disabled={!selectedClass || savingLimit}
-              onClick={() => toggleClassLimitEnabled(!classLimitCfg.enabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                classLimitCfg.enabled ? 'bg-emerald-500' : 'bg-gray-300'
-              }`}
-              aria-pressed={classLimitCfg.enabled ? 'true' : 'false'}
-              aria-label="Toggle class entry limit"
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                  classLimitCfg.enabled ? 'translate-x-5' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </label>
-        </div>
+      <div className="rounded-lg border border-gray-200 bg-gray-50">
+        <button
+          type="button"
+          onClick={() => setShowClassLimitPanel((v) => !v)}
+          className="w-full flex items-center justify-between px-4 sm:px-5 py-3 text-left"
+        >
+          <span className="text-base font-semibold text-gray-900">
+            Class entry limit{selectedClass ? ` (${selectedClass})` : ''}
+          </span>
+          <span className="text-sm text-gray-600">{showClassLimitPanel ? 'Hide' : 'Show'}</span>
+        </button>
+        {showClassLimitPanel && (
+          <div className="border-t border-gray-200 p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm text-gray-600 mt-1">
+                  When enabled, extra entries for this class go to waiting list.
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-3 cursor-pointer">
+                <span className="text-base font-medium">Enabled</span>
+                <button
+                  type="button"
+                  disabled={!selectedClass || savingLimit}
+                  onClick={() => toggleClassLimitEnabled(!classLimitCfg.enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                    classLimitCfg.enabled ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                  aria-pressed={classLimitCfg.enabled ? 'true' : 'false'}
+                  aria-label="Toggle class entry limit"
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                      classLimitCfg.enabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-gray-700">Max entries</span>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            className="border rounded px-3 py-2 w-28"
-            value={limitDraft}
-            disabled={!selectedClass || !classLimitCfg.enabled}
-            onChange={(e) => setLimitDraft(e.target.value)}
-          />
-          <button
-            type="button"
-            disabled={!selectedClass || !classLimitCfg.enabled || savingLimit}
-            onClick={saveClassLimit}
-            className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-base font-medium hover:bg-blue-700 disabled:opacity-60"
-          >
-            {savingLimit ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        {classLimitCfg.enabled && (
-          <p className="text-sm text-gray-600">
-            The limit is only applied after you click Save.
-          </p>
-        )}
-        {showWaitingListActions && (
-          <p className="text-sm text-gray-700 leading-relaxed">
-            With an active entry limit (per class or regatta-wide), use the Actions column to move sailors between
-            the entry list and the waiting list. Promoting from waiting is blocked when the entry list is full.
-          </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-700">Max entries</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="border rounded px-3 py-2 w-28"
+                value={limitDraft}
+                disabled={!selectedClass || !classLimitCfg.enabled}
+                onChange={(e) => setLimitDraft(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={!selectedClass || !classLimitCfg.enabled || savingLimit}
+                onClick={saveClassLimit}
+                className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-base font-medium hover:bg-blue-700 disabled:opacity-60"
+              >
+                {savingLimit ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            {classLimitCfg.enabled && (
+              <p className="text-sm text-gray-600">
+                The limit is only applied after you click Save.
+              </p>
+            )}
+            {showWaitingListActions && (
+              <p className="text-sm text-gray-700 leading-relaxed">
+                With an active entry limit (per class or regatta-wide), use the Actions column to move sailors between
+                the entry list and the waiting list. Promoting from waiting is blocked when the entry list is full.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
