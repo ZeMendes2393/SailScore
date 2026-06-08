@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+import re
+import unicodedata
 from urllib.parse import quote, unquote, urlparse
 
 logger = logging.getLogger("sailscore")
@@ -148,7 +150,7 @@ def build_download_url(stored_path: str, download_filename: str | None = None, e
 
     params = {"Bucket": _bucket_name(), "Key": key}
     if download_filename:
-        params["ResponseContentDisposition"] = f'attachment; filename="{download_filename}"'
+        params["ResponseContentDisposition"] = _content_disposition_value(download_filename)
     try:
         return _s3_client().generate_presigned_url(
             "get_object",
@@ -158,3 +160,25 @@ def build_download_url(stored_path: str, download_filename: str | None = None, e
     except (ClientError, BotoCoreError):
         logger.exception("Falha ao gerar URL assinada key=%s", key)
         return stored_path
+
+
+def _ascii_filename_fallback(filename: str) -> str:
+    raw = (filename or "").strip()
+    if not raw:
+        return "download.pdf"
+    normalized = unicodedata.normalize("NFKD", raw)
+    ascii_name = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_name = re.sub(r'[\\/\r\n\t"]+', "_", ascii_name)
+    ascii_name = re.sub(r"[^A-Za-z0-9._()\- ]+", "_", ascii_name).strip(" .")
+    return ascii_name or "download.pdf"
+
+
+def _content_disposition_value(filename: str) -> str:
+    """
+    Build a RFC 5987-safe Content-Disposition value:
+    - ASCII fallback for legacy consumers
+    - UTF-8 encoded filename* for full fidelity
+    """
+    fallback = _ascii_filename_fallback(filename)
+    utf8_name = quote((filename or "").strip() or fallback, safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{utf8_name}"
