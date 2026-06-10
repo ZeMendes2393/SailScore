@@ -145,15 +145,6 @@ export default function MainHeader({
               {logoContent}
             </Link>
           )}
-          {!isLoggedIn && (
-            <Link
-              href={homeHref}
-              className="text-xl md:text-2xl font-bold tracking-tight uppercase hover:opacity-90 transition-opacity"
-              prefetch={false}
-            >
-              Regattas
-            </Link>
-          )}
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-auto">

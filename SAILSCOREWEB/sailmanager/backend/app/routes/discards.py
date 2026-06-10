@@ -68,6 +68,28 @@ def _normalize_schedule(schedule: List[Any]) -> List[int]:
     return out
 
 
+def _default_schedule_from_count_threshold(
+    discard_count: int,
+    discard_threshold: int,
+    *,
+    length: int = 13,
+) -> List[int]:
+    """
+    Build a schedule equivalent to legacy (count + threshold) behavior:
+    - if n_races >= threshold => discard_count
+    - else => 0
+    """
+    d = max(0, int(discard_count or 0))
+    th = int(discard_threshold or 0)
+    if length <= 0:
+        return []
+    if d <= 0:
+        return [0 for _ in range(length)]
+    if th <= 0:
+        return [d for _ in range(length)]
+    return [d if (i + 1) >= th else 0 for i in range(length)]
+
+
 # -------------------------
 # Endpoints
 # -------------------------
@@ -77,27 +99,38 @@ def get_discard_schedule(
     class_name: str,
     db: Session = Depends(get_db),
 ):
+    regatta = db.query(models.Regatta).filter_by(id=regatta_id).first()
+    if not regatta:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+
     _, row = _get_settings_row(db, regatta_id, class_name)
 
-    if not row:
-        return {
-            "regatta_id": regatta_id,
-            "class_name": class_name,
-            "is_active": False,
-            "label": None,
-            "schedule": [],
-        }
+    reg_default_d = int(getattr(regatta, "discard_count", 0) or 0)
+    reg_default_th = int(getattr(regatta, "discard_threshold", 0) or 0)
+    d_eff = reg_default_d
+    th_eff = reg_default_th
+    if row is not None:
+        if getattr(row, "discard_count", None) is not None:
+            d_eff = int(row.discard_count)
+        if getattr(row, "discard_threshold", None) is not None:
+            th_eff = int(row.discard_threshold)
 
-    schedule = getattr(row, "discard_schedule", None) or []
-    is_active = bool(getattr(row, "discard_schedule_active", True))
-    label = getattr(row, "discard_schedule_label", None)
+    raw_schedule = getattr(row, "discard_schedule", None) if row is not None else None
+    parsed_schedule = _normalize_schedule(raw_schedule or [])
+    is_active = bool(getattr(row, "discard_schedule_active", True)) if row is not None else False
+    label = getattr(row, "discard_schedule_label", None) if row is not None else None
+    effective_schedule = (
+        parsed_schedule
+        if (is_active and len(parsed_schedule) > 0)
+        else _default_schedule_from_count_threshold(d_eff, th_eff)
+    )
 
     return {
         "regatta_id": regatta_id,
         "class_name": class_name,
         "is_active": is_active,
         "label": label,
-        "schedule": _normalize_schedule(schedule),
+        "schedule": effective_schedule,
     }
 
 
