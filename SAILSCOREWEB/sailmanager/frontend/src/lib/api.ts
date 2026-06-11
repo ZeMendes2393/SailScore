@@ -219,15 +219,20 @@ async function ensureOk(res: Response) {
   throw err;
 }
 
+async function parseJsonBodyIfPresent<T>(res: Response): Promise<T | undefined> {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) return undefined;
+  const text = await res.text();
+  if (!text.trim()) return undefined;
+  return JSON.parse(text) as T;
+}
+
 // ---------------- Fetch helpers ----------------
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(buildUrl(path), init);
   await ensureOk(res);
-  const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) {
-    return undefined as unknown as T;
-  }
-  return res.json() as Promise<T>;
+  const parsed = await parseJsonBodyIfPresent<T>(res);
+  return (parsed ?? (undefined as unknown as T)) as T;
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
@@ -237,7 +242,8 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
     cache: 'no-store',
   });
   await ensureOk(res);
-  return res.json() as Promise<T>;
+  const parsed = await parseJsonBodyIfPresent<T>(res);
+  return (parsed ?? (undefined as unknown as T)) as T;
 }
 
 export async function apiSend<T>(
