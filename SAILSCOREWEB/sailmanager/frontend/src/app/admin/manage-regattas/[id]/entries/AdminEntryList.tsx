@@ -53,6 +53,8 @@ export default function AdminEntryList({
   const [limitDraft, setLimitDraft] = useState('');
   const [savingLimit, setSavingLimit] = useState(false);
   const [movingEntryId, setMovingEntryId] = useState<number | null>(null);
+  const [classUpdatingEntryId, setClassUpdatingEntryId] = useState<number | null>(null);
+  const [classOptions, setClassOptions] = useState<string[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPublicColumnsPanel, setShowPublicColumnsPanel] = useState(false);
   const [showClassLimitPanel, setShowClassLimitPanel] = useState(false);
@@ -76,6 +78,19 @@ export default function AdminEntryList({
 
   const activeEntries = useMemo(() => filteredEntries.filter((e) => !e.waiting_list), [filteredEntries]);
   const waitingEntries = useMemo(() => filteredEntries.filter((e) => !!e.waiting_list), [filteredEntries]);
+  const availableClassOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const name of [...classOptions, ...entries.map((e) => e.class_name)]) {
+      const value = (name || '').trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(value);
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [classOptions, entries]);
 
   const classLimitCfg = useMemo(() => {
     if (!selectedClass) return { enabled: false, limit: null as number | null };
@@ -150,6 +165,39 @@ export default function AdminEntryList({
       alive = false;
     };
   }, [authLoading, loadEntries]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    let alive = true;
+
+    (async () => {
+      try {
+        const detailed = await apiGet<{ class_name: string }[]>(
+          `/regattas/${Number(regattaId)}/classes/detailed`,
+          token ?? undefined
+        );
+        if (!alive) return;
+        const names = Array.isArray(detailed)
+          ? detailed.map((c) => c.class_name).filter(Boolean)
+          : [];
+        setClassOptions(names);
+      } catch {
+        try {
+          const simple = await apiGet<string[]>(
+            `/regattas/${Number(regattaId)}/classes`,
+            token ?? undefined
+          );
+          if (alive) setClassOptions(Array.isArray(simple) ? simple.filter(Boolean) : []);
+        } catch {
+          if (alive) setClassOptions([]);
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [authLoading, regattaId, token]);
 
   // Refrescar lista quando uma entry é guardada (vindo da página de edição)
   useEffect(() => {
@@ -297,6 +345,41 @@ export default function AdminEntryList({
     }
   };
 
+  const handleClassChange = async (entry: EntryListEntry, nextClass: string) => {
+    if (!token) return;
+    const normalizedNext = nextClass.trim();
+    const currentClass = (entry.class_name || '').trim();
+    if (!normalizedNext || normalizedNext.toLowerCase() === currentClass.toLowerCase()) return;
+
+    const ok = await confirm({
+      title: 'Move entry to another class?',
+      description:
+        `This will change this entry from "${currentClass || '—'}" to "${normalizedNext}". ` +
+        'Existing results and Rule 42 records for this entry will be updated to match.',
+      tone: 'warning',
+      confirmLabel: 'Move entry',
+    });
+    if (!ok) return;
+
+    setClassUpdatingEntryId(entry.id);
+    try {
+      await apiSend(
+        `/entries/${entry.id}?propagate_keys=true`,
+        'PATCH',
+        { class_name: normalizedNext },
+        token
+      );
+      const list = await loadEntries();
+      setEntries(list);
+      window.dispatchEvent(new CustomEvent('entry-saved', { detail: { regattaId } }));
+      notify.success('Entry class updated.');
+    } catch (e: any) {
+      notify.error(e?.message || 'Failed to update entry class.');
+    } finally {
+      setClassUpdatingEntryId(null);
+    }
+  };
+
   const patchClassLimit = async (next: { enabled?: boolean; limit?: number | null }) => {
     if (!token || !regatta || !selectedClass) return;
     const current = regatta.online_entry_limits_by_class || {};
@@ -364,6 +447,41 @@ export default function AdminEntryList({
     } finally {
       setMovingEntryId(null);
     }
+  };
+
+  const renderEntryCell = (entry: EntryListEntry, colId: EntryListColumnId, waitingListRow: boolean) => {
+    if (colId === 'class') {
+      const options = availableClassOptions.includes(entry.class_name)
+        ? availableClassOptions
+        : [entry.class_name, ...availableClassOptions].filter(Boolean);
+      return (
+        <select
+          value={entry.class_name || ''}
+          disabled={classUpdatingEntryId === entry.id || options.length === 0}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onChange={(e) => handleClassChange(entry, e.target.value)}
+          className="w-full min-w-[9rem] rounded-md border border-slate-300 bg-white/90 px-2 py-1 text-sm font-medium text-slate-900 shadow-sm disabled:opacity-60"
+          aria-label="Change entry class"
+        >
+          {options.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <EntryListCell
+        entry={entry}
+        columnId={colId}
+        onStatusChange={colId === 'status' && !waitingListRow ? handleStatusChange : undefined}
+        onPaidChange={colId === 'paid' && !waitingListRow ? handlePaidChange : undefined}
+      />
+    );
   };
 
   if (!canManageEntryList) return <p className="text-gray-500">Access restricted.</p>;
@@ -559,12 +677,7 @@ export default function AdminEntryList({
                             isPublicColumnVisible(colId) ? '' : 'bg-slate-50/90 text-slate-700'
                           }`}
                         >
-                          <EntryListCell
-                            entry={entry}
-                            columnId={colId}
-                            onStatusChange={colId === 'status' && !entry.waiting_list ? handleStatusChange : undefined}
-                            onPaidChange={colId === 'paid' && !entry.waiting_list ? handlePaidChange : undefined}
-                          />
+                          {renderEntryCell(entry, colId, false)}
                         </td>
                       ))}
                       {showWaitingListActions && (
@@ -638,12 +751,7 @@ export default function AdminEntryList({
                               isPublicColumnVisible(colId) ? '' : 'bg-slate-50/90 text-slate-700'
                             }`}
                           >
-                            <EntryListCell
-                              entry={entry}
-                              columnId={colId}
-                              onStatusChange={undefined}
-                              onPaidChange={undefined}
-                            />
+                            {renderEntryCell(entry, colId, true)}
                           </td>
                         ))}
                         {showWaitingListActions && (

@@ -70,6 +70,22 @@ def _normalize_online_entry_mode_and_url(
             )
     return normalized_mode, normalized_url
 
+
+class RegattaClassRenameIn(BaseModel):
+    class_name: str = Field(..., min_length=1)
+
+
+def _rename_json_class_key(raw: object, old_name: str, new_name: str) -> object:
+    if not isinstance(raw, dict):
+        return raw
+    next_map = dict(raw)
+    found_key = next((k for k in next_map.keys() if str(k).strip().lower() == old_name.lower()), None)
+    if found_key is None:
+        return raw
+    value = next_map.pop(found_key)
+    next_map[new_name] = value
+    return next_map
+
 # ---------------- Regattas CRUD ----------------
 
 @router.get("", response_model=List[schemas.RegattaListRead], include_in_schema=False)
@@ -505,6 +521,94 @@ def get_classes_for_regatta(
           .all()
     )
     return [r.cls for r in rows if r and r.cls]
+
+
+@router.patch("/{regatta_id}/classes/{class_name}/rename", response_model=List[schemas.RegattaClassRead])
+def rename_regatta_class(
+    regatta_id: int,
+    class_name: str,
+    body: RegattaClassRenameIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.role not in ("admin", "platform_admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    reg = db.query(models.Regatta).filter(models.Regatta.id == regatta_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Regatta not found")
+    assert_user_can_manage_org_id(current_user, reg.organization_id)
+
+    old_name = (class_name or "").strip()
+    new_name = (body.class_name or "").strip()
+    if not old_name or not new_name:
+        raise HTTPException(status_code=400, detail="Class name is required")
+    if old_name.lower() == new_name.lower():
+        return (
+            db.query(models.RegattaClass)
+              .filter_by(regatta_id=regatta_id)
+              .order_by(models.RegattaClass.class_name)
+              .all()
+        )
+
+    row = (
+        db.query(models.RegattaClass)
+          .filter(
+              models.RegattaClass.regatta_id == regatta_id,
+              func.lower(func.trim(models.RegattaClass.class_name)) == old_name.lower(),
+          )
+          .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Class '{old_name}' not found")
+
+    exists = (
+        db.query(models.RegattaClass.id)
+          .filter(
+              models.RegattaClass.regatta_id == regatta_id,
+              func.lower(func.trim(models.RegattaClass.class_name)) == new_name.lower(),
+          )
+          .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail=f"Class '{new_name}' already exists")
+
+    row.class_name = new_name
+
+    for model in (
+        models.Entry,
+        models.Race,
+        models.Result,
+        models.Rule42Record,
+        models.ProtestTimeLimit,
+        models.ScoringEnquiry,
+        models.Request,
+        models.RegattaClassSettings,
+        models.RegattaClassPublication,
+        models.FleetSet,
+    ):
+        if not hasattr(model, "class_name") or not hasattr(model, "regatta_id"):
+            continue
+        (
+            db.query(model)
+              .filter(
+                  model.regatta_id == regatta_id,
+                  func.lower(func.trim(model.class_name)) == old_name.lower(),
+              )
+              .update({model.class_name: new_name}, synchronize_session=False)
+        )
+
+    reg.online_entry_limits_by_class = _rename_json_class_key(reg.online_entry_limits_by_class, old_name, new_name)
+    reg.entry_list_columns = _rename_json_class_key(reg.entry_list_columns, old_name, new_name)
+
+    db.commit()
+
+    return (
+        db.query(models.RegattaClass)
+          .filter_by(regatta_id=regatta_id)
+          .order_by(models.RegattaClass.class_name)
+          .all()
+    )
 
 # --------- SUBSTITUIR classes (em lote) ---------
 @router.put("/{regatta_id}/classes", response_model=List[schemas.RegattaClassRead])

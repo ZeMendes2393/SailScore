@@ -78,9 +78,10 @@ export default function AdminRegattaPage() {
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  type OneDesignItem = { class_name: string; sailors_per_boat: number };
+  type OneDesignItem = { class_name: string; original_name?: string; sailors_per_boat: number };
+  type HandicapItem = { class_name: string; original_name?: string };
   const [editClassesOneDesign, setEditClassesOneDesign] = useState<OneDesignItem[]>([]);
-  const [editClassesHandicap, setEditClassesHandicap] = useState<string[]>([]);
+  const [editClassesHandicap, setEditClassesHandicap] = useState<HandicapItem[]>([]);
   const [newClassNameOD, setNewClassNameOD] = useState('');
   const [newSailorsOD, setNewSailorsOD] = useState(1);
   const [newClassNameH, setNewClassNameH] = useState('');
@@ -248,7 +249,7 @@ export default function AdminRegattaPage() {
         const key = name.toLowerCase();
         return (
           mergedOD.some((x) => x.class_name.toLowerCase() === key) ||
-          mergedH.some((x) => x.toLowerCase() === key)
+          mergedH.some((x) => x.class_name.toLowerCase() === key)
         );
       };
       for (const cname of parseClassNames(newClassNameOD)) {
@@ -258,11 +259,44 @@ export default function AdminRegattaPage() {
       }
       for (const cname of parseClassNames(newClassNameH)) {
         if (!hasClass(cname)) {
-          mergedH.push(cname);
+          mergedH.push({ class_name: cname });
         }
       }
       mergedOD.sort((a, b) => a.class_name.localeCompare(b.class_name));
-      mergedH.sort((a, b) => a.localeCompare(b));
+      mergedH.sort((a, b) => a.class_name.localeCompare(b.class_name));
+
+      const hasEmptyClassName = [...mergedOD, ...mergedH].some((c) => !c.class_name.trim());
+      if (hasEmptyClassName) {
+        notify.warning('Class names cannot be empty. Remove the class or fill in a name.');
+        setSaving(false);
+        return;
+      }
+
+      const allClassNames = [...mergedOD.map((c) => c.class_name.trim()), ...mergedH.map((c) => c.class_name.trim())]
+        .filter(Boolean);
+      const duplicateNames = allClassNames.filter((c, idx) =>
+        allClassNames.findIndex((x) => x.toLowerCase() === c.toLowerCase()) !== idx
+      );
+      if (duplicateNames.length > 0) {
+        notify.warning(`Class already in the list: ${[...new Set(duplicateNames)].join(', ')}`);
+        setSaving(false);
+        return;
+      }
+
+      const renames = [...mergedOD, ...mergedH]
+        .map((c) => ({
+          oldName: (c.original_name || '').trim(),
+          newName: c.class_name.trim(),
+        }))
+        .filter((c) => c.oldName && c.newName && c.oldName.toLowerCase() !== c.newName.toLowerCase());
+      for (const item of renames) {
+        await apiSend(
+          `/regattas/${regattaId}/classes/${encodeURIComponent(item.oldName)}/rename`,
+          'PATCH',
+          { class_name: item.newName },
+          token
+        );
+      }
 
       const classesPayload = [
         ...mergedOD.map((c) => ({
@@ -270,7 +304,7 @@ export default function AdminRegattaPage() {
           class_type: 'one_design' as const,
           sailors_per_boat: c.sailors_per_boat,
         })),
-        ...mergedH.map((c) => ({ class_name: c, class_type: 'handicap' as const })),
+        ...mergedH.map((c) => ({ class_name: c.class_name, class_type: 'handicap' as const })),
       ];
       await apiSend<unknown>(
         `/regattas/${regattaId}/classes`,
@@ -278,11 +312,17 @@ export default function AdminRegattaPage() {
         { classes: classesPayload },
         token
       );
-      setEditClassesOneDesign(mergedOD);
-      setEditClassesHandicap(mergedH);
+      const normalizedOD = mergedOD.map((c) => ({ ...c, original_name: c.class_name }));
+      const normalizedH = mergedH.map((c) => ({ ...c, original_name: c.class_name }));
+      setEditClassesOneDesign(normalizedOD);
+      setEditClassesHandicap(normalizedH);
       setNewClassNameOD('');
       setNewClassNameH('');
-      setAvailableClasses([...mergedOD.map((c) => c.class_name), ...mergedH]);
+      setAvailableClasses([...normalizedOD.map((c) => c.class_name), ...normalizedH.map((c) => c.class_name)]);
+      if (selectedClass) {
+        const renamedSelected = renames.find((r) => r.oldName.toLowerCase() === selectedClass.toLowerCase());
+        if (renamedSelected) setSelectedClass(renamedSelected.newName);
+      }
 
       notify.success('Regatta and classes updated.');
       setActiveTab('entry');
@@ -391,9 +431,13 @@ export default function AdminRegattaPage() {
       setEditClassesOneDesign(
         list
           .filter((c) => (c.class_type || 'one_design') !== 'handicap')
-          .map((c) => ({ class_name: c.class_name, sailors_per_boat: c.sailors_per_boat ?? 1 }))
+          .map((c) => ({ class_name: c.class_name, original_name: c.class_name, sailors_per_boat: c.sailors_per_boat ?? 1 }))
       );
-      setEditClassesHandicap(list.filter((c) => (c.class_type || '') === 'handicap').map((c) => c.class_name));
+      setEditClassesHandicap(
+        list
+          .filter((c) => (c.class_type || '') === 'handicap')
+          .map((c) => ({ class_name: c.class_name, original_name: c.class_name }))
+      );
     } catch {
       setEditClassesOneDesign([]);
       setEditClassesHandicap([]);
@@ -437,7 +481,7 @@ export default function AdminRegattaPage() {
       const key = c.toLowerCase();
       return (
         editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) ||
-        editClassesHandicap.some((x) => x.toLowerCase() === key)
+        editClassesHandicap.some((x) => x.class_name.toLowerCase() === key)
       );
     });
     if (duplicates.length > 0) {
@@ -451,9 +495,15 @@ export default function AdminRegattaPage() {
     setNewClassNameOD('');
   };
 
-  const setSailorsForOD = (className: string, sailors: number) => {
+  const setClassNameOD = (index: number, className: string) => {
     setEditClassesOneDesign((prev) =>
-      prev.map((x) => (x.class_name === className ? { ...x, sailors_per_boat: sailors } : x))
+      prev.map((x, i) => (i === index ? { ...x, class_name: className } : x))
+    );
+  };
+
+  const setSailorsForOD = (index: number, sailors: number) => {
+    setEditClassesOneDesign((prev) =>
+      prev.map((x, i) => (i === index ? { ...x, sailors_per_boat: sailors } : x))
     );
   };
 
@@ -464,23 +514,31 @@ export default function AdminRegattaPage() {
       const key = c.toLowerCase();
       return (
         editClassesOneDesign.some((x) => x.class_name.toLowerCase() === key) ||
-        editClassesHandicap.some((x) => x.toLowerCase() === key)
+        editClassesHandicap.some((x) => x.class_name.toLowerCase() === key)
       );
     });
     if (duplicates.length > 0) {
       notify.warning(`Class already in the list: ${duplicates.join(', ')}`);
       return;
     }
-    setEditClassesHandicap((prev) => [...prev, ...names].sort((a, b) => a.localeCompare(b)));
+    setEditClassesHandicap((prev) =>
+      [...prev, ...names.map((c) => ({ class_name: c }))].sort((a, b) => a.class_name.localeCompare(b.class_name))
+    );
     setNewClassNameH('');
   };
 
-  const removeEditClassOD = (className: string) => {
-    setEditClassesOneDesign((prev) => prev.filter((c) => c.class_name !== className));
+  const setClassNameH = (index: number, className: string) => {
+    setEditClassesHandicap((prev) =>
+      prev.map((x, i) => (i === index ? { ...x, class_name: className } : x))
+    );
   };
 
-  const removeEditClassH = (className: string) => {
-    setEditClassesHandicap((prev) => prev.filter((c) => c !== className));
+  const removeEditClassOD = (index: number) => {
+    setEditClassesOneDesign((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeEditClassH = (index: number) => {
+    setEditClassesHandicap((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleDelete = async () => {
@@ -891,14 +949,19 @@ export default function AdminRegattaPage() {
                     {editClassesOneDesign.length === 0 ? (
                       <li className="px-2 py-1 text-gray-500 text-sm">None</li>
                     ) : (
-                      editClassesOneDesign.map((item) => (
-                        <li key={item.class_name} className="px-2 py-1.5 flex justify-between items-center gap-2">
-                          <span className="font-medium">{item.class_name}</span>
+                      editClassesOneDesign.map((item, index) => (
+                        <li key={item.original_name || `${item.class_name}-${index}`} className="px-2 py-1.5 flex justify-between items-center gap-2">
+                          <input
+                            value={item.class_name}
+                            onChange={(e) => setClassNameOD(index, e.target.value)}
+                            className="min-w-0 flex-1 border rounded px-2 py-1 text-sm font-medium"
+                            aria-label="One Design class name"
+                          />
                           <span className="flex items-center gap-1">
                             <label className="text-xs text-gray-600">Sailors:</label>
                             <select
                               value={item.sailors_per_boat}
-                              onChange={(e) => setSailorsForOD(item.class_name, Number(e.target.value))}
+                              onChange={(e) => setSailorsForOD(index, Number(e.target.value))}
                               className="border rounded px-1.5 py-0.5 text-sm w-14"
                             >
                               {[1, 2, 3, 4, 5].map((n) => (
@@ -907,7 +970,7 @@ export default function AdminRegattaPage() {
                             </select>
                             <button
                               type="button"
-                              onClick={() => removeEditClassOD(item.class_name)}
+                              onClick={() => removeEditClassOD(index)}
                               className="text-red-600 hover:underline text-xs"
                             >
                               Remove
@@ -944,12 +1007,17 @@ export default function AdminRegattaPage() {
                     {editClassesHandicap.length === 0 ? (
                       <li className="px-2 py-1 text-gray-500 text-sm">None</li>
                     ) : (
-                      editClassesHandicap.map((cls) => (
-                        <li key={cls} className="px-2 py-1 flex justify-between items-center">
-                          <span>{cls}</span>
+                      editClassesHandicap.map((item, index) => (
+                        <li key={item.original_name || `${item.class_name}-${index}`} className="px-2 py-1 flex justify-between items-center gap-2">
+                          <input
+                            value={item.class_name}
+                            onChange={(e) => setClassNameH(index, e.target.value)}
+                            className="min-w-0 flex-1 border rounded px-2 py-1 text-sm"
+                            aria-label="Handicap class name"
+                          />
                           <button
                             type="button"
-                            onClick={() => removeEditClassH(cls)}
+                            onClick={() => removeEditClassH(index)}
                             className="text-red-600 hover:underline text-xs"
                           >
                             Remove

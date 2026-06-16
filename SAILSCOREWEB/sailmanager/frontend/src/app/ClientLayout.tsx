@@ -6,7 +6,6 @@ import MainHeader from '@/components/MainHeader';
 import GlobalFooter from '@/components/GlobalFooter';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext';
 
 export type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
 
@@ -16,22 +15,15 @@ function orgSlugFromPathname(pathname: string | null): string | null {
   return m?.[1] ?? null;
 }
 
-/** Slug da organização (usa searchParams e user - requer Suspense) */
+/** Slug da organização a partir do path/query string - requer Suspense por causa de useSearchParams. */
 function useOrgSlugWithParams(pathname: string | null): string | null {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
   return useMemo(() => {
     const fromPath = orgSlugFromPathname(pathname);
     if (fromPath) return fromPath;
     if (pathname?.startsWith('/admin') || pathname?.startsWith('/scorer')) {
       const fromQs = searchParams?.get('org')?.trim();
       if (fromQs) return fromQs;
-      if (
-        (user?.role === 'admin' || user?.role === 'scorer') &&
-        (user as { organization_slug?: string }).organization_slug
-      ) {
-        return (user as { organization_slug: string }).organization_slug;
-      }
     }
     if (pathname?.startsWith('/calendar')) {
       const calOrg = searchParams?.get('org')?.trim();
@@ -45,7 +37,7 @@ function useOrgSlugWithParams(pathname: string | null): string | null {
       if (fromQs) return fromQs;
     }
     return null;
-  }, [pathname, searchParams?.toString(), user?.role, (user as { organization_slug?: string })?.organization_slug]);
+  }, [pathname, searchParams?.toString()]);
 }
 
 export function useOrgSlugFromPath(): string | null {
