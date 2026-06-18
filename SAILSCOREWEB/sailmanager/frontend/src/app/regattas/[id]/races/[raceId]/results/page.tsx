@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/context/AuthContext'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { getApiBaseUrl } from '@/lib/api'
@@ -18,6 +19,8 @@ interface Result {
 }
 
 export default function RaceResultsPage() {
+  const t = useTranslations('resultsPublic')
+  const tCommon = useTranslations('common')
   const { user, token } = useAuth()
   const params = useParams<{ id: string; raceId: string }>()
   const raceId = params.raceId
@@ -96,9 +99,9 @@ export default function RaceResultsPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t('loading')}</p>
       ) : results.length === 0 ? (
-        <p className="text-gray-500">No results for this race yet.</p>
+        <p className="text-gray-500">{t('noRaceResults')}</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm mt-4">
         <table className="table-auto w-full border-collapse text-sm text-slate-800">
@@ -127,7 +130,7 @@ export default function RaceResultsPage() {
                       className="text-red-600 hover:text-red-800 text-sm font-medium"
                       onClick={() => handleDelete(r.id)}
                     >
-                      Remove
+                      {tCommon('remove')}
                     </button>
                   </td>
                 )}

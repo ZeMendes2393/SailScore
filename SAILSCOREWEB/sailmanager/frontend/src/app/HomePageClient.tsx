@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
 
@@ -46,6 +47,7 @@ export default function HomePageClient({
   initialHomeDesign?: HomeDesign | null;
   orgSlug?: string | null;
 }) {
+  const t = useTranslations('orgHome');
   const [regattas, setRegattas] = useState<Regatta[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [featuredRegattas, setFeaturedRegattas] = useState<Regatta[]>([]);
@@ -217,7 +219,7 @@ export default function HomePageClient({
               <button
                 key={i}
                 type="button"
-                aria-label={`Slide ${i + 1}`}
+                aria-label={t('slide', { index: i + 1 })}
                 onClick={() => setActiveSlide(i)}
                 className={`w-2.5 h-2.5 rounded-full transition ${
                   i === activeSlide ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
@@ -228,10 +230,10 @@ export default function HomePageClient({
         )}
         <div className="relative z-10 max-w-3xl mx-auto px-4">
           <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight drop-shadow-lg">
-            {heroTitle?.trim() || 'Regatta Management & Results'}
+            {heroTitle?.trim() || t('defaultHeroTitle')}
           </h1>
           <p className="text-lg md:text-2xl text-white/95 drop-shadow">
-            {heroSubtitle?.trim() || 'Track, participate and follow the world of sailing competitions.'}
+            {heroSubtitle?.trim() || t('defaultHeroSubtitle')}
           </p>
         </div>
       </section>
@@ -240,7 +242,7 @@ export default function HomePageClient({
         <div className="max-w-screen-2xl mx-auto px-2 lg:px-3">
           {featuredRegattas.length > 0 ? (
             <>
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Featured regattas</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">{t('featuredRegattas')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {featuredRegattas.map((r) => (
                   <Link
@@ -270,11 +272,11 @@ export default function HomePageClient({
                       </p>
                       {r.class_names && r.class_names.length > 0 && (
                         <p className="text-xs text-gray-500 mt-1">
-                          Classes: {r.class_names.join(' • ')}
+                          {t('classes', { list: r.class_names.join(' • ') })}
                         </p>
                       )}
                       <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
-                        View →
+                        {t('view')}
                       </span>
                     </div>
                   </Link>
@@ -282,13 +284,13 @@ export default function HomePageClient({
               </div>
               <div className="mt-8 text-center">
                 <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 font-medium hover:underline">
-                  View full calendar →
+                  {t('viewFullCalendar')}
                 </Link>
               </div>
             </>
           ) : (
             <>
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">Upcoming regattas</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-900">{t('upcomingRegattas')}</h2>
               {upcomingRegattas.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -320,18 +322,18 @@ export default function HomePageClient({
                           </p>
                           {r.class_names && r.class_names.length > 0 && (
                             <p className="text-xs text-gray-500 mt-1">
-                              Classes: {r.class_names.join(' • ')}
+                              {t('classes', { list: r.class_names.join(' • ') })}
                             </p>
                           )}
                           <p className="text-xs mt-2 font-medium">
                             {r.online_entry_open !== false ? (
-                              <span className="text-emerald-600">Entry open</span>
+                              <span className="text-emerald-600">{t('entryOpen')}</span>
                             ) : (
-                              <span className="text-gray-500">Entry closed</span>
+                              <span className="text-gray-500">{t('entryClosed')}</span>
                             )}
                           </p>
                           <span className="inline-block mt-3 text-sm text-blue-600 font-medium group-hover:underline">
-                            View →
+                            {t('view')}
                           </span>
                         </div>
                       </Link>
@@ -339,17 +341,19 @@ export default function HomePageClient({
                   </div>
                   <div className="mt-8 text-center">
                     <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 font-medium hover:underline">
-                    View full calendar →
+                    {t('viewFullCalendar')}
                     </Link>
                   </div>
                 </>
               ) : (
                 <p className="text-gray-600">
-                  No upcoming regattas. Check the{' '}
-                  <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 hover:underline">
-                    calendar
-                  </Link>
-                  .
+                  {t.rich('noUpcomingRegattas', {
+                    calendar: (chunks) => (
+                      <Link href={`/calendar${orgParam(orgSlug)}`} className="text-blue-600 hover:underline">
+                        {chunks}
+                      </Link>
+                    ),
+                  })}
                 </p>
               )}
             </>
@@ -360,7 +364,7 @@ export default function HomePageClient({
       {news.length > 0 && (
         <section className="py-16 bg-white w-full">
           <div className="max-w-screen-2xl mx-auto px-2 lg:px-3">
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-gray-900">News</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-gray-900">{t('news')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {news.map((item) => (
                 <Link
@@ -400,7 +404,7 @@ export default function HomePageClient({
             </div>
             <div className="mt-8 text-center">
               <Link href={orgSlug ? `/o/${orgSlug}/news` : '/news'} className="text-blue-600 font-semibold text-lg hover:underline">
-                View all news →
+                {t('viewAllNews')}
               </Link>
             </div>
           </div>

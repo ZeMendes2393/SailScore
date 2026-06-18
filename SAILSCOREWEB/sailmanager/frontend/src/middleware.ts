@@ -7,6 +7,7 @@ const DEFAULT_ORG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || '';
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname.replace(/\/$/, '') || '/';
   const orgFromQs = request.nextUrl.searchParams.get('org')?.trim() || '';
+  const orgFromPath = pathname.match(/^\/o\/([^/]+)/)?.[1]?.trim() || '';
 
   if (pathname === '/calendar' && !orgFromQs && DEFAULT_ORG) {
     const url = request.nextUrl.clone();
@@ -16,8 +17,9 @@ export function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);
-  if (orgFromQs) {
-    requestHeaders.set('x-org-slug', orgFromQs);
+  const orgSlug = orgFromQs || orgFromPath;
+  if (orgSlug) {
+    requestHeaders.set('x-org-slug', orgSlug);
   }
   /** Dashboard com ?regattaId= — o layout resolve organization_slug via API (mesmo padrão que /regattas/:id). */
   if (pathname.startsWith('/dashboard')) {

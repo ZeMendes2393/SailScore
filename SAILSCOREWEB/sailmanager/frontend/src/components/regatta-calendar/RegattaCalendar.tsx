@@ -4,8 +4,17 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiAssetUrl } from '@/lib/api';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+function getMonthNames(locale: string): string[] {
+  return Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2000, i, 1))
+  );
+}
+
+function getWeekdayNames(locale: string): string[] {
+  return Array.from({ length: 7 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2000, 0, 2 + i))
+  );
+}
 
 function parseApiDate(value: string): Date | null {
   const v = (value || '').trim();
@@ -52,20 +61,26 @@ interface RegattaCalendarProps {
     viewButton?: string;
     statusOpen?: string;
     statusClosed?: string;
+    regattaOnDay?: string;
+    formatClasses?: (list: string) => string;
+    formatStatus?: (status: string) => string;
   };
+  /** Locale for month/weekday labels (public calendar). Admin defaults to en-GB. */
+  locale?: string;
   uiVariant?: 'default' | 'admin';
 }
 
 /** Formats date range for the card display: "12-14 Apr" */
-function formatDateRangeShort(startDate: string, endDate: string): string {
+function formatDateRangeShort(startDate: string, endDate: string, locale = 'en-GB'): string {
   const start = parseApiDate(startDate);
   const end = parseApiDate(endDate);
   if (!start || !end) return `${startDate} - ${endDate}`;
+  const monthFmt = new Intl.DateTimeFormat(locale, { month: 'short' });
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
   if (sameMonth) {
-    return `${start.getDate()}–${end.getDate()} ${MONTHS[start.getMonth()]}`;
+    return `${start.getDate()}–${end.getDate()} ${monthFmt.format(start)}`;
   }
-  return `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`;
+  return `${start.getDate()} ${monthFmt.format(start)} – ${end.getDate()} ${monthFmt.format(end)}`;
 }
 
 /** Returns true if the date string (YYYY-MM-DD) falls within any regatta's date range */
@@ -106,12 +121,16 @@ export function RegattaCalendar({
   regattaLinkSuffix = '',
   addRegattaHref,
   labels = {},
+  locale = 'en-GB',
   uiVariant = 'default',
 }: RegattaCalendarProps) {
   const isAdminUi = uiVariant === 'admin';
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+
+  const months = useMemo(() => getMonthNames(locale), [locale]);
+  const weekdays = useMemo(() => getWeekdayNames(locale), [locale]);
 
   const calendarDays = useMemo(() => getCalendarDays(year, month), [year, month]);
 
@@ -135,6 +154,9 @@ export function RegattaCalendar({
     viewButton: labels.viewButton ?? 'View',
     statusOpen: labels.statusOpen ?? 'Registrations open',
     statusClosed: labels.statusClosed ?? 'Registrations closed',
+    regattaOnDay: labels.regattaOnDay ?? 'Regatta on this day',
+    formatClasses: labels.formatClasses ?? ((list: string) => `Classes: ${list}`),
+    formatStatus: labels.formatStatus ?? ((status: string) => `Status: ${status}`),
   };
 
   const years = useMemo(() => {
@@ -170,7 +192,7 @@ export function RegattaCalendar({
 
       {/* Month selector */}
       <div className="flex flex-wrap gap-1 mb-4">
-        {MONTHS.map((m, i) => (
+        {months.map((m, i) => (
           <button
             key={m}
             onClick={() => setMonth(i)}
@@ -187,7 +209,7 @@ export function RegattaCalendar({
 
       {/* Calendar grid */}
       <div className={`grid grid-cols-7 gap-0.5 mb-6 justify-items-center ${isAdminUi ? 'max-w-sm' : 'max-w-xs'}`}>
-        {WEEKDAYS.map((wd) => (
+        {weekdays.map((wd) => (
           <div key={wd} className={`text-center text-gray-500 font-medium ${isAdminUi ? 'text-xs w-8' : 'text-[10px] w-6'}`}>
             {wd.charAt(0)}
           </div>
@@ -218,7 +240,7 @@ export function RegattaCalendar({
               {hasRegatta && (
                 <span
                   className="absolute top-0 w-1 h-1 rounded-full bg-white"
-                  title="Regatta on this day"
+                  title={t.regattaOnDay}
                   aria-hidden
                 />
               )}
@@ -231,7 +253,7 @@ export function RegattaCalendar({
       {/* List of regattas in selected month */}
       <div>
         <h3 className={`${isAdminUi ? 'text-2xl' : 'text-sm'} font-semibold text-gray-700 mb-2`}>
-          {MONTHS[month]} {year}
+          {months[month]} {year}
         </h3>
         {regattasInMonth.length === 0 ? (
           <p className={`text-gray-500 ${isAdminUi ? 'text-lg' : 'text-sm'}`}>{t.noRegattas}</p>
@@ -257,17 +279,17 @@ export function RegattaCalendar({
                     )}
                     <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                       <h4 className="font-semibold text-gray-900">{r.name}</h4>
-                      <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date)}</p>
+                      <p className="text-sm text-gray-600">{formatDateRangeShort(r.start_date, r.end_date, locale)}</p>
                       <p className="text-sm text-gray-600 flex items-center gap-1">
                         <span aria-hidden>📍</span> {r.location}
                       </p>
                       {classesText && (
                         <p className="text-sm text-gray-600">
-                          Classes: {classesText}
+                          {t.formatClasses(classesText)}
                         </p>
                       )}
                       <p className="text-sm font-medium text-gray-700">
-                        Status: {isOpen ? t.statusOpen : t.statusClosed}
+                        {t.formatStatus(isOpen ? t.statusOpen : t.statusClosed)}
                       </p>
                       <Link
                         href={`${regattaLinkPrefix}/${r.id}${regattaLinkSuffix}`}

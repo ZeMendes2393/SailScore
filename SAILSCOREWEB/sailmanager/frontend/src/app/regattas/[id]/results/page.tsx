@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
+import { useLocale, useTranslations } from "next-intl"
 import RegattaHeader, { REGATTA_HERO_HEADER_PT } from "../components/RegattaHeader"
 import ResultsViewer from "../components/results/ResultsViewer"
 import { formatDateRange } from '@/lib/formatDate'
@@ -22,6 +23,10 @@ interface Regatta {
 }
 
 export default function ResultsPage() {
+  const t = useTranslations('regattaHome')
+  const tResults = useTranslations('resultsPublic')
+  const tEntry = useTranslations('entryList')
+  const locale = useLocale()
   const params = useParams()
   const id = Number(params.id as string)
 
@@ -53,7 +58,7 @@ export default function ResultsPage() {
           const txt = await res.text()
           console.error("❌ Erro ao carregar classes:", res.status, txt)
           setAvailableClasses([])
-          setClassesError("Could not load classes for this regatta.")
+          setClassesError(tEntry('couldNotLoadClasses'))
           return
         }
         const data: unknown = await res.json()
@@ -64,7 +69,7 @@ export default function ResultsPage() {
       } catch (err) {
         console.error("❌ Erro de rede ao carregar classes:", err)
         setAvailableClasses([])
-        setClassesError("Network error while loading classes.")
+        setClassesError(tEntry('networkError'))
       } finally {
         setLoadingClasses(false)
       }
@@ -102,7 +107,7 @@ export default function ResultsPage() {
         >
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 max-w-4xl mx-auto px-6 text-white">
-            <Link href={`/regattas/${id}`} className="text-sm opacity-90 hover:opacity-100 mb-4 inline-block">← Back to regatta</Link>
+            <Link href={`/regattas/${id}`} className="text-sm opacity-90 hover:opacity-100 mb-4 inline-block">{t('backToRegatta')}</Link>
             <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
             <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
             {availableClasses.length > 0 && (
@@ -110,17 +115,17 @@ export default function ResultsPage() {
                 {availableClasses.join(' • ')}
               </p>
             )}
-            <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">{formatDateRange(regatta.start_date, regatta.end_date)}</p>
+            <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">{formatDateRange(regatta.start_date, regatta.end_date, locale)}</p>
           </div>
         </section>
       )}
 
       <div className="container-page py-8">
-      {!regatta && <p className="py-8">Loading regatta...</p>}
+      {!regatta && <p className="py-8">{t('loadingRegatta')}</p>}
 
       {/* Seletor de classes */}
       <div className="mb-6">
-        {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
+        {loadingClasses && <p className="text-gray-500">{tEntry('loadingClasses')}</p>}
         {!loadingClasses && classesError && (
           <p className="text-red-700">{classesError}</p>
         )}
@@ -147,7 +152,7 @@ export default function ResultsPage() {
         {regatta && selectedClass ? (
           <ResultsViewer regattaId={id} selectedClass={selectedClass} />
         ) : (
-          <p className="text-gray-500">Select a class to see results.</p>
+          <p className="text-gray-500">{tResults('selectClass')}</p>
         )}
       </div>
       </div>

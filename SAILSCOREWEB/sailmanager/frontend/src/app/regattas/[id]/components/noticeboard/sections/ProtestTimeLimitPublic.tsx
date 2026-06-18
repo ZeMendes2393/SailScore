@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiGet } from '@/lib/api';
 
 type Row = {
@@ -8,8 +9,8 @@ type Row = {
   regatta_id: number;
   class_name: string;
   fleet: string | null;
-  date: string;          // "YYYY-MM-DD"
-  time_limit_hm: string; // "HH:MM"
+  date: string;
+  time_limit_hm: string;
 };
 
 function formatDateDMY(iso: string): string {
@@ -25,6 +26,8 @@ function formatDateDMY(iso: string): string {
 }
 
 export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: number }) {
+  const t = useTranslations('noticeSections.ptl');
+  const tCommon = useTranslations('common');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
       const data = await apiGet<Row[]>(`/ptl/${regattaId}`);
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load protest time limits.');
+      setError(e?.message || t('loadFailed'));
       setRows([]);
     } finally {
       setLoading(false);
@@ -62,14 +65,14 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Protest Time Limit</h3>
+        <h3 className="text-lg font-semibold">{t('title')}</h3>
         <select
           className="border border-gray-300 rounded-md px-2 py-1.5 text-sm"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          title="Filter by hearing date"
+          title={t('filterByDate')}
         >
-          <option value="ALL">ALL</option>
+          <option value="ALL">{t('filterAll')}</option>
           {dateOptions.map((d) => (
             <option key={d} value={d}>
               {formatDateDMY(d)}
@@ -89,24 +92,26 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
 
           <thead className="bg-gray-100">
             <tr>
-              <th className="px-3 py-2 text-left">Class</th>
-              <th className="px-3 py-2 text-left">Fleet</th>
-              <th className="px-3 py-2 text-left">Time Limit (HH:MM)</th>
-              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">{t('class')}</th>
+              <th className="px-3 py-2 text-left">{t('fleet')}</th>
+              <th className="px-3 py-2 text-left">{t('timeLimit')}</th>
+              <th className="px-3 py-2 text-left">{t('date')}</th>
             </tr>
           </thead>
 
           <tbody>
             {loading && (
               <tr>
-                <td className="px-3 py-2" colSpan={4}>Loading…</td>
+                <td className="px-3 py-2" colSpan={4}>
+                  {tCommon('loading')}
+                </td>
               </tr>
             )}
 
             {!loading && visibleRows.length === 0 && (
               <tr>
                 <td className="px-3 py-2 text-center text-gray-500" colSpan={4}>
-                  No records.
+                  {t('noRecords')}
                 </td>
               </tr>
             )}
@@ -114,7 +119,7 @@ export default function ProtestTimeLimitPublic({ regattaId }: { regattaId: numbe
             {visibleRows.map((r) => (
               <tr key={r.id} className="border-t">
                 <td className="px-3 py-2">{r.class_name}</td>
-                <td className="px-3 py-2">{r.fleet || '—'}</td>
+                <td className="px-3 py-2">{r.fleet || tCommon('dash')}</td>
                 <td className="px-3 py-2 font-mono">{r.time_limit_hm}</td>
                 <td className="px-3 py-2">{formatDateDMY(r.date)}</td>
               </tr>

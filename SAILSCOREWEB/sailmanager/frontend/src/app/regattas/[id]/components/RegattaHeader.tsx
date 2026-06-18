@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useTranslations } from 'next-intl';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -119,6 +121,7 @@ export default function RegattaHeader({
   const brandText = orgDisplayName || organizationSlug || 'Regattas';
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
   const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
+  const t = useTranslations('regattaNav');
 
   return (
     <>
@@ -126,8 +129,8 @@ export default function RegattaHeader({
       className={`app-site-header regatta-site-header w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
       style={{ '--app-header-height': '4.25rem' } as CSSProperties}
     >
-      <div className="w-full h-[4.25rem] md:min-h-[5rem] md:h-auto md:py-3 flex flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 max-md:overflow-hidden">
-        <Link href={brandHref} className="shrink-0 min-w-0 max-w-[52%] hover:opacity-90 transition-opacity">
+      <div className="w-full h-[4.25rem] md:min-h-[5rem] md:h-auto md:py-3 flex flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 max-md:overflow-hidden md:gap-3">
+        <Link href={brandHref} className="shrink-0 min-w-0 max-w-[40%] md:max-w-[32%] hover:opacity-90 transition-opacity">
           {logoUrl && !logoFailed ? (
             <img
               src={logoUrl.startsWith('http') ? logoUrl : `${API_BASE}${logoUrl}`}
@@ -141,35 +144,39 @@ export default function RegattaHeader({
             </span>
           )}
         </Link>
-        <nav className="max-md:hidden md:flex items-center gap-2 md:gap-4 text-lg sm:text-xl font-semibold flex-wrap justify-end ml-auto">
-          <Link href={base} className={linkClass(isHome)} title="Regatta home">
-            Home
+        <nav className="max-md:hidden md:flex items-center gap-2 md:gap-3 text-lg sm:text-xl font-semibold flex-wrap justify-end min-w-0 ml-auto">
+          <Link href={base} className={linkClass(isHome)} title={t('homeTitle')}>
+            {t('home')}
           </Link>
           <Link href={`${base}/form`} className={linkClass(isForm)}>
-            Online Entry
+            {t('onlineEntry')}
           </Link>
           <Link href={`${base}/entry`} className={linkClass(isEntry)}>
-            Entry List
+            {t('entryList')}
           </Link>
           <Link href={`${base}/notice`} className={linkClass(isNotice)}>
-            Notice Board
+            {t('noticeBoard')}
           </Link>
           <Link href={`${base}/results`} className={linkClass(isResults)}>
-            Results
+            {t('results')}
           </Link>
         </nav>
-        <Link
-          href={sailorAccountHref}
-          className="max-md:hidden md:inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
-        >
-          Sailor account
-        </Link>
-        <div className="max-md:flex md:hidden ml-auto shrink-0">
+        <div className="max-md:hidden md:flex items-center gap-2 shrink-0">
+          <LanguageSwitcher className="shrink-0" />
+          <Link
+            href={sailorAccountHref}
+            className="inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
+          >
+            {t('sailorAccount')}
+          </Link>
+        </div>
+        <div className="max-md:flex md:hidden ml-auto shrink-0 flex items-center gap-2">
+          <LanguageSwitcher />
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             className="inline-flex items-center justify-center rounded-xl w-11 h-11 bg-white/15 hover:bg-white/25 text-white transition"
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={mobileMenuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-regatta-nav"
           >
@@ -207,7 +214,7 @@ export default function RegattaHeader({
         <button
           type="button"
           className="regatta-mobile-menu-backdrop md:hidden"
-          aria-label="Close menu"
+          aria-label={t('closeMenu')}
           onClick={() => setMobileMenuOpen(false)}
         />
         <div
@@ -215,26 +222,29 @@ export default function RegattaHeader({
           className="regatta-mobile-menu-panel md:hidden border-t border-white/20 bg-blue-900/95 backdrop-blur-md px-3 pb-4 shadow-lg"
         >
           <nav className="flex flex-col gap-2 py-3 text-base font-semibold">
-            <Link href={base} className={linkClass(isHome)} title="Regatta home">
-              Home
+            <div className="flex justify-end pb-1">
+              <LanguageSwitcher />
+            </div>
+            <Link href={base} className={linkClass(isHome)} title={t('homeTitle')}>
+              {t('home')}
             </Link>
             <Link href={`${base}/form`} className={linkClass(isForm)}>
-              Online Entry
+              {t('onlineEntry')}
             </Link>
             <Link href={`${base}/entry`} className={linkClass(isEntry)}>
-              Entry List
+              {t('entryList')}
             </Link>
             <Link href={`${base}/notice`} className={linkClass(isNotice)}>
-              Notice Board
+              {t('noticeBoard')}
             </Link>
             <Link href={`${base}/results`} className={linkClass(isResults)}>
-              Results
+              {t('results')}
             </Link>
             <Link
               href={sailorAccountHref}
               className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base font-semibold text-center transition"
             >
-              Sailor account
+              {t('sailorAccount')}
             </Link>
           </nav>
         </div>

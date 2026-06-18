@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import RegattaHeader, { REGATTA_HERO_HEADER_PT } from '../components/RegattaHeader';
 import EntryList from '../components/entrylist/EntryList';
 import { getVisibleColumnsForClass } from '@/lib/entryListColumns';
@@ -24,6 +25,9 @@ type Regatta = {
 };
 
 export default function RegattaEntryPage() {
+  const t = useTranslations('entryList');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const params = useParams();
   const id = params?.id as string | undefined;
   const regattaId = useMemo(() => {
@@ -57,7 +61,7 @@ export default function RegattaEntryPage() {
         const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, { cache: 'no-store' });
         if (!res.ok) {
           setAvailableClasses([]);
-          setClassesError('Could not load classes.');
+          setClassesError(t('couldNotLoadClasses'));
           return;
         }
         const arr = (await res.json()) as string[];
@@ -65,12 +69,12 @@ export default function RegattaEntryPage() {
         setSelectedClass((prev) => prev ?? arr[0] ?? null);
       } catch {
         setAvailableClasses([]);
-        setClassesError('Network error.');
+        setClassesError(t('networkError'));
       } finally {
         setLoadingClasses(false);
       }
     })();
-  }, [regattaId]);
+  }, [regattaId, t]);
 
   const hi = regatta?.home_images?.[0];
   const heroImageUrl = (regatta?.poster_url?.trim() || hi?.url)?.trim();
@@ -84,8 +88,8 @@ export default function RegattaEntryPage() {
       }
     : undefined;
 
-  if (!regattaId) return <p className="p-8">Loading…</p>;
-  if (!regatta) return <p className="p-8">Loading regatta…</p>;
+  if (!regattaId) return <p className="p-8">{tCommon('loading')}</p>;
+  if (!regatta) return <p className="p-8">{t('loadingRegatta')}</p>;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -107,13 +111,13 @@ export default function RegattaEntryPage() {
             </p>
           )}
           <p className="text-base md:text-lg opacity-95 drop-shadow">
-            {regatta.location} · {formatDateRange(regatta.start_date, regatta.end_date)}
+            {regatta.location} · {formatDateRange(regatta.start_date, regatta.end_date, locale)}
           </p>
         </div>
       </section>
       <div className="container-page py-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Entry List</h2>
-        {loadingClasses && <p className="text-gray-500">Loading classes…</p>}
+        <h2 className="text-xl font-bold text-gray-800 mb-4">{t('title')}</h2>
+        {loadingClasses && <p className="text-gray-500">{t('loadingClasses')}</p>}
         {!loadingClasses && classesError && <p className="text-red-700">{classesError}</p>}
         {!loadingClasses && !classesError && availableClasses.length > 0 && (
           <div className="flex gap-2 mb-6 flex-wrap">

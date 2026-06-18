@@ -15,6 +15,7 @@ interface Organization {
   name: string;
   slug: string;
   is_active: boolean;
+  default_locale: 'en-GB' | 'pt-PT';
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +31,7 @@ export default function OrganizationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [defaultLocale, setDefaultLocale] = useState<'en-GB' | 'pt-PT'>('en-GB');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminName, setAdminName] = useState('');
@@ -38,6 +40,7 @@ export default function OrganizationsPage() {
   const [editingOrg, setEditingOrg] = useState<OrganizationWithAdmin | null>(null);
   const [editName, setEditName] = useState('');
   const [editSlug, setEditSlug] = useState('');
+  const [editDefaultLocale, setEditDefaultLocale] = useState<'en-GB' | 'pt-PT'>('en-GB');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editAdminEmail, setEditAdminEmail] = useState('');
   const [editAdminPassword, setEditAdminPassword] = useState('');
@@ -128,6 +131,7 @@ export default function OrganizationsPage() {
         name: name.trim(),
         slug: slug.trim().toLowerCase() || slug,
         is_active: true,
+        default_locale: defaultLocale,
       };
       if (em && pw) {
         payload.admin_email = em;
@@ -140,6 +144,7 @@ export default function OrganizationsPage() {
       setOrgs(Array.isArray(data) ? data : []);
       setName('');
       setSlug('');
+      setDefaultLocale('en-GB');
       setAdminEmail('');
       setAdminPassword('');
       setAdminName('');
@@ -158,6 +163,7 @@ export default function OrganizationsPage() {
       setEditingOrg(data);
       setEditName(data.name);
       setEditSlug(data.slug);
+      setEditDefaultLocale(data.default_locale === 'pt-PT' ? 'pt-PT' : 'en-GB');
       setEditIsActive(data.is_active);
       setEditAdminEmail(data.admin_email ?? '');
       setEditAdminPassword('');
@@ -187,6 +193,7 @@ export default function OrganizationsPage() {
         name: editName.trim(),
         slug: editSlug.trim().toLowerCase(),
         is_active: editIsActive,
+        default_locale: editDefaultLocale,
       };
       if (em) payload.admin_email = em;
       if (pw) payload.admin_password = pw;
@@ -285,6 +292,20 @@ export default function OrganizationsPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">Lowercase letters, numbers, and hyphens. Site: /o/{slug || '...'}</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Default language</label>
+                  <select
+                    value={defaultLocale}
+                    onChange={(e) => setDefaultLocale(e.target.value as 'en-GB' | 'pt-PT')}
+                    className="w-full border rounded px-3 py-2 bg-white"
+                  >
+                    <option value="en-GB">English (EN)</option>
+                    <option value="pt-PT">Português — Portugal (PT)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Shown to visitors who have not chosen a language. They can override with the header switcher.
+                  </p>
+                </div>
                 <div className="pt-2 border-t border-gray-100 space-y-3">
                   <p className="text-sm font-medium text-gray-800">Site admin (optional)</p>
                   <p className="text-xs text-gray-500">
@@ -371,6 +392,9 @@ export default function OrganizationsPage() {
                     <p className="text-sm text-gray-500">
                       /o/{org.slug}
                       {!org.is_active && <span className="ml-2 text-red-600">(inactive)</span>}
+                      <span className="ml-2 text-gray-400">
+                        · {org.default_locale === 'pt-PT' ? 'PT' : 'EN'}
+                      </span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -435,6 +459,17 @@ export default function OrganizationsPage() {
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">Site: /o/{editSlug || '...'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Default language</label>
+                    <select
+                      value={editDefaultLocale}
+                      onChange={(e) => setEditDefaultLocale(e.target.value as 'en-GB' | 'pt-PT')}
+                      className="w-full border rounded px-3 py-2 bg-white"
+                    >
+                      <option value="en-GB">English (EN)</option>
+                      <option value="pt-PT">Português — Portugal (PT)</option>
+                    </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <input

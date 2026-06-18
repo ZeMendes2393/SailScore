@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiGet } from '@/lib/api';
 import type { HearingsList, HearingItem } from '@/types/hearings';
 
 export default function HearingsPublic({ regattaId }: { regattaId: number }) {
+  const t = useTranslations('noticeSections.hearings');
+  const tCommon = useTranslations('common');
   const [rows, setRows] = useState<HearingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('all');
@@ -12,7 +15,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
 
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
-    if (statusFilter !== 'all') p.set('status_q', statusFilter); // "open" | "closed"
+    if (statusFilter !== 'all') p.set('status_q', statusFilter);
     return `/hearings/${regattaId}${p.toString() ? `?${p.toString()}` : ''}`;
   }, [regattaId, statusFilter]);
 
@@ -27,7 +30,7 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
       } catch (e: any) {
         if (!cancelled) {
           setRows([]);
-          setError(e?.message || 'Failed to load hearings.');
+          setError(e?.message || t('loadFailed'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -36,47 +39,47 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
     return () => {
       cancelled = true;
     };
-  }, [listPath]);
+  }, [listPath, t]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Protest Decisions/Hearings</h3>
+        <h3 className="text-lg font-semibold">{t('title')}</h3>
         <select
           className="border rounded px-2 py-1"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as 'open' | 'closed' | 'all')}
         >
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="all">All</option>
+          <option value="open">{t('filterOpen')}</option>
+          <option value="closed">{t('filterClosed')}</option>
+          <option value="all">{t('filterAll')}</option>
         </select>
       </div>
 
-      {loading && <div className="text-gray-500">Loading…</div>}
+      {loading && <div className="text-gray-500">{tCommon('loading')}</div>}
       {error && <div className="text-red-600">{error}</div>}
 
       <div className="overflow-x-auto rounded border bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="p-2">Case</th>
-              <th className="p-2">Race</th>
-              <th className="p-2">Initiator</th>
-              <th className="p-2">Respondent</th>
-              <th className="p-2">Hearing date</th>
-              <th className="p-2">Hearing time</th>
-              <th className="p-2">Room</th>
-              <th className="p-2">Status</th>
-              <th className="p-2">Decision</th>
-              <th className="p-2">More</th>
+              <th className="p-2">{t('case')}</th>
+              <th className="p-2">{t('race')}</th>
+              <th className="p-2">{t('initiator')}</th>
+              <th className="p-2">{t('respondent')}</th>
+              <th className="p-2">{t('hearingDate')}</th>
+              <th className="p-2">{t('hearingTime')}</th>
+              <th className="p-2">{t('room')}</th>
+              <th className="p-2">{t('status')}</th>
+              <th className="p-2">{t('decision')}</th>
+              <th className="p-2">{t('more')}</th>
             </tr>
           </thead>
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-gray-500" colSpan={10}>
-                  No hearings.
+                  {t('noHearings')}
                 </td>
               </tr>
             )}
@@ -86,11 +89,11 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
                 <td className="p-2">{r.race}</td>
                 <td className="p-2">{r.initiator}</td>
                 <td className="p-2">{r.respondent}</td>
-                <td className="p-2">{r.sch_date || '—'}</td>
-                <td className="p-2">{r.sch_time || '—'}</td>
-                <td className="p-2">{r.room || '—'}</td>
+                <td className="p-2">{r.sch_date || tCommon('dash')}</td>
+                <td className="p-2">{r.sch_time || tCommon('dash')}</td>
+                <td className="p-2">{r.room || tCommon('dash')}</td>
                 <td className="p-2">{r.status}</td>
-                <td className="p-2">{r.decision || '—'}</td>
+                <td className="p-2">{r.decision || tCommon('dash')}</td>
                 <td className="p-2">
                   {r.decision_pdf_url ? (
                     <a
@@ -99,10 +102,10 @@ export default function HearingsPublic({ regattaId }: { regattaId: number }) {
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
-                      Decision
+                      {t('decisionLink')}
                     </a>
                   ) : (
-                    '—'
+                    tCommon('dash')
                   )}
                 </td>
               </tr>

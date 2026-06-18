@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiGet } from '@/lib/api';
 import type { ScoringRead } from '@/lib/api';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
@@ -8,14 +9,15 @@ import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 type Row = ScoringRead & { _expanded?: boolean };
 
 export default function ScoringEnquiriesPublic({ regattaId }: { regattaId: number }) {
+  const t = useTranslations('noticeSections.scoring');
+  const tCommon = useTranslations('common');
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Public list: show ALL items (any status)
   const listPath = useMemo(() => {
     const p = new URLSearchParams();
-    p.set('public', '1'); // backend should allow unauthenticated, all statuses
+    p.set('public', '1');
     return `/regattas/${regattaId}/scoring?${p.toString()}`;
   }, [regattaId]);
 
@@ -24,27 +26,30 @@ export default function ScoringEnquiriesPublic({ regattaId }: { regattaId: numbe
     setErr(null);
     try {
       const data = await apiGet<ScoringRead[]>(listPath);
-      setRows(Array.isArray(data) ? data.map(d => ({ ...d })) : []);
+      setRows(Array.isArray(data) ? data.map((d) => ({ ...d })) : []);
     } catch (e: any) {
       setRows([]);
-      setErr(e?.message || 'Failed to load scoring enquiries.');
+      setErr(e?.message || t('loadFailed'));
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [listPath]);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listPath]);
 
   function toggleExpand(id: number) {
-    setRows(prev => prev.map(r => (r.id === id ? { ...r, _expanded: !r._expanded } : r)));
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, _expanded: !r._expanded } : r)));
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold">Scoring Enquiries</h3>
+        <h3 className="text-lg font-semibold">{t('title')}</h3>
         <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={load}>
-          Refresh
+          {t('refresh')}
         </button>
       </div>
 
@@ -52,20 +57,30 @@ export default function ScoringEnquiriesPublic({ regattaId }: { regattaId: numbe
         <table className="min-w-full text-sm table-fixed">
           <thead className="bg-gray-50">
             <tr>
-              <th className="p-2 w-16">#</th>
-              <th className="p-2 w-32">Sail No.</th>
-              <th className="p-2 w-40">Class</th>
-              <th className="p-2 w-40">Race</th>
-              <th className="p-2">Requested change</th>
-              <th className="p-2 w-40">Status</th>
-              <th className="p-2 w-[28rem]">Decision / Response</th>
-              <th className="p-2 w-24 text-right">More info</th>
+              <th className="p-2 w-16">{t('number')}</th>
+              <th className="p-2 w-32">{t('sailNo')}</th>
+              <th className="p-2 w-40">{t('class')}</th>
+              <th className="p-2 w-40">{t('race')}</th>
+              <th className="p-2">{t('requestedChange')}</th>
+              <th className="p-2 w-40">{t('status')}</th>
+              <th className="p-2 w-[28rem]">{t('decisionResponse')}</th>
+              <th className="p-2 w-24 text-right">{t('moreInfo')}</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td className="p-3" colSpan={8}>Loading…</td></tr>}
+            {loading && (
+              <tr>
+                <td className="p-3" colSpan={8}>
+                  {tCommon('loading')}
+                </td>
+              </tr>
+            )}
             {!loading && rows.length === 0 && (
-              <tr><td className="p-6 text-center text-gray-500" colSpan={8}>No scoring enquiries yet.</td></tr>
+              <tr>
+                <td className="p-6 text-center text-gray-500" colSpan={8}>
+                  {t('noEnquiries')}
+                </td>
+              </tr>
             )}
 
             {rows.map((r) => (
@@ -80,33 +95,32 @@ export default function ScoringEnquiriesPublic({ regattaId }: { regattaId: numbe
   );
 }
 
-function FragmentRow({
-  r,
-  onToggle,
-}: {
-  r: Row;
-  onToggle: () => void;
-}) {
+function FragmentRow({ r, onToggle }: { r: Row; onToggle: () => void }) {
+  const t = useTranslations('noticeSections.scoring');
+  const tCommon = useTranslations('common');
+
   return (
     <>
       <tr className="border-t align-top">
         <td className="p-2">{r.id}</td>
-        <td className="p-2"><SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} /></td>
-        <td className="p-2">{r.class_name || '—'}</td>
-        <td className="p-2">{r.race_number || '—'}</td>
-        <td className="p-2">{r.requested_change || '—'}</td>
+        <td className="p-2">
+          <SailNumberDisplay countryCode={(r as any).boat_country_code} sailNumber={r.sail_number} />
+        </td>
+        <td className="p-2">{r.class_name || tCommon('dash')}</td>
+        <td className="p-2">{r.race_number || tCommon('dash')}</td>
+        <td className="p-2">{r.requested_change || tCommon('dash')}</td>
         <td className="p-2 capitalize">{(r.status || '').replace('_', ' ')}</td>
         <td className="p-2 align-top w-[28rem]">
           <div className="max-w-[28rem] whitespace-pre-wrap break-words">
-            {r.response?.trim() || <span className="text-gray-400">—</span>}
+            {r.response?.trim() || <span className="text-gray-400">{tCommon('dash')}</span>}
           </div>
         </td>
         <td className="p-2 text-right align-middle">
           <button
             className="px-2 py-1 border rounded hover:bg-gray-50"
             onClick={onToggle}
-            title={r._expanded ? 'Hide details' : 'More info'}
-            aria-label={r._expanded ? 'Hide details' : 'More info'}
+            title={r._expanded ? t('hideDetails') : t('moreInfo')}
+            aria-label={r._expanded ? t('hideDetails') : t('moreInfo')}
           >
             {r._expanded ? '−' : '+'}
           </button>
@@ -117,11 +131,17 @@ function FragmentRow({
         <tr className="bg-gray-50">
           <td colSpan={8} className="p-3">
             <div className="grid md:grid-cols-3 gap-3 text-sm">
-              <Field label="Requested score" value={fmtNum(r.requested_score)} />
-              <Field label="Boat ahead" value={fmtText(r.boat_ahead)} />
-              <Field label="Boat behind" value={fmtText(r.boat_behind)} />
-              <Field label="Created at" value={r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : '—'} />
-              <Field label="Updated at" value={r.updated_at ? new Date(r.updated_at).toLocaleString('en-GB') : '—'} />
+              <Field label={t('requestedScore')} value={fmtNum(r.requested_score)} />
+              <Field label={t('boatAhead')} value={fmtText(r.boat_ahead)} />
+              <Field label={t('boatBehind')} value={fmtText(r.boat_behind)} />
+              <Field
+                label={t('createdAt')}
+                value={r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : tCommon('dash')}
+              />
+              <Field
+                label={t('updatedAt')}
+                value={r.updated_at ? new Date(r.updated_at).toLocaleString('en-GB') : tCommon('dash')}
+              />
             </div>
           </td>
         </tr>
@@ -142,6 +162,6 @@ function Field({ label, value }: { label: string; value: string }) {
 function fmtNum(n?: number | null) {
   return typeof n === 'number' && Number.isFinite(n) ? String(n) : '—';
 }
-function fmtText(t?: string | null) {
-  return (t || '').trim() || '—';
+function fmtText(text?: string | null) {
+  return (text || '').trim() || '—';
 }

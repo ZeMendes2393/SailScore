@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import { getTranslations } from 'next-intl/server';
 import BookDemoForm from '@/components/landing/BookDemoForm';
 import LandingTopNav from '@/components/landing/LandingTopNav';
 import SailScorePublicContact from '@/components/SailScorePublicContact';
 
-export default function SailScoreLanding() {
+export default async function SailScoreLanding() {
+  const t = await getTranslations('landing');
+
   return (
     <div className="sailscore-landing">
       <LandingTopNav />
@@ -12,72 +15,66 @@ export default function SailScoreLanding() {
       <section id="hero" className="ss-section ss-hero">
         <div className="ss-container ss-hero-grid">
           <div>
-            <p className="ss-eyebrow">Practical regatta operations software</p>
-            <h1 className="ss-h1">Run Better Regattas with Faster Scoring and Clearer Operations</h1>
-            <p className="ss-lead">
-              SailScore helps clubs and race teams handle setup, entries, scoring, notices, and results in one structured workflow.
-            </p>
+            <p className="ss-eyebrow">{t('hero.eyebrow')}</p>
+            <h1 className="ss-h1">{t('hero.title')}</h1>
+            <p className="ss-lead">{t('hero.lead')}</p>
             <div className="ss-hero-actions">
               <a className="ss-btn ss-btn-primary" href="#book-demo">
-                Book a Demo
+                {t('hero.bookDemo')}
               </a>
             </div>
-            <p className="ss-microcopy">Built for real race-day pressure.</p>
+            <p className="ss-microcopy">{t('hero.microcopy')}</p>
           </div>
           <div className="ss-visual-card">
-            <p className="ss-visual-label">Admin Dashboard Preview</p>
+            <p className="ss-visual-label">{t('hero.dashboardLabel')}</p>
             <Image
               className="ss-visual-block"
               src="/dashboard-preview.png"
-              alt="SailScore dashboard preview"
+              alt={t('hero.dashboardAlt')}
               width={1600}
               height={900}
               quality={100}
               priority
             />
-            <p className="ss-visual-note">Production dashboard screenshot</p>
+            <p className="ss-visual-note">{t('hero.dashboardNote')}</p>
           </div>
         </div>
       </section>
 
       <section id="platform" className="ss-section ss-section-muted">
         <div className="ss-container">
-          <h2 className="ss-h2">One platform, six practical capabilities</h2>
-          <p className="ss-section-intro">
-            Organize race office operations from setup to publishing with one connected workflow.
-          </p>
+          <h2 className="ss-h2">{t('platform.title')}</h2>
+          <p className="ss-section-intro">{t('platform.intro')}</p>
           <div className="ss-modules-grid">
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 1</span>
-              <h3 className="ss-h3">Setup &amp; Configuration</h3>
-              <p>Create regattas, define classes, schedules, and core settings in minutes.</p>
+              <span className="ss-module-kicker">{t('platform.module1Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module1Title')}</h3>
+              <p>{t('platform.module1Desc')}</p>
             </article>
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 2</span>
-              <h3 className="ss-h3">Entries &amp; Registration</h3>
-              <p>Centralize online entries and participant records with cleaner validation.</p>
+              <span className="ss-module-kicker">{t('platform.module2Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module2Title')}</h3>
+              <p>{t('platform.module2Desc')}</p>
             </article>
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 3</span>
-              <h3 className="ss-h3">Scoring Workflow</h3>
-              <p>Support race-day scoring teams with fast updates and clear controls.</p>
+              <span className="ss-module-kicker">{t('platform.module3Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module3Title')}</h3>
+              <p>{t('platform.module3Desc')}</p>
             </article>
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 4</span>
-              <h3 className="ss-h3">Results Publishing</h3>
-              <p>Publish race and overall standings quickly with consistent visibility.</p>
+              <span className="ss-module-kicker">{t('platform.module4Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module4Title')}</h3>
+              <p>{t('platform.module4Desc')}</p>
             </article>
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 5</span>
-              <h3 className="ss-h3">Notice Board &amp; Decisions</h3>
-              <p>Keep official notices and hearing decisions in one trusted channel.</p>
+              <span className="ss-module-kicker">{t('platform.module5Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module5Title')}</h3>
+              <p>{t('platform.module5Desc')}</p>
             </article>
             <article className="ss-module">
-              <span className="ss-module-kicker">Capability 6</span>
-              <h3 className="ss-h3">Sailor Access</h3>
-              <p>
-                Each sailor account has its own dashboard to file protests, scoring enquiries, requests, and more.
-              </p>
+              <span className="ss-module-kicker">{t('platform.module6Kicker')}</span>
+              <h3 className="ss-h3">{t('platform.module6Title')}</h3>
+              <p>{t('platform.module6Desc')}</p>
             </article>
           </div>
         </div>
@@ -87,21 +84,19 @@ export default function SailScoreLanding() {
         <div className="ss-container">
           <div className="ss-spotlight">
             <div className="ss-spotlight-text">
-              <p className="ss-eyebrow">Public Website</p>
-              <h2 className="ss-h2">Example look for each regatta&apos;s public website</h2>
-              <p>
-                Each event can have a clean public-facing page with key details, notice board access, and results visibility for sailors, coaches, and visitors.
-              </p>
+              <p className="ss-eyebrow">{t('publicLook.eyebrow')}</p>
+              <h2 className="ss-h2">{t('publicLook.title')}</h2>
+              <p>{t('publicLook.description')}</p>
             </div>
             <div className="ss-spotlight-visual">
               <Image
                 src="/public-website-preview.png"
-                alt="Public regatta website preview showing event home page"
+                alt={t('publicLook.imageAlt')}
                 width={1600}
                 height={900}
                 quality={95}
               />
-              <p className="ss-visual-note">Example public regatta website</p>
+              <p className="ss-visual-note">{t('publicLook.imageNote')}</p>
             </div>
           </div>
         </div>
@@ -111,16 +106,14 @@ export default function SailScoreLanding() {
         <div className="ss-container">
           <div className="ss-spotlight">
             <div className="ss-spotlight-text">
-              <p className="ss-eyebrow">Entries</p>
-              <h2 className="ss-h2">Centralized entry management</h2>
-              <p>
-                Keep all entries organized in one place, with class filters, status indicators, and clean validation to prevent duplicates and missing data.
-              </p>
+              <p className="ss-eyebrow">{t('entriesSpotlight.eyebrow')}</p>
+              <h2 className="ss-h2">{t('entriesSpotlight.title')}</h2>
+              <p>{t('entriesSpotlight.description')}</p>
             </div>
             <div className="ss-spotlight-visual">
               <Image
                 src="/screenshot-entries.png"
-                alt="Entry management screen in SailScore"
+                alt={t('entriesSpotlight.imageAlt')}
                 width={1600}
                 height={900}
                 quality={95}
@@ -132,14 +125,14 @@ export default function SailScoreLanding() {
 
       <section id="features" className="ss-section ss-section-muted">
         <div className="ss-container">
-          <h2 className="ss-h2">Everything needed to run a regatta, in one platform</h2>
+          <h2 className="ss-h2">{t('features.title')}</h2>
           <div className="ss-grid ss-cards-3">
-            <article className="ss-card"><h3 className="ss-h3">Regatta Setup &amp; Management</h3><p>Configure events, classes, schedules, and settings with clear admin control.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Entry Management</h3><p>Collect and organize sailor and boat data in one flow.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Live Scoring Workflow</h3><p>Support scorers with race-day tools built for speed and accuracy.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Results Calculation &amp; Publishing</h3><p>Publish race and overall standings with confidence.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Notice Board &amp; Communications</h3><p>Centralize notices, decisions, and updates in one official channel.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Role-Based Access</h3><p>Give admins, scorers, and sailors the right visibility.</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card1Title')}</h3><p>{t('features.card1Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card2Title')}</h3><p>{t('features.card2Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card3Title')}</h3><p>{t('features.card3Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card4Title')}</h3><p>{t('features.card4Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card5Title')}</h3><p>{t('features.card5Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('features.card6Title')}</h3><p>{t('features.card6Desc')}</p></article>
           </div>
         </div>
       </section>
@@ -148,16 +141,14 @@ export default function SailScoreLanding() {
         <div className="ss-container">
           <div className="ss-spotlight ss-spotlight-reverse">
             <div className="ss-spotlight-text">
-              <p className="ss-eyebrow">Scoring</p>
-              <h2 className="ss-h2">A faster scoring workflow</h2>
-              <p>
-                Score race input quickly with a structured race-day flow that reduces manual steps and keeps your team aligned.
-              </p>
+              <p className="ss-eyebrow">{t('scoringSpotlight.eyebrow')}</p>
+              <h2 className="ss-h2">{t('scoringSpotlight.title')}</h2>
+              <p>{t('scoringSpotlight.description')}</p>
             </div>
             <div className="ss-spotlight-visual">
               <Image
                 src="/screenshot-scoring.png"
-                alt="Scoring workflow screen in SailScore"
+                alt={t('scoringSpotlight.imageAlt')}
                 width={1600}
                 height={900}
                 quality={95}
@@ -169,14 +160,14 @@ export default function SailScoreLanding() {
 
       <section id="benefits" className="ss-section">
         <div className="ss-container">
-          <h2 className="ss-h2">Why teams choose SailScore</h2>
+          <h2 className="ss-h2">{t('benefits.title')}</h2>
           <div className="ss-grid ss-cards-3">
-            <article className="ss-card"><h3 className="ss-h3">Faster scoring workflow</h3><p>Reduce manual steps and move from race input to published standings quickly.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Clear official communication</h3><p>Keep notices, updates, and protest communications in one visible place.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Structured operations</h3><p>Standardize setup, entries, and race-office tasks across events.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Professional club experience</h3><p>Keep your organization&apos;s visual identity and participant context.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Better transparency</h3><p>Give sailors and coaches clear access to updates and results.</p></article>
-            <article className="ss-card"><h3 className="ss-h3">Reliable under pressure</h3><p>Use practical tools designed for real race-day conditions.</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card1Title')}</h3><p>{t('benefits.card1Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card2Title')}</h3><p>{t('benefits.card2Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card3Title')}</h3><p>{t('benefits.card3Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card4Title')}</h3><p>{t('benefits.card4Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card5Title')}</h3><p>{t('benefits.card5Desc')}</p></article>
+            <article className="ss-card"><h3 className="ss-h3">{t('benefits.card6Title')}</h3><p>{t('benefits.card6Desc')}</p></article>
           </div>
         </div>
       </section>
@@ -185,16 +176,14 @@ export default function SailScoreLanding() {
         <div className="ss-container">
           <div className="ss-spotlight">
             <div className="ss-spotlight-text">
-              <p className="ss-eyebrow">Notice Board</p>
-              <h2 className="ss-h2">Official communication, in one place</h2>
-              <p>
-                Publish notices, hearing decisions, and updates in a single trusted channel that sailors and coaches can rely on.
-              </p>
+              <p className="ss-eyebrow">{t('noticeSpotlight.eyebrow')}</p>
+              <h2 className="ss-h2">{t('noticeSpotlight.title')}</h2>
+              <p>{t('noticeSpotlight.description')}</p>
             </div>
             <div className="ss-spotlight-visual">
               <Image
                 src="/screenshot-notice.png"
-                alt="Notice Board screen in SailScore"
+                alt={t('noticeSpotlight.imageAlt')}
                 width={1600}
                 height={900}
                 quality={95}
@@ -206,36 +195,34 @@ export default function SailScoreLanding() {
 
       <section id="social-proof" className="ss-section ss-section-muted">
         <div className="ss-container">
-          <h2 className="ss-h2">Designed for real sailing events</h2>
-          <p className="ss-section-intro">
-            From club races to championship weekends, SailScore gives organisers one place to manage entries, scoring, notices, results and event administration.
-          </p>
-          <div className="ss-chip-row" aria-label="Event types">
-            <span className="ss-chip">Club regattas</span>
-            <span className="ss-chip">Championships</span>
-            <span className="ss-chip">Training events</span>
-            <span className="ss-chip">Class events</span>
-            <span className="ss-chip">Junior fleets</span>
-            <span className="ss-chip">Handicap racing</span>
+          <h2 className="ss-h2">{t('socialProof.title')}</h2>
+          <p className="ss-section-intro">{t('socialProof.intro')}</p>
+          <div className="ss-chip-row" aria-label={t('socialProof.eventTypesAria')}>
+            <span className="ss-chip">{t('socialProof.chip1')}</span>
+            <span className="ss-chip">{t('socialProof.chip2')}</span>
+            <span className="ss-chip">{t('socialProof.chip3')}</span>
+            <span className="ss-chip">{t('socialProof.chip4')}</span>
+            <span className="ss-chip">{t('socialProof.chip5')}</span>
+            <span className="ss-chip">{t('socialProof.chip6')}</span>
           </div>
         </div>
       </section>
 
       <section id="personas" className="ss-section ss-section-muted">
         <div className="ss-container">
-          <h2 className="ss-h2">Built for every role in race operations</h2>
+          <h2 className="ss-h2">{t('personas.title')}</h2>
           <div className="ss-persona-grid">
             <article className="ss-card">
-              <h3 className="ss-h3">For Admins</h3>
-              <p>Manage setup, classes, branding, and visibility from one control point.</p>
+              <h3 className="ss-h3">{t('personas.adminTitle')}</h3>
+              <p>{t('personas.adminDesc')}</p>
             </article>
             <article className="ss-card">
-              <h3 className="ss-h3">For Scorers</h3>
-              <p>Work faster on race day with a cleaner scoring and publishing flow.</p>
+              <h3 className="ss-h3">{t('personas.scorersTitle')}</h3>
+              <p>{t('personas.scorersDesc')}</p>
             </article>
             <article className="ss-card">
-              <h3 className="ss-h3">For Sailors &amp; Coaches</h3>
-              <p>Follow entries, notices, and standings in one consistent public view.</p>
+              <h3 className="ss-h3">{t('personas.sailorsTitle')}</h3>
+              <p>{t('personas.sailorsDesc')}</p>
             </article>
           </div>
         </div>
@@ -243,18 +230,12 @@ export default function SailScoreLanding() {
 
       <section id="value-prop" className="ss-section ss-section-muted">
         <div className="ss-container ss-content-narrow">
-          <h2 className="ss-h2">When race day gets busy, operations should stay clear</h2>
-          <p>
-            Many regattas still run on disconnected tools, manual updates, and scattered communication. That slows scoring and delays final
-            results.
-          </p>
-          <p>
-            SailScore brings the full process into one system, so your team can move faster, stay aligned, and publish accurate outcomes with
-            confidence.
-          </p>
+          <h2 className="ss-h2">{t('valueProp.title')}</h2>
+          <p>{t('valueProp.p1')}</p>
+          <p>{t('valueProp.p2')}</p>
           <div className="ss-hero-actions">
-            <a className="ss-btn ss-btn-primary" href="#features">Explore features</a>
-            <a className="ss-btn ss-btn-secondary" href="#how-it-works">See workflow</a>
+            <a className="ss-btn ss-btn-primary" href="#features">{t('valueProp.exploreFeatures')}</a>
+            <a className="ss-btn ss-btn-secondary" href="#how-it-works">{t('valueProp.seeWorkflow')}</a>
           </div>
         </div>
       </section>
@@ -263,16 +244,14 @@ export default function SailScoreLanding() {
         <div className="ss-container">
           <div className="ss-spotlight ss-spotlight-reverse">
             <div className="ss-spotlight-text">
-              <p className="ss-eyebrow">Results</p>
-              <h2 className="ss-h2">Publish trusted standings, fast</h2>
-              <p>
-                Race and overall standings are presented clearly for sailors and coaches, with consistent formatting across every event.
-              </p>
+              <p className="ss-eyebrow">{t('resultsSpotlight.eyebrow')}</p>
+              <h2 className="ss-h2">{t('resultsSpotlight.title')}</h2>
+              <p>{t('resultsSpotlight.description')}</p>
             </div>
             <div className="ss-spotlight-visual">
               <Image
                 src="/screenshot-results.png"
-                alt="Results publishing screen in SailScore"
+                alt={t('resultsSpotlight.imageAlt')}
                 width={1600}
                 height={900}
                 quality={95}
@@ -284,52 +263,50 @@ export default function SailScoreLanding() {
 
       <section id="how-it-works" className="ss-section">
         <div className="ss-container">
-          <h2 className="ss-h2">Simple workflow, from setup to final results</h2>
+          <h2 className="ss-h2">{t('howItWorks.title')}</h2>
           <div className="ss-grid ss-steps-3">
-            <article className="ss-step"><span className="ss-step-number">1</span><h3 className="ss-h3">Configure your event</h3><p>Set classes, schedules, roles, and operational rules.</p></article>
-            <article className="ss-step"><span className="ss-step-number">2</span><h3 className="ss-h3">Run race-day operations</h3><p>Manage entries, scoring, and official communication in real time.</p></article>
-            <article className="ss-step"><span className="ss-step-number">3</span><h3 className="ss-h3">Publish trusted outcomes</h3><p>Release clear race and overall results to sailors and coaches quickly.</p></article>
+            <article className="ss-step"><span className="ss-step-number">1</span><h3 className="ss-h3">{t('howItWorks.step1Title')}</h3><p>{t('howItWorks.step1Desc')}</p></article>
+            <article className="ss-step"><span className="ss-step-number">2</span><h3 className="ss-h3">{t('howItWorks.step2Title')}</h3><p>{t('howItWorks.step2Desc')}</p></article>
+            <article className="ss-step"><span className="ss-step-number">3</span><h3 className="ss-h3">{t('howItWorks.step3Title')}</h3><p>{t('howItWorks.step3Desc')}</p></article>
           </div>
         </div>
       </section>
 
       <section id="faq" className="ss-section ss-section-muted">
         <div className="ss-container ss-content-narrow">
-          <h2 className="ss-h2">Quick answers</h2>
-          <details><summary>Is SailScore only for large regattas?</summary><p>No. It works for local club events and larger multi-class regattas.</p></details>
-          <details><summary>Can we keep our current workflow?</summary><p>Yes. SailScore supports practical race-office processes and improves them gradually.</p></details>
-          <details><summary>Can sailors and coaches view updates clearly?</summary><p>Yes. Results and official communications are centralized for better visibility.</p></details>
-          <details><summary>Can we use our club branding?</summary><p>Yes. SailScore supports organization-specific visual identity in key areas.</p></details>
+          <h2 className="ss-h2">{t('faq.title')}</h2>
+          <details><summary>{t('faq.q1')}</summary><p>{t('faq.a1')}</p></details>
+          <details><summary>{t('faq.q2')}</summary><p>{t('faq.a2')}</p></details>
+          <details><summary>{t('faq.q3')}</summary><p>{t('faq.a3')}</p></details>
+          <details><summary>{t('faq.q4')}</summary><p>{t('faq.a4')}</p></details>
         </div>
       </section>
 
       <section id="book-demo" className="ss-section ss-cta-band">
         <div className="ss-container ss-content-narrow ss-center">
-          <h2 className="ss-h2">Ready for a more organized and faster race day?</h2>
-          <p>See how SailScore fits your regatta workflow and helps your team deliver clear, trusted results.</p>
+          <h2 className="ss-h2">{t('cta.title')}</h2>
+          <p>{t('cta.description')}</p>
           <BookDemoForm />
-          <p className="ss-microcopy">No hard sell — just a practical walkthrough.</p>
+          <p className="ss-microcopy">{t('cta.microcopy')}</p>
         </div>
       </section>
 
       <footer
         id="footer-contact"
         className="border-t border-slate-800 bg-slate-900 text-slate-200"
-        aria-label="Contact"
+        aria-label={t('footer.contactAria')}
       >
         <div className="ss-container py-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-8">
           <div>
             <p className="text-lg font-semibold text-white mb-1">SailScore</p>
-            <p className="text-sm text-slate-400 max-w-md">
-              Questions from clubs and race organisers — get in touch by email or phone.
-            </p>
+            <p className="text-sm text-slate-400 max-w-md">{t('footer.tagline')}</p>
           </div>
           <SailScorePublicContact className="text-slate-300 shrink-0" />
         </div>
       </footer>
 
-      <div className="ss-landing-staff-login" aria-label="Staff access">
-        <Link href="/admin/login">Staff sign-in</Link>
+      <div className="ss-landing-staff-login" aria-label={t('staffAccessAria')}>
+        <Link href="/admin/login">{t('staffSignIn')}</Link>
       </div>
     </div>
   );

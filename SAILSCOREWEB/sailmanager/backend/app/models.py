@@ -1066,6 +1066,8 @@ class Organization(Base):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     name = sa.Column(sa.String(255), nullable=False, index=True)
     slug = sa.Column(sa.String(120), unique=True, nullable=False, index=True)
+    # UI language default for this org when the visitor has no saved preference (en-GB | pt-PT).
+    default_locale = sa.Column(sa.String(10), nullable=False, server_default=sa.text("'en-GB'"))
     is_active = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
     created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())
     updated_at = sa.Column(

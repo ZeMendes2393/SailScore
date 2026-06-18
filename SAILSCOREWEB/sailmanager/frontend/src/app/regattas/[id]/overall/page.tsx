@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useLocale, useTranslations } from 'next-intl'
 import RegattaHeader from '../components/RegattaHeader'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { getApiBaseUrl } from '@/lib/api'
+import { formatPublishedAt } from '@/lib/formatDate'
 import {
   getVisibleResultsOverallColumnsForClass,
   RESULTS_OVERALL_COLUMNS,
@@ -35,6 +37,9 @@ type ComputedRow = OverallResult & {
 }
 
 export default function OverallResultsPage() {
+  const t = useTranslations('resultsPublic')
+  const tEntry = useTranslations('entryList')
+  const locale = useLocale()
   const params = useParams<{ id: string }>()
   const regattaId = params.id
 
@@ -185,23 +190,10 @@ export default function OverallResultsPage() {
     [regatta?.results_overall_columns, selectedClass]
   )
 
-  /** Format ISO published_at as "11 Mar 2026 at 02:17" (local time, English). */
-  const formattedPublishedAt = useMemo(() => {
-    if (!publishedAt) return null
-    try {
-      const d = new Date(publishedAt)
-      if (Number.isNaN(d.getTime())) return null
-      const day = d.getDate()
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      const month = months[d.getMonth()]
-      const year = d.getFullYear()
-      const h = d.getHours().toString().padStart(2, '0')
-      const m = d.getMinutes().toString().padStart(2, '0')
-      return `${day} ${month} ${year} at ${h}:${m}`
-    } catch {
-      return null
-    }
-  }, [publishedAt])
+  const formattedPublishedAt = useMemo(
+    () => formatPublishedAt(publishedAt, locale),
+    [publishedAt, locale]
+  )
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
 
@@ -211,18 +203,18 @@ export default function OverallResultsPage() {
       <div className="container-page py-8">
       <div className="p-6 max-w-6xl mx-auto text-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <h2 className="text-4xl font-bold tracking-tight"> Overall standings</h2>
+        <h2 className="text-4xl font-bold tracking-tight">{t('overallTitle')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           {formattedPublishedAt && (
             <span className="text-lg bg-slate-100 text-slate-700 px-4 py-2 rounded-lg">
-              Published at {formattedPublishedAt}
+              {t('publishedAt', { datetime: formattedPublishedAt })}
             </span>
           )}
           {regatta && (
             <span className="text-lg bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
-            Discards: <strong>{regatta.discard_count}</strong>
+            {t('discards', { count: regatta.discard_count })}
             {regatta.discard_count > 0 && (
-              <> (after <strong>{regatta.discard_threshold}</strong> races)</>
+              <> {t('discardsAfterRaces', { count: regatta.discard_threshold })}</>
             )}
           </span>
         )}
@@ -237,9 +229,9 @@ export default function OverallResultsPage() {
 
       {/* Abas de classes */}
       {loadingClasses ? (
-        <p className="text-gray-500">Loading classes…</p>
+        <p className="text-gray-500">{tEntry('loadingClasses')}</p>
       ) : classes.length === 0 ? (
-        <p className="text-gray-500">No classes configured for this regatta.</p>
+        <p className="text-gray-500">{t('noClassesConfigured')}</p>
       ) : (
         <div className="flex gap-2 mb-4 flex-wrap">
           {classes.map(cls => (
@@ -261,12 +253,12 @@ export default function OverallResultsPage() {
       {/* Tabela da classe selecionada */}
       {selectedClass && (
         <div className="mt-2">
-          <h3 className="text-2xl font-semibold mb-4">Class: {selectedClass}</h3>
+          <h3 className="text-2xl font-semibold mb-4">{t('classLabel', { className: selectedClass })}</h3>
 
           {loadingResults ? (
-            <p className="text-gray-500">Loading results…</p>
+            <p className="text-gray-500">{tEntry('loadingResults')}</p>
           ) : results.length === 0 ? (
-            <p className="text-gray-500">No published results yet for this class.</p>
+            <p className="text-gray-500">{t('noPublishedResults')}</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm">
             <table className="table-auto w-full border-collapse text-lg text-slate-800 [&_td]:min-h-[3.25rem] [&_th]:text-lg">
@@ -316,7 +308,7 @@ export default function OverallResultsPage() {
                         <td
                           key={name}
                           className={`border-b border-slate-100 px-4 py-3 text-center tabular-nums ${discarded ? 'text-gray-400' : ''}`}
-                          title={discarded ? 'Discarded' : undefined}
+                          title={discarded ? t('discarded') : undefined}
                         >
                           {discarded ? `(${typeof raw === 'number' ? raw : (raw ?? '-')})` : (raw ?? '-')}
                         </td>

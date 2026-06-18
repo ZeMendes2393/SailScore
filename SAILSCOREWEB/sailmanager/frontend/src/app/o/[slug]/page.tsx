@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import HomePageClient, { type HomeDesign } from '@/app/HomePageClient';
 
 const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -8,12 +9,13 @@ export default async function OrgHomePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  const t = await getTranslations('orgPage');
   const { slug: raw } = await params;
   const slug = typeof raw === 'string' ? raw.trim() : '';
   if (!slug) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Organization not specified.</p>
+        <p className="text-gray-500">{t('notSpecified')}</p>
       </div>
     );
   }
@@ -31,9 +33,9 @@ export default async function OrgHomePage({
   if (!checkOk) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-600">Organization not found.</p>
+        <p className="text-gray-600">{t('notFound')}</p>
         <Link href="/" className="text-blue-600 hover:underline">
-          ← Back to home
+          {t('backToHome')}
         </Link>
       </div>
     );

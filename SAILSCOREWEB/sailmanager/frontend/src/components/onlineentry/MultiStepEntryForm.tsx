@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Step1 from './steps/Step1_Class';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -16,6 +17,7 @@ import {
   mergeEffectiveVisibility,
   validateEntryAgainstRequired,
 } from '@/lib/onlineEntryFields';
+import { useEntryFieldLabel } from '@/lib/useEntryFieldLabel';
 
 export interface MultiStepEntryFormProps {
   regattaId: number;
@@ -30,6 +32,8 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
   fieldRequiredOverrides,
   fieldVisibilityOverrides,
 }) => {
+  const t = useTranslations('entryForm');
+  const fieldLabel = useEntryFieldLabel();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
@@ -90,11 +94,11 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
     const boat = formData.boat || {};
 
     if (!(boat.sail_number || '').trim()) {
-      notify.warning('Sail number is required.');
+      notify.warning(t('errors.sailNumberRequired'));
       return;
     }
     if (!(boat.boat_country_code || '').trim()) {
-      notify.warning('Sail country code is required.');
+      notify.warning(t('errors.sailCountryRequired'));
       return;
     }
 
@@ -124,6 +128,11 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         classType,
         multiCrew: showCrewStep,
         crewMembers: crew_members,
+        getFieldLabel: fieldLabel,
+        formatRequiredError: (label) => t('errors.fieldRequired', { field: label }),
+        formatCrewMemberError: (index, message) =>
+          t('errors.crewMemberPrefix', { index, message }),
+        atLeastOneCrewMessage: t('errors.atLeastOneCrew'),
       }
     );
     if (validationError) {
@@ -182,12 +191,11 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         const waiting = !!data?.waiting_list;
         if (waiting) {
           notify.warning({
-            title: 'Added to waiting list',
-            description:
-              'Your entry was received, but the championship limit was reached. You have been placed on the waiting list.',
+            title: t('notifications.waitingListTitle'),
+            description: t('notifications.waitingListDescription'),
           });
         } else {
-          notify.success('Entry submitted successfully!');
+          notify.success(t('notifications.success'));
         }
         setStep(1);
         setFormData({
@@ -205,20 +213,18 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         const detail =
           typeof errorData?.detail === 'string'
             ? errorData.detail
-            : 'Please review the form and try again.';
+            : t('errors.reviewForm');
         notify.error({
-          title: res.status === 409 ? 'Entry already submitted' : 'Failed to submit entry',
+          title: res.status === 409 ? t('notifications.duplicateTitle') : t('notifications.failedTitle'),
           description:
-            res.status === 409
-              ? 'This sail number is already registered in this class. If you already submitted, check your email for confirmation.'
-              : detail,
+            res.status === 409 ? t('notifications.duplicateDescription') : detail,
         });
       }
     } catch (error) {
       console.error('Unexpected error:', error);
       notify.error({
-        title: 'Submission error',
-        description: 'Something went wrong while submitting. Please try again.',
+        title: t('notifications.errorTitle'),
+        description: t('notifications.errorDescription'),
       });
     } finally {
       setIsSubmitting(false);
@@ -291,10 +297,13 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
   const sailorsSummary =
     step >= 2 && formData.helm
       ? [
-          { name: [formData.helm.first_name, formData.helm.last_name].filter(Boolean).join(' ').trim() || '—', pos: formData.helm.position || 'Skipper' },
+          {
+            name: [formData.helm.first_name, formData.helm.last_name].filter(Boolean).join(' ').trim() || '—',
+            pos: formData.helm.position || t('position.skipper'),
+          },
           ...(Array.isArray(formData.crew) ? formData.crew : []).map((c: any) => ({
             name: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || '—',
-            pos: c.position || 'Crew',
+            pos: c.position || t('position.crew'),
           })),
         ]
       : [];
@@ -312,16 +321,13 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             className="h-12 w-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"
             aria-hidden="true"
           />
-          <p className="mt-4 text-lg font-semibold text-gray-900">Submitting your entry…</p>
-          <p className="mt-2 max-w-sm text-sm text-gray-600">
-            Please wait while we process your registration and send your confirmation email. Do not
-            close this page or click submit again.
-          </p>
+          <p className="mt-4 text-lg font-semibold text-gray-900">{t('summary.submittingTitle')}</p>
+          <p className="mt-2 max-w-sm text-sm text-gray-600">{t('summary.submittingDescription')}</p>
         </div>
       )}
       {sailorsSummary.length > 0 && (
         <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm">
-          <span className="font-semibold text-gray-700">Sailors in this entry: </span>
+          <span className="font-semibold text-gray-700">{t('summary.sailorsInEntry')} </span>
           {sailorsSummary.map((s, i) => (
             <span key={i} className="mr-2">
               {s.name} <span className="text-gray-500">({s.pos})</span>

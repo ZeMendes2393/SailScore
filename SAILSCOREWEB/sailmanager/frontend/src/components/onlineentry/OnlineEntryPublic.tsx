@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiGet } from '@/lib/api';
 import MultiStepEntryForm from '@/components/onlineentry/MultiStepEntryForm';
 
@@ -15,6 +16,8 @@ type RegattaLite = {
 };
 
 export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) {
+  const t = useTranslations('entryForm.public');
+  const tCommon = useTranslations('common');
   const [reg, setReg] = useState<RegattaLite | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -22,7 +25,8 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
   useEffect(() => {
     let cancel = false;
     (async () => {
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
       try {
         const r = await apiGet<RegattaLite>(`/regattas/${regattaId}`);
         if (!cancel) {
@@ -33,24 +37,24 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
           });
         }
       } catch (e: any) {
-        if (!cancel) setErr(e?.message || 'Failed to load regatta.');
+        if (!cancel) setErr(e?.message || t('loadFailed'));
       } finally {
         if (!cancel) setLoading(false);
       }
     })();
-    return () => { cancel = true; };
-  }, [regattaId]);
+    return () => {
+      cancel = true;
+    };
+  }, [regattaId, t]);
 
-  if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-6 text-gray-500">{tCommon('loading')}</div>;
   if (err) return <div className="p-6 text-red-600">{err}</div>;
 
   if (!reg?.online_entry_open) {
     return (
       <div className="max-w-3xl mx-auto p-6 bg-white rounded border">
-        <h2 className="text-xl font-semibold mb-2">Entries are closed</h2>
-        <p className="text-gray-600">
-          Online entries are currently disabled for this regatta.
-        </p>
+        <h2 className="text-xl font-semibold mb-2">{t('closedTitle')}</h2>
+        <p className="text-gray-600">{t('closedDescription')}</p>
       </div>
     );
   }
@@ -60,26 +64,22 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
     if (!externalUrl) {
       return (
         <div className="max-w-3xl mx-auto p-6 bg-white rounded border">
-          <h2 className="text-xl font-semibold mb-2">Entry link unavailable</h2>
-          <p className="text-gray-600">
-            This event is configured to use an external form, but no link is currently available.
-          </p>
+          <h2 className="text-xl font-semibold mb-2">{t('linkUnavailableTitle')}</h2>
+          <p className="text-gray-600">{t('linkUnavailableDescription')}</p>
         </div>
       );
     }
     return (
       <div className="max-w-3xl mx-auto p-6 bg-white rounded border">
-        <h2 className="text-xl font-semibold mb-2">External online entry</h2>
-        <p className="text-gray-600 mb-4">
-          This event uses an external form for registration.
-        </p>
+        <h2 className="text-xl font-semibold mb-2">{t('externalTitle')}</h2>
+        <p className="text-gray-600 mb-4">{t('externalDescription')}</p>
         <a
           href={externalUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
         >
-          Open entry form
+          {t('openExternalForm')}
         </a>
       </div>
     );

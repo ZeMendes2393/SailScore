@@ -1,24 +1,47 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
-const SECTION_LINKS = [
-  { href: '#platform', label: 'Platform' },
-  { href: '#features', label: 'Features' },
-  { href: '#benefits', label: 'Benefits' },
-  { href: '#social-proof', label: 'Use cases' },
-  { href: '#how-it-works', label: 'How it works' },
-  { href: '#faq', label: 'FAQ' },
-  { href: '#book-demo', label: 'Contact' },
+const SECTION_HREFS = [
+  '#platform',
+  '#features',
+  '#benefits',
+  '#social-proof',
+  '#how-it-works',
+  '#faq',
+  '#book-demo',
+] as const;
+
+const SECTION_KEYS = [
+  'platform',
+  'features',
+  'benefits',
+  'useCases',
+  'howItWorks',
+  'faq',
+  'contact',
 ] as const;
 
 export default function LandingTopNav() {
+  const t = useTranslations('landing.nav');
+  const tCommon = useTranslations('common');
   const [menuOpen, setMenuOpen] = useState(false);
   const { hidden: headerHidden } = useScrollHideHeader({
     forceVisible: menuOpen,
   });
+
+  const sectionLinks = useMemo(
+    () =>
+      SECTION_HREFS.map((href, i) => ({
+        href,
+        label: t(SECTION_KEYS[i]),
+      })),
+    [t]
+  );
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -49,21 +72,25 @@ export default function LandingTopNav() {
     <>
       <header
         className={`ss-top-nav${headerHidden ? ' is-hidden' : ''}${menuOpen ? ' is-menu-open' : ''}`}
-        aria-label="Page sections"
+        aria-label={t('sectionsAria')}
       >
         <div className="ss-container ss-top-nav-inner">
-          <a href="#hero" className="ss-top-brand" aria-label="SailScore home" onClick={closeMenu}>
+          <a href="#hero" className="ss-top-brand" aria-label={t('homeAria')} onClick={closeMenu}>
             <Image src="/sailscore-icon.png" alt="" width={40} height={40} priority />
             <span className="ss-top-brand-name">SailScore</span>
           </a>
 
-          <nav className="ss-top-links ss-top-links-desktop" aria-label="Sections">
-            {SECTION_LINKS.map((link) => (
-              <a key={link.href} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </nav>
+          <div className="ss-top-nav-end">
+            <nav className="ss-top-links ss-top-links-desktop" aria-label={t('sectionsAria')}>
+              {sectionLinks.map((link) => (
+                <a key={link.href} href={link.href}>
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+
+            <LanguageSwitcher theme="on-light" className="ss-top-lang-desktop shrink-0" />
+          </div>
 
           <button
             type="button"
@@ -72,7 +99,7 @@ export default function LandingTopNav() {
             aria-controls="ss-top-mobile-panel"
             onClick={() => setMenuOpen((o) => !o)}
           >
-            {menuOpen ? 'Close' : 'Menu'}
+            {menuOpen ? tCommon('close') : t('menu')}
           </button>
         </div>
 
@@ -81,8 +108,11 @@ export default function LandingTopNav() {
           className={`ss-top-mobile-panel${menuOpen ? ' is-open' : ''}`}
           hidden={!menuOpen}
         >
-          <nav className="ss-container ss-top-mobile-links" aria-label="Sections">
-            {SECTION_LINKS.map((link) => (
+          <nav className="ss-container ss-top-mobile-links" aria-label={t('sectionsAria')}>
+            <div className="ss-top-mobile-lang">
+              <LanguageSwitcher theme="on-light" />
+            </div>
+            {sectionLinks.map((link) => (
               <a key={link.href} href={link.href} onClick={closeMenu}>
                 {link.label}
               </a>
@@ -98,7 +128,7 @@ export default function LandingTopNav() {
         <button
           type="button"
           className="ss-top-nav-backdrop"
-          aria-label="Close menu"
+          aria-label={t('closeMenu')}
           onClick={closeMenu}
         />
       )}

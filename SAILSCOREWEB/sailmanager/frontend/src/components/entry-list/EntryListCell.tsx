@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 import type { EntryListEntry } from '@/lib/entryListTypes';
 import type { EntryListColumnId } from '@/lib/entryListColumns';
@@ -21,10 +22,13 @@ interface EntryListCellProps {
  * Used by both public and admin entry lists.
  */
 export function EntryListCell({ entry, columnId, className = '', onStatusChange, onPaidChange }: EntryListCellProps) {
+  const t = useTranslations('entryList');
+  const tCommon = useTranslations('common');
+
   const formatDateTime = (iso?: string | null): string => {
-    if (!iso) return '—';
+    if (!iso) return tCommon('dash');
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
+    if (Number.isNaN(d.getTime())) return tCommon('dash');
     return d.toLocaleString('en-GB', {
       day: '2-digit',
       month: '2-digit',
@@ -42,11 +46,11 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
         </span>
       );
     case 'boat_name':
-      return <span className={className}>{entry.boat_name?.trim() || '—'}</span>;
+      return <span className={className}>{entry.boat_name?.trim() || tCommon('dash')}</span>;
     case 'class':
-      return <span className={className}>{entry.class_name?.trim() || '—'}</span>;
+      return <span className={className}>{entry.class_name?.trim() || tCommon('dash')}</span>;
     case 'category':
-      return <span className={className}>{entry.category?.trim() || '—'}</span>;
+      return <span className={className}>{entry.category?.trim() || tCommon('dash')}</span>;
     case 'owner':
       return <span className={className}>{formatOwner(entry)}</span>;
     case 'crew': {
@@ -54,12 +58,12 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
       const lines = [skipper !== '—' ? skipper : null, ...crew].filter(Boolean) as string[];
       return (
         <div className={`${className} flex flex-col gap-0.5`}>
-          {lines.length > 0 ? lines.map((name, i) => <div key={i}>{name}</div>) : <span>—</span>}
+          {lines.length > 0 ? lines.map((name, i) => <div key={i}>{name}</div>) : <span>{tCommon('dash')}</span>}
         </div>
       );
     }
     case 'club':
-      return <span className={className}>{entry.club?.trim() || '—'}</span>;
+      return <span className={className}>{entry.club?.trim() || tCommon('dash')}</span>;
     case 'created_at':
       return <span className={className}>{formatDateTime(entry.created_at)}</span>;
     case 'paid': {
@@ -74,10 +78,10 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
             }}
             onClick={(e) => e.stopPropagation()}
             className={`${className} border rounded-md px-3 py-1.5 text-base bg-white min-h-[2.25rem]`}
-            aria-label="Paid"
+            aria-label={t('paid')}
           >
-            <option value="unpaid">Unpaid</option>
-            <option value="paid">Paid</option>
+            <option value="unpaid">{t('unpaid')}</option>
+            <option value="paid">{t('paid')}</option>
           </select>
         );
       }
@@ -103,19 +107,19 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
             }}
             onClick={(e) => e.stopPropagation()}
             className={`${className} border rounded-md px-3 py-1.5 text-base bg-white min-h-[2.25rem]`}
-            aria-label="Status"
+            aria-label={t('status')}
           >
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
+            <option value="pending">{t('pending')}</option>
+            <option value="confirmed">{t('confirmed')}</option>
           </select>
         );
       }
       return (
         <span className={className}>
           {confirmed ? (
-            <span className="text-green-700">Confirmed</span>
+            <span className="text-green-700">{t('confirmed')}</span>
           ) : (
-            <span className="text-amber-700">Pending</span>
+            <span className="text-amber-700">{t('pending')}</span>
           )}
         </span>
       );
@@ -130,10 +134,10 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
         const high = fmt(e.orc_high);
         if (low || med || high) {
           return (
-            <span className={className} title="ORC Low / Medium / High">
-              {low && <span className="block text-sm">L: {low}</span>}
-              {med && <span className="block text-sm">M: {med}</span>}
-              {high && <span className="block text-sm">H: {high}</span>}
+            <span className={className} title={t('ratingOrcTitle')}>
+              {low && <span className="block text-sm">{t('ratingOrcLow', { value: low })}</span>}
+              {med && <span className="block text-sm">{t('ratingOrcMedium', { value: med })}</span>}
+              {high && <span className="block text-sm">{t('ratingOrcHigh', { value: high })}</span>}
             </span>
           );
         }
@@ -141,9 +145,9 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
       if (typeof entry.rating === 'number' && !Number.isNaN(entry.rating)) {
         return <span className={className}>{String(entry.rating)}</span>;
       }
-      return <span className={className}>—</span>;
+      return <span className={className}>{tCommon('dash')}</span>;
     }
     default:
-      return <span className={className}>—</span>;
+      return <span className={className}>{tCommon('dash')}</span>;
   }
 }

@@ -224,6 +224,7 @@ class OrganizationBase(BaseModel):
     name: str
     slug: str
     is_active: bool = True
+    default_locale: Literal["en-GB", "pt-PT"] = "en-GB"
 
 
 class OrganizationCreate(OrganizationBase):
@@ -238,6 +239,7 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     is_active: Optional[bool] = None
+    default_locale: Optional[Literal["en-GB", "pt-PT"]] = None
     admin_email: Optional[str] = None  # platform_admin only: altera email do admin do site
     admin_password: Optional[str] = None  # platform_admin only: altera password do admin do site
 

@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 
 import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
+import { formatDateShort } from '@/lib/formatDate';
 
 interface NewsItem {
   id: number;
@@ -23,6 +25,9 @@ const API_BASE =
 const PAGE_SIZE = 12;
 
 export default function NewsListPage() {
+  const t = useTranslations('newsPage');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -33,17 +38,7 @@ export default function NewsListPage() {
     return url.startsWith('http') ? url : `${API_BASE}${url}`;
   };
 
-  const formatDate = (s: string) => {
-    try {
-      return new Date(s).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return s;
-    }
-  };
+  const formatDate = (s: string) => formatDateShort(s, locale);
 
   const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
     if (!body) return null;
@@ -104,10 +99,8 @@ export default function NewsListPage() {
   return (
     <div className="py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">News</h1>
-        <p className="text-gray-600 mt-2">
-          Updates, announcements and regatta highlights.
-        </p>
+        <h1 className="text-4xl font-bold text-gray-900">{t('title')}</h1>
+        <p className="text-gray-600 mt-2">{t('subtitle')}</p>
       </div>
 
       {loading ? (
@@ -125,7 +118,7 @@ export default function NewsListPage() {
           ))}
         </div>
       ) : news.length === 0 ? (
-        <p className="text-gray-500">No news yet.</p>
+        <p className="text-gray-500">{t('noNews')}</p>
       ) : (
         <>
           {/* Featured */}
@@ -167,7 +160,7 @@ export default function NewsListPage() {
                   )}
 
                   <div className="mt-5 inline-flex items-center text-blue-600 font-medium">
-                    Read more <span className="ml-2">→</span>
+                    {t('readMore')} <span className="ml-2">→</span>
                   </div>
                 </div>
               </div>
@@ -225,10 +218,10 @@ export default function NewsListPage() {
                 disabled={loadingMore}
                 className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                {loadingMore ? 'Loading…' : 'Load more'}
+                {loadingMore ? tCommon('loading') : t('loadMore')}
               </button>
             ) : (
-              <p className="text-sm text-gray-500">You’re all caught up.</p>
+              <p className="text-sm text-gray-500">{t('allCaughtUp')}</p>
             )}
           </div>
         </>

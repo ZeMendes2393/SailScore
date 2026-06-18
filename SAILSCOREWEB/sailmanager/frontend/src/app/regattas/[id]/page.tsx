@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { FileText, List, PenLine, Trophy } from 'lucide-react';
 
 import RegattaHeader, { REGATTA_HERO_HEADER_PT } from './components/RegattaHeader';
@@ -35,6 +36,10 @@ type NewsItem = {
 };
 
 export default function RegattaHomePage() {
+  const t = useTranslations('regattaHome');
+  const tNav = useTranslations('regattaNav');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const params = useParams();
   const id = params?.id as string | undefined;
   const regattaId = useMemo(() => {
@@ -116,8 +121,8 @@ export default function RegattaHomePage() {
     return () => clearInterval(t);
   }, [heroSlides.length]);
 
-  if (!regattaId) return <p className="p-8">Loading…</p>;
-  if (!regatta) return <p className="p-8">Loading regatta…</p>;
+  if (!regattaId) return <p className="p-8">{tCommon('loading')}</p>;
+  if (!regatta) return <p className="p-8">{t('loadingRegatta')}</p>;
 
   const heroBgStyle = heroSlides[activeSlide]
     ? {
@@ -177,7 +182,7 @@ export default function RegattaHomePage() {
               <button
                 key={i}
                 type="button"
-                aria-label={`Slide ${i + 1}`}
+                aria-label={t('slide', { index: i + 1 })}
                 onClick={() => setActiveSlide(i)}
                 className={`w-2.5 h-2.5 rounded-full transition ${
                   i === activeSlide ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
@@ -197,7 +202,7 @@ export default function RegattaHomePage() {
             </p>
           )}
           <p className="text-base md:text-lg mt-2 md:mt-3 opacity-90 drop-shadow">
-            {formatDateRange(regatta.start_date, regatta.end_date)}
+            {formatDateRange(regatta.start_date, regatta.end_date, locale)}
           </p>
         </div>
       </section>
@@ -210,25 +215,25 @@ export default function RegattaHomePage() {
             href={`/regattas/${regattaId}/form`}
             className={quickLinkMobileClass}
           >
-            Online Entry
+            {tNav('onlineEntry')}
           </Link>
           <Link
             href={`/regattas/${regattaId}/entry`}
             className={quickLinkMobileClass}
           >
-            Entry List
+            {tNav('entryList')}
           </Link>
           <Link
             href={`/regattas/${regattaId}/notice`}
             className={quickLinkMobileClass}
           >
-            Notice Board
+            {tNav('noticeBoard')}
           </Link>
           <Link
             href={`/regattas/${regattaId}/results`}
             className={quickLinkMobileClass}
           >
-            Results
+            {tNav('results')}
           </Link>
         </div>
       </section>
@@ -241,35 +246,35 @@ export default function RegattaHomePage() {
             className={quickLinkDesktopClass}
           >
             <PenLine className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Online Entry</span>
+            <span className="font-semibold text-sm uppercase tracking-wide">{tNav('onlineEntry')}</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/entry`}
             className={quickLinkDesktopClass}
           >
             <List className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Entry List</span>
+            <span className="font-semibold text-sm uppercase tracking-wide">{tNav('entryList')}</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/notice`}
             className={quickLinkDesktopClass}
           >
             <FileText className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Notice Board</span>
+            <span className="font-semibold text-sm uppercase tracking-wide">{tNav('noticeBoard')}</span>
           </Link>
           <Link
             href={`/regattas/${regattaId}/results`}
             className={quickLinkDesktopClass}
           >
             <Trophy className="w-8 h-8" strokeWidth={2} />
-            <span className="font-semibold text-sm uppercase tracking-wide">Results</span>
+            <span className="font-semibold text-sm uppercase tracking-wide">{tNav('results')}</span>
           </Link>
         </div>
       </section>
 
       {news.length > 0 && (
         <section className="mt-0">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">News</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">{t('news')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {news.map((n) => (
               <Link
@@ -297,7 +302,7 @@ export default function RegattaHomePage() {
             ))}
           </div>
           <Link href="/news" className="inline-block mt-4 text-blue-600 font-medium hover:underline">
-            View all news →
+            {t('viewAllNews')}
           </Link>
         </section>
       )}

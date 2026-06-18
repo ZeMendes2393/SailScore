@@ -248,6 +248,14 @@ input.login-input:-webkit-autofill:focus {
   .sailscore-landing .ss-top-links-desktop {
     display: none;
   }
+  .sailscore-landing .ss-top-lang-desktop {
+    display: none;
+  }
+  .sailscore-landing .ss-top-mobile-lang {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 0 0.35rem;
+  }
   .sailscore-landing .ss-top-menu-btn {
     display: inline-flex;
     align-items: center;
@@ -397,6 +405,14 @@ input.login-input:-webkit-autofill:focus {
 .sailscore-landing .ss-top-links {
   display: flex;
   gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sailscore-landing .ss-top-nav-end {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -843,6 +859,9 @@ input.login-input:-webkit-autofill:focus {
   .sailscore-landing .ss-top-links-desktop {
     display: none !important;
   }
+  .sailscore-landing .ss-top-lang-desktop {
+    display: none !important;
+  }
   .sailscore-landing .ss-top-menu-btn {
     display: inline-flex !important;
   }
@@ -859,5 +878,12 @@ input.login-input:-webkit-autofill:focus {
   .sailscore-landing .ss-top-mobile-panel,
   .sailscore-landing .ss-top-nav-backdrop {
     display: none !important;
+  }
+  .sailscore-landing .ss-top-lang-desktop {
+    display: inline-flex;
+    margin-left: 0.5rem;
+  }
+  .sailscore-landing .ss-top-mobile-lang {
+    display: none;
   }
 }

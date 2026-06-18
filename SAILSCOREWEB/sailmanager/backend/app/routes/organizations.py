@@ -77,6 +77,16 @@ def _normalize_name(name: str) -> str:
     return s
 
 
+_SUPPORTED_LOCALES = frozenset({"en-GB", "pt-PT"})
+
+
+def _normalize_default_locale(locale: str) -> str:
+    v = (locale or "").strip()
+    if v not in _SUPPORTED_LOCALES:
+        raise HTTPException(status_code=400, detail="default_locale must be en-GB or pt-PT.")
+    return v
+
+
 @router.get("", response_model=List[schemas.OrganizationRead])
 @router.get("/", response_model=List[schemas.OrganizationRead], include_in_schema=False)
 def list_organizations(
@@ -173,6 +183,7 @@ def create_organization(
         name=name,
         slug=slug,
         is_active=body.is_active,
+        default_locale=_normalize_default_locale(body.default_locale),
     )
     db.add(org)
     db.flush()  # get org.id
@@ -256,6 +267,9 @@ def update_organization(
 
     if "is_active" in data:
         org.is_active = bool(data["is_active"])
+
+    if "default_locale" in data:
+        org.default_locale = _normalize_default_locale(data["default_locale"])
 
     admin_email = (data.pop("admin_email", None) or "").strip().lower() or None
     admin_password = data.pop("admin_password", None)

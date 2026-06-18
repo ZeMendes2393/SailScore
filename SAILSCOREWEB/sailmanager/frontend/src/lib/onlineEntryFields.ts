@@ -616,9 +616,27 @@ export function validateEntryAgainstRequired(
     classType?: 'one_design' | 'handicap';
     multiCrew: boolean;
     crewMembers?: Record<string, unknown>[];
+    getFieldLabel?: (fieldId: string) => string;
+    formatRequiredError?: (fieldLabel: string) => string;
+    formatCrewMemberError?: (index: number, message: string) => string;
+    atLeastOneCrewMessage?: string;
   }
 ): string | null {
-  const { classType, multiCrew, crewMembers = [] } = opts;
+  const {
+    classType,
+    multiCrew,
+    crewMembers = [],
+    getFieldLabel,
+    formatRequiredError,
+    formatCrewMemberError,
+    atLeastOneCrewMessage,
+  } = opts;
+
+  const labelFor = (fieldId: string, fallback: string) =>
+    getFieldLabel ? getFieldLabel(fieldId) : fallback;
+
+  const requiredMessage = (fieldLabel: string) =>
+    formatRequiredError ? formatRequiredError(fieldLabel) : `${fieldLabel} is required.`;
 
   const check = (fieldId: string, value: unknown): string | null => {
     const field = ONLINE_ENTRY_FIELDS.find((f) => f.id === fieldId);
@@ -627,7 +645,7 @@ export function validateEntryAgainstRequired(
     if (!fieldAppliesToContext(field, classType, multiCrew)) return null;
     const filled =
       value != null && (typeof value !== 'string' || value.trim() !== '');
-    if (!filled) return `${field.label} is required.`;
+    if (!filled) return requiredMessage(labelFor(fieldId, field.label));
     return null;
   };
 
@@ -664,11 +682,15 @@ export function validateEntryAgainstRequired(
           (typeof m.helm_country === 'string' && m.helm_country.trim())
       );
       if (activeMembers.length === 0) {
-        return 'At least one crew member is required for this class.';
+        return atLeastOneCrewMessage ?? 'At least one crew member is required for this class.';
       }
       for (let i = 0; i < activeMembers.length; i++) {
         const err = check(field.id, activeMembers[i][key]);
-        if (err) return `Crew member ${i + 1}: ${err}`;
+        if (err) {
+          return formatCrewMemberError
+            ? formatCrewMemberError(i + 1, err)
+            : `Crew member ${i + 1}: ${err}`;
+        }
       }
     }
   }

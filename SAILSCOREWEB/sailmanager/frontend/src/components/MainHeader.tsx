@@ -8,6 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useTranslations } from 'next-intl';
 
 type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
 
@@ -33,6 +35,7 @@ export default function MainHeader({
   const [logoFailed, setLogoFailed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
+  const t = useTranslations('nav');
 
   useEffect(() => {
     setMounted(true);
@@ -74,17 +77,17 @@ export default function MainHeader({
     if (orgSlug) {
       const cal = `/calendar?org=${encodeURIComponent(orgSlug)}`;
       return [
-        { href: `/o/${orgSlug}`, label: 'Home' },
-        { href: cal, label: 'Calendar' },
-        { href: `/o/${orgSlug}/news`, label: 'News' },
+        { href: `/o/${orgSlug}`, label: t('home') },
+        { href: cal, label: t('calendar') },
+        { href: `/o/${orgSlug}/news`, label: t('news') },
       ];
     }
     return [
-      { href: '/', label: 'Home' },
-      { href: '/calendar', label: 'Calendar' },
-      { href: '/news', label: 'News' },
+      { href: '/', label: t('home') },
+      { href: '/calendar', label: t('calendar') },
+      { href: '/news', label: t('news') },
     ];
-  }, [orgSlug]);
+  }, [orgSlug, t]);
 
   const isNavActive = (href: string) => {
     if (!pathname) return false;
@@ -115,7 +118,7 @@ export default function MainHeader({
     showLogo && !logoFailed ? (
       <img
         src={apiAssetUrl(logoUrl!)}
-        alt="Club logo"
+        alt={t('clubLogoAlt')}
         className="max-h-[2.6rem] md:max-h-[3.2rem] w-auto h-auto object-contain object-left drop-shadow-sm"
         onError={() => setLogoFailed(true)}
       />
@@ -148,14 +151,15 @@ export default function MainHeader({
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-auto">
+          <LanguageSwitcher className="shrink-0" />
           {isLoggedIn ? (
             isSailor ? (
               <div className="flex flex-col items-end text-right">
                 <span className="text-base font-semibold uppercase tracking-wide text-white/85">
-                  Sailor account
+                  {t('sailorAccountLabel')}
                 </span>
                 <span className="text-lg text-white">
-                  {user?.email || (user as any)?.username || (user as any)?.name || 'Signed in'}
+                  {user?.email || (user as any)?.username || (user as any)?.name || t('signedIn')}
                 </span>
               </div>
             ) : (
@@ -164,13 +168,13 @@ export default function MainHeader({
                   href={adminHomeHref}
                   className="inline-block px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition shadow-sm"
                 >
-                  Dashboard
+                  {t('dashboard')}
                 </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
                   className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
                 >
-                  Sign out
+                  {t('signOut')}
                 </button>
               </>
             )
@@ -193,12 +197,13 @@ export default function MainHeader({
           )}
         </div>
 
-        <div className="md:hidden ml-auto">
+        <div className="md:hidden ml-auto flex items-center gap-2">
+          <LanguageSwitcher className="shrink-0" />
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             className="inline-flex items-center justify-center rounded-xl px-3 py-2 bg-white/15 hover:bg-white/25 text-white transition"
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={mobileMenuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-main-nav"
           >
@@ -209,12 +214,15 @@ export default function MainHeader({
 
       {mobileMenuOpen && (
         <div id="mobile-main-nav" className="md:hidden border-t border-white/20 bg-blue-900/85 backdrop-blur-md px-3 pb-3">
+          <div className="pt-3 pb-1 flex justify-end">
+            <LanguageSwitcher />
+          </div>
           {isLoggedIn ? (
             isSailor ? (
               <div className="py-3 text-white/90">
-                <p className="text-sm uppercase tracking-wide font-semibold text-white/75">Sailor account</p>
+                <p className="text-sm uppercase tracking-wide font-semibold text-white/75">{t('sailorAccountLabel')}</p>
                 <p className="text-base mt-1 break-all">
-                  {user?.email || (user as any)?.username || (user as any)?.name || 'Signed in'}
+                  {user?.email || (user as any)?.username || (user as any)?.name || t('signedIn')}
                 </p>
               </div>
             ) : (
@@ -223,13 +231,13 @@ export default function MainHeader({
                   href={adminHomeHref}
                   className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition text-center"
                 >
-                  Dashboard
+                  {t('dashboard')}
                 </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
                   className="w-full px-4 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
                 >
-                  Sign out
+                  {t('signOut')}
                 </button>
               </div>
             )

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import RegattaHeader, { REGATTA_HERO_HEADER_PT } from '../components/RegattaHeader';
 import OnlineEntryPublic from '@/components/onlineentry/OnlineEntryPublic';
 import { formatDateRange } from '@/lib/formatDate';
@@ -24,6 +25,9 @@ type Regatta = {
 };
 
 export default function RegattaFormPage() {
+  const t = useTranslations('regattaHome');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const params = useParams();
   const id = params?.id as string | undefined;
   const regattaId = useMemo(() => {
@@ -74,8 +78,8 @@ export default function RegattaFormPage() {
       }
     : undefined;
 
-  if (!regattaId) return <p className="p-8">Loading…</p>;
-  if (!regatta) return <p className="p-8">Loading regatta…</p>;
+  if (!regattaId) return <p className="p-8">{tCommon('loading')}</p>;
+  if (!regatta) return <p className="p-8">{t('loadingRegatta')}</p>;
 
   const isOpen = regatta.online_entry_open !== false;
 
@@ -99,7 +103,7 @@ export default function RegattaFormPage() {
             </p>
           )}
           <p className="text-base md:text-lg opacity-95 drop-shadow">
-            {regatta.location} · {formatDateRange(regatta.start_date, regatta.end_date)}
+            {regatta.location} · {formatDateRange(regatta.start_date, regatta.end_date, locale)}
           </p>
         </div>
       </section>

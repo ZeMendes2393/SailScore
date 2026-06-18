@@ -3,8 +3,10 @@
 import { useParams } from 'next/navigation';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 
 import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
+import { formatDateShort } from '@/lib/formatDate';
 
 interface NewsItem {
   id: number;
@@ -21,6 +23,10 @@ const API_BASE =
 const PAGE_SIZE = 12;
 
 export default function OrgNewsListPage() {
+  const t = useTranslations('newsPage');
+  const tOrg = useTranslations('orgPage');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const params = useParams();
   const slug = typeof params.slug === 'string' ? params.slug : null;
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -33,17 +39,7 @@ export default function OrgNewsListPage() {
   const imageSrc = (url: string | null) =>
     url ? (url.startsWith('http') ? url : `${API_BASE}${url}`) : null;
 
-  const formatDate = (s: string) => {
-    try {
-      return new Date(s).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return s;
-    }
-  };
+  const formatDate = (s: string) => formatDateShort(s, locale);
 
   const bodyToSnippet = (body: string | null | undefined, maxLen: number) => {
     if (!body) return null;
@@ -100,7 +96,7 @@ export default function OrgNewsListPage() {
   if (!slug) {
     return (
       <div className="py-8 container-page">
-        <p className="text-gray-500">Organization not specified.</p>
+        <p className="text-gray-500">{tOrg('notSpecified')}</p>
       </div>
     );
   }
@@ -109,10 +105,10 @@ export default function OrgNewsListPage() {
     <div className="py-8">
       <div className="mb-8">
         <Link href={`/o/${slug}`} className="text-sm text-blue-600 hover:underline mb-4 inline-block">
-          ← Back to home
+          {tOrg('backToHome')}
         </Link>
-        <h1 className="text-4xl font-bold text-gray-900">News</h1>
-        <p className="text-gray-600 mt-2">Updates and highlights.</p>
+        <h1 className="text-4xl font-bold text-gray-900">{t('title')}</h1>
+        <p className="text-gray-600 mt-2">{t('subtitleOrg')}</p>
       </div>
 
       {loading ? (
@@ -128,7 +124,7 @@ export default function OrgNewsListPage() {
           ))}
         </div>
       ) : news.length === 0 ? (
-        <p className="text-gray-500">No news yet.</p>
+        <p className="text-gray-500">{t('noNews')}</p>
       ) : (
         <>
           {featured && (
@@ -161,7 +157,7 @@ export default function OrgNewsListPage() {
                     <p className="text-gray-600 mt-3 line-clamp-3">{bodyToSnippet(featured.body, 200)}</p>
                   )}
                   <div className="mt-5 inline-flex items-center text-blue-600 font-medium">
-                    Read more <span className="ml-2">→</span>
+                    {t('readMore')} <span className="ml-2">→</span>
                   </div>
                 </div>
               </div>
@@ -210,7 +206,7 @@ export default function OrgNewsListPage() {
                 disabled={loadingMore}
                 className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                {loadingMore ? 'Loading…' : 'Load more'}
+                {loadingMore ? tCommon('loading') : t('loadMore')}
               </button>
             ) : null}
           </div>

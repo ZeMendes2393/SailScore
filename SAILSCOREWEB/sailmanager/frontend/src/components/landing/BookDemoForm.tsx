@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { submitDemoRequest } from '@/lib/api';
 
 export default function BookDemoForm() {
+  const t = useTranslations('landing.demoForm');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [clubName, setClubName] = useState('');
@@ -24,9 +26,9 @@ export default function BookDemoForm() {
         message: message.trim() || undefined,
       });
       if (res.emailed) {
-        toast.success('Request sent. We will contact you shortly.');
+        toast.success(t('successEmailed'));
       } else {
-        toast.success('Request received. We will get back to you soon.');
+        toast.success(t('successReceived'));
       }
       setFullName('');
       setEmail('');
@@ -34,7 +36,7 @@ export default function BookDemoForm() {
       setPhone('');
       setMessage('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      const msg = err instanceof Error ? err.message : t('errorGeneric');
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -44,7 +46,7 @@ export default function BookDemoForm() {
   return (
     <form className="ss-demo-form" onSubmit={onSubmit} noValidate>
       <div className="ss-field">
-        <label htmlFor="ss-demo-name">Your name</label>
+        <label htmlFor="ss-demo-name">{t('nameLabel')}</label>
         <input
           id="ss-demo-name"
           name="full_name"
@@ -57,7 +59,7 @@ export default function BookDemoForm() {
         />
       </div>
       <div className="ss-field">
-        <label htmlFor="ss-demo-email">Work email</label>
+        <label htmlFor="ss-demo-email">{t('emailLabel')}</label>
         <input
           id="ss-demo-email"
           name="email"
@@ -70,7 +72,7 @@ export default function BookDemoForm() {
         />
       </div>
       <div className="ss-field">
-        <label htmlFor="ss-demo-club">Club or organization</label>
+        <label htmlFor="ss-demo-club">{t('clubLabel')}</label>
         <input
           id="ss-demo-club"
           name="club_name"
@@ -83,7 +85,7 @@ export default function BookDemoForm() {
         />
       </div>
       <div className="ss-field">
-        <label htmlFor="ss-demo-phone">Phone (optional)</label>
+        <label htmlFor="ss-demo-phone">{t('phoneLabel')}</label>
         <input
           id="ss-demo-phone"
           name="phone"
@@ -95,7 +97,7 @@ export default function BookDemoForm() {
         />
       </div>
       <div className="ss-field">
-        <label htmlFor="ss-demo-message">What would you like to see? (optional)</label>
+        <label htmlFor="ss-demo-message">{t('messageLabel')}</label>
         <textarea
           id="ss-demo-message"
           name="message"
@@ -107,7 +109,7 @@ export default function BookDemoForm() {
       </div>
       <div className="ss-demo-actions">
         <button type="submit" className="ss-btn ss-btn-primary" disabled={loading}>
-          {loading ? 'Sending…' : 'Send request'}
+          {loading ? t('submitting') : t('submit')}
         </button>
       </div>
     </form>

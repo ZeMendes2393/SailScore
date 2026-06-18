@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { RegattaCalendar } from '@/components/regatta-calendar/RegattaCalendar';
 import GlobalSponsorsFooter from '@/components/GlobalSponsorsFooter';
 
@@ -24,6 +25,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://
 const DEFAULT_PUBLIC_ORG_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG?.trim() || null;
 
 function CalendarContent() {
+  const t = useTranslations('calendarPage');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const orgFromQuery = searchParams.get('org')?.trim() || null;
@@ -79,12 +83,23 @@ function CalendarContent() {
       ? `?org=${encodeURIComponent(resolvedOrgSlug)}`
       : '';
 
+  const calendarLabels = {
+    regattas: t('regattasLabel'),
+    noRegattas: t('noRegattas'),
+    viewButton: t('viewButton'),
+    statusOpen: t('statusOpen'),
+    statusClosed: t('statusClosed'),
+    regattaOnDay: t('regattaOnDay'),
+    formatClasses: (list: string) => t('classesLabel', { list }),
+    formatStatus: (status: string) => t('statusLabel', { status }),
+  };
+
   if (!storageChecked) {
     return (
       <div className="py-8" aria-busy="true" aria-live="polite">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Calendar</h1>
-          <p className="text-gray-600 mt-2">Browse regattas by month and year.</p>
+          <h1 className="text-4xl font-bold text-gray-900">{t('title')}</h1>
+          <p className="text-gray-600 mt-2">{t('subtitle')}</p>
         </div>
         <div className="max-w-4xl rounded-xl border border-gray-100 bg-white p-8 shadow-sm">
           <div className="h-8 w-48 animate-pulse rounded bg-gray-200 mb-6" />
@@ -93,7 +108,7 @@ function CalendarContent() {
               <div key={i} className="aspect-square animate-pulse rounded-md bg-gray-100" />
             ))}
           </div>
-          <p className="mt-6 text-sm text-gray-500">Loading…</p>
+          <p className="mt-6 text-sm text-gray-500">{tCommon('loading')}</p>
         </div>
       </div>
     );
@@ -102,8 +117,8 @@ function CalendarContent() {
   return (
     <div className="py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">Calendar</h1>
-        <p className="text-gray-600 mt-2">Browse regattas by month and year.</p>
+        <h1 className="text-4xl font-bold text-gray-900">{t('title')}</h1>
+        <p className="text-gray-600 mt-2">{t('subtitle')}</p>
       </div>
 
       <div className="max-w-4xl">
@@ -111,12 +126,8 @@ function CalendarContent() {
           regattas={regattas}
           regattaLinkPrefix="/regattas"
           regattaLinkSuffix={regattaLinkSuffix}
-          labels={{
-            noRegattas: 'No regattas in this month.',
-            viewButton: 'View',
-            statusOpen: 'Registrations open',
-            statusClosed: 'Registrations closed',
-          }}
+          locale={locale}
+          labels={calendarLabels}
         />
       </div>
 
@@ -126,8 +137,9 @@ function CalendarContent() {
 }
 
 export default function CalendarPage() {
+  const tCommon = useTranslations('common');
   return (
-    <Suspense fallback={<div className="py-8 text-gray-500">Loading…</div>}>
+    <Suspense fallback={<div className="py-8 text-gray-500">{tCommon('loading')}</div>}>
       <CalendarContent />
     </Suspense>
   );

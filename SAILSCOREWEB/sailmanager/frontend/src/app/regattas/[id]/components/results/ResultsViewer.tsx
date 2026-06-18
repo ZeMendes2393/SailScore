@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
 import { getApiBaseUrl } from '@/lib/api'
+import { formatIsoDateOnly, formatPublishedAt } from '@/lib/formatDate'
 import {
   getVisibleResultsOverallColumnsForClass,
   RESULTS_OVERALL_COLUMNS,
@@ -77,6 +79,9 @@ interface ResultsViewerProps {
 }
 
 export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewerProps) {
+  const t = useTranslations('resultsPublic')
+  const tCommon = useTranslations('common')
+  const locale = useLocale()
   const [results, setResults] = useState<OverallResult[]>([])
   const [racesMeta, setRacesMeta] = useState<Record<string, RaceMeta>>({})
   const [classType, setClassType] = useState<string>('one_design')
@@ -189,22 +194,10 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     [resultsOverallColumns, selectedClass]
   )
 
-  const formattedPublishedAt = useMemo(() => {
-    if (!publishedAt) return null
-    try {
-      const d = new Date(publishedAt)
-      if (Number.isNaN(d.getTime())) return null
-      const day = d.getDate()
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      const month = months[d.getMonth()]
-      const year = d.getFullYear()
-      const h = d.getHours().toString().padStart(2, '0')
-      const m = d.getMinutes().toString().padStart(2, '0')
-      return `${day} ${month} ${year} at ${h}:${m}`
-    } catch {
-      return null
-    }
-  }, [publishedAt])
+  const formattedPublishedAt = useMemo(
+    () => formatPublishedAt(publishedAt, locale),
+    [publishedAt, locale]
+  )
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
   const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase()
@@ -227,8 +220,8 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     return r.skipper_name || '—'
   }
 
-  if (loading) return <p className="text-gray-500">Loading results…</p>
-  if (results.length === 0) return <p className="text-gray-500">No published results yet for this class.</p>
+  if (loading) return <p className="text-gray-500">{t('loading')}</p>
+  if (results.length === 0) return <p className="text-gray-500">{t('noPublishedResults')}</p>
 
   const raceNames = (() => {
     const set = new Set<string>()
@@ -251,11 +244,11 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <h2 className="text-2xl font-bold">Overall — {selectedClass}</h2>
+        <h2 className="text-2xl font-bold">{t('overallClassTitle', { className: selectedClass })}</h2>
         <div className="flex flex-wrap items-center gap-2">
           {formattedPublishedAt && (
             <span className="text-sm bg-slate-100 text-slate-700 px-2 py-1 rounded">
-              Published at {formattedPublishedAt}
+              {t('publishedAt', { datetime: formattedPublishedAt })}
             </span>
           )}
           <a
@@ -265,7 +258,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800 underline"
           >
-            Download PDF
+            {t('downloadPdf')}
           </a>
         </div>
       </div>
@@ -295,8 +288,8 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                   title={
                     hasDetail
                       ? isSelected
-                        ? 'Click to hide race detail'
-                        : 'Click to show race detail'
+                        ? t('clickHideRaceDetail')
+                        : t('clickShowRaceDetail')
                       : undefined
                   }
                 >
@@ -383,23 +376,15 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                   {(meta?.race_date || startTime) && (
                     <span className="text-sm text-gray-600">
                       {meta?.race_date
-                        ? (() => {
-                            try {
-                              const [y, m, d] = (meta.race_date as string).split('-').map(Number)
-                              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                              return `${d} ${months[(m || 1) - 1]} ${y}`
-                            } catch {
-                              return meta.race_date as string
-                            }
-                          })()
+                        ? formatIsoDateOnly(meta.race_date as string, locale)
                         : ''}
                       {meta?.race_date && startTime ? ', ' : ''}
-                      {startTime ? `Start: ${startTime}` : ''}
+                      {startTime ? t('startLabel', { time: startTime }) : ''}
                     </span>
                   )}
                   {orcMode && (
                     <span className="rounded bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-800">
-                      Rating: {orcMode.charAt(0).toUpperCase() + orcMode.slice(1)}
+                      {t('ratingLabel', { mode: orcMode.charAt(0).toUpperCase() + orcMode.slice(1) })}
                     </span>
                   )}
                   {meta?.race_id && (
@@ -409,7 +394,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                       rel="noopener noreferrer"
                       className="text-sm text-blue-700 hover:text-blue-800 underline ml-auto"
                     >
-                      Download race PDF
+                      {t('downloadRacePdf')}
                     </a>
                   )}
                   <button
@@ -417,7 +402,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                     onClick={() => setSelectedRaceForTimes(null)}
                     className="text-sm text-blue-600 hover:underline"
                   >
-                    Close
+                    {tCommon('close')}
                   </button>
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-sm mt-2">

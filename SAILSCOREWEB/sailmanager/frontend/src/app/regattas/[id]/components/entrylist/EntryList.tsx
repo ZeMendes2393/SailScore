@@ -1,17 +1,16 @@
-// EntryList.tsx — lista pública de inscrições (mesmas colunas definidas no admin)
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { getApiBaseUrl } from '@/lib/api';
 import { getVisibleColumns } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
-import { ENTRY_LIST_COLUMNS } from '@/lib/entryListColumns';
+import { useEntryListColumnLabel } from '@/lib/useEntryListColumnLabel';
 
 interface EntryListProps {
   regattaId: number;
   selectedClass: string | null;
-  /** Colunas visíveis (definidas no admin); usa predefinição se null/undefined */
   entryListColumns?: string[] | null;
 }
 
@@ -20,6 +19,8 @@ export default function EntryList({
   selectedClass,
   entryListColumns,
 }: EntryListProps) {
+  const t = useTranslations('entryList');
+  const columnLabel = useEntryListColumnLabel();
   const [entries, setEntries] = useState<EntryListEntry[]>([]);
 
   const visibleColumnIds = useMemo(
@@ -74,19 +75,16 @@ export default function EntryList({
       <table className="w-full table-auto border-collapse text-sm text-slate-800">
         <thead className="bg-slate-50/95 text-left">
           <tr>
-            {visibleColumnIds.map((id) => {
-              const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
-              return (
-                <th
-                  key={id}
-                  className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 ${
-                    id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
-                  }`}
-                >
-                  {def?.label ?? id}
-                </th>
-              );
-            })}
+            {visibleColumnIds.map((id) => (
+              <th
+                key={id}
+                className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-200 ${
+                  id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
+                }`}
+              >
+                {columnLabel(id)}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -116,23 +114,29 @@ export default function EntryList({
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
         <p className="text-sm text-gray-700">
-          Entries: <b>{activeEntries.length}</b>
+          {t.rich('entriesCount', {
+            count: activeEntries.length,
+            b: (chunks) => <b>{chunks}</b>,
+          })}
         </p>
         {waitingEntries.length > 0 && (
           <p className="text-sm text-gray-700">
-            Waiting list: <b>{waitingEntries.length}</b>
+            {t.rich('waitingListCount', {
+              count: waitingEntries.length,
+              b: (chunks) => <b>{chunks}</b>,
+            })}
           </p>
         )}
       </div>
       {activeEntries.length === 0 && waitingEntries.length === 0 ? (
-        <p className="text-gray-500">There are no entries for this class yet.</p>
+        <p className="text-gray-500">{t('noEntries')}</p>
       ) : (
         <div className="space-y-6">
           {activeEntries.length > 0 && renderTable(activeEntries)}
           {waitingEntries.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                Waiting list ({waitingEntries.length})
+                {t('waitingListTitle', { count: waitingEntries.length })}
               </h3>
               {renderTable(waitingEntries)}
             </div>

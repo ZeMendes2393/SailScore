@@ -1,6 +1,8 @@
 import { headers } from 'next/headers';
 import { Geist, Geist_Mono } from 'next/font/google';
 import type { Metadata } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import { Toaster } from 'sonner';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
@@ -117,22 +119,27 @@ export default async function RootLayout({
     // ignore
   }
 
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}
       >
-        <AuthProvider>
-          <ConfirmProvider>
-            <ClientLayout
-              headerDesign={headerDesign}
-              footerDesign={footerDesign}
-              serverOrgSlug={orgSlug}
-            >
-              {children}
-            </ClientLayout>
-          </ConfirmProvider>
-        </AuthProvider>
+        <NextIntlClientProvider messages={messages}>
+          <AuthProvider>
+            <ConfirmProvider>
+              <ClientLayout
+                headerDesign={headerDesign}
+                footerDesign={footerDesign}
+                serverOrgSlug={orgSlug}
+              >
+                {children}
+              </ClientLayout>
+            </ConfirmProvider>
+          </AuthProvider>
+        </NextIntlClientProvider>
         <Toaster
           position="top-right"
           richColors

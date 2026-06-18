@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import Linkify from 'linkify-react';
+import { formatDateLong } from '@/lib/formatDate';
 
 interface NewsItem {
   id: number;
@@ -21,6 +23,9 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 export default function NewsDetailPage() {
+  const t = useTranslations('newsPage');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
   const params = useParams();
   const id = params?.id as string;
 
@@ -40,24 +45,14 @@ export default function NewsDetailPage() {
         const data = (await res.json()) as NewsItem;
         setItem(data);
       } catch {
-        setError('Article not found.');
+        setError(t('articleNotFound'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, t]);
 
-  const formatDate = (s: string) => {
-    try {
-      return new Date(s).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return s;
-    }
-  };
+  const formatDate = (s: string) => formatDateLong(s, locale);
 
   const imageSrc = (url: string | null) => {
     if (!url) return null;
@@ -76,7 +71,7 @@ export default function NewsDetailPage() {
   if (loading) {
     return (
       <div className="container-page py-8">
-        <p className="text-gray-500">Loading…</p>
+        <p className="text-gray-500">{tCommon('loading')}</p>
       </div>
     );
   }
@@ -84,9 +79,9 @@ export default function NewsDetailPage() {
   if (error || !item) {
     return (
       <div className="container-page py-8">
-        <p className="text-red-600">{error ?? 'Not found.'}</p>
+        <p className="text-red-600">{error ?? t('notFound')}</p>
         <Link href="/news" className="mt-4 inline-block text-blue-600 hover:underline">
-          ← Back to News
+          {t('backToNews')}
         </Link>
       </div>
     );
@@ -95,7 +90,7 @@ export default function NewsDetailPage() {
   return (
     <article className="container-page py-8 max-w-3xl">
       <Link href="/news" className="text-sm text-blue-600 hover:underline mb-6 inline-block">
-        ← Back to News
+        {t('backToNews')}
       </Link>
 
       <header className="mb-6">

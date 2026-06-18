@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { COUNTRIES_UNIQUE } from '@/utils/countries';
+import { useEntryFieldLabel } from '@/lib/useEntryFieldLabel';
 
 function Field({
   label,
@@ -59,9 +61,9 @@ interface Step2CrewProps {
 const inputClass =
   'w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500';
 
-function sailorLabel(m: { first_name?: string; last_name?: string }) {
+function sailorLabel(m: { first_name?: string; last_name?: string }, dash: string) {
   const n = [m.first_name, m.last_name].filter(Boolean).join(' ').trim();
-  return n || '—';
+  return n || dash;
 }
 
 export default function Step2Crew({
@@ -74,6 +76,9 @@ export default function Step2Crew({
   isRequired,
   isVisible,
 }: Step2CrewProps) {
+  const t = useTranslations('entryForm');
+  const tCommon = useTranslations('common');
+  const fieldLabel = useEntryFieldLabel();
   const crewList: CrewMember[] = Array.isArray(data) && data.length > 0 ? data : [];
   const maxCrew = Math.max(0, (sailorsPerBoat || 2) - 1);
 
@@ -110,142 +115,151 @@ export default function Step2Crew({
 
   return (
     <form onSubmit={handleNext} className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">Crew members</h2>
-      <p className="text-sm text-gray-600">
-        You can add more crew members (up to {sailorsPerBoat} in total). Each with position Skipper or Crew.
-      </p>
+      <h2 className="text-xl font-bold text-gray-900">{t('step2Crew.title')}</h2>
+      <p className="text-sm text-gray-600">{t('step2Crew.description', { count: sailorsPerBoat })}</p>
 
       <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <h3 className="text-sm font-semibold text-gray-800 mb-2">Sailors in this entry</h3>
+        <h3 className="text-sm font-semibold text-gray-800 mb-2">{t('step2Crew.sailorsInEntry')}</h3>
         <ul className="space-y-1.5 text-sm">
           <li className="flex items-center gap-2">
-            <span className="font-medium">{sailorLabel(helm)}</span>
-            <span className="text-gray-500">({helm.position || 'Skipper'})</span>
+            <span className="font-medium">{sailorLabel(helm, tCommon('dash'))}</span>
+            <span className="text-gray-500">({helm.position || t('position.skipper')})</span>
           </li>
           {localCrew.map((c, i) => (
             <li key={i} className="flex items-center gap-2">
-              <span className="font-medium">{sailorLabel(c)}</span>
-              <span className="text-gray-500">({c.position || 'Crew'})</span>
+              <span className="font-medium">{sailorLabel(c, tCommon('dash'))}</span>
+              <span className="text-gray-500">({c.position || t('position.crew')})</span>
             </li>
           ))}
           {localCrew.length === 0 && (
-            <li className="text-gray-500">Add crew members below if the boat has more than one sailor.</li>
+            <li className="text-gray-500">{t('step2Crew.addCrewBelow')}</li>
           )}
         </ul>
       </section>
 
-      {/* Lista de formulários de tripulantes */}
       <div className="space-y-6">
         {localCrew.map((member, index) => (
           <div key={index} className="rounded-lg border border-gray-300 bg-white p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-800">Crew member {index + 1}</h4>
+              <h4 className="font-medium text-gray-800">
+                {t('step2Crew.crewMember', { index: index + 1 })}
+              </h4>
               <button
                 type="button"
                 onClick={() => removeCrew(index)}
                 className="text-sm text-red-600 hover:underline"
               >
-                Remove
+                {tCommon('remove')}
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               {isVisible('crew_position') && (
-                <Field label="Position">
+                <Field label={fieldLabel('crew_position')}>
                   <select
                     value={member.position || 'Crew'}
                     onChange={(e) => updateCrewAt(index, { position: e.target.value })}
                     className={inputClass}
                   >
-                    <option value="Skipper">Skipper</option>
-                    <option value="Crew">Crew</option>
+                    <option value="Skipper">{t('position.skipper')}</option>
+                    <option value="Crew">{t('position.crew')}</option>
                   </select>
                 </Field>
               )}
               {isVisible('crew_first_name') && (
-                <Field label="First name" required={isRequired('crew_first_name')}>
+                <Field label={fieldLabel('crew_first_name')} required={isRequired('crew_first_name')}>
                   <input
                     type="text"
                     value={member.first_name || ''}
                     onChange={(e) => updateCrewAt(index, { first_name: e.target.value })}
-                    placeholder="e.g. Jane"
+                    placeholder={t('placeholders.firstName')}
                     className={inputClass}
                     required={isRequired('crew_first_name')}
                   />
                 </Field>
               )}
               {isVisible('crew_last_name') && (
-                <Field label="Last name" required={isRequired('crew_last_name')}>
+                <Field label={fieldLabel('crew_last_name')} required={isRequired('crew_last_name')}>
                   <input
                     type="text"
                     value={member.last_name || ''}
                     onChange={(e) => updateCrewAt(index, { last_name: e.target.value })}
-                    placeholder="e.g. Smith"
+                    placeholder={t('placeholders.lastName')}
                     className={inputClass}
                     required={isRequired('crew_last_name')}
                   />
                 </Field>
               )}
               {isVisible('crew_email') && (
-                <Field label="Email" required={isRequired('crew_email')}>
+                <Field label={fieldLabel('crew_email')} required={isRequired('crew_email')}>
                   <input
                     type="email"
                     value={member.email || ''}
                     onChange={(e) => updateCrewAt(index, { email: e.target.value })}
-                    placeholder="e.g. jane@example.com"
+                    placeholder={t('placeholders.email')}
                     className={inputClass}
                     required={isRequired('crew_email')}
                   />
                 </Field>
               )}
               {isVisible('crew_club') && (
-                <Field label="Club" required={isRequired('crew_club')}>
+                <Field label={fieldLabel('crew_club')} required={isRequired('crew_club')}>
                   <input
                     type="text"
                     value={member.club || ''}
                     onChange={(e) => updateCrewAt(index, { club: e.target.value })}
-                    placeholder="e.g. Royal Yacht Club"
+                    placeholder={t('placeholders.club')}
                     className={inputClass}
                     required={isRequired('crew_club')}
                   />
                 </Field>
               )}
               {isVisible('crew_federation_license') && (
-                <Field label="Federation license" hint="Optional for each crew member" required={isRequired('crew_federation_license')}>
+                <Field
+                  label={fieldLabel('crew_federation_license')}
+                  hint={t('hints.federationLicenseCrew')}
+                  required={isRequired('crew_federation_license')}
+                >
                   <input
                     type="text"
                     value={member.federation_license || ''}
                     onChange={(e) => updateCrewAt(index, { federation_license: e.target.value })}
-                    placeholder="e.g. 12345"
+                    placeholder={t('placeholders.federationLicense')}
                     className={inputClass}
                     required={isRequired('crew_federation_license')}
                   />
                 </Field>
               )}
               {isVisible('crew_gender') && (
-                <Field label="Gender" hint="Male or Female" required={isRequired('crew_gender')}>
+                <Field
+                  label={fieldLabel('crew_gender')}
+                  hint={t('hints.genderCrew')}
+                  required={isRequired('crew_gender')}
+                >
                   <select
                     value={member.gender || ''}
                     onChange={(e) => updateCrewAt(index, { gender: e.target.value })}
                     className={inputClass}
                     required={isRequired('crew_gender')}
                   >
-                    <option value="">—</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
+                    <option value="">{tCommon('dash')}</option>
+                    <option value="Male">{t('gender.male')}</option>
+                    <option value="Female">{t('gender.female')}</option>
                   </select>
                 </Field>
               )}
               {isVisible('crew_helm_country') && (
-                <Field label="Country" required={isRequired('crew_helm_country')}>
+                <Field label={fieldLabel('crew_helm_country')} required={isRequired('crew_helm_country')}>
                   <select
                     value={member.helm_country || ''}
                     onChange={(e) => updateCrewAt(index, { helm_country: e.target.value })}
                     className={inputClass}
                     required={isRequired('crew_helm_country')}
                   >
-                    <option value="">—</option>
+                    <option value="">{tCommon('dash')}</option>
                     {COUNTRIES_UNIQUE.map((c) => (
-                      <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                      <option key={c.code} value={c.code}>
+                        {c.name} ({c.code})
+                      </option>
                     ))}
                   </select>
                 </Field>
@@ -260,17 +274,21 @@ export default function Step2Crew({
             onClick={addCrew}
             className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600 font-medium"
           >
-            + Add crew member
+            {t('buttons.addCrew')}
           </button>
         )}
       </div>
 
       <div className="flex justify-between pt-2">
-        <button type="button" onClick={onBack} className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50">
-          Back
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+        >
+          {t('buttons.back')}
         </button>
         <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-          Next
+          {t('buttons.next')}
         </button>
       </div>
     </form>

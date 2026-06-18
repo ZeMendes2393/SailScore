@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
 import SailScorePublicContact from '@/components/SailScorePublicContact';
+import { useTranslations } from 'next-intl';
 
 type FooterDesign = {
   footer_site_name: string | null;
@@ -41,6 +42,8 @@ export default function GlobalFooter({
     useInitial ? (initialFooter as FooterDesign) : null
   );
   const [openModal, setOpenModal] = useState<LegalModalType>(null);
+  const t = useTranslations('footer');
+  const tCommon = useTranslations('common');
 
   useEffect(() => {
     if (useInitial) {
@@ -65,9 +68,9 @@ export default function GlobalFooter({
   const adminLoginHref = effectiveOrg ? `/admin/login?org=${encodeURIComponent(effectiveOrg)}` : '/admin/login';
 
   const getModalTitle = () => {
-    if (openModal === 'privacy') return 'Privacy Policy';
-    if (openModal === 'terms') return 'Terms of Service';
-    if (openModal === 'cookie') return 'Cookie Policy';
+    if (openModal === 'privacy') return t('privacyPolicy');
+    if (openModal === 'terms') return t('termsOfService');
+    if (openModal === 'cookie') return t('cookiePolicy');
     return '';
   };
 
@@ -96,7 +99,7 @@ export default function GlobalFooter({
                 <>
                   {footer?.footer_contact_email && (
                     <p>
-                      <span className="font-medium">Email:</span>{' '}
+                      <span className="font-medium">{t('email')}:</span>{' '}
                       <a
                         href={`mailto:${footer.footer_contact_email}`}
                         className="text-sky-300 hover:text-sky-200 underline underline-offset-2"
@@ -107,14 +110,14 @@ export default function GlobalFooter({
                   )}
                   {footer?.footer_phone && (
                     <p>
-                      <span className="font-medium">Phone:</span> {footer.footer_phone}
+                      <span className="font-medium">{t('phone')}:</span> {footer.footer_phone}
                     </p>
                   )}
                 </>
               )}
               {footer?.footer_address && (
                 <p className="whitespace-pre-line">
-                  <span className="font-medium">Address:</span> {footer.footer_address}
+                  <span className="font-medium">{t('address')}:</span> {footer.footer_address}
                 </p>
               )}
               <div className="flex flex-wrap gap-3 pt-1">
@@ -148,7 +151,7 @@ export default function GlobalFooter({
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 hover:text-slate-100 transition-colors underline underline-offset-2"
               >
-                <span>Powered by SailScore</span>
+                <span>{t('poweredBy')}</span>
                 <img
                   src="/sailscore-icon.png"
                   alt=""
@@ -163,13 +166,13 @@ export default function GlobalFooter({
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-700 pt-4 text-xs text-slate-400">
-            <p>© {new Date().getFullYear()} {siteName}. All rights reserved.</p>
+            <p>{t('copyright', { year: new Date().getFullYear(), siteName })}</p>
             <div className="flex flex-wrap gap-3">
               <Link
                 href={adminLoginHref}
                 className="text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2"
               >
-                Admin account
+                {t('adminAccount')}
               </Link>
               {showPrivacy && (
                 <button
@@ -177,7 +180,7 @@ export default function GlobalFooter({
                   className="hover:text-sky-200 underline underline-offset-2"
                   onClick={() => setOpenModal('privacy')}
                 >
-                  Privacy Policy
+                  {t('privacyPolicy')}
                 </button>
               )}
               {showTerms && (
@@ -186,7 +189,7 @@ export default function GlobalFooter({
                   className="hover:text-sky-200 underline underline-offset-2"
                   onClick={() => setOpenModal('terms')}
                 >
-                  Terms of Service
+                  {t('termsOfService')}
                 </button>
               )}
               {showCookie && (
@@ -195,7 +198,7 @@ export default function GlobalFooter({
                   className="hover:text-sky-200 underline underline-offset-2"
                   onClick={() => setOpenModal('cookie')}
                 >
-                  Cookie Policy
+                  {t('cookiePolicy')}
                 </button>
               )}
             </div>
@@ -213,7 +216,7 @@ export default function GlobalFooter({
                 className="text-sm text-gray-500 hover:text-gray-800"
                 onClick={() => setOpenModal(null)}
               >
-                Close
+                {tCommon('close')}
               </button>
             </div>
             <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
