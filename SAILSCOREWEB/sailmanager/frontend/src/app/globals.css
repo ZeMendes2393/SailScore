@@ -75,7 +75,21 @@ body {
 
 /* Regatta public pages — mobile/iOS */
 .regatta-site-header {
-  --app-header-height: 4.25rem;
+  --app-header-height: 4.5rem;
+}
+
+/* Org/regatta header — dynamic colours from admin Design */
+.app-site-header.header-themed {
+  --header-pill-hover: rgba(255, 255, 255, 0.1);
+}
+.header-themed-nav-link {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.header-themed-nav-link:hover {
+  background-color: var(--header-pill-hover) !important;
+}
+.header-themed-menu-btn:hover {
+  background-color: var(--header-pill-hover) !important;
 }
 .regatta-mobile-menu-backdrop {
   position: fixed;

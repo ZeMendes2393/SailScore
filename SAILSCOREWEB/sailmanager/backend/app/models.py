@@ -1015,6 +1015,8 @@ class SiteDesign(Base):
     # Header: club logo (mini image) + optional link
     club_logo_url = sa.Column(sa.String(500), nullable=True)
     club_logo_link = sa.Column(sa.String(500), nullable=True)
+    # Header bar colour (#RRGGBB). Null = default SailScore blue gradient.
+    header_background_color = sa.Column(sa.String(7), nullable=True)
     # Footer: configurable brand, contacts and legal texts
     footer_site_name = sa.Column(sa.String(200), nullable=True)
     footer_tagline = sa.Column(sa.String(500), nullable=True)

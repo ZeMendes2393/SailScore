@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -10,8 +11,17 @@ import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslations } from 'next-intl';
+import {
+  headerNavLinkStyle,
+  headerSurfaceStyle,
+  resolveHeaderTheme,
+} from '@/lib/headerTheme';
 
-type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
+type HeaderDesign = {
+  club_logo_url: string | null;
+  club_logo_link: string | null;
+  header_background_color?: string | null;
+};
 
 export default function MainHeader({
   initialDesign = null,
@@ -103,6 +113,7 @@ export default function MainHeader({
 
   const logoUrl = design?.club_logo_url?.trim();
   const logoLink = design?.club_logo_link?.trim();
+  const headerTheme = resolveHeaderTheme(design?.header_background_color);
   const homeHref = orgSlug ? `/o/${orgSlug}` : '/';
 
   const brandFallback = orgDisplayName || 'SailScore';
@@ -119,7 +130,7 @@ export default function MainHeader({
       <img
         src={apiAssetUrl(logoUrl!)}
         alt={t('clubLogoAlt')}
-        className="max-h-[2.6rem] md:max-h-[3.2rem] w-auto h-auto object-contain object-left drop-shadow-sm"
+        className="max-h-[3rem] md:max-h-[3.75rem] w-auto h-auto object-contain object-left drop-shadow-sm"
         onError={() => setLogoFailed(true)}
       />
     ) : (
@@ -129,10 +140,16 @@ export default function MainHeader({
   return (
     <>
     <header
-      className={`app-site-header bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-lg backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
+      className={`app-site-header header-themed shadow-lg backdrop-blur-md supports-[backdrop-filter]:backdrop-blur-md${headerHidden ? ' is-hidden' : ''}`}
+      style={
+        {
+          ...headerSurfaceStyle(headerTheme),
+          '--header-pill-hover': headerTheme.pillHover,
+        } as CSSProperties
+      }
       suppressHydrationWarning
     >
-      <div className="w-full min-h-[4rem] md:min-h-[4.75rem] py-2 sm:py-2.5 flex items-center justify-between px-3 sm:px-4 gap-2 md:gap-3 flex-wrap">
+      <div className="w-full min-h-[4.25rem] md:min-h-[5rem] py-2 sm:py-2.5 flex items-center justify-between px-3 sm:px-4 gap-2 md:gap-3 flex-wrap">
         <div className="flex items-center gap-4 shrink-0">
           {showExternalLink ? (
             <Link
@@ -151,14 +168,14 @@ export default function MainHeader({
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-auto">
-          <LanguageSwitcher className="shrink-0" />
+          <LanguageSwitcher theme={headerTheme.langSwitcherTheme} className="shrink-0" />
           {isLoggedIn ? (
             isSailor ? (
               <div className="flex flex-col items-end text-right">
-                <span className="text-base font-semibold uppercase tracking-wide text-white/85">
+                <span className="text-base font-semibold uppercase tracking-wide" style={{ color: headerTheme.colorMuted }}>
                   {t('sailorAccountLabel')}
                 </span>
-                <span className="text-lg text-white">
+                <span className="text-lg" style={{ color: headerTheme.color }}>
                   {user?.email || (user as any)?.username || (user as any)?.name || t('signedIn')}
                 </span>
               </div>
@@ -166,13 +183,15 @@ export default function MainHeader({
               <>
                 <Link
                   href={adminHomeHref}
-                  className="inline-block px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition shadow-sm"
+                  className="inline-block px-5 py-2.5 rounded-xl font-semibold text-base transition shadow-sm header-themed-nav-link"
+                  style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
                 >
                   {t('dashboard')}
                 </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
-                  className="inline-block px-5 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
+                  className="inline-block px-5 py-2.5 rounded-xl font-semibold text-base transition header-themed-nav-link"
+                  style={{ color: headerTheme.color }}
                 >
                   {t('signOut')}
                 </button>
@@ -185,9 +204,8 @@ export default function MainHeader({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-5 py-2.5 rounded-xl transition ${
-                      isNavActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
-                    }`}
+                    className="px-5 py-2.5 rounded-xl transition header-themed-nav-link"
+                    style={headerNavLinkStyle(headerTheme, isNavActive(item.href))}
                   >
                     {item.label}
                   </Link>
@@ -198,11 +216,12 @@ export default function MainHeader({
         </div>
 
         <div className="md:hidden ml-auto flex items-center gap-2">
-          <LanguageSwitcher className="shrink-0" />
+          <LanguageSwitcher theme={headerTheme.langSwitcherTheme} className="shrink-0" />
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="inline-flex items-center justify-center rounded-xl px-3 py-2 bg-white/15 hover:bg-white/25 text-white transition"
+            className="inline-flex items-center justify-center rounded-xl px-3 py-2 transition header-themed-menu-btn"
+            style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
             aria-label={mobileMenuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-main-nav"
@@ -213,15 +232,21 @@ export default function MainHeader({
       </div>
 
       {mobileMenuOpen && (
-        <div id="mobile-main-nav" className="md:hidden border-t border-white/20 bg-blue-900/85 backdrop-blur-md px-3 pb-3">
+        <div
+          id="mobile-main-nav"
+          className="md:hidden border-t backdrop-blur-md px-3 pb-3"
+          style={{ borderColor: headerTheme.borderColor, background: headerTheme.mobilePanelBg }}
+        >
           <div className="pt-3 pb-1 flex justify-end">
-            <LanguageSwitcher />
+            <LanguageSwitcher theme={headerTheme.langSwitcherTheme} />
           </div>
           {isLoggedIn ? (
             isSailor ? (
-              <div className="py-3 text-white/90">
-                <p className="text-sm uppercase tracking-wide font-semibold text-white/75">{t('sailorAccountLabel')}</p>
-                <p className="text-base mt-1 break-all">
+              <div className="py-3" style={{ color: headerTheme.colorMuted }}>
+                <p className="text-sm uppercase tracking-wide font-semibold" style={{ color: headerTheme.colorMuted }}>
+                  {t('sailorAccountLabel')}
+                </p>
+                <p className="text-base mt-1 break-all" style={{ color: headerTheme.color }}>
                   {user?.email || (user as any)?.username || (user as any)?.name || t('signedIn')}
                 </p>
               </div>
@@ -229,13 +254,15 @@ export default function MainHeader({
               <div className="flex flex-col gap-2 py-3">
                 <Link
                   href={adminHomeHref}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold text-base transition text-center"
+                  className="w-full px-4 py-2.5 rounded-xl font-semibold text-base transition text-center header-themed-nav-link"
+                  style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
                 >
                   {t('dashboard')}
                 </Link>
                 <button
                   onClick={() => logout({ redirectTo: orgSlug ? `/o/${orgSlug}` : '/' })}
-                  className="w-full px-4 py-2.5 rounded-xl hover:bg-white/20 text-white font-semibold text-base transition"
+                  className="w-full px-4 py-2.5 rounded-xl font-semibold text-base transition header-themed-nav-link"
+                  style={{ color: headerTheme.color }}
                 >
                   {t('signOut')}
                 </button>
@@ -247,9 +274,8 @@ export default function MainHeader({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`w-full px-4 py-2.5 rounded-xl transition ${
-                    isNavActive(item.href) ? 'bg-white/25 text-white' : 'hover:bg-white/15 text-white/95'
-                  }`}
+                  className="w-full px-4 py-2.5 rounded-xl transition header-themed-nav-link"
+                  style={headerNavLinkStyle(headerTheme, isNavActive(item.href))}
                 >
                   {item.label}
                 </Link>

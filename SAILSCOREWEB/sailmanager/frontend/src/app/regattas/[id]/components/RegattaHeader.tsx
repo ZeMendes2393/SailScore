@@ -7,6 +7,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useScrollHideHeader } from '@/hooks/useScrollHideHeader';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslations } from 'next-intl';
+import {
+  headerNavLinkStyle,
+  headerSurfaceStyle,
+  resolveHeaderTheme,
+} from '@/lib/headerTheme';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
@@ -24,6 +29,7 @@ type RegattaHeaderProps = {
 
 type HeaderDesign = {
   club_logo_url?: string | null;
+  header_background_color?: string | null;
 };
 
 export default function RegattaHeader({
@@ -114,10 +120,10 @@ export default function RegattaHeader({
     return `/login?${p.toString()}`;
   }, [regattaId, organizationSlug]);
 
-  const linkClass = (active: boolean) =>
-    `px-4 py-2.5 rounded-xl transition text-base sm:text-lg ${active ? 'bg-white/20' : 'hover:bg-white/10'}`;
+  const navLinkClass = 'px-4 py-2.5 rounded-xl transition text-base sm:text-lg header-themed-nav-link';
 
   const logoUrl = headerDesign?.club_logo_url?.trim();
+  const headerTheme = resolveHeaderTheme(headerDesign?.header_background_color);
   const brandText = orgDisplayName || organizationSlug || 'Regattas';
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
   const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
@@ -126,56 +132,64 @@ export default function RegattaHeader({
   return (
     <>
     <header
-      className={`app-site-header regatta-site-header w-full bg-gradient-to-r from-blue-700/85 to-sky-600/85 text-white shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-blue-700/70${headerHidden ? ' is-hidden' : ''}`}
-      style={{ '--app-header-height': '4.25rem' } as CSSProperties}
+      className={`app-site-header regatta-site-header header-themed w-full shadow-md backdrop-blur-md supports-[backdrop-filter]:backdrop-blur-md${headerHidden ? ' is-hidden' : ''}`}
+      style={
+        {
+          '--app-header-height': '4.5rem',
+          ...headerSurfaceStyle(headerTheme),
+          '--header-pill-hover': headerTheme.pillHover,
+        } as CSSProperties
+      }
     >
-      <div className="w-full h-[4.25rem] md:min-h-[5rem] md:h-auto md:py-3 flex flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 max-md:overflow-hidden md:gap-3">
-        <Link href={brandHref} className="shrink-0 min-w-0 max-w-[40%] md:max-w-[32%] hover:opacity-90 transition-opacity">
+      <div className="w-full h-[4.5rem] md:min-h-[5.25rem] md:h-auto md:py-3 flex flex-nowrap items-center justify-between gap-2 px-3 sm:px-4 max-md:overflow-hidden md:gap-3">
+        <Link href={brandHref} className="shrink-0 min-w-0 max-w-[42%] md:max-w-[36%] hover:opacity-90 transition-opacity">
           {logoUrl && !logoFailed ? (
             <img
               src={logoUrl.startsWith('http') ? logoUrl : `${API_BASE}${logoUrl}`}
               alt={brandText}
-              className="max-h-10 sm:max-h-12 md:max-h-[3.25rem] w-auto max-w-full object-contain object-left"
+              className="max-h-11 sm:max-h-14 md:max-h-[3.75rem] w-auto max-w-full object-contain object-left"
               onError={() => setLogoFailed(true)}
             />
           ) : (
-            <span className="text-lg sm:text-2xl md:text-3xl font-bold tracking-wide truncate block">
+            <span className="text-lg sm:text-2xl md:text-3xl font-bold tracking-wide truncate block" style={{ color: headerTheme.color }}>
               {brandText}
             </span>
           )}
         </Link>
         <nav className="max-md:hidden md:flex items-center gap-2 md:gap-3 text-lg sm:text-xl font-semibold flex-wrap justify-end min-w-0 ml-auto">
-          <Link href={base} className={linkClass(isHome)} title={t('homeTitle')}>
+          <Link href={base} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isHome)} title={t('homeTitle')}>
             {t('home')}
           </Link>
-          <Link href={`${base}/form`} className={linkClass(isForm)}>
+          <Link href={`${base}/form`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isForm)}>
             {t('onlineEntry')}
           </Link>
-          <Link href={`${base}/entry`} className={linkClass(isEntry)}>
+          <Link href={`${base}/entry`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isEntry)}>
             {t('entryList')}
           </Link>
-          <Link href={`${base}/notice`} className={linkClass(isNotice)}>
+          <Link href={`${base}/notice`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isNotice)}>
             {t('noticeBoard')}
           </Link>
-          <Link href={`${base}/results`} className={linkClass(isResults)}>
+          <Link href={`${base}/results`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isResults)}>
             {t('results')}
           </Link>
         </nav>
         <div className="max-md:hidden md:flex items-center gap-2 shrink-0">
-          <LanguageSwitcher className="shrink-0" />
+          <LanguageSwitcher theme={headerTheme.langSwitcherTheme} className="shrink-0" />
           <Link
             href={sailorAccountHref}
-            className="inline-flex shrink-0 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base sm:text-lg font-semibold"
+            className="inline-flex shrink-0 px-5 py-2.5 rounded-xl text-base sm:text-lg font-semibold header-themed-nav-link"
+            style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
           >
             {t('sailorAccount')}
           </Link>
         </div>
         <div className="max-md:flex md:hidden ml-auto shrink-0 flex items-center gap-2">
-          <LanguageSwitcher />
+          <LanguageSwitcher theme={headerTheme.langSwitcherTheme} />
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="inline-flex items-center justify-center rounded-xl w-11 h-11 bg-white/15 hover:bg-white/25 text-white transition"
+            className="inline-flex items-center justify-center rounded-xl w-11 h-11 transition header-themed-menu-btn"
+            style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
             aria-label={mobileMenuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-regatta-nav"
@@ -219,30 +233,32 @@ export default function RegattaHeader({
         />
         <div
           id="mobile-regatta-nav"
-          className="regatta-mobile-menu-panel md:hidden border-t border-white/20 bg-blue-900/95 backdrop-blur-md px-3 pb-4 shadow-lg"
+          className="regatta-mobile-menu-panel md:hidden border-t backdrop-blur-md px-3 pb-4 shadow-lg"
+          style={{ borderColor: headerTheme.borderColor, background: headerTheme.mobilePanelBg }}
         >
           <nav className="flex flex-col gap-2 py-3 text-base font-semibold">
             <div className="flex justify-end pb-1">
-              <LanguageSwitcher />
+              <LanguageSwitcher theme={headerTheme.langSwitcherTheme} />
             </div>
-            <Link href={base} className={linkClass(isHome)} title={t('homeTitle')}>
+            <Link href={base} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isHome)} title={t('homeTitle')}>
               {t('home')}
             </Link>
-            <Link href={`${base}/form`} className={linkClass(isForm)}>
+            <Link href={`${base}/form`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isForm)}>
               {t('onlineEntry')}
             </Link>
-            <Link href={`${base}/entry`} className={linkClass(isEntry)}>
+            <Link href={`${base}/entry`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isEntry)}>
               {t('entryList')}
             </Link>
-            <Link href={`${base}/notice`} className={linkClass(isNotice)}>
+            <Link href={`${base}/notice`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isNotice)}>
               {t('noticeBoard')}
             </Link>
-            <Link href={`${base}/results`} className={linkClass(isResults)}>
+            <Link href={`${base}/results`} className={navLinkClass} style={headerNavLinkStyle(headerTheme, isResults)}>
               {t('results')}
             </Link>
             <Link
               href={sailorAccountHref}
-              className="w-full px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-base font-semibold text-center transition"
+              className="w-full px-4 py-2.5 rounded-xl text-base font-semibold text-center transition header-themed-nav-link"
+              style={{ backgroundColor: headerTheme.pillSolid, color: headerTheme.color }}
             >
               {t('sailorAccount')}
             </Link>
@@ -252,7 +268,7 @@ export default function RegattaHeader({
     )}
     <div
       className={`app-site-header-spacer max-md:block ${overlayHero ? 'md:hidden' : ''}`}
-      style={{ '--app-header-height': '4.25rem' } as CSSProperties}
+      style={{ '--app-header-height': '4.5rem' } as CSSProperties}
       aria-hidden
     />
     </>

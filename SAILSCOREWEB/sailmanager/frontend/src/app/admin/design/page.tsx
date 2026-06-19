@@ -7,6 +7,11 @@ import { apiGet, apiSend, apiUpload, apiAssetUrl } from '@/lib/api';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
 import notify from '@/lib/notify';
+import {
+  DEFAULT_HEADER_COLOR,
+  normalizeHeaderColorInput,
+  resolveHeaderTheme,
+} from '@/lib/headerTheme';
 
 type Regatta = { id: number; name: string; location: string; start_date: string; end_date: string };
 type HomeImageItem = { url: string; position_x?: number; position_y?: number };
@@ -16,6 +21,7 @@ type HomepageDesign = {
   hero_subtitle?: string | null;
   club_logo_url?: string | null;
   club_logo_link?: string | null;
+  header_background_color?: string | null;
 };
 
 type FooterDesign = {
@@ -50,6 +56,8 @@ export default function AdminDesignPage() {
 
   const [clubLogoUrl, setClubLogoUrl] = useState('');
   const [clubLogoLink, setClubLogoLink] = useState('');
+  const [headerBgColor, setHeaderBgColor] = useState('');
+  const [useDefaultHeaderColor, setUseDefaultHeaderColor] = useState(true);
   const [savingHeader, setSavingHeader] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [footerDesign, setFooterDesign] = useState<FooterDesign | null>(null);
@@ -122,6 +130,9 @@ export default function AdminDesignPage() {
         setHeroSubtitle(homepage?.hero_subtitle ?? '');
         setClubLogoUrl(homepage?.club_logo_url ?? '');
         setClubLogoLink(homepage?.club_logo_link ?? '');
+        const savedHeaderColor = homepage?.header_background_color?.trim() ?? '';
+        setHeaderBgColor(savedHeaderColor || DEFAULT_HEADER_COLOR);
+        setUseDefaultHeaderColor(!savedHeaderColor);
         setFooterDesign(footer);
       } catch (e) {
         console.error(e);
@@ -243,20 +254,26 @@ export default function AdminDesignPage() {
     }
   };
 
+  const headerPreviewTheme = resolveHeaderTheme(
+    useDefaultHeaderColor ? null : normalizeHeaderColorInput(headerBgColor)
+  );
+
   const handleSaveHeader = async () => {
     if (!token) return;
     setSavingHeader(true);
     try {
+      const colorToSave = useDefaultHeaderColor ? null : normalizeHeaderColorInput(headerBgColor);
       await apiSend(
         withOrg('/design/homepage', orgSlug),
         'PUT',
         {
           club_logo_url: clubLogoUrl.trim() || null,
           club_logo_link: clubLogoLink.trim() || null,
+          header_background_color: colorToSave,
         },
         token
       );
-      notify.success('Header club logo and link saved.');
+      notify.success('Header settings saved.');
     } catch (e) {
       console.error(e);
       notify.error('Error saving header.');
@@ -506,9 +523,47 @@ export default function AdminDesignPage() {
             {openSections.header && (
               <div className="px-8 pb-8 pt-2 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500 mb-4">
-                  Club logo shown in the top-left of the header. You can add an optional link so clicking the logo opens a URL (e.g. your club website).
+                  Club logo and header bar colour for this organization. Text and buttons adjust automatically for readable contrast.
                 </p>
                 <div className="border rounded-lg p-5 bg-gray-50 space-y-4 max-w-xl">
+                  <div
+                    className="rounded-lg px-4 py-3 text-sm font-semibold shadow-inner"
+                    style={{ background: headerPreviewTheme.background, color: headerPreviewTheme.color }}
+                  >
+                    Header preview — menu links and buttons use contrasting text automatically.
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={useDefaultHeaderColor}
+                        onChange={(e) => setUseDefaultHeaderColor(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      Use default SailScore blue header
+                    </label>
+                    {!useDefaultHeaderColor && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input
+                          type="color"
+                          value={normalizeHeaderColorInput(headerBgColor) ?? DEFAULT_HEADER_COLOR}
+                          onChange={(e) => setHeaderBgColor(e.target.value)}
+                          className="h-10 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1"
+                          aria-label="Header background colour"
+                        />
+                        <input
+                          type="text"
+                          value={headerBgColor}
+                          onChange={(e) => setHeaderBgColor(e.target.value)}
+                          placeholder="#1d4ed8"
+                          className="w-32 border rounded px-3 py-2 text-gray-900 font-mono text-sm"
+                        />
+                        <p className="text-xs text-gray-500 w-full">
+                          Pick a brand colour. Light backgrounds get dark text; dark backgrounds get white text.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">Club logo image</label>
                     <input

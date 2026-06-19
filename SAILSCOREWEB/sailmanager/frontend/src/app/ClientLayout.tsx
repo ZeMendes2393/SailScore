@@ -7,7 +7,11 @@ import GlobalFooter from '@/components/GlobalFooter';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
 
-export type HeaderDesign = { club_logo_url: string | null; club_logo_link: string | null };
+export type HeaderDesign = {
+  club_logo_url: string | null;
+  club_logo_link: string | null;
+  header_background_color?: string | null;
+};
 
 /** Org slug from path only - SSR-safe, no useSearchParams */
 function orgSlugFromPathname(pathname: string | null): string | null {

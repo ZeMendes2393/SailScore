@@ -103,9 +103,14 @@ export default async function RootLayout({
 
   const q = orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : '';
 
-  let headerDesign: { club_logo_url: string | null; club_logo_link: string | null } = {
+  let headerDesign: {
+    club_logo_url: string | null;
+    club_logo_link: string | null;
+    header_background_color?: string | null;
+  } = {
     club_logo_url: null,
     club_logo_link: null,
+    header_background_color: null,
   };
   let footerDesign: Record<string, unknown> | null = null;
   try {

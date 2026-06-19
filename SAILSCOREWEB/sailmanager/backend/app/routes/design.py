@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
 
+import re
+
 from app import models, schemas
 from app.default_footer_legal_texts import (
     DEFAULT_FOOTER_COOKIE_POLICY_TEXT,
@@ -17,6 +19,21 @@ from app.org_scope import assert_user_can_manage_organization, resolve_org
 from utils.auth_utils import get_current_user
 
 router = APIRouter(prefix="/design", tags=["design"])
+
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$")
+
+
+def _normalize_header_color(value: str | None) -> str | None:
+    if value is None:
+        return None
+    v = value.strip()
+    if not v:
+        return None
+    if not _HEX_COLOR_RE.match(v):
+        raise HTTPException(status_code=400, detail="header_background_color must be a hex colour (#RGB or #RRGGBB).")
+    if len(v) == 4:
+        return f"#{v[1]}{v[1]}{v[2]}{v[2]}{v[3]}{v[3]}".lower()
+    return v.lower()
 
 
 def _get_or_create_site_design(db: Session, org: models.Organization) -> models.SiteDesign:
@@ -116,11 +133,13 @@ class HomepageOut(BaseModel):
     hero_subtitle: str | None = None
     club_logo_url: str | None = None
     club_logo_link: str | None = None
+    header_background_color: str | None = None
 
 
 class HeaderOut(BaseModel):
     club_logo_url: str | None = None
     club_logo_link: str | None = None
+    header_background_color: str | None = None
 
 
 class HomepageUpdate(BaseModel):
@@ -129,6 +148,7 @@ class HomepageUpdate(BaseModel):
     hero_subtitle: str | None = None
     club_logo_url: str | None = None
     club_logo_link: str | None = None
+    header_background_color: str | None = None
 
 
 class FooterDesignOut(BaseModel):
@@ -174,9 +194,9 @@ def get_homepage_design(
         row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     except SQLAlchemyError:
         # Fallback resiliente para ambientes ainda sem schema completo.
-        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
+        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None, header_background_color=None)
     if not row:
-        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None)
+        return HomepageOut(home_images=[], hero_title=None, hero_subtitle=None, club_logo_url=None, club_logo_link=None, header_background_color=None)
     images = (row.home_images or [])[:3]
     return HomepageOut(
         home_images=images,
@@ -184,6 +204,7 @@ def get_homepage_design(
         hero_subtitle=getattr(row, "hero_subtitle", None),
         club_logo_url=getattr(row, "club_logo_url", None),
         club_logo_link=getattr(row, "club_logo_link", None),
+        header_background_color=getattr(row, "header_background_color", None),
     )
 
 
@@ -198,12 +219,13 @@ def get_header_design(
         row = db.query(models.SiteDesign).filter(models.SiteDesign.organization_id == organization.id).first()
     except SQLAlchemyError:
         # Fallback resiliente para ambientes ainda sem schema completo.
-        return HeaderOut(club_logo_url=None, club_logo_link=None)
+        return HeaderOut(club_logo_url=None, club_logo_link=None, header_background_color=None)
     if not row:
-        return HeaderOut(club_logo_url=None, club_logo_link=None)
+        return HeaderOut(club_logo_url=None, club_logo_link=None, header_background_color=None)
     return HeaderOut(
         club_logo_url=getattr(row, "club_logo_url", None),
         club_logo_link=getattr(row, "club_logo_link", None),
+        header_background_color=getattr(row, "header_background_color", None),
     )
 
 
@@ -237,6 +259,8 @@ def set_homepage_design(
     if "club_logo_link" in data:
         v = data["club_logo_link"]
         row.club_logo_link = v.strip() or None if isinstance(v, str) else None
+    if "header_background_color" in data:
+        row.header_background_color = _normalize_header_color(data["header_background_color"])
     db.commit()
     db.refresh(row)
     return HomepageOut(
@@ -245,6 +269,7 @@ def set_homepage_design(
         hero_subtitle=getattr(row, "hero_subtitle", None),
         club_logo_url=getattr(row, "club_logo_url", None),
         club_logo_link=getattr(row, "club_logo_link", None),
+        header_background_color=getattr(row, "header_background_color", None),
     )
 
 
