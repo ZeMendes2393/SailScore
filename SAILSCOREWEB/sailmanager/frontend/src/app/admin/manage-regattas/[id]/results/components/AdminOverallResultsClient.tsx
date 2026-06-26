@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Trash2, Layers, Shuffle, List, Globe } from 'lucide-react';
+import { Plus, Trash2, Layers, Shuffle, List, Globe, Timer } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
 import { apiGet, apiSend } from '@/lib/api';
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
+import PaceResultsTable from '@/components/results/PaceResultsTable';
 import {
   RESULTS_OVERALL_COLUMNS,
   getVisibleResultsOverallColumnsForClass,
@@ -34,6 +35,22 @@ type RegattaConfig = {
   discard_count: number;
   discard_threshold: number;
   results_overall_columns?: string[] | Record<string, string[]> | null;
+  results_pace_config?: ResultsPaceConfig | null;
+};
+
+type ResultsPaceConfig = {
+  enabled?: boolean;
+  table_name?: string;
+  class_names?: string[];
+  miles_by_class?: Record<string, number>;
+};
+
+type RegattaClassDetailed = {
+  id: number;
+  regatta_id: number;
+  class_name: string;
+  class_type?: string | null;
+  sailors_per_boat?: number | null;
 };
 
 type OverallResult = {
@@ -131,7 +148,7 @@ function formatPerRaceCell(
   if (!s) return '-';
 
   const isWrapped = s.startsWith('(') && s.endsWith(')');
-  let inner = isWrapped ? s.slice(1, -1).trim() : s;
+  const inner = isWrapped ? s.slice(1, -1).trim() : s;
 
   const prpInRaw = inner.match(/^PRP:([^0-9]+?)\s+([-+]?\d+(?:\.\d+)?)\s*$/i);
   if (prpInRaw) {
@@ -178,6 +195,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const manageRegattaBasePath = user?.role === 'scorer' ? '/scorer/manage-regattas' : '/admin/manage-regattas';
 
   const [classes, setClasses] = useState<string[]>([]);
+  const [classDetails, setClassDetails] = useState<RegattaClassDetailed[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [racesByClass, setRacesByClass] = useState<Record<string, RaceLite[]>>({});
   const [rawResults, setRawResults] = useState<OverallResult[]>([]);
@@ -205,7 +223,9 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const [showPublish, setShowPublish] = useState(false);
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [showFields, setShowFields] = useState(false);
+  const [showPaceConfig, setShowPaceConfig] = useState(false);
   const [savingColumns, setSavingColumns] = useState(false);
+  const [savingPaceConfig, setSavingPaceConfig] = useState(false);
 
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
@@ -216,6 +236,102 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
     () => getVisibleResultsOverallColumnsForClass(regatta?.results_overall_columns, selectedClass),
     [regatta?.results_overall_columns, selectedClass]
   );
+
+  const handicapClassNames = useMemo(
+    () =>
+      classDetails
+        .filter((cls) => (cls.class_type ?? 'one_design').toLowerCase() === 'handicap')
+        .map((cls) => cls.class_name),
+    [classDetails]
+  );
+
+  const paceConfig = useMemo<ResultsPaceConfig>(
+    () =>
+      regatta?.results_pace_config ?? {
+        enabled: false,
+        table_name: 'Time per mile',
+        class_names: [],
+        miles_by_class: {},
+      },
+    [regatta?.results_pace_config]
+  );
+
+  const updatePaceConfig = useCallback((patch: Partial<ResultsPaceConfig>) => {
+    setRegatta((prev) => {
+      if (!prev) return prev;
+      const current = prev.results_pace_config ?? {
+        enabled: false,
+        table_name: 'Time per mile',
+        class_names: [],
+        miles_by_class: {},
+      };
+      return {
+        ...prev,
+        results_pace_config: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  }, []);
+
+  const togglePaceClass = useCallback(
+    (className: string) => {
+      const selected = new Set(paceConfig.class_names ?? []);
+      const miles = { ...(paceConfig.miles_by_class ?? {}) };
+      if (selected.has(className)) {
+        selected.delete(className);
+        delete miles[className];
+      } else {
+        selected.add(className);
+        miles[className] = miles[className] ?? 0;
+      }
+      updatePaceConfig({ class_names: Array.from(selected), miles_by_class: miles });
+    },
+    [paceConfig.class_names, paceConfig.miles_by_class, updatePaceConfig]
+  );
+
+  const savePaceConfig = useCallback(async () => {
+    const allowed = new Set(handicapClassNames);
+    const selected = (paceConfig.class_names ?? []).filter((className) => allowed.has(className));
+    const milesByClass: Record<string, number> = {};
+    for (const className of selected) {
+      const miles = Number(paceConfig.miles_by_class?.[className] ?? 0);
+      if (Number.isFinite(miles) && miles > 0) {
+        milesByClass[className] = miles;
+      }
+    }
+
+    if (paceConfig.enabled && selected.length > 0 && Object.keys(milesByClass).length !== selected.length) {
+      notify.error('Add miles for every selected handicap class.');
+      return;
+    }
+
+    const payload: ResultsPaceConfig = {
+      enabled: !!paceConfig.enabled,
+      table_name: (paceConfig.table_name ?? '').trim() || 'Time per mile',
+      class_names: selected,
+      miles_by_class: milesByClass,
+    };
+
+    setSavingPaceConfig(true);
+    try {
+      const data = await apiSend<{ results_pace_config?: ResultsPaceConfig | null }>(
+        `/regattas/${regattaId}`,
+        'PATCH',
+        { results_pace_config: payload },
+        token ?? undefined
+      );
+      setRegatta((prev) =>
+        prev ? { ...prev, results_pace_config: data?.results_pace_config ?? payload } : prev
+      );
+      notify.success('Time/Mile configuration saved.');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : 'Failed to save Time/Mile configuration.');
+    } finally {
+      setSavingPaceConfig(false);
+    }
+  }, [handicapClassNames, paceConfig, regattaId, token]);
 
   const toggleResultsColumn = useCallback(
     async (columnId: ResultsOverallColumnId) => {
@@ -258,6 +374,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           discard_count: data.discard_count ?? 0,
           discard_threshold: data.discard_threshold ?? 0,
           results_overall_columns: data.results_overall_columns ?? null,
+          results_pace_config: data.results_pace_config ?? null,
         });
       } catch (e) {
         console.error(e);
@@ -277,6 +394,17 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         setError('Failed to load classes');
       } finally {
         setLoadingClasses(false);
+      }
+    })();
+  }, [apiGet, regattaId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await apiGet<RegattaClassDetailed[]>(`/regattas/${regattaId}/classes/detailed`);
+        setClassDetails(Array.isArray(data) ? data : []);
+      } catch {
+        setClassDetails([]);
       }
     })();
   }, [apiGet, regattaId]);
@@ -637,6 +765,18 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             <List size={16} strokeWidth={2} />
             Fields
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPaceConfig((v) => !v)}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded border text-gray-700 ${
+              showPaceConfig ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+            }`}
+            title="Configure handicap Time/Mile table"
+          >
+            <Timer size={16} strokeWidth={2} />
+            Time/Mile
+          </button>
         </div>
 
         {/* Fields: colunas visíveis */}
@@ -658,6 +798,85 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               </label>
             ))}
             {savingColumns && <span className="text-xs text-gray-500">Saving…</span>}
+          </div>
+        )}
+
+        {showPaceConfig && (
+          <div className="p-3 bg-gray-50 rounded border space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!paceConfig.enabled}
+                  onChange={(event) => updatePaceConfig({ enabled: event.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                Show Time/Mile table in results
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                Table name
+                <input
+                  type="text"
+                  value={paceConfig.table_name ?? 'Time per mile'}
+                  onChange={(event) => updatePaceConfig({ table_name: event.target.value })}
+                  className="border rounded px-2 py-1 text-sm min-w-48"
+                  placeholder="Time per mile"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={savePaceConfig}
+                disabled={savingPaceConfig}
+                className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingPaceConfig ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+
+            {handicapClassNames.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No handicap classes are configured for this regatta.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {handicapClassNames.map((className) => {
+                  const checked = (paceConfig.class_names ?? []).includes(className);
+                  return (
+                    <div key={className} className="flex items-center gap-2 rounded border bg-white px-3 py-2">
+                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePaceClass(className)}
+                          className="rounded border-gray-300"
+                        />
+                        {className}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paceConfig.miles_by_class?.[className] ?? ''}
+                        onChange={(event) =>
+                          updatePaceConfig({
+                            miles_by_class: {
+                              ...(paceConfig.miles_by_class ?? {}),
+                              [className]: Number(event.target.value),
+                            },
+                          })
+                        }
+                        disabled={!checked}
+                        className="w-24 border rounded px-2 py-1 text-sm disabled:bg-gray-100"
+                        placeholder="Miles"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">
+              Only handicap classes can be selected. The result will use total elapsed time divided by miles and sorted ascending.
+            </p>
           </div>
         )}
 
@@ -728,6 +947,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
       {/* Table */}
       {selectedClass && !loadingResults && (
+        <>
         <table className="table-auto w-full border border-collapse">
           <thead className="bg-gray-100">
             <tr>
@@ -844,6 +1064,8 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             ))}
           </tbody>
         </table>
+        <PaceResultsTable regattaId={regattaId} selectedClass={selectedClass} />
+        </>
       )}
 
       {/* Fixed Save/Cancel bar (reorder) */}

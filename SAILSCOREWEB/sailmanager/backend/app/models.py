@@ -120,6 +120,8 @@ class Regatta(Base):
     entry_list_columns = Column(JSON, nullable=True)
     # Colunas visíveis nos results overall (place, fleet, sail_no, boat, skipper, club, class, model, bow, total, net)
     results_overall_columns = Column(JSON, nullable=True)
+    # Configuração da tabela handicap por tempo real por milha.
+    results_pace_config = Column(JSON, nullable=True)
     # Country (ISO 3166-1 alpha-2, ex: PT, ES) + timezone (IANA, ex: Europe/Lisbon)
     country_code = Column(String(2), nullable=True)
     timezone = Column(String(64), nullable=True)
@@ -1068,7 +1070,7 @@ class Organization(Base):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     name = sa.Column(sa.String(255), nullable=False, index=True)
     slug = sa.Column(sa.String(120), unique=True, nullable=False, index=True)
-    # UI language default for this org when the visitor has no saved preference (en-GB | pt-PT).
+    # UI language default for this org when the visitor has no saved preference (en-GB | pt-PT | es-ES).
     default_locale = sa.Column(sa.String(10), nullable=False, server_default=sa.text("'en-GB'"))
     is_active = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("true"))
     created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())

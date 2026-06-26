@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
 import RegattaHeader from '../components/RegattaHeader'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
+import PaceResultsTable from '@/components/results/PaceResultsTable'
 import { getApiBaseUrl } from '@/lib/api'
 import { formatPublishedAt } from '@/lib/formatDate'
 import {
@@ -326,6 +327,7 @@ export default function OverallResultsPage() {
             </table>
             </div>
           )}
+          <PaceResultsTable regattaId={Number(regattaId)} selectedClass={selectedClass} publicResults />
         </div>
       )}
     </div>

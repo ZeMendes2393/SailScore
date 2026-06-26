@@ -224,7 +224,7 @@ class OrganizationBase(BaseModel):
     name: str
     slug: str
     is_active: bool = True
-    default_locale: Literal["en-GB", "pt-PT"] = "en-GB"
+    default_locale: Literal["en-GB", "pt-PT", "es-ES"] = "en-GB"
 
 
 class OrganizationCreate(OrganizationBase):
@@ -239,7 +239,7 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     is_active: Optional[bool] = None
-    default_locale: Optional[Literal["en-GB", "pt-PT"]] = None
+    default_locale: Optional[Literal["en-GB", "pt-PT", "es-ES"]] = None
     admin_email: Optional[str] = None  # platform_admin only: altera email do admin do site
     admin_password: Optional[str] = None  # platform_admin only: altera password do admin do site
 
@@ -330,6 +330,7 @@ class RegattaRead(RegattaBase):
     # Por classe: Dict[class_name, List[column_id]]. Legado: List[str] (uma config para todas).
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_pace_config: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
@@ -374,6 +375,7 @@ class RegattaUpdate(BaseModel):
     online_entry_field_visibility: Optional[Dict[str, bool]] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_pace_config: Optional[Dict[str, Any]] = None
 
 
 FinanceKindLiteral = Literal["revenue", "expense"]

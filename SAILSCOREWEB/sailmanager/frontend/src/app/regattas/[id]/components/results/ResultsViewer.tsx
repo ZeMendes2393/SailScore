@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay'
+import PaceResultsTable from '@/components/results/PaceResultsTable'
 import { getApiBaseUrl } from '@/lib/api'
 import { formatIsoDateOnly, formatPublishedAt } from '@/lib/formatDate'
 import {
@@ -356,6 +357,8 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
         </tbody>
       </table>
       </div>
+
+      <PaceResultsTable regattaId={regattaId} selectedClass={selectedClass} publicResults />
 
       {/* Tabela de detalhe da race selecionada (handicap: tempos) */}
       {selectedRaceForTimes && (

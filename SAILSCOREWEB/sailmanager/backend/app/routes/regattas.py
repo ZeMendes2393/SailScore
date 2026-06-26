@@ -224,6 +224,7 @@ def update_regatta(
             "online_entry_field_visibility",
             "entry_list_columns",
             "results_overall_columns",
+            "results_pace_config",
         }
         data = {k: v for k, v in data.items() if k in scorer_allowed_fields}
         if not data:
