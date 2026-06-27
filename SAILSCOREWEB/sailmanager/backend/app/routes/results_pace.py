@@ -12,7 +12,6 @@ from app.routes.results_overall import _get_published_at_iso, _get_published_rac
 from app.routes.results_utils import (
     _parse_time_to_seconds,
     build_eligible_result_identities,
-    result_removes_from_ranking,
     result_row_identity,
 )
 
@@ -201,8 +200,6 @@ def get_pace_results(
         key = (cls.lower(), f"{str(result.sail_number or '').strip().upper()}||{str(result.boat_country_code or '').strip().upper()}")
         if _norm_code(getattr(result, "code", None)) == "DNC":
             dnc_boat_keys.add(key)
-            continue
-        if result_removes_from_ranking(result):
             continue
 
         elapsed_seconds = _parse_time_to_seconds(getattr(result, "elapsed_time", None))
