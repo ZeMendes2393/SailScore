@@ -161,8 +161,9 @@ def _ensure_upload_dirs():
     (FILES_DIR / "protests").mkdir(parents=True, exist_ok=True)
     # Arrancar fila persistente de emails sem bloquear readiness da app.
     try:
-        start_email_outbox_worker()
-        process_email_outbox()
+        worker_started = start_email_outbox_worker()
+        if worker_started:
+            process_email_outbox()
     except Exception:
         logger.exception(
             "Inicializacao da outbox de email falhou no startup; continua a servir healthchecks"

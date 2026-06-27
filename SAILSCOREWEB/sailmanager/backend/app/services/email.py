@@ -26,6 +26,8 @@ EMAIL_RETRY_BASE_SECONDS = float(os.getenv("EMAIL_RETRY_BASE_SECONDS", "1.5"))
 EMAIL_QUEUE_FILE = Path(os.getenv("EMAIL_QUEUE_FILE", "email_outbox_queue.jsonl")).resolve()
 EMAIL_QUEUE_POLL_SECONDS = float(os.getenv("EMAIL_QUEUE_POLL_SECONDS", "10"))
 _QUEUE_LOCK = threading.Lock()
+_RECENT_DEDUPE_KEYS: dict[str, int] = {}
+EMAIL_DEDUPE_WINDOW_SECONDS = int(os.getenv("EMAIL_DEDUPE_WINDOW_SECONDS", "300"))
 
 def _compose_from(from_email: Optional[str], from_name: Optional[str]) -> str:
     email = (from_email or SMTP_FROM_EMAIL).strip()
@@ -111,9 +113,26 @@ def _write_queue_records(records: list[dict]) -> None:
 
 def _enqueue_email(record: dict) -> None:
     with _QUEUE_LOCK:
+        dedupe_key = str(record.get("dedupe_key") or "").strip()
+        now = int(time.time())
+        if dedupe_key:
+            expired = [
+                key for key, ts in _RECENT_DEDUPE_KEYS.items()
+                if now - int(ts or 0) > EMAIL_DEDUPE_WINDOW_SECONDS
+            ]
+            for key in expired:
+                _RECENT_DEDUPE_KEYS.pop(key, None)
+            if dedupe_key in _RECENT_DEDUPE_KEYS:
+                print(f"[EMAIL QUEUED] skipped duplicate dedupe_key={dedupe_key}")
+                return
         records = _read_queue_records()
+        if dedupe_key and any(str(r.get("dedupe_key") or "").strip() == dedupe_key for r in records):
+            print(f"[EMAIL QUEUED] skipped queued duplicate dedupe_key={dedupe_key}")
+            return
         records.append(record)
         _write_queue_records(records)
+        if dedupe_key:
+            _RECENT_DEDUPE_KEYS[dedupe_key] = now
 
 
 def _next_delay_seconds(attempts: int) -> int:
@@ -164,6 +183,9 @@ def process_email_outbox(max_items: int = 25) -> tuple[int, int]:
                 )
                 _send_via_smtp(msg)
                 sent += 1
+                dedupe_key = str(rec.get("dedupe_key") or "").strip()
+                if dedupe_key:
+                    _RECENT_DEDUPE_KEYS[dedupe_key] = now
                 print(f"[EMAIL OUTBOX] Sent queued email to {msg['To']}")
             except Exception as e:
                 attempts = int(rec.get("attempts") or 0) + 1
@@ -179,7 +201,7 @@ def process_email_outbox(max_items: int = 25) -> tuple[int, int]:
     return (sent, len(remaining))
 
 
-def start_email_outbox_worker() -> None:
+def start_email_outbox_worker() -> bool:
     """
     Worker daemon que processa a outbox periodicamente.
     Chamar uma vez no startup da app.
@@ -193,11 +215,11 @@ def start_email_outbox_worker() -> None:
     """
     if not SMTP_HOST:
         print("[EMAIL OUTBOX] SMTP not configured; worker not started.")
-        return
+        return False
 
     if os.getenv("EMAIL_OUTBOX_DISABLED", "").lower() in {"1", "true", "yes", "on"}:
         print("[EMAIL OUTBOX] disabled via EMAIL_OUTBOX_DISABLED env.")
-        return
+        return False
 
     # Lock baseado em ficheiro: o primeiro worker uvicorn cria o ficheiro com
     # PID dentro; os restantes detetam que já existe um daemon ativo e não
@@ -221,7 +243,7 @@ def start_email_outbox_worker() -> None:
                     print(
                         f"[EMAIL OUTBOX] another worker (pid={pid}) is already running the daemon; skipping."
                     )
-                    return
+                    return False
                 except OSError:
                     # PID antigo morto → reciclamos o lock
                     pass
@@ -237,10 +259,10 @@ def start_email_outbox_worker() -> None:
                 f.write(str(os.getpid()))
         except Exception:
             print("[EMAIL OUTBOX] could not acquire lock; skipping daemon.")
-            return
+            return False
     except Exception as e:
         print(f"[EMAIL OUTBOX] lock error ({e}); skipping daemon.")
-        return
+        return False
 
     def _run() -> None:
         while True:
@@ -255,6 +277,7 @@ def start_email_outbox_worker() -> None:
     t = threading.Thread(target=_run, name="email-outbox-worker", daemon=True)
     t.start()
     print(f"[EMAIL OUTBOX] worker started (poll={EMAIL_QUEUE_POLL_SECONDS}s, lock={lock_path})")
+    return True
 
 def enqueue_email_send(
     to: str,
@@ -265,6 +288,7 @@ def enqueue_email_send(
     from_email: Optional[str] = None,
     from_name: Optional[str] = None,
     reply_to: Optional[str] = None,
+    dedupe_key: Optional[str] = None,
 ) -> None:
     """Persistir o email na outbox para envio assíncrono pelo worker daemon.
 
@@ -294,6 +318,7 @@ def enqueue_email_send(
         "attempts": 0,
         "next_try_at": 0,
         "created_at": int(time.time()),
+        "dedupe_key": dedupe_key,
     }
     _enqueue_email(record)
     print(f"[EMAIL QUEUED] to={to} queue_file={EMAIL_QUEUE_FILE}")

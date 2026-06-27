@@ -42,6 +42,7 @@ type ResultsPaceConfig = {
   enabled?: boolean;
   table_name?: string;
   class_names?: string[];
+  distances_by_race?: Record<string, Record<string, number>>;
   miles_by_class?: Record<string, number>;
 };
 
@@ -251,7 +252,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         enabled: false,
         table_name: 'Time per mile',
         class_names: [],
-        miles_by_class: {},
+        distances_by_race: {},
       },
     [regatta?.results_pace_config]
   );
@@ -263,7 +264,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         enabled: false,
         table_name: 'Time per mile',
         class_names: [],
-        miles_by_class: {},
+        distances_by_race: {},
       };
       return {
         ...prev,
@@ -278,40 +279,59 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const togglePaceClass = useCallback(
     (className: string) => {
       const selected = new Set(paceConfig.class_names ?? []);
-      const miles = { ...(paceConfig.miles_by_class ?? {}) };
+      const distances = { ...(paceConfig.distances_by_race ?? {}) };
       if (selected.has(className)) {
         selected.delete(className);
-        delete miles[className];
+        delete distances[className];
       } else {
         selected.add(className);
-        miles[className] = miles[className] ?? 0;
+        distances[className] = distances[className] ?? {};
       }
-      updatePaceConfig({ class_names: Array.from(selected), miles_by_class: miles });
+      updatePaceConfig({ class_names: Array.from(selected), distances_by_race: distances });
     },
-    [paceConfig.class_names, paceConfig.miles_by_class, updatePaceConfig]
+    [paceConfig.class_names, paceConfig.distances_by_race, updatePaceConfig]
+  );
+
+  const updatePaceRaceDistance = useCallback(
+    (className: string, raceId: number, value: string) => {
+      const n = Number(value);
+      const distances = { ...(paceConfig.distances_by_race ?? {}) };
+      const classDistances = { ...(distances[className] ?? {}) };
+      if (value.trim() === '' || !Number.isFinite(n) || n <= 0) {
+        delete classDistances[String(raceId)];
+      } else {
+        classDistances[String(raceId)] = n;
+      }
+      distances[className] = classDistances;
+      updatePaceConfig({ distances_by_race: distances });
+    },
+    [paceConfig.distances_by_race, updatePaceConfig]
   );
 
   const savePaceConfig = useCallback(async () => {
     const allowed = new Set(handicapClassNames);
     const selected = (paceConfig.class_names ?? []).filter((className) => allowed.has(className));
-    const milesByClass: Record<string, number> = {};
+    const distancesByRace: Record<string, Record<string, number>> = {};
     for (const className of selected) {
-      const miles = Number(paceConfig.miles_by_class?.[className] ?? 0);
-      if (Number.isFinite(miles) && miles > 0) {
-        milesByClass[className] = miles;
+      const raceIds = new Set((racesByClass[className] ?? []).map((race) => String(race.id)));
+      const rawDistances = paceConfig.distances_by_race?.[className] ?? {};
+      const cleanDistances: Record<string, number> = {};
+      for (const [raceId, raw] of Object.entries(rawDistances)) {
+        const distance = Number(raw);
+        if (raceIds.has(String(raceId)) && Number.isFinite(distance) && distance > 0) {
+          cleanDistances[String(raceId)] = distance;
+        }
       }
-    }
-
-    if (paceConfig.enabled && selected.length > 0 && Object.keys(milesByClass).length !== selected.length) {
-      notify.error('Add miles for every selected handicap class.');
-      return;
+      if (Object.keys(cleanDistances).length > 0) {
+        distancesByRace[className] = cleanDistances;
+      }
     }
 
     const payload: ResultsPaceConfig = {
       enabled: !!paceConfig.enabled,
       table_name: (paceConfig.table_name ?? '').trim() || 'Time per mile',
       class_names: selected,
-      miles_by_class: milesByClass,
+      distances_by_race: distancesByRace,
     };
 
     setSavingPaceConfig(true);
@@ -331,7 +351,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
     } finally {
       setSavingPaceConfig(false);
     }
-  }, [handicapClassNames, paceConfig, regattaId, token]);
+  }, [handicapClassNames, paceConfig, racesByClass, regattaId, token]);
 
   const toggleResultsColumn = useCallback(
     async (columnId: ResultsOverallColumnId) => {
@@ -838,12 +858,15 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                 No handicap classes are configured for this regatta.
               </p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {handicapClassNames.map((className) => {
-                  const checked = (paceConfig.class_names ?? []).includes(className);
-                  return (
-                    <div key={className} className="flex items-center gap-2 rounded border bg-white px-3 py-2">
-                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 flex-1">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {handicapClassNames.map((className) => {
+                    const checked = (paceConfig.class_names ?? []).includes(className);
+                    return (
+                      <label
+                        key={className}
+                        className="inline-flex items-center gap-2 rounded border bg-white px-3 py-2 text-sm font-medium text-gray-700"
+                      >
                         <input
                           type="checkbox"
                           checked={checked}
@@ -852,30 +875,61 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                         />
                         {className}
                       </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={paceConfig.miles_by_class?.[className] ?? ''}
-                        onChange={(event) =>
-                          updatePaceConfig({
-                            miles_by_class: {
-                              ...(paceConfig.miles_by_class ?? {}),
-                              [className]: Number(event.target.value),
-                            },
-                          })
-                        }
-                        disabled={!checked}
-                        className="w-24 border rounded px-2 py-1 text-sm disabled:bg-gray-100"
-                        placeholder="Miles"
-                      />
+                    );
+                  })}
+                </div>
+
+                {(paceConfig.class_names ?? []).filter((className) => handicapClassNames.includes(className)).map((className) => {
+                  const classRaces = racesByClass[className] ?? [];
+                  return (
+                    <div key={className} className="rounded border bg-white p-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-gray-800">
+                          Distances for {className}
+                        </h3>
+                        <span className="text-xs text-gray-500">
+                          Set the course distance for each race in this class.
+                        </span>
+                      </div>
+                      {classRaces.length === 0 ? (
+                        <p className="text-sm text-gray-500">No races created for this class yet.</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse text-sm">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="border px-2 py-1 text-left">Race</th>
+                                <th className="border px-2 py-1 text-right">Distance / miles</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {classRaces.map((race) => (
+                                <tr key={race.id}>
+                                  <td className="border px-2 py-1">{race.name}</td>
+                                  <td className="border px-2 py-1 text-right">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={paceConfig.distances_by_race?.[className]?.[String(race.id)] ?? ''}
+                                      onChange={(event) => updatePaceRaceDistance(className, race.id, event.target.value)}
+                                      className="w-28 rounded border px-2 py-1 text-right text-sm"
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
             <p className="text-xs text-gray-500">
-              Only handicap classes can be selected. The result will use total elapsed time divided by miles and sorted ascending.
+              Only handicap classes can be selected. Each race can have its own distance; ranking uses total elapsed time divided by total distance.
             </p>
           </div>
         )}

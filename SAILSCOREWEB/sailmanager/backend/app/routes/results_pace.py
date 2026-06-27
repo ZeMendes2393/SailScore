@@ -81,7 +81,7 @@ def get_pace_results(
         for value in (config.get("class_names") or [])
         if _clean_class_name(value)
     }
-    miles_by_class = config.get("miles_by_class") or {}
+    distances_by_race = config.get("distances_by_race") or {}
 
     if not enabled:
         return {"enabled": False, "table_name": table_name, "class_name": class_name, "rows": []}
@@ -114,12 +114,23 @@ def get_pace_results(
         races.sort(key=lambda race: (_clean_class_name(race.class_name), race.order_index or 0, race.id))
 
     race_ids = [int(race.id) for race in races]
+    race_by_id = {int(race.id): race for race in races}
+    race_columns = [
+        {
+            "race_id": int(race.id),
+            "name": str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}"),
+            "class_name": _clean_class_name(race.class_name),
+            "distance": float((distances_by_race.get(_clean_class_name(race.class_name)) or {}).get(str(int(race.id))) or 0),
+        }
+        for race in races
+    ]
     if not race_ids:
         return {
             "enabled": True,
             "table_name": table_name,
             "class_name": class_name,
             "published_at": _get_published_at_iso(db, regatta_id, _clean_class_name(class_name)) if public and class_name else None,
+            "race_columns": [],
             "rows": [],
         }
 
@@ -145,11 +156,15 @@ def get_pace_results(
         if elapsed_seconds is None:
             continue
 
+        race = race_by_id.get(int(result.race_id))
+        if not race:
+            continue
+        race_name = str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}")
         try:
-            miles = float(miles_by_class.get(cls) or 0)
+            distance = float((distances_by_race.get(cls) or {}).get(str(int(result.race_id))) or 0)
         except (TypeError, ValueError):
-            miles = 0
-        if miles <= 0:
+            distance = 0
+        if distance <= 0:
             continue
 
         key = (cls.lower(), f"{str(result.sail_number or '').strip().upper()}||{str(result.boat_country_code or '').strip().upper()}")
@@ -163,21 +178,34 @@ def get_pace_results(
                 "class_name": cls,
                 "skipper_name": result.skipper_name,
                 "total_elapsed_seconds": 0.0,
-                "miles": miles,
+                "total_distance": 0.0,
                 "races_counted": 0,
+                "per_race": {},
             },
         )
         row["total_elapsed_seconds"] = float(row["total_elapsed_seconds"]) + float(elapsed_seconds)
+        row["total_distance"] = float(row["total_distance"]) + float(distance)
         row["races_counted"] = int(row["races_counted"]) + 1
+        row["per_race"][str(int(result.race_id))] = {
+            "race_id": int(result.race_id),
+            "race_name": race_name,
+            "distance": distance,
+            "elapsed_time": result.elapsed_time,
+            "elapsed_seconds": elapsed_seconds,
+        }
 
     rows: list[dict[str, Any]] = []
     for row in by_boat.values():
         total_elapsed = float(row["total_elapsed_seconds"])
-        miles = float(row["miles"])
-        seconds_per_mile = total_elapsed / miles
+        total_distance = float(row["total_distance"])
+        if total_distance <= 0:
+            continue
+        seconds_per_mile = total_elapsed / total_distance
         row["seconds_per_mile"] = seconds_per_mile
         row["total_elapsed_time"] = _format_seconds(total_elapsed)
+        row["total_time"] = _format_seconds(total_elapsed)
         row["time_per_mile"] = _format_seconds(seconds_per_mile)
+        row["miles"] = total_distance
         rows.append(row)
 
     return {
@@ -185,5 +213,6 @@ def get_pace_results(
         "table_name": table_name,
         "class_name": class_name,
         "published_at": _get_published_at_iso(db, regatta_id, _clean_class_name(class_name)) if public and class_name else None,
+        "race_columns": race_columns,
         "rows": _rank_rows(rows),
     }

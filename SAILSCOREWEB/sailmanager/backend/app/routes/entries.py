@@ -629,6 +629,7 @@ def _send_combined_entry_email(
     helm_name: str,
     username: Optional[str],
     temp_password: Optional[str],
+    dedupe_key: Optional[str] = None,
 ):
     """Send entry confirmation email using configurable template."""
     subject, text = _build_entry_confirmation_email(
@@ -653,6 +654,7 @@ def _send_combined_entry_email(
         text,
         from_name=club,
         reply_to=reply_to,
+        dedupe_key=dedupe_key,
     )
 
 
@@ -938,6 +940,7 @@ def _persist_new_entry(
                 helm_name=sailor_name,
                 username=getattr(user, "username", None),
                 temp_password=getattr(user, "_plaintext_password", None),
+                dedupe_key=f"entry-received:{new_entry.id}",
             )
 
     return {
@@ -1396,6 +1399,7 @@ def _send_confirmed_entry_email(
         text,
         from_name=club,
         reply_to=reply_to,
+        dedupe_key=f"confirmed-entry:{entry.id}",
     )
 
 
@@ -1445,17 +1449,35 @@ def send_confirmation_email(
             "sent": False,
         }
 
+    sent_at = datetime.utcnow()
+    claimed = (
+        db.query(models.Entry)
+        .filter(
+            models.Entry.id == entry.id,
+            models.Entry.confirmed_email_sent_at.is_(None),
+        )
+        .update({"confirmed_email_sent_at": sent_at}, synchronize_session=False)
+    )
+    if not claimed:
+        db.rollback()
+        db.refresh(entry)
+        return {
+            "message": "Confirmation email already sent for this entry. Skipping duplicate send.",
+            "entry_id": entry.id,
+            "sent": False,
+            "confirmed_email_sent_at": entry.confirmed_email_sent_at.isoformat() if entry.confirmed_email_sent_at else None,
+        }
+
     user = _get_or_create_user_for_entry(db, entry)
     # Generate new temporary password only for the first (and only) send for this entry.
     pwd = _gen_temp_password(6)
     user.hashed_password = hash_password(pwd)
     user.email_verified_at = datetime.utcnow()
-    entry.confirmed_email_sent_at = datetime.utcnow()
     db.commit()
     _send_confirmed_entry_email(background, db, entry, user.username, pwd)
     return {
         "message": "Confirmation email sent.",
         "entry_id": entry.id,
         "sent": True,
-        "confirmed_email_sent_at": entry.confirmed_email_sent_at.isoformat() if entry.confirmed_email_sent_at else None,
+        "confirmed_email_sent_at": sent_at.isoformat(),
     }
