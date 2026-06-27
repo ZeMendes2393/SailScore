@@ -19,6 +19,7 @@ type PaceRow = {
   races_counted?: number | null
   per_race?: Record<string, {
     race_id?: number | null
+    column_id?: string | null
     race_name?: string | null
     distance?: number | null
     elapsed_time?: string | null
@@ -26,10 +27,17 @@ type PaceRow = {
 }
 
 type PaceRaceColumn = {
+  column_id?: string | null
   race_id: number
   name: string
   class_name?: string | null
   distance?: number | null
+  subtitle?: string | null
+  overlaid_races?: Array<{
+    race_id?: number | null
+    name?: string | null
+    class_name?: string | null
+  }>
 }
 
 type PaceResponse = {
@@ -91,6 +99,10 @@ export default function PaceResultsTable({
 
   const rows = data?.rows ?? []
   const raceColumns = data?.race_columns ?? []
+  const getColumnDetail = (row: PaceRow, column: PaceRaceColumn) => {
+    const columnId = column.column_id || String(column.race_id)
+    return Object.values(row.per_race ?? {}).find((detail) => (detail.column_id || String(detail.race_id)) === columnId)
+  }
   if (loading || !data?.enabled || rows.length === 0) return null
 
   return (
@@ -111,7 +123,12 @@ export default function PaceResultsTable({
                   colSpan={2}
                   className="border-b border-l border-slate-200 px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600"
                 >
-                  {allClasses && race.class_name ? `${race.class_name} ${race.name}` : race.name}
+                  <div>{race.name}</div>
+                  {race.subtitle && (
+                    <div className="mt-1 max-w-52 whitespace-normal text-[10px] font-normal normal-case leading-tight text-slate-500">
+                      {race.subtitle}
+                    </div>
+                  )}
                 </th>
               ))}
               <th rowSpan={2} className="border-b border-l border-slate-200 px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-700">Distance total</th>
@@ -142,7 +159,7 @@ export default function PaceResultsTable({
                 <td className="border-b border-slate-100 px-3 py-2">{row.skipper_name || '—'}</td>
                 <td className="border-b border-slate-100 px-3 py-2">{row.class_name || '—'}</td>
                 {raceColumns.map((race) => {
-                  const detail = row.per_race?.[String(race.race_id)]
+                  const detail = getColumnDetail(row, race)
                   return (
                     <Fragment key={race.race_id}>
                       <td key={`${race.race_id}-distance`} className="border-b border-l border-slate-100 px-2 py-2 text-right tabular-nums">

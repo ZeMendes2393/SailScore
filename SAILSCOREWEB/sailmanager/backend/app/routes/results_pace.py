@@ -23,6 +23,10 @@ def _clean_class_name(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _norm_code(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
 def _format_seconds(seconds: float) -> str:
     total = int(round(max(0, seconds)))
     h = total // 3600
@@ -113,17 +117,61 @@ def get_pace_results(
                 races.extend(cls_races[:count])
         races.sort(key=lambda race: (_clean_class_name(race.class_name), race.order_index or 0, race.id))
 
+    races_by_class: dict[str, list[models.Race]] = {}
+    for race in races:
+        races_by_class.setdefault(_clean_class_name(race.class_name), []).append(race)
+
+    race_column_by_id: dict[int, str] = {}
+    if class_name:
+        race_columns = [
+            {
+                "column_id": str(int(race.id)),
+                "race_id": int(race.id),
+                "name": str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}"),
+                "class_name": _clean_class_name(race.class_name),
+                "distance": float((distances_by_race.get(_clean_class_name(race.class_name)) or {}).get(str(int(race.id))) or 0),
+                "overlaid_races": [
+                    {
+                        "race_id": int(race.id),
+                        "name": str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}"),
+                        "class_name": _clean_class_name(race.class_name),
+                    }
+                ],
+            }
+            for race in races
+        ]
+        race_column_by_id = {int(race.id): str(int(race.id)) for race in races}
+    else:
+        ordered_classes = [cls for cls in sorted(eligible_classes) if races_by_class.get(cls)]
+        max_races = max((len(races_by_class.get(cls, [])) for cls in ordered_classes), default=0)
+        race_columns = []
+        for index in range(max_races):
+            overlaid: list[dict[str, Any]] = []
+            labels: list[str] = []
+            for cls in ordered_classes:
+                cls_races = races_by_class.get(cls, [])
+                if index >= len(cls_races):
+                    continue
+                race = cls_races[index]
+                race_id = int(race.id)
+                race_name = str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}")
+                race_column_by_id[race_id] = f"slot-{index + 1}"
+                label = f"{cls} {race_name}"
+                labels.append(label)
+                overlaid.append({"race_id": race_id, "name": race_name, "class_name": cls})
+            race_columns.append(
+                {
+                    "column_id": f"slot-{index + 1}",
+                    "name": f"R{index + 1}",
+                    "class_name": None,
+                    "distance": None,
+                    "overlaid_races": overlaid,
+                    "subtitle": " / ".join(labels),
+                }
+            )
+
     race_ids = [int(race.id) for race in races]
     race_by_id = {int(race.id): race for race in races}
-    race_columns = [
-        {
-            "race_id": int(race.id),
-            "name": str(getattr(race, "name", None) or f"R{getattr(race, 'order_index', '') or race.id}"),
-            "class_name": _clean_class_name(race.class_name),
-            "distance": float((distances_by_race.get(_clean_class_name(race.class_name)) or {}).get(str(int(race.id))) or 0),
-        }
-        for race in races
-    ]
     if not race_ids:
         return {
             "enabled": True,
@@ -142,12 +190,17 @@ def get_pace_results(
 
     eligible_identities = build_eligible_result_identities(db, regatta_id, class_name)
     by_boat: dict[tuple[str, str], dict[str, Any]] = {}
+    dnc_boat_keys: set[tuple[str, str]] = set()
 
     for result in results:
         cls = _clean_class_name(result.class_name)
         if cls not in eligible_classes:
             continue
         if result_row_identity(result) not in eligible_identities:
+            continue
+        key = (cls.lower(), f"{str(result.sail_number or '').strip().upper()}||{str(result.boat_country_code or '').strip().upper()}")
+        if _norm_code(getattr(result, "code", None)) == "DNC":
+            dnc_boat_keys.add(key)
             continue
         if result_removes_from_ranking(result):
             continue
@@ -167,7 +220,7 @@ def get_pace_results(
         if distance <= 0:
             continue
 
-        key = (cls.lower(), f"{str(result.sail_number or '').strip().upper()}||{str(result.boat_country_code or '').strip().upper()}")
+        column_id = race_column_by_id.get(int(result.race_id), str(int(result.race_id)))
         row = by_boat.setdefault(
             key,
             {
@@ -188,6 +241,7 @@ def get_pace_results(
         row["races_counted"] = int(row["races_counted"]) + 1
         row["per_race"][str(int(result.race_id))] = {
             "race_id": int(result.race_id),
+            "column_id": column_id,
             "race_name": race_name,
             "distance": distance,
             "elapsed_time": result.elapsed_time,
@@ -195,7 +249,9 @@ def get_pace_results(
         }
 
     rows: list[dict[str, Any]] = []
-    for row in by_boat.values():
+    for key, row in by_boat.items():
+        if key in dnc_boat_keys:
+            continue
         total_elapsed = float(row["total_elapsed_seconds"])
         total_distance = float(row["total_distance"])
         if total_distance <= 0:
