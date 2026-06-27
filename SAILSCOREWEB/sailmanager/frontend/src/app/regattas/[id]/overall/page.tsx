@@ -14,12 +14,21 @@ import {
   type ResultsOverallColumnId,
 } from '@/lib/resultsOverallColumns'
 
+const TIME_DISTANCE_TAB_ID = '__time_distance_results__'
+
+type ResultsPaceConfig = {
+  enabled?: boolean
+  table_name?: string | null
+  class_names?: string[]
+}
+
 interface RegattaConfig {
   id: number
   name: string
   discard_count: number
   discard_threshold: number
   results_overall_columns?: string[] | Record<string, string[]> | null
+  results_pace_config?: ResultsPaceConfig | null
 }
 
 interface OverallResult {
@@ -75,6 +84,7 @@ export default function OverallResultsPage() {
           discard_count: data.discard_count ?? 0,
           discard_threshold: data.discard_threshold ?? 0,
           results_overall_columns: data.results_overall_columns ?? null,
+          results_pace_config: data.results_pace_config ?? null,
         })
       } catch (e: any) {
         console.error(e)
@@ -106,7 +116,7 @@ export default function OverallResultsPage() {
   // 2) Carregar resultados só da classe selecionada
   useEffect(() => {
     const fetchOverallResults = async () => {
-      if (!selectedClass) {
+      if (!selectedClass || selectedClass === TIME_DISTANCE_TAB_ID) {
         setRawResults([])
         setLoadingResults(false)
         return
@@ -197,6 +207,9 @@ export default function OverallResultsPage() {
   )
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
+  const showTimeDistanceTab = !!regatta?.results_pace_config?.enabled && (regatta.results_pace_config.class_names ?? []).length > 0
+  const timeDistanceTabLabel = regatta?.results_pace_config?.table_name?.trim() || 'Time per mile'
+  const isTimeDistanceSelected = selectedClass === TIME_DISTANCE_TAB_ID
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -248,15 +261,32 @@ export default function OverallResultsPage() {
               {cls}
             </button>
           ))}
+          {showTimeDistanceTab && (
+            <button
+              key={TIME_DISTANCE_TAB_ID}
+              onClick={() => setSelectedClass(TIME_DISTANCE_TAB_ID)}
+              className={`px-5 py-2.5 rounded-xl text-lg font-semibold border transition ${
+                selectedClass === TIME_DISTANCE_TAB_ID
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+              }`}
+            >
+              {timeDistanceTabLabel}
+            </button>
+          )}
         </div>
       )}
 
       {/* Tabela da classe selecionada */}
       {selectedClass && (
         <div className="mt-2">
-          <h3 className="text-2xl font-semibold mb-4">{t('classLabel', { className: selectedClass })}</h3>
+          <h3 className="text-2xl font-semibold mb-4">
+            {isTimeDistanceSelected ? timeDistanceTabLabel : t('classLabel', { className: selectedClass })}
+          </h3>
 
-          {loadingResults ? (
+          {isTimeDistanceSelected ? (
+            <PaceResultsTable regattaId={Number(regattaId)} allClasses publicResults className="mt-0" />
+          ) : loadingResults ? (
             <p className="text-gray-500">{tEntry('loadingResults')}</p>
           ) : results.length === 0 ? (
             <p className="text-gray-500">{t('noPublishedResults')}</p>
@@ -327,7 +357,6 @@ export default function OverallResultsPage() {
             </table>
             </div>
           )}
-          <PaceResultsTable regattaId={Number(regattaId)} selectedClass={selectedClass} publicResults />
         </div>
       )}
     </div>

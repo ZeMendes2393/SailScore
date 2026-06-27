@@ -74,6 +74,8 @@ const FLEET_COLOR_CLASSES: Record<string, string> = {
   Emerald: 'bg-emerald-500',
 }
 
+const TIME_DISTANCE_TAB_ID = '__time_distance_results__'
+
 interface ResultsViewerProps {
   regattaId: number
   selectedClass: string
@@ -91,6 +93,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   const [resultsOverallColumns, setResultsOverallColumns] = useState<string[] | Record<string, string[]> | null>(null)
   const [selectedRaceForTimes, setSelectedRaceForTimes] = useState<string | null>(null)
   const [entriesByBoatKey, setEntriesByBoatKey] = useState<Map<string, string[]>>(new Map())
+  const isTimeDistanceSelected = selectedClass === TIME_DISTANCE_TAB_ID
 
   useEffect(() => {
     const fetchRegatta = async () => {
@@ -106,7 +109,11 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   }, [regattaId])
 
   useEffect(() => {
-    if (!selectedClass) return
+    if (!selectedClass || isTimeDistanceSelected) {
+      setResults([])
+      setLoading(false)
+      return
+    }
     const fetchOverallResults = async () => {
       setLoading(true)
       try {
@@ -138,10 +145,10 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     }
 
     fetchOverallResults()
-  }, [regattaId, selectedClass])
+  }, [regattaId, selectedClass, isTimeDistanceSelected])
 
   useEffect(() => {
-    if (!selectedClass) {
+    if (!selectedClass || isTimeDistanceSelected) {
       setEntriesByBoatKey(new Map())
       return
     }
@@ -188,7 +195,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
       }
     }
     fetchEntries()
-  }, [regattaId, selectedClass])
+  }, [regattaId, selectedClass, isTimeDistanceSelected])
 
   const visibleColumns: ResultsOverallColumnId[] = useMemo(
     () => getVisibleResultsOverallColumnsForClass(resultsOverallColumns, selectedClass),
@@ -219,6 +226,10 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
       entriesByBoatKey.get(sailClassKeyFromResult(r))
     if (crew && crew.length > 0) return crew.join(', ')
     return r.skipper_name || '—'
+  }
+
+  if (isTimeDistanceSelected) {
+    return <PaceResultsTable regattaId={regattaId} allClasses publicResults className="mt-0" />
   }
 
   if (loading) return <p className="text-gray-500">{t('loading')}</p>
@@ -357,8 +368,6 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
         </tbody>
       </table>
       </div>
-
-      <PaceResultsTable regattaId={regattaId} selectedClass={selectedClass} publicResults />
 
       {/* Tabela de detalhe da race selecionada (handicap: tempos) */}
       {selectedRaceForTimes && (

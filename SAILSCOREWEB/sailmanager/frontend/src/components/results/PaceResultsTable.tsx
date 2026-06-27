@@ -41,7 +41,8 @@ type PaceResponse = {
 
 type Props = {
   regattaId: number
-  selectedClass: string
+  selectedClass?: string
+  allClasses?: boolean
   publicResults?: boolean
   className?: string
 }
@@ -49,6 +50,7 @@ type Props = {
 export default function PaceResultsTable({
   regattaId,
   selectedClass,
+  allClasses = false,
   publicResults = false,
   className = '',
 }: Props) {
@@ -56,7 +58,7 @@ export default function PaceResultsTable({
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!selectedClass) {
+    if (!allClasses && !selectedClass) {
       setData(null)
       return
     }
@@ -65,9 +67,11 @@ export default function PaceResultsTable({
     const run = async () => {
       setLoading(true)
       try {
-        const url = `${getApiBaseUrl()}/results/pace/${regattaId}?class_name=${encodeURIComponent(
-          selectedClass
-        )}&public=${publicResults ? '1' : '0'}`
+        const params = new URLSearchParams({ public: publicResults ? '1' : '0' })
+        if (!allClasses && selectedClass) {
+          params.set('class_name', selectedClass)
+        }
+        const url = `${getApiBaseUrl()}/results/pace/${regattaId}?${params.toString()}`
         const res = await fetch(url)
         if (!res.ok) throw new Error('Failed to load Time/Mile results')
         const payload: PaceResponse = await res.json()
@@ -83,12 +87,10 @@ export default function PaceResultsTable({
     return () => {
       cancelled = true
     }
-  }, [regattaId, selectedClass, publicResults])
+  }, [regattaId, selectedClass, allClasses, publicResults])
 
   const rows = data?.rows ?? []
-  const raceColumns = (data?.race_columns ?? []).filter((race) =>
-    rows.some((row) => row.per_race?.[String(race.race_id)])
-  )
+  const raceColumns = data?.race_columns ?? []
   if (loading || !data?.enabled || rows.length === 0) return null
 
   return (
@@ -109,7 +111,7 @@ export default function PaceResultsTable({
                   colSpan={2}
                   className="border-b border-l border-slate-200 px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600"
                 >
-                  {race.name}
+                  {allClasses && race.class_name ? `${race.class_name} ${race.name}` : race.name}
                 </th>
               ))}
               <th rowSpan={2} className="border-b border-l border-slate-200 px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-700">Distance total</th>

@@ -9,8 +9,14 @@ import ResultsViewer from "../components/results/ResultsViewer"
 import { formatDateRange } from '@/lib/formatDate'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000'
+const TIME_DISTANCE_TAB_ID = '__time_distance_results__'
 
 type HomeImage = { url: string; position_x?: number; position_y?: number }
+type ResultsPaceConfig = {
+  enabled?: boolean
+  table_name?: string | null
+  class_names?: string[]
+}
 
 interface Regatta {
   id: number
@@ -20,6 +26,7 @@ interface Regatta {
   end_date: string
   poster_url?: string | null
   home_images?: HomeImage[] | null
+  results_pace_config?: ResultsPaceConfig | null
 }
 
 export default function ResultsPage() {
@@ -90,6 +97,9 @@ export default function ResultsPage() {
         backgroundPosition: `${heroPos.x}% ${heroPos.y}%`,
       }
     : undefined
+  const showTimeDistanceTab = !!regatta?.results_pace_config?.enabled && (regatta.results_pace_config.class_names ?? []).length > 0
+  const timeDistanceTabLabel = regatta?.results_pace_config?.table_name?.trim() || 'Time per mile'
+  const displayedClasses = showTimeDistanceTab ? [...availableClasses, timeDistanceTabLabel] : availableClasses
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -110,9 +120,9 @@ export default function ResultsPage() {
             <Link href={`/regattas/${id}`} className="text-sm opacity-90 hover:opacity-100 mb-4 inline-block">{t('backToRegatta')}</Link>
             <h1 className="text-4xl md:text-5xl font-extrabold mb-3 drop-shadow-lg">{regatta.name}</h1>
             <p className="text-lg md:text-xl font-medium opacity-95 drop-shadow">{regatta.location}</p>
-            {availableClasses.length > 0 && (
+            {displayedClasses.length > 0 && (
               <p className="text-lg md:text-xl font-semibold mt-1 opacity-95 drop-shadow">
-                {availableClasses.join(' • ')}
+                {displayedClasses.join(' • ')}
               </p>
             )}
             <p className="text-base md:text-lg mt-1 opacity-90 drop-shadow">{formatDateRange(regatta.start_date, regatta.end_date, locale)}</p>
@@ -144,6 +154,19 @@ export default function ResultsPage() {
                 {cls}
               </button>
             ))}
+            {showTimeDistanceTab && (
+              <button
+                key={TIME_DISTANCE_TAB_ID}
+                onClick={() => setSelectedClass(TIME_DISTANCE_TAB_ID)}
+                className={`px-3 py-1 rounded font-semibold border ${
+                  selectedClass === TIME_DISTANCE_TAB_ID
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-blue-600 border-blue-600"
+                }`}
+              >
+                {timeDistanceTabLabel}
+              </button>
+            )}
           </div>
         )}
       </div>

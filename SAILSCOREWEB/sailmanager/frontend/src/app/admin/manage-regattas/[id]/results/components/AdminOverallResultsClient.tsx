@@ -103,6 +103,8 @@ type RaceLite = {
 
 type Props = { regattaId: number };
 
+const TIME_DISTANCE_TAB_ID = '__time_distance_results__';
+
 // para ir buscar codes por corrida
 type RaceResultLite = {
   sail_number: string;
@@ -231,6 +233,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   // NOVO: codes por corrida (raceName -> sail_number -> code)
   const [codesByRace, setCodesByRace] = useState<Record<string, Record<string, string | null>>>({});
   const [entriesByBoatKey, setEntriesByBoatKey] = useState<Map<string, string[]>>(new Map());
+  const isTimeDistanceSelected = selectedClass === TIME_DISTANCE_TAB_ID;
 
   // Visible columns per class
   const visibleColumns = useMemo(
@@ -256,6 +259,8 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
       },
     [regatta?.results_pace_config]
   );
+  const showTimeDistanceTab = !!paceConfig.enabled && (paceConfig.class_names ?? []).length > 0;
+  const timeDistanceTabLabel = (paceConfig.table_name ?? '').trim() || 'Time per mile';
 
   const updatePaceConfig = useCallback((patch: Partial<ResultsPaceConfig>) => {
     setRegatta((prev) => {
@@ -452,7 +457,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   // Resultados overall
   useEffect(() => {
     (async () => {
-      if (!selectedClass) return;
+      if (!selectedClass || isTimeDistanceSelected) {
+        setRawResults([]);
+        setLoadingResults(false);
+        return;
+      }
       setLoadingResults(true);
       try {
         const data = await apiGet<OverallResult[] | { rows: OverallResult[] }>(
@@ -466,7 +475,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         setLoadingResults(false);
       }
     })();
-  }, [apiGet, regattaId, selectedClass]);
+  }, [apiGet, regattaId, selectedClass, isTimeDistanceSelected]);
 
   // Settings por classe
   useEffect(() => {
@@ -996,11 +1005,31 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               {cls}
             </button>
           ))}
+          {showTimeDistanceTab && (
+            <button
+              key={TIME_DISTANCE_TAB_ID}
+              onClick={() => {
+                setSelectedClass(TIME_DISTANCE_TAB_ID);
+                setPendingOrder(null);
+              }}
+              className={`px-3 py-1 rounded font-semibold border transition ${
+                selectedClass === TIME_DISTANCE_TAB_ID
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+              }`}
+            >
+              {timeDistanceTabLabel}
+            </button>
+          )}
         </div>
       )}
 
       {/* Table */}
-      {selectedClass && !loadingResults && (
+      {selectedClass && isTimeDistanceSelected && (
+        <PaceResultsTable regattaId={regattaId} allClasses />
+      )}
+
+      {selectedClass && !isTimeDistanceSelected && !loadingResults && (
         <>
         <table className="table-auto w-full border border-collapse">
           <thead className="bg-gray-100">
@@ -1118,7 +1147,6 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             ))}
           </tbody>
         </table>
-        <PaceResultsTable regattaId={regattaId} selectedClass={selectedClass} />
         </>
       )}
 
