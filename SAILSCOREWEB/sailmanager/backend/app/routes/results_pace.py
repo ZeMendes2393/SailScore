@@ -10,6 +10,7 @@ from app import models
 from app.database import get_db
 from app.routes.results_overall import _get_published_at_iso, _get_published_races_count
 from app.routes.results_utils import (
+    AUTO_N_PLUS_ONE_CODES,
     _parse_time_to_seconds,
     build_eligible_result_identities,
     result_row_identity,
@@ -189,7 +190,7 @@ def get_pace_results(
 
     eligible_identities = build_eligible_result_identities(db, regatta_id, class_name)
     by_boat: dict[tuple[str, str], dict[str, Any]] = {}
-    dnc_boat_keys: set[tuple[str, str]] = set()
+    n_plus_one_boat_keys: set[tuple[str, str]] = set()
 
     for result in results:
         cls = _clean_class_name(result.class_name)
@@ -198,8 +199,8 @@ def get_pace_results(
         if result_row_identity(result) not in eligible_identities:
             continue
         key = (cls.lower(), f"{str(result.sail_number or '').strip().upper()}||{str(result.boat_country_code or '').strip().upper()}")
-        if _norm_code(getattr(result, "code", None)) == "DNC":
-            dnc_boat_keys.add(key)
+        if _norm_code(getattr(result, "code", None)) in AUTO_N_PLUS_ONE_CODES:
+            n_plus_one_boat_keys.add(key)
             continue
 
         elapsed_seconds = _parse_time_to_seconds(getattr(result, "elapsed_time", None))
@@ -247,7 +248,7 @@ def get_pace_results(
 
     rows: list[dict[str, Any]] = []
     for key, row in by_boat.items():
-        if key in dnc_boat_keys:
+        if key in n_plus_one_boat_keys:
             continue
         total_elapsed = float(row["total_elapsed_seconds"])
         total_distance = float(row["total_distance"])
