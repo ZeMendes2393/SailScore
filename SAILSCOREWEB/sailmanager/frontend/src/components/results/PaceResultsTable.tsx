@@ -115,7 +115,7 @@ export default function PaceResultsTable({
               <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">#</th>
               <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Sail #</th>
               <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Boat</th>
-              <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Crew</th>
+              <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Skipper</th>
               <th rowSpan={2} className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Class</th>
               {raceColumns.map((race) => (
                 <th

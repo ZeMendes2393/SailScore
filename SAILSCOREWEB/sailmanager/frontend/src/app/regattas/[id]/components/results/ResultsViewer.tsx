@@ -208,6 +208,10 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   )
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
+  const resultColumnLabel = (columnId: ResultsOverallColumnId) => {
+    if (columnId === 'skipper' && classType === 'handicap') return 'Skipper'
+    return RESULTS_OVERALL_COLUMNS.find((c) => c.id === columnId)?.label ?? columnId
+  }
   const normalizeText = (v: string | null | undefined) => (v ?? '').trim().toUpperCase()
   const boatKeyFromResult = (r: OverallResult) =>
     `${normalizeText(r.sail_number)}|${normalizeText(r.boat_country_code)}|${normalizeText(
@@ -220,6 +224,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   const sailClassKeyFromResult = (r: OverallResult) =>
     `${normalizeText(r.sail_number)}|${normalizeText(r.class_name)}`
   const getCrewForResult = (r: OverallResult) => {
+    if (classType === 'handicap') return r.skipper_name || '—'
     const crew =
       entriesByBoatKey.get(boatKeyFromResult(r)) ??
       entriesByBoatKey.get(boatLooseKeyFromResult(r)) ??
@@ -284,7 +289,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
                 key={id}
                 className="border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
               >
-                {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
+                {resultColumnLabel(id)}
               </th>
             ))}
             {raceNames.map((race) => {

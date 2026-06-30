@@ -55,6 +55,7 @@ export default function AdminEntryList({
   const [movingEntryId, setMovingEntryId] = useState<number | null>(null);
   const [classUpdatingEntryId, setClassUpdatingEntryId] = useState<number | null>(null);
   const [classOptions, setClassOptions] = useState<string[]>([]);
+  const [handicapClassNames, setHandicapClassNames] = useState<Set<string>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPublicColumnsPanel, setShowPublicColumnsPanel] = useState(false);
   const [showClassLimitPanel, setShowClassLimitPanel] = useState(false);
@@ -91,6 +92,12 @@ export default function AdminEntryList({
     }
     return out.sort((a, b) => a.localeCompare(b));
   }, [classOptions, entries]);
+  const isSelectedClassHandicap = !!selectedClass && handicapClassNames.has(selectedClass.trim().toLowerCase());
+  const entryColumnLabel = (columnId: EntryListColumnId) => {
+    const def = ENTRY_LIST_COLUMNS.find((c) => c.id === columnId);
+    if (columnId === 'crew' && isSelectedClassHandicap) return 'Skipper';
+    return def?.label ?? columnId;
+  };
 
   const classLimitCfg = useMemo(() => {
     if (!selectedClass) return { enabled: false, limit: null as number | null };
@@ -172,7 +179,7 @@ export default function AdminEntryList({
 
     (async () => {
       try {
-        const detailed = await apiGet<{ class_name: string }[]>(
+        const detailed = await apiGet<{ class_name: string; class_type?: string | null }[]>(
           `/regattas/${Number(regattaId)}/classes/detailed`,
           token ?? undefined
         );
@@ -180,16 +187,28 @@ export default function AdminEntryList({
         const names = Array.isArray(detailed)
           ? detailed.map((c) => c.class_name).filter(Boolean)
           : [];
+        const handicap = new Set(
+          (Array.isArray(detailed) ? detailed : [])
+            .filter((c) => (c.class_type ?? '').trim().toLowerCase() === 'handicap')
+            .map((c) => c.class_name.trim().toLowerCase())
+        );
         setClassOptions(names);
+        setHandicapClassNames(handicap);
       } catch {
         try {
           const simple = await apiGet<string[]>(
             `/regattas/${Number(regattaId)}/classes`,
             token ?? undefined
           );
-          if (alive) setClassOptions(Array.isArray(simple) ? simple.filter(Boolean) : []);
+          if (alive) {
+            setClassOptions(Array.isArray(simple) ? simple.filter(Boolean) : []);
+            setHandicapClassNames(new Set());
+          }
         } catch {
-          if (alive) setClassOptions([]);
+          if (alive) {
+            setClassOptions([]);
+            setHandicapClassNames(new Set());
+          }
         }
       }
     })();
@@ -480,6 +499,7 @@ export default function AdminEntryList({
         columnId={colId}
         onStatusChange={colId === 'status' && !waitingListRow ? handleStatusChange : undefined}
         onPaidChange={colId === 'paid' && !waitingListRow ? handlePaidChange : undefined}
+        skipperOnly={isSelectedClassHandicap}
       />
     );
   };
@@ -516,7 +536,7 @@ export default function AdminEntryList({
                   disabled={savingColumns || !selectedClass}
                   className="rounded border-gray-300 size-4"
                 />
-                {col.label}
+                {entryColumnLabel(col.id)}
               </label>
             ))}
             {savingColumns && <span className="text-sm text-gray-500">Saving…</span>}
@@ -640,7 +660,6 @@ export default function AdminEntryList({
                 <thead className="bg-slate-50/95 text-left">
                   <tr>
                     {adminVisibleColumnIds.map((id) => {
-                      const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
                       return (
                         <th
                           key={id}
@@ -648,7 +667,7 @@ export default function AdminEntryList({
                             id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
                           } ${isPublicColumnVisible(id) ? '' : 'bg-slate-100/90 text-slate-600'}`}
                         >
-                          {def?.label ?? id}
+                          {entryColumnLabel(id)}
                           {!isPublicColumnVisible(id) && (
                             <span className="ml-1 block sm:inline text-[10px] font-normal normal-case tracking-normal text-slate-500">
                               (hidden on public)
@@ -713,7 +732,6 @@ export default function AdminEntryList({
                   <thead className="bg-slate-50/95 text-left">
                     <tr>
                       {adminVisibleColumnIds.map((id) => {
-                        const def = ENTRY_LIST_COLUMNS.find((c) => c.id === id);
                         return (
                           <th
                             key={id}
@@ -721,7 +739,7 @@ export default function AdminEntryList({
                               id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
                             } ${isPublicColumnVisible(id) ? '' : 'bg-slate-100/90 text-slate-600'}`}
                           >
-                            {def?.label ?? id}
+                            {entryColumnLabel(id)}
                             {!isPublicColumnVisible(id) && (
                               <span className="ml-1 block sm:inline text-[10px] font-normal normal-case tracking-normal text-slate-500">
                                 (hidden on public)

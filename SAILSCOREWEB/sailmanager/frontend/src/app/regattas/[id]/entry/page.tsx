@@ -24,6 +24,11 @@ type Regatta = {
   online_entry_limits_by_class?: Record<string, { enabled?: boolean; limit?: number | null }> | null;
 };
 
+type RegattaClassDetailed = {
+  class_name: string;
+  class_type?: string | null;
+};
+
 export default function RegattaEntryPage() {
   const t = useTranslations('entryList');
   const tCommon = useTranslations('common');
@@ -38,6 +43,7 @@ export default function RegattaEntryPage() {
   const [regatta, setRegatta] = useState<Regatta | null>(null);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  const [classDetails, setClassDetails] = useState<RegattaClassDetailed[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
 
@@ -58,17 +64,21 @@ export default function RegattaEntryPage() {
       setLoadingClasses(true);
       setClassesError(null);
       try {
-        const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/regattas/${regattaId}/classes/detailed`, { cache: 'no-store' });
         if (!res.ok) {
           setAvailableClasses([]);
+          setClassDetails([]);
           setClassesError(t('couldNotLoadClasses'));
           return;
         }
-        const arr = (await res.json()) as string[];
-        setAvailableClasses(Array.isArray(arr) ? arr : []);
+        const detailed = (await res.json()) as RegattaClassDetailed[];
+        const arr = Array.isArray(detailed) ? detailed.map((cls) => cls.class_name).filter(Boolean) : [];
+        setClassDetails(Array.isArray(detailed) ? detailed : []);
+        setAvailableClasses(arr);
         setSelectedClass((prev) => prev ?? arr[0] ?? null);
       } catch {
         setAvailableClasses([]);
+        setClassDetails([]);
         setClassesError(t('networkError'));
       } finally {
         setLoadingClasses(false);
@@ -87,6 +97,11 @@ export default function RegattaEntryPage() {
         backgroundPosition: `${heroPos.x}% ${heroPos.y}%`,
       }
     : undefined;
+  const isSelectedClassHandicap = !!selectedClass && classDetails.some(
+    (cls) =>
+      cls.class_name.trim().toLowerCase() === selectedClass.trim().toLowerCase() &&
+      (cls.class_type ?? '').trim().toLowerCase() === 'handicap'
+  );
 
   if (!regattaId) return <p className="p-8">{tCommon('loading')}</p>;
   if (!regatta) return <p className="p-8">{t('loadingRegatta')}</p>;
@@ -139,6 +154,7 @@ export default function RegattaEntryPage() {
             regattaId={regattaId}
             selectedClass={selectedClass}
             entryListColumns={getVisibleColumnsForClass(regatta.entry_list_columns, selectedClass)}
+            isHandicapClass={isSelectedClassHandicap}
           />
         </div>
       </div>

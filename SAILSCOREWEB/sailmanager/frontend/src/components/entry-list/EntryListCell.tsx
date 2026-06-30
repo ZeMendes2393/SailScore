@@ -15,13 +15,14 @@ interface EntryListCellProps {
   onStatusChange?: (entryId: number, confirmed: boolean) => void;
   /** Quando definido, o admin pode alterar Paid/Unpaid nesta célula */
   onPaidChange?: (entryId: number, paid: boolean) => void;
+  skipperOnly?: boolean;
 }
 
 /**
  * Renders one cell of the entry list table (Sail No, Boat Name, Crew, etc.).
  * Used by both public and admin entry lists.
  */
-export function EntryListCell({ entry, columnId, className = '', onStatusChange, onPaidChange }: EntryListCellProps) {
+export function EntryListCell({ entry, columnId, className = '', onStatusChange, onPaidChange, skipperOnly = false }: EntryListCellProps) {
   const t = useTranslations('entryList');
   const tCommon = useTranslations('common');
 
@@ -55,7 +56,9 @@ export function EntryListCell({ entry, columnId, className = '', onStatusChange,
       return <span className={className}>{formatOwner(entry)}</span>;
     case 'crew': {
       const { skipper, crew } = formatCrewColumn(entry);
-      const lines = [skipper !== '—' ? skipper : null, ...crew].filter(Boolean) as string[];
+      const lines = skipperOnly
+        ? [skipper !== '—' ? skipper : null].filter(Boolean) as string[]
+        : [skipper !== '—' ? skipper : null, ...crew].filter(Boolean) as string[];
       return (
         <div className={`${className} flex flex-col gap-0.5`}>
           {lines.length > 0 ? lines.map((name, i) => <div key={i}>{name}</div>) : <span>{tCommon('dash')}</span>}

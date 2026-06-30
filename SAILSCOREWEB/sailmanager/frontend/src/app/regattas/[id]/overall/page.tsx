@@ -58,6 +58,7 @@ export default function OverallResultsPage() {
 
   const [rawResults, setRawResults] = useState<OverallResult[]>([])
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
+  const [classType, setClassType] = useState<string>('one_design')
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [loadingResults, setLoadingResults] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -133,8 +134,10 @@ export default function OverallResultsPage() {
         const rows = Array.isArray(data) ? data : (data?.rows ?? [])
         setRawResults(rows)
         setPublishedAt(data?.published_at ?? null)
+        setClassType((data?.class_type ?? 'one_design').toString().toLowerCase())
       } catch (e: any) {
         setError(e?.message || 'Failed to load results')
+        setClassType('one_design')
       } finally {
         setLoadingResults(false)
       }
@@ -207,6 +210,10 @@ export default function OverallResultsPage() {
   )
 
   const fixedColumnIds = visibleColumns.filter((id) => id !== 'total' && id !== 'net')
+  const resultColumnLabel = (columnId: ResultsOverallColumnId) => {
+    if (columnId === 'skipper' && classType === 'handicap') return 'Skipper'
+    return RESULTS_OVERALL_COLUMNS.find((c) => c.id === columnId)?.label ?? columnId
+  }
   const showTimeDistanceTab = !!regatta?.results_pace_config?.enabled && (regatta.results_pace_config.class_names ?? []).length > 0
   const timeDistanceTabLabel = regatta?.results_pace_config?.table_name?.trim() || 'Time per mile'
   const isTimeDistanceSelected = selectedClass === TIME_DISTANCE_TAB_ID
@@ -297,7 +304,7 @@ export default function OverallResultsPage() {
                 <tr className="bg-slate-50/95">
                   {fixedColumnIds.map((id) => (
                     <th key={id} className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-700 text-left">
-                      {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
+                      {resultColumnLabel(id)}
                     </th>
                   ))}
                   {raceNames.map((name) => (

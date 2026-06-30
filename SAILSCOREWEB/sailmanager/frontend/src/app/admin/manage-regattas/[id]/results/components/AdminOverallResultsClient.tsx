@@ -248,6 +248,11 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
         .map((cls) => cls.class_name),
     [classDetails]
   );
+  const isSelectedClassHandicap = !!selectedClass && handicapClassNames.includes(selectedClass);
+  const resultColumnLabel = (columnId: ResultsOverallColumnId) => {
+    if (columnId === 'skipper' && isSelectedClassHandicap) return 'Skipper';
+    return RESULTS_OVERALL_COLUMNS.find((c) => c.id === columnId)?.label ?? columnId;
+  };
 
   const paceConfig = useMemo<ResultsPaceConfig>(
     () =>
@@ -703,6 +708,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const sailClassKeyFromResult = (r: OverallResult) =>
     `${normalizeText(r.sail_number)}|${normalizeText(r.class_name)}`;
   const getCrewForResult = (r: OverallResult) => {
+    if (isSelectedClassHandicap) return r.skipper_name || '—';
     const crew =
       entriesByBoatKey.get(boatKeyFromResult(r)) ??
       entriesByBoatKey.get(boatLooseKeyFromResult(r)) ??
@@ -823,7 +829,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
                   disabled={savingColumns}
                   className="rounded border-gray-300"
                 />
-                {col.label}
+                {resultColumnLabel(col.id)}
               </label>
             ))}
             {savingColumns && <span className="text-xs text-gray-500">Saving…</span>}
@@ -1036,7 +1042,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
             <tr>
               {visibleColumns.filter((id) => id !== 'total' && id !== 'net').map((id) => (
                 <th key={id} className="border px-3 py-2">
-                  {RESULTS_OVERALL_COLUMNS.find((c) => c.id === id)?.label ?? id}
+                  {resultColumnLabel(id)}
                 </th>
               ))}
               {orderedRaceNames.map((n) => {

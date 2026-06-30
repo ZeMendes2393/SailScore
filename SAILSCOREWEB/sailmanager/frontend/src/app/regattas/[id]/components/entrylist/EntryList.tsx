@@ -12,12 +12,14 @@ interface EntryListProps {
   regattaId: number;
   selectedClass: string | null;
   entryListColumns?: string[] | null;
+  isHandicapClass?: boolean;
 }
 
 export default function EntryList({
   regattaId,
   selectedClass,
   entryListColumns,
+  isHandicapClass = false,
 }: EntryListProps) {
   const t = useTranslations('entryList');
   const columnLabel = useEntryListColumnLabel();
@@ -82,7 +84,7 @@ export default function EntryList({
                   id === 'paid' || id === 'status' ? 'text-center' : 'text-left'
                 }`}
               >
-                {columnLabel(id)}
+                {id === 'crew' && isHandicapClass ? 'Skipper' : columnLabel(id)}
               </th>
             ))}
           </tr>
@@ -100,7 +102,7 @@ export default function EntryList({
                     colId === 'paid' || colId === 'status' ? 'text-center' : ''
                   }`}
                 >
-                  <EntryListCell entry={entry} columnId={colId} />
+                  <EntryListCell entry={entry} columnId={colId} skipperOnly={isHandicapClass} />
                 </td>
               ))}
             </tr>
