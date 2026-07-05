@@ -10,12 +10,30 @@ import { canAccessOrganizationManagement } from '@/lib/organizationManagementAcc
 import notify from '@/lib/notify';
 import { useConfirm } from '@/components/ConfirmDialog';
 
+type OrganizationLocale = 'en-GB' | 'pt-PT' | 'es-ES';
+
+const ORGANIZATION_LOCALE_LABELS: Record<OrganizationLocale, string> = {
+  'en-GB': 'English (EN)',
+  'pt-PT': 'Português — Portugal (PT)',
+  'es-ES': 'Español — España (ES)',
+};
+
+const ORGANIZATION_LOCALE_SHORT_LABELS: Record<OrganizationLocale, string> = {
+  'en-GB': 'EN',
+  'pt-PT': 'PT',
+  'es-ES': 'ES',
+};
+
+function isOrganizationLocale(value: string | null | undefined): value is OrganizationLocale {
+  return value === 'en-GB' || value === 'pt-PT' || value === 'es-ES';
+}
+
 interface Organization {
   id: number;
   name: string;
   slug: string;
   is_active: boolean;
-  default_locale: 'en-GB' | 'pt-PT';
+  default_locale: OrganizationLocale;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +49,7 @@ export default function OrganizationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [defaultLocale, setDefaultLocale] = useState<'en-GB' | 'pt-PT'>('en-GB');
+  const [defaultLocale, setDefaultLocale] = useState<OrganizationLocale>('en-GB');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminName, setAdminName] = useState('');
@@ -40,7 +58,7 @@ export default function OrganizationsPage() {
   const [editingOrg, setEditingOrg] = useState<OrganizationWithAdmin | null>(null);
   const [editName, setEditName] = useState('');
   const [editSlug, setEditSlug] = useState('');
-  const [editDefaultLocale, setEditDefaultLocale] = useState<'en-GB' | 'pt-PT'>('en-GB');
+  const [editDefaultLocale, setEditDefaultLocale] = useState<OrganizationLocale>('en-GB');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editAdminEmail, setEditAdminEmail] = useState('');
   const [editAdminPassword, setEditAdminPassword] = useState('');
@@ -163,7 +181,7 @@ export default function OrganizationsPage() {
       setEditingOrg(data);
       setEditName(data.name);
       setEditSlug(data.slug);
-      setEditDefaultLocale(data.default_locale === 'pt-PT' ? 'pt-PT' : 'en-GB');
+      setEditDefaultLocale(isOrganizationLocale(data.default_locale) ? data.default_locale : 'en-GB');
       setEditIsActive(data.is_active);
       setEditAdminEmail(data.admin_email ?? '');
       setEditAdminPassword('');
@@ -296,11 +314,14 @@ export default function OrganizationsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Default language</label>
                   <select
                     value={defaultLocale}
-                    onChange={(e) => setDefaultLocale(e.target.value as 'en-GB' | 'pt-PT')}
+                    onChange={(e) => setDefaultLocale(e.target.value as OrganizationLocale)}
                     className="w-full border rounded px-3 py-2 bg-white"
                   >
-                    <option value="en-GB">English (EN)</option>
-                    <option value="pt-PT">Português — Portugal (PT)</option>
+                    {Object.entries(ORGANIZATION_LOCALE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
                     Shown to visitors who have not chosen a language. They can override with the header switcher.
@@ -393,7 +414,7 @@ export default function OrganizationsPage() {
                       /o/{org.slug}
                       {!org.is_active && <span className="ml-2 text-red-600">(inactive)</span>}
                       <span className="ml-2 text-gray-400">
-                        · {org.default_locale === 'pt-PT' ? 'PT' : 'EN'}
+                        · {ORGANIZATION_LOCALE_SHORT_LABELS[org.default_locale] ?? 'EN'}
                       </span>
                     </p>
                   </div>
@@ -464,11 +485,14 @@ export default function OrganizationsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Default language</label>
                     <select
                       value={editDefaultLocale}
-                      onChange={(e) => setEditDefaultLocale(e.target.value as 'en-GB' | 'pt-PT')}
+                      onChange={(e) => setEditDefaultLocale(e.target.value as OrganizationLocale)}
                       className="w-full border rounded px-3 py-2 bg-white"
                     >
-                      <option value="en-GB">English (EN)</option>
-                      <option value="pt-PT">Português — Portugal (PT)</option>
+                      {Object.entries(ORGANIZATION_LOCALE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex items-center gap-2">

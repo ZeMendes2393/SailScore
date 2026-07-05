@@ -77,13 +77,13 @@ def _normalize_name(name: str) -> str:
     return s
 
 
-_SUPPORTED_LOCALES = frozenset({"en-GB", "pt-PT"})
+_SUPPORTED_LOCALES = frozenset({"en-GB", "pt-PT", "es-ES"})
 
 
 def _normalize_default_locale(locale: str) -> str:
     v = (locale or "").strip()
     if v not in _SUPPORTED_LOCALES:
-        raise HTTPException(status_code=400, detail="default_locale must be en-GB or pt-PT.")
+        raise HTTPException(status_code=400, detail="default_locale must be en-GB, pt-PT or es-ES.")
     return v
 
 

@@ -46,11 +46,11 @@ export default function SponsorsCategoryCarousel({
 
   useEffect(() => {
     if (slides.length <= 1) return;
-    const timer = setInterval(() => {
+    const timer = setTimeout(() => {
       setActiveSlide((i) => (i + 1) % slides.length);
     }, ROTATION_MS);
-    return () => clearInterval(timer);
-  }, [slides.length]);
+    return () => clearTimeout(timer);
+  }, [activeSlide, slides.length]);
 
   const renderSponsor = (s: SponsorItem) => {
     const Wrapper = s.link_url ? 'a' : 'span';

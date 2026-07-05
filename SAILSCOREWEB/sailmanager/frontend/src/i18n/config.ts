@@ -1,5 +1,5 @@
 /** Supported UI locales (Portugal Portuguese, not Brazilian). */
-export const SUPPORTED_LOCALES = ['en-GB', 'pt-PT'] as const;
+export const SUPPORTED_LOCALES = ['en-GB', 'pt-PT', 'es-ES'] as const;
 
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 
@@ -17,4 +17,5 @@ export function isSupportedLocale(value: string | null | undefined): value is Ap
 export const LOCALE_SHORT_LABELS: Record<AppLocale, string> = {
   'en-GB': 'EN',
   'pt-PT': 'PT',
+  'es-ES': 'ES',
 };
