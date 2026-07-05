@@ -50,14 +50,18 @@ export default function RegattaHeader({
   );
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [headerDesign, setHeaderDesign] = useState<HeaderDesign | null>(null);
+  const [regattaLookupDone, setRegattaLookupDone] = useState(organizationSlugProp !== undefined);
+  const [headerDesignLoaded, setHeaderDesignLoaded] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (organizationSlugProp !== undefined) {
       setOrganizationSlug(organizationSlugProp ?? null);
+      setRegattaLookupDone(true);
       return;
     }
+    setRegattaLookupDone(false);
     let cancelled = false;
     fetch(`${API_BASE}/regattas/${regattaId}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -66,7 +70,10 @@ export default function RegattaHeader({
         const s = d.organization_slug?.trim();
         setOrganizationSlug(s || null);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRegattaLookupDone(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -76,10 +83,12 @@ export default function RegattaHeader({
     if (!organizationSlug) {
       setOrgDisplayName(null);
       setHeaderDesign(null);
+      setHeaderDesignLoaded(true);
       return;
     }
     let cancelled = false;
     const encoded = encodeURIComponent(organizationSlug);
+    setHeaderDesignLoaded(false);
 
     fetch(`${API_BASE}/organizations/by-slug/${encoded}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -99,6 +108,9 @@ export default function RegattaHeader({
       .catch(() => {
         if (cancelled) return;
         setHeaderDesign(null);
+      })
+      .finally(() => {
+        if (!cancelled) setHeaderDesignLoaded(true);
       });
 
     return () => {
@@ -128,6 +140,16 @@ export default function RegattaHeader({
   const brandHref = organizationSlug ? `/o/${organizationSlug}` : '/';
   const { hidden: headerHidden } = useScrollHideHeader({ forceVisible: mobileMenuOpen });
   const t = useTranslations('regattaNav');
+
+  if (!regattaLookupDone || !headerDesignLoaded) {
+    return (
+      <div
+        className={`app-site-header-spacer max-md:block ${overlayHero ? 'md:hidden' : ''}`}
+        style={{ '--app-header-height': '4.5rem' } as CSSProperties}
+        aria-hidden
+      />
+    );
+  }
 
   return (
     <>

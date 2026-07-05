@@ -133,9 +133,26 @@ def get_results_for_race(race_id: int, db: Session = Depends(get_db)):
         .order_by(models.Result.position.asc(), models.Result.id.asc())
         .all()
     )
-    return filter_results_to_eligible_entries(
+    visible_rows = filter_results_to_eligible_entries(
         db, int(race.regatta_id), rows, str(race.class_name or "")
     )
+    out = []
+    for row in visible_rows:
+        item = schemas.ResultRead.model_validate(row).model_dump()
+        entry = _find_entry_for_result_identity(
+            db,
+            regatta_id=int(race.regatta_id),
+            class_name=str(race.class_name or ""),
+            sail_number_norm=_norm_sn(getattr(row, "sail_number", None)),
+            boat_country_code=_norm_cc(getattr(row, "boat_country_code", None)),
+            require_country_when_ambiguous=False,
+        )
+        if entry is not None:
+            skipper = f"{getattr(entry, 'first_name', '') or ''} {getattr(entry, 'last_name', '') or ''}".strip()
+            if skipper:
+                item["skipper_name"] = skipper
+        out.append(item)
+    return out
 
 
 @router.put("/races/{race_id}/result", response_model=schemas.ResultRead)
