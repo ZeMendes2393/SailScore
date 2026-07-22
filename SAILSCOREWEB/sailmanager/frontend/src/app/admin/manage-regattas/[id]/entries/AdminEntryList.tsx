@@ -11,6 +11,7 @@ import {
   type EntryListColumnId,
 } from '@/lib/entryListColumns';
 import type { EntryListEntry } from '@/lib/entryListTypes';
+import { formatCrewColumn, formatOwner } from '@/lib/entryListTypes';
 import { EntryListCell } from '@/components/entry-list/EntryListCell';
 import { isAdminRole } from '@/lib/roles';
 import { useAdminOrg, withOrg } from '@/lib/useAdminOrg';
@@ -57,6 +58,10 @@ export default function AdminEntryList({
   const [classOptions, setClassOptions] = useState<string[]>([]);
   const [handicapClassNames, setHandicapClassNames] = useState<Set<string>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportColumnIds, setExportColumnIds] = useState<EntryListColumnId[]>(
+    () => ENTRY_LIST_COLUMNS.map((c) => c.id)
+  );
   const [showPublicColumnsPanel, setShowPublicColumnsPanel] = useState(false);
   const [showClassLimitPanel, setShowClassLimitPanel] = useState(false);
 
@@ -286,6 +291,119 @@ export default function AdminEntryList({
     router.push(
       withOrg(`${manageRegattaBasePath}/${regattaId}/entries/${entryId}?regattaId=${regattaId}`, orgSlug)
     );
+  };
+
+  const csvEscape = (value: string) => {
+    if (/[;\r\n"]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+    return value;
+  };
+
+  const formatDateTimeForExport = (iso?: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const exportValueForColumn = (entry: EntryListEntry, columnId: EntryListColumnId) => {
+    switch (columnId) {
+      case 'sail_no':
+        return entry.sail_number?.trim() || '';
+      case 'boat_name':
+        return entry.boat_name?.trim() || '';
+      case 'class':
+        return entry.class_name?.trim() || '';
+      case 'category':
+        return entry.category?.trim() || '';
+      case 'owner':
+        return formatOwner(entry).replace(/^—$/, '');
+      case 'crew': {
+        const { skipper, crew } = formatCrewColumn(entry);
+        const names = isSelectedClassHandicap
+          ? [skipper]
+          : [skipper, ...crew];
+        return names.filter((name) => name && name !== '—').join(' / ');
+      }
+      case 'club':
+        return entry.club?.trim() || '';
+      case 'created_at':
+        return formatDateTimeForExport(entry.created_at);
+      case 'paid':
+        return entry.paid ? 'Paid' : 'Unpaid';
+      case 'status':
+        return entry.confirmed ? 'Confirmed' : 'Pending';
+      case 'rating':
+        if (entry.rating_type === 'orc') {
+          const parts = [
+            typeof entry.orc_low === 'number' ? `Low ${entry.orc_low}` : null,
+            typeof entry.orc_medium === 'number' ? `Medium ${entry.orc_medium}` : null,
+            typeof entry.orc_high === 'number' ? `High ${entry.orc_high}` : null,
+          ].filter(Boolean);
+          if (parts.length > 0) return parts.join(' / ');
+        }
+        return typeof entry.rating === 'number' && !Number.isNaN(entry.rating) ? String(entry.rating) : '';
+      default:
+        return '';
+    }
+  };
+
+  const safeFilePart = (value: string) =>
+    value
+      .trim()
+      .replace(/[^a-z0-9_-]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+
+  const toggleExportColumn = (columnId: EntryListColumnId) => {
+    setExportColumnIds((current) =>
+      current.includes(columnId)
+        ? current.filter((id) => id !== columnId)
+        : [...current, columnId].sort(
+            (a, b) =>
+              ENTRY_LIST_COLUMNS.findIndex((c) => c.id === a) -
+              ENTRY_LIST_COLUMNS.findIndex((c) => c.id === b)
+          )
+    );
+  };
+
+  const exportEntries = () => {
+    if (!selectedClass) {
+      notify.warning('Select a class before exporting.');
+      return;
+    }
+    if (exportColumnIds.length === 0) {
+      notify.warning('Select at least one field to export.');
+      return;
+    }
+    const rows = [...activeEntries, ...waitingEntries];
+    if (rows.length === 0) {
+      notify.warning('There are no entries to export for this class.');
+      return;
+    }
+
+    const header = exportColumnIds.map((id) => csvEscape(entryColumnLabel(id)));
+    const body = rows.map((entry) =>
+      exportColumnIds.map((id) => csvEscape(exportValueForColumn(entry, id))).join(';')
+    );
+    const csv = `\uFEFF${[header.join(';'), ...body].join('\r\n')}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const classPart = safeFilePart(selectedClass) || 'class';
+    const datePart = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `entry-list-${classPart}-${datePart}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    notify.success('Entry list export created.');
   };
 
   const isImportPlaceholderEmail = (email?: string | null) =>
@@ -551,15 +669,26 @@ export default function AdminEntryList({
         <span>
           Waiting list: <b>{waitingEntries.length}</b>
         </span>
-        {selectedClass && token && (
-          <button
-            type="button"
-            onClick={() => setShowImportModal(true)}
-            className="ml-auto px-4 py-2 rounded-lg border border-blue-600 text-blue-700 text-sm font-medium hover:bg-blue-50"
-          >
-            Import from URL
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          {selectedClass && (
+            <button
+              type="button"
+              onClick={() => setShowExportPanel((v) => !v)}
+              className="px-4 py-2 rounded-lg border border-emerald-600 text-emerald-700 text-sm font-medium hover:bg-emerald-50"
+            >
+              Export
+            </button>
+          )}
+          {selectedClass && token && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 rounded-lg border border-blue-600 text-blue-700 text-sm font-medium hover:bg-blue-50"
+            >
+              Import from URL
+            </button>
+          )}
+        </div>
       </div>
 
       {showImportModal && selectedClass && token && (
@@ -573,6 +702,65 @@ export default function AdminEntryList({
             setEntries(list);
           }}
         />
+      )}
+
+      {showExportPanel && selectedClass && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">
+                Export entry list ({selectedClass})
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Choose the fields to include. The file is exported as CSV and opens in Excel.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setExportColumnIds(ENTRY_LIST_COLUMNS.map((c) => c.id))}
+                className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportColumnIds(publicVisibleColumnIds)}
+                className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Public columns
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {ENTRY_LIST_COLUMNS.map((col) => (
+              <label key={col.id} className="inline-flex items-center gap-2 cursor-pointer text-base">
+                <input
+                  type="checkbox"
+                  checked={exportColumnIds.includes(col.id)}
+                  onChange={() => toggleExportColumn(col.id)}
+                  className="rounded border-gray-300 size-4"
+                />
+                {entryColumnLabel(col.id)}
+              </label>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={exportEntries}
+              disabled={exportColumnIds.length === 0 || filteredEntries.length === 0}
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white text-base font-medium hover:bg-emerald-700 disabled:opacity-60"
+            >
+              Download CSV
+            </button>
+            <span className="text-sm text-gray-600">
+              {filteredEntries.length} entr{filteredEntries.length === 1 ? 'y' : 'ies'} in this class.
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="rounded-lg border border-gray-200 bg-gray-50">

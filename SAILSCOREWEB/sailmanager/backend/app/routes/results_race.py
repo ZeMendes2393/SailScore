@@ -84,7 +84,7 @@ def _find_entry_for_result_identity(
         db.query(models.Entry)
         .filter(
             models.Entry.regatta_id == regatta_id,
-            models.Entry.class_name == class_name,
+            func.lower(models.Entry.class_name) == class_name.strip().lower(),
             func.lower(models.Entry.sail_number) == sail_number_norm.lower(),
         )
     )

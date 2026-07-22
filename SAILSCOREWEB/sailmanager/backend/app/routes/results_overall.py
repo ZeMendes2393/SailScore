@@ -18,6 +18,7 @@ from app.scoring.tiebreakers import (
 from app.services.results_pdf import build_results_pdf
 from app.routes.results_utils import (
     build_eligible_result_identities,
+    entry_result_identity,
     format_result_code_display,
     result_row_identity,
 )
@@ -555,16 +556,13 @@ def get_overall_results_data(
     }
 
     # Lookup boat_model e bow_number a partir das entries (para a resposta overall)
-    entry_extra: dict[tuple[str, str, str], dict[str, object]] = {}
+    entry_extra: dict[tuple[str, str], dict[str, object]] = {}
     entries_q = db.query(models.Entry).filter(models.Entry.regatta_id == regatta_id)
     if class_name:
         entries_q = entries_q.filter(models.Entry.class_name == class_name)
     for e in entries_q.all():
-        snn = _sn_norm(e.sail_number)
-        cc = (getattr(e, "boat_country_code", None) or "").strip().upper()
-        cls = str(getattr(e, "class_name", None) or "")
         skipper = f"{getattr(e, 'first_name', '') or ''} {getattr(e, 'last_name', '') or ''}".strip() or None
-        entry_extra[(cls, snn, cc)] = {
+        entry_extra[entry_result_identity(e)] = {
             "skipper_name": skipper,
             "boat_model": getattr(e, "boat_model", None),
             "bow_number": getattr(e, "bow_number", None),
@@ -699,8 +697,7 @@ def get_overall_results_data(
                 else:
                     per_race_times[name] = {"points": float(pts) if pts is not None else None, "position": int(pos) if pos is not None else None}
 
-            cc = _cc_norm(info.get("boat_country_code"))
-            extra = entry_extra.get((cls, sn_norm, cc), {})
+            extra = entry_extra.get((cls.strip().lower(), _sc), {})
             overall.append(
                 {
                     "sail_number": info.get("sail_number"),
