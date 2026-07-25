@@ -63,6 +63,14 @@ type RegattaEntryLite = {
   }> | null
 }
 
+type ResultsExternalLinksConfig = Record<
+  string,
+  {
+    enabled?: boolean
+    url?: string | null
+  }
+>
+
 const FLEET_COLOR_CLASSES: Record<string, string> = {
   Yellow: 'bg-yellow-300',
   Blue: 'bg-blue-500',
@@ -91,26 +99,58 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [resultsOverallColumns, setResultsOverallColumns] = useState<string[] | Record<string, string[]> | null>(null)
+  const [resultsExternalLinks, setResultsExternalLinks] = useState<ResultsExternalLinksConfig | null>(null)
+  const [regattaConfigLoaded, setRegattaConfigLoaded] = useState(false)
   const [selectedRaceForTimes, setSelectedRaceForTimes] = useState<string | null>(null)
   const [entriesByBoatKey, setEntriesByBoatKey] = useState<Map<string, string[]>>(new Map())
   const isTimeDistanceSelected = selectedClass === TIME_DISTANCE_TAB_ID
 
   useEffect(() => {
     const fetchRegatta = async () => {
+      setRegattaConfigLoaded(false)
       try {
         const res = await fetch(`${getApiBaseUrl()}/regattas/${regattaId}`)
         const data = await res.json()
         setResultsOverallColumns(data?.results_overall_columns ?? null)
+        setResultsExternalLinks(data?.results_external_links ?? null)
       } catch {
         setResultsOverallColumns(null)
+        setResultsExternalLinks(null)
+      } finally {
+        setRegattaConfigLoaded(true)
       }
     }
     fetchRegatta()
   }, [regattaId])
 
+  const externalResultsLink = useMemo(() => {
+    const map = resultsExternalLinks ?? {}
+    const direct = map[selectedClass]
+    if (direct) return { enabled: !!direct.enabled, url: (direct.url ?? '').trim() }
+    const selectedKey = selectedClass.trim().toLowerCase()
+    for (const [className, cfg] of Object.entries(map)) {
+      if (className.trim().toLowerCase() === selectedKey) {
+        return { enabled: !!cfg?.enabled, url: (cfg?.url ?? '').trim() }
+      }
+    }
+    return { enabled: false, url: '' }
+  }, [resultsExternalLinks, selectedClass])
+
   useEffect(() => {
     if (!selectedClass || isTimeDistanceSelected) {
       setResults([])
+      setLoading(false)
+      return
+    }
+    if (!regattaConfigLoaded) {
+      setLoading(true)
+      return
+    }
+    if (externalResultsLink.enabled && externalResultsLink.url) {
+      setResults([])
+      setRacesMeta({})
+      setClassType('one_design')
+      setPublishedAt(null)
       setLoading(false)
       return
     }
@@ -145,7 +185,7 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
     }
 
     fetchOverallResults()
-  }, [regattaId, selectedClass, isTimeDistanceSelected])
+  }, [regattaId, selectedClass, isTimeDistanceSelected, regattaConfigLoaded, externalResultsLink.enabled, externalResultsLink.url])
 
   useEffect(() => {
     if (!selectedClass || isTimeDistanceSelected) {
@@ -238,6 +278,26 @@ export default function ResultsViewer({ regattaId, selectedClass }: ResultsViewe
   }
 
   if (loading) return <p className="text-gray-500">{t('loading')}</p>
+  if (externalResultsLink.enabled && externalResultsLink.url) {
+    return (
+      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-6 text-center">
+        <h2 className="text-2xl font-bold text-slate-900">
+          {t('overallClassTitle', { className: selectedClass })}
+        </h2>
+        <p className="mt-2 text-slate-600">
+          Results for this class are available through the official external results link.
+        </p>
+        <a
+          href={externalResultsLink.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-base font-semibold text-white hover:bg-blue-700"
+        >
+          Open results
+        </a>
+      </div>
+    )
+  }
   if (results.length === 0) return <p className="text-gray-500">{t('noPublishedResults')}</p>
 
   const raceNames = (() => {

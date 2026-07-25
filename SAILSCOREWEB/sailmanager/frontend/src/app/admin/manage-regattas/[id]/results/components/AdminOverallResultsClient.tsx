@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Trash2, Layers, Shuffle, List, Globe, Timer } from 'lucide-react';
+import { Plus, Trash2, Layers, Shuffle, List, Globe, Timer, Link2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SailNumberDisplay } from '@/components/ui/SailNumberDisplay';
 
@@ -35,8 +35,17 @@ type RegattaConfig = {
   discard_count: number;
   discard_threshold: number;
   results_overall_columns?: string[] | Record<string, string[]> | null;
+  results_external_links?: ResultsExternalLinksConfig | null;
   results_pace_config?: ResultsPaceConfig | null;
 };
+
+type ResultsExternalLinksConfig = Record<
+  string,
+  {
+    enabled?: boolean;
+    url?: string | null;
+  }
+>;
 
 type ResultsPaceConfig = {
   enabled?: boolean;
@@ -226,8 +235,10 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   const [showPublish, setShowPublish] = useState(false);
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [showFields, setShowFields] = useState(false);
+  const [showExternalLinks, setShowExternalLinks] = useState(false);
   const [showPaceConfig, setShowPaceConfig] = useState(false);
   const [savingColumns, setSavingColumns] = useState(false);
+  const [savingExternalLinks, setSavingExternalLinks] = useState(false);
   const [savingPaceConfig, setSavingPaceConfig] = useState(false);
 
   // NOVO: codes por corrida (raceName -> sail_number -> code)
@@ -266,6 +277,84 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
   );
   const showTimeDistanceTab = !!paceConfig.enabled && (paceConfig.class_names ?? []).length > 0;
   const timeDistanceTabLabel = (paceConfig.table_name ?? '').trim() || 'Time per mile';
+
+  const externalLinkConfig = useMemo(() => {
+    if (!selectedClass) return { enabled: false, url: '' };
+    const map = regatta?.results_external_links ?? {};
+    const direct = map[selectedClass];
+    if (direct) return { enabled: !!direct.enabled, url: direct.url ?? '' };
+    const selectedKey = selectedClass.trim().toLowerCase();
+    for (const [className, cfg] of Object.entries(map)) {
+      if (className.trim().toLowerCase() === selectedKey) {
+        return { enabled: !!cfg?.enabled, url: cfg?.url ?? '' };
+      }
+    }
+    return { enabled: false, url: '' };
+  }, [regatta?.results_external_links, selectedClass]);
+
+  const updateExternalLinkConfig = useCallback((patch: { enabled?: boolean; url?: string }) => {
+    if (!selectedClass) return;
+    setRegatta((prev) => {
+      if (!prev) return prev;
+      const current = prev.results_external_links ?? {};
+      const currentForClass = current[selectedClass] ?? externalLinkConfig;
+      return {
+        ...prev,
+        results_external_links: {
+          ...current,
+          [selectedClass]: {
+            ...currentForClass,
+            ...patch,
+          },
+        },
+      };
+    });
+  }, [externalLinkConfig, selectedClass]);
+
+  const saveExternalLinkConfig = useCallback(async () => {
+    if (!selectedClass) return;
+    const current = regatta?.results_external_links ?? {};
+    const url = (externalLinkConfig.url ?? '').trim();
+    const enabled = !!externalLinkConfig.enabled;
+
+    if (enabled) {
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          notify.warning('Results link must start with http:// or https://.');
+          return;
+        }
+      } catch {
+        notify.warning('Add a valid results link before enabling this option.');
+        return;
+      }
+    }
+
+    const next: ResultsExternalLinksConfig = { ...current };
+    if (!enabled && !url) {
+      delete next[selectedClass];
+    } else {
+      next[selectedClass] = { enabled, url };
+    }
+
+    setSavingExternalLinks(true);
+    try {
+      const data = await apiSend<{ results_external_links?: ResultsExternalLinksConfig | null }>(
+        `/regattas/${regattaId}`,
+        'PATCH',
+        { results_external_links: next },
+        token ?? undefined
+      );
+      setRegatta((prev) =>
+        prev ? { ...prev, results_external_links: data?.results_external_links ?? next } : prev
+      );
+      notify.success('External results link saved.');
+    } catch (e: unknown) {
+      notify.error(e instanceof Error ? e.message : 'Failed to save external results link.');
+    } finally {
+      setSavingExternalLinks(false);
+    }
+  }, [externalLinkConfig, regatta?.results_external_links, regattaId, selectedClass, token]);
 
   const updatePaceConfig = useCallback((patch: Partial<ResultsPaceConfig>) => {
     setRegatta((prev) => {
@@ -404,6 +493,7 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
           discard_count: data.discard_count ?? 0,
           discard_threshold: data.discard_threshold ?? 0,
           results_overall_columns: data.results_overall_columns ?? null,
+          results_external_links: data.results_external_links ?? null,
           results_pace_config: data.results_pace_config ?? null,
         });
       } catch (e) {
@@ -781,6 +871,25 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
 
           <button
             type="button"
+            onClick={() => setShowExternalLinks((v) => !v)}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded border text-gray-700 ${
+              showExternalLinks ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+            }`}
+            disabled={!selectedClass || isTimeDistanceSelected}
+            title={
+              !selectedClass
+                ? 'Choose a class first'
+                : isTimeDistanceSelected
+                  ? 'External links are configured per normal class'
+                  : 'Use an external public results link for this class'
+            }
+          >
+            <Link2 size={16} strokeWidth={2} />
+            Results Link
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowTiebreaker(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
             title="Tie-breaking rules (Appendix 8, Medal Race)"
@@ -833,6 +942,42 @@ export default function AdminOverallResultsClient({ regattaId }: Props) {
               </label>
             ))}
             {savingColumns && <span className="text-xs text-gray-500">Saving…</span>}
+          </div>
+        )}
+
+        {showExternalLinks && selectedClass && !isTimeDistanceSelected && (
+          <div className="p-3 bg-gray-50 rounded border space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!externalLinkConfig.enabled}
+                  onChange={(event) => updateExternalLinkConfig({ enabled: event.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                Use external public results link for {selectedClass}
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="url"
+                value={externalLinkConfig.url ?? ''}
+                onChange={(event) => updateExternalLinkConfig({ url: event.target.value })}
+                className="border rounded px-3 py-2 text-sm min-w-[18rem] flex-1"
+                placeholder="https://example.com/results"
+              />
+              <button
+                type="button"
+                onClick={saveExternalLinkConfig}
+                disabled={savingExternalLinks}
+                className="px-3 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingExternalLinks ? 'Saving…' : 'Save link'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Public users still choose the class first. For this class, the public results area will show this link instead of the SailScore table.
+            </p>
           </div>
         )}
 

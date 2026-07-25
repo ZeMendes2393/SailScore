@@ -330,6 +330,7 @@ class RegattaRead(RegattaBase):
     # Por classe: Dict[class_name, List[column_id]]. Legado: List[str] (uma config para todas).
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_external_links: Optional[Dict[str, Any]] = None
     results_pace_config: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -375,6 +376,7 @@ class RegattaUpdate(BaseModel):
     online_entry_field_visibility: Optional[Dict[str, bool]] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    results_external_links: Optional[Dict[str, Any]] = None
     results_pace_config: Optional[Dict[str, Any]] = None
 
 

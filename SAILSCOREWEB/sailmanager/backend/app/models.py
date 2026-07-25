@@ -120,6 +120,8 @@ class Regatta(Base):
     entry_list_columns = Column(JSON, nullable=True)
     # Colunas visíveis nos results overall (place, fleet, sail_no, boat, skipper, club, class, model, bow, total, net)
     results_overall_columns = Column(JSON, nullable=True)
+    # Links externos de resultados por classe: { "Class": { enabled: bool, url: str } }
+    results_external_links = Column(JSON, nullable=True)
     # Configuração da tabela handicap por tempo real por milha.
     results_pace_config = Column(JSON, nullable=True)
     # Country (ISO 3166-1 alpha-2, ex: PT, ES) + timezone (IANA, ex: Europe/Lisbon)

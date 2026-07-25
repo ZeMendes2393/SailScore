@@ -103,7 +103,7 @@ export default function RegattaNoticePage() {
         </div>
       </section>
       <div className="container-page py-8">
-        <div className="bg-white shadow rounded p-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <NoticeBoard regattaId={regattaId} />
         </div>
       </div>
