@@ -143,6 +143,24 @@ export default function Step3({
           </Field>
         )}
 
+        {isVisible('advertising_license') && (
+          <Field
+            label={fieldLabel('advertising_license')}
+            required={isRequired('advertising_license')}
+            hint={t('hints.advertisingLicense')}
+          >
+            <input
+              type="text"
+              name="advertising_license"
+              placeholder={t('placeholders.advertisingLicense')}
+              value={localData.advertising_license || ''}
+              onChange={handleChange}
+              className={inputClass}
+              required={isRequired('advertising_license')}
+            />
+          </Field>
+        )}
+
         {isHandicap && (
           <>
             {isVisible('boat_model') && (

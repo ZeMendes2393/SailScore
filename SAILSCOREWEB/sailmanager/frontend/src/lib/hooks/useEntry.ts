@@ -13,6 +13,7 @@ export type Entry = {
   boat_country?: string | null;
   boat_country_code?: string | null;
   boat_model?: string | null;
+  advertising_license?: string | null;
   rating?: number | null;
   rating_type?: string | null;
   orc_low?: number | null;

@@ -878,6 +878,7 @@ def _persist_new_entry(
         bow_number=getattr(entry, "bow_number", None),
         boat_name=entry.boat_name,
         boat_model=entry.boat_model,
+        advertising_license=getattr(entry, "advertising_license", None),
         rating=entry.rating,
         rating_type=getattr(entry, "rating_type", None),
         orc_low=getattr(entry, "orc_low", None),

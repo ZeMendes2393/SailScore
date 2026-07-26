@@ -176,6 +176,7 @@
       "boat_country_code": "Código de país",
       "sail_number": "Número de vela",
       "boat_model": "Modelo do barco",
+      "advertising_license": "Licença de publicidade",
       "owner_first_name": "Nome do proprietário",
       "owner_last_name": "Apelido do proprietário",
       "owner_email": "Email do proprietário",
@@ -191,6 +192,7 @@
       "boatCountry": "País de registo (obrigatório)",
       "sailNumber": "Apenas dígitos — o país é seleccionado acima (ex.: 30275)",
       "boatModel": "Marca e modelo do barco",
+      "advertisingLicense": "Número/referência da licença de publicidade (opcional)",
       "category": "ex.: Masculino, Feminino, Misto"
     },
     "placeholders": {
@@ -208,6 +210,7 @@
       "boatName": "ex.: Vento do Norte",
       "sailNumber": "ex.: 30275",
       "boatModel": "ex.: Beneteau First 36.7",
+      "advertisingLicense": "ex.: PUB-2026-001",
       "category": "ex.: Misto"
     }
   },

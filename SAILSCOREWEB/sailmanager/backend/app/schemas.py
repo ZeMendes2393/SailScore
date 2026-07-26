@@ -477,6 +477,7 @@ class EntryCreate(BaseModel):
     bow_number: Optional[str] = None
     boat_name: Optional[str] = None
     boat_model: Optional[str] = None  # ex: Beneteau First 36.7 (handicap)
+    advertising_license: Optional[str] = None
     rating: Optional[float] = None  # ANC rating (quando rating_type='anc')
     rating_type: Optional[str] = None  # None | anc | orc
     orc_low: Optional[float] = None
@@ -544,6 +545,7 @@ class EntryCreate(BaseModel):
         "bow_number",
         "boat_name",
         "boat_model",
+        "advertising_license",
         "category",
         "first_name",
         "last_name",
@@ -566,6 +568,7 @@ class EntryCreate(BaseModel):
             "bow_number": 32,
             "boat_name": 120,
             "boat_model": 120,
+            "advertising_license": 120,
             "category": 80,
             "first_name": 80,
             "last_name": 80,
@@ -643,6 +646,7 @@ class EntryListRead(BaseModel):
     bow_number: Optional[str] = None
     boat_name: Optional[str] = None
     boat_model: Optional[str] = None
+    advertising_license: Optional[str] = None
     rating: Optional[float] = None
     rating_type: Optional[str] = None
     orc_low: Optional[float] = None
@@ -1264,6 +1268,7 @@ class EntryPatch(BaseModel):
     bow_number: Optional[str] = None
     boat_name: Optional[str] = None
     boat_model: Optional[str] = None
+    advertising_license: Optional[str] = None
     rating: Optional[float] = None
     rating_type: Optional[str] = None
     orc_low: Optional[float] = None
@@ -1326,6 +1331,7 @@ class EntryPatch(BaseModel):
         "bow_number",
         "boat_name",
         "boat_model",
+        "advertising_license",
         "category",
         "first_name",
         "last_name",
@@ -1348,6 +1354,7 @@ class EntryPatch(BaseModel):
             "bow_number": 32,
             "boat_name": 120,
             "boat_model": 120,
+            "advertising_license": 120,
             "category": 80,
             "first_name": 80,
             "last_name": 80,

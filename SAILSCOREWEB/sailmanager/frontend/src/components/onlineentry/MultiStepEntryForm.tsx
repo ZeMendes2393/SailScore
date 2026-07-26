@@ -150,6 +150,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
       sail_number: (boat.sail_number || '').trim(),
       boat_name: boat.boat_name || '',
       boat_model: boat.boat_model || undefined,
+      advertising_license: (boat.advertising_license || '').trim() || undefined,
       rating: boat.rating != null && boat.rating !== '' ? Number(boat.rating) : undefined,
       category:
         formData.class_type === 'handicap'

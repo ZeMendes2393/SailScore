@@ -406,6 +406,17 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     lockedCore: false,
   },
   {
+    id: 'advertising_license',
+    section: 'step3_boat',
+    label: 'Advertising licence',
+    apiKey: 'advertising_license',
+    appliesTo: ['all'],
+    inPublicForm: true,
+    requiredUi: false,
+    requiredBackend: false,
+    lockedCore: false,
+  },
+  {
     id: 'owner_first_name',
     section: 'step3_boat',
     label: 'Owner first name',

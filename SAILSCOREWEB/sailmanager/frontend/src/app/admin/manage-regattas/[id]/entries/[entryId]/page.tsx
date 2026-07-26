@@ -496,6 +496,14 @@ export default function Page() {
                   onChange={(e) => onChange('category', e.target.value)}
                 />
 
+                <label className="text-gray-500">Advertising licence</label>
+                <input
+                  className="border rounded px-2 py-1"
+                  value={form.advertising_license ?? ''}
+                  onChange={(e) => onChange('advertising_license', e.target.value)}
+                  placeholder="Advertising licence"
+                />
+
                 {isHandicapClass(form.class_name ?? '') && (
                   <>
                     <label className="text-gray-500">Model (handicap)</label>

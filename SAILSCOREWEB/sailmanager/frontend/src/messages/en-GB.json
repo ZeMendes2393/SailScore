@@ -176,6 +176,7 @@
       "boat_country_code": "Country code",
       "sail_number": "Sail number",
       "boat_model": "Boat model",
+      "advertising_license": "Advertising licence",
       "owner_first_name": "Owner first name",
       "owner_last_name": "Owner last name",
       "owner_email": "Owner email",
@@ -191,6 +192,7 @@
       "boatCountry": "Country of registration (required)",
       "sailNumber": "Digits only — country is selected above (e.g. 30275)",
       "boatModel": "Boat brand and model",
+      "advertisingLicense": "Optional advertising licence number/reference",
       "category": "e.g. Men, Women, Mixed"
     },
     "placeholders": {
@@ -208,6 +210,7 @@
       "boatName": "e.g. Northern Wind",
       "sailNumber": "e.g. 30275",
       "boatModel": "e.g. Beneteau First 36.7",
+      "advertisingLicense": "e.g. ADV-2026-001",
       "category": "e.g. Mixed"
     }
   },

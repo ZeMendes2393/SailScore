@@ -238,6 +238,7 @@ class Entry(Base):
     bow_number = Column(String, nullable=True)  # número de proa (admin)
     boat_name = Column(String)
     boat_model = Column(String, nullable=True)  # ex: Beneteau First 36.7 (handicap)
+    advertising_license = Column(String, nullable=True)
     rating = Column(Float, nullable=True)  # ANC rating (quando rating_type='anc')
     rating_type = Column(String(16), nullable=True)  # None | anc | orc
     orc_low = Column(Float, nullable=True)
