@@ -13,6 +13,9 @@ type RegattaLite = {
   online_entry_url?: string | null;
   online_entry_field_required?: Record<string, boolean> | null;
   online_entry_field_visibility?: Record<string, boolean> | null;
+  online_entry_terms_enabled?: boolean;
+  online_entry_terms_title?: string | null;
+  online_entry_terms_text?: string | null;
 };
 
 export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) {
@@ -90,6 +93,11 @@ export default function OnlineEntryPublic({ regattaId }: { regattaId: number }) 
       regattaId={regattaId}
       fieldRequiredOverrides={reg?.online_entry_field_required}
       fieldVisibilityOverrides={reg?.online_entry_field_visibility}
+      termsConfig={{
+        enabled: !!reg?.online_entry_terms_enabled,
+        title: reg?.online_entry_terms_title ?? null,
+        text: reg?.online_entry_terms_text ?? null,
+      }}
     />
   );
 }

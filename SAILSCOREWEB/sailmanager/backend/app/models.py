@@ -101,6 +101,10 @@ class Regatta(Base):
     online_entry_field_required = Column(JSON, nullable=True)
     # Per-field visibility overrides for public online entry: { "club": false, "town": true, ... }
     online_entry_field_visibility = Column(JSON, nullable=True)
+    # Optional acceptance block shown before public online entry submit.
+    online_entry_terms_enabled = Column(Boolean, nullable=False, server_default=sa.text("false"))
+    online_entry_terms_title = Column(String(200), nullable=True)
+    online_entry_terms_text = Column(Text, nullable=True)
 
     # Regras de descarte
     discard_count = Column(Integer, nullable=False, default=0)

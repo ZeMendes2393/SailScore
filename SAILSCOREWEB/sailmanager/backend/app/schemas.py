@@ -313,6 +313,9 @@ class RegattaBase(BaseModel):
     online_entry_field_required: Optional[Dict[str, bool]] = None
     # Visibility overrides for configurable online entry fields: field_id -> visible (bool)
     online_entry_field_visibility: Optional[Dict[str, bool]] = None
+    online_entry_terms_enabled: bool = False
+    online_entry_terms_title: Optional[str] = None
+    online_entry_terms_text: Optional[str] = None
     country_code: Optional[str] = None  # ISO 3166-1 alpha-2, ex: PT, ES
     timezone: Optional[str] = None  # IANA, ex: Europe/Lisbon
 
@@ -374,6 +377,9 @@ class RegattaUpdate(BaseModel):
     online_entry_limits_by_class: Optional[Dict[str, Dict[str, Any]]] = None
     online_entry_field_required: Optional[Dict[str, bool]] = None
     online_entry_field_visibility: Optional[Dict[str, bool]] = None
+    online_entry_terms_enabled: Optional[bool] = None
+    online_entry_terms_title: Optional[str] = None
+    online_entry_terms_text: Optional[str] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_external_links: Optional[Dict[str, Any]] = None
@@ -511,6 +517,7 @@ class EntryCreate(BaseModel):
     regatta_id: int
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
+    accepted_terms: Optional[bool] = None
 
     # Tripulantes opcionais (lista de dicts com first_name, last_name, email, etc.)
     crew_members: Optional[List[Dict[str, Any]]] = None

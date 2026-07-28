@@ -37,6 +37,12 @@ interface Step3Props {
   isSubmitting?: boolean;
   isRequired: (fieldId: string) => boolean;
   isVisible: (fieldId: string) => boolean;
+  termsAcceptance?: {
+    title: string;
+    text: string;
+    accepted: boolean;
+    onAcceptedChange: (accepted: boolean) => void;
+  } | null;
 }
 
 export default function Step3({
@@ -47,6 +53,7 @@ export default function Step3({
   isSubmitting = false,
   isRequired,
   isVisible,
+  termsAcceptance = null,
 }: Step3Props) {
   const t = useTranslations('entryForm');
   const tCommon = useTranslations('common');
@@ -247,6 +254,27 @@ export default function Step3({
         )}
       </div>
 
+      {termsAcceptance && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4 space-y-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">{termsAcceptance.title}</h3>
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-700">
+              {termsAcceptance.text}
+            </p>
+          </div>
+          <label className="flex items-start gap-3 text-sm font-medium text-gray-800">
+            <input
+              type="checkbox"
+              checked={termsAcceptance.accepted}
+              onChange={(event) => termsAcceptance.onAcceptedChange(event.target.checked)}
+              className="mt-1 rounded border-gray-300"
+              required
+            />
+            <span>{t('terms.acceptLabel')}</span>
+          </label>
+        </div>
+      )}
+
       <div className="flex justify-between pt-2">
         <button
           type="button"
@@ -258,7 +286,7 @@ export default function Step3({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || (!!termsAcceptance && !termsAcceptance.accepted)}
           className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isSubmitting ? t('buttons.submitting') : t('buttons.submit')}

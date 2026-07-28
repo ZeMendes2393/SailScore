@@ -825,6 +825,12 @@ def _persist_new_entry(
 ) -> dict:
     if require_online_open and regatta.online_entry_open is False:
         raise HTTPException(status_code=403, detail="Online entry is closed for this regatta.")
+    if (
+        require_online_open
+        and bool(getattr(regatta, "online_entry_terms_enabled", False))
+        and not bool(getattr(entry, "accepted_terms", False))
+    ):
+        raise HTTPException(status_code=400, detail="You must accept the entry terms before submitting.")
 
     class_name = (entry.class_name or "").strip()
     if not class_name:

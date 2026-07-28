@@ -136,6 +136,10 @@
       "atLeastOneCrew": "É necessário pelo menos um tripulante para esta classe.",
       "reviewForm": "Revise o formulário e tente novamente."
     },
+    "terms": {
+      "acceptLabel": "Li e aceito os termos acima.",
+      "required": "Tem de aceitar os termos antes de submeter."
+    },
     "notifications": {
       "waitingListTitle": "Adicionado à lista de espera",
       "waitingListDescription": "A inscrição foi recebida, mas o limite do campeonato foi atingido. Foi colocado na lista de espera.",

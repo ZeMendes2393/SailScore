@@ -25,17 +25,24 @@ export interface MultiStepEntryFormProps {
   fieldRequiredOverrides?: Record<string, boolean> | null;
   /** Per-regatta visibility overrides from regatta.online_entry_field_visibility */
   fieldVisibilityOverrides?: Record<string, boolean> | null;
+  termsConfig?: {
+    enabled?: boolean;
+    title?: string | null;
+    text?: string | null;
+  } | null;
 }
 
 const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
   regattaId,
   fieldRequiredOverrides,
   fieldVisibilityOverrides,
+  termsConfig,
 }) => {
   const t = useTranslations('entryForm');
   const fieldLabel = useEntryFieldLabel();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const submitLockRef = useRef(false);
 
   const [formData, setFormData] = useState<{
@@ -92,6 +99,12 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
 
     const helm = formData.helm || {};
     const boat = formData.boat || {};
+    const termsEnabled = !!termsConfig?.enabled && !!termsConfig?.title?.trim() && !!termsConfig?.text?.trim();
+
+    if (termsEnabled && !acceptedTerms) {
+      notify.warning(t('terms.required'));
+      return;
+    }
 
     if (!(boat.sail_number || '').trim()) {
       notify.warning(t('errors.sailNumberRequired'));
@@ -177,6 +190,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
       club: helm.club || '',
       territory: helm.territory || '',
       federation_license: (helm.federation_license || '').trim() || undefined,
+      accepted_terms: termsEnabled ? acceptedTerms : undefined,
     };
 
     submitLockRef.current = true;
@@ -208,6 +222,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
           crew: [],
           boat: {},
         });
+        setAcceptedTerms(false);
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Backend error:', errorData);
@@ -284,6 +299,16 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             isSubmitting={isSubmitting}
             isRequired={isRequired}
             isVisible={isVisible}
+            termsAcceptance={
+              termsConfig?.enabled && termsConfig.title?.trim() && termsConfig.text?.trim()
+                ? {
+                    title: termsConfig.title,
+                    text: termsConfig.text,
+                    accepted: acceptedTerms,
+                    onAcceptedChange: setAcceptedTerms,
+                  }
+                : null
+            }
             onBack={() => {
               if (showCrewStep) setStep(3);
               else setStep(2);

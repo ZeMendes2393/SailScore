@@ -136,6 +136,10 @@
       "atLeastOneCrew": "At least one crew member is required for this class.",
       "reviewForm": "Please review the form and try again."
     },
+    "terms": {
+      "acceptLabel": "I have read and accept the terms above.",
+      "required": "You must accept the terms before submitting."
+    },
     "notifications": {
       "waitingListTitle": "Added to waiting list",
       "waitingListDescription": "Your entry was received, but the championship limit was reached. You have been placed on the waiting list.",
