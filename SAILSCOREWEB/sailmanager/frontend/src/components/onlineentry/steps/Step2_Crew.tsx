@@ -51,6 +51,7 @@ interface Step2CrewProps {
   data: CrewMember[];
   helm: { first_name?: string; last_name?: string; position?: string };
   sailorsPerBoat: number;
+  isHandicap?: boolean;
   onChange: (data: CrewMember[]) => void;
   onNext: () => void;
   onBack: () => void;
@@ -70,6 +71,7 @@ export default function Step2Crew({
   data,
   helm,
   sailorsPerBoat,
+  isHandicap = false,
   onChange,
   onNext,
   onBack,
@@ -80,7 +82,7 @@ export default function Step2Crew({
   const tCommon = useTranslations('common');
   const fieldLabel = useEntryFieldLabel();
   const crewList: CrewMember[] = Array.isArray(data) && data.length > 0 ? data : [];
-  const maxCrew = Math.max(0, (sailorsPerBoat || 2) - 1);
+  const maxCrew = isHandicap ? 20 : Math.max(0, (sailorsPerBoat || 2) - 1);
 
   const [localCrew, setLocalCrew] = useState<CrewMember[]>(crewList);
 
@@ -115,8 +117,14 @@ export default function Step2Crew({
 
   return (
     <form onSubmit={handleNext} className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">{t('step2Crew.title')}</h2>
-      <p className="text-sm text-gray-600">{t('step2Crew.description', { count: sailorsPerBoat })}</p>
+      <h2 className="text-xl font-bold text-gray-900">
+        {isHandicap ? t('step2Crew.handicapTitle') : t('step2Crew.title')}
+      </h2>
+      <p className="text-sm text-gray-600">
+        {isHandicap
+          ? t('step2Crew.handicapDescription')
+          : t('step2Crew.description', { count: sailorsPerBoat })}
+      </p>
 
       <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
         <h3 className="text-sm font-semibold text-gray-800 mb-2">{t('step2Crew.sailorsInEntry')}</h3>
@@ -153,7 +161,7 @@ export default function Step2Crew({
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              {isVisible('crew_position') && (
+              {!isHandicap && isVisible('crew_position') && (
                 <Field label={fieldLabel('crew_position')}>
                   <select
                     value={member.position || 'Crew'}
@@ -189,7 +197,7 @@ export default function Step2Crew({
                   />
                 </Field>
               )}
-              {isVisible('crew_email') && (
+              {!isHandicap && isVisible('crew_email') && (
                 <Field label={fieldLabel('crew_email')} required={isRequired('crew_email')}>
                   <input
                     type="email"
@@ -201,7 +209,7 @@ export default function Step2Crew({
                   />
                 </Field>
               )}
-              {isVisible('crew_club') && (
+              {!isHandicap && isVisible('crew_club') && (
                 <Field label={fieldLabel('crew_club')} required={isRequired('crew_club')}>
                   <input
                     type="text"
@@ -215,7 +223,7 @@ export default function Step2Crew({
               )}
               {isVisible('crew_federation_license') && (
                 <Field
-                  label={fieldLabel('crew_federation_license')}
+                  label={isHandicap ? t('step2Crew.sportsLicense') : fieldLabel('crew_federation_license')}
                   hint={t('hints.federationLicenseCrew')}
                   required={isRequired('crew_federation_license')}
                 >
@@ -229,7 +237,7 @@ export default function Step2Crew({
                   />
                 </Field>
               )}
-              {isVisible('crew_gender') && (
+              {!isHandicap && isVisible('crew_gender') && (
                 <Field
                   label={fieldLabel('crew_gender')}
                   hint={t('hints.genderCrew')}
@@ -247,7 +255,7 @@ export default function Step2Crew({
                   </select>
                 </Field>
               )}
-              {isVisible('crew_helm_country') && (
+              {!isHandicap && isVisible('crew_helm_country') && (
                 <Field label={fieldLabel('crew_helm_country')} required={isRequired('crew_helm_country')}>
                   <select
                     value={member.helm_country || ''}

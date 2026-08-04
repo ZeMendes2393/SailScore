@@ -653,14 +653,14 @@ export default function Page() {
               </section>
             )}
 
-            {/* Sailors (One Design: helm + crew with positions) */}
+            {/* Sailors: fixed/full fields for One Design; flexible name/licence list for handicap */}
             <section className="bg-white rounded border p-4 md:col-span-2">
               <h2 className="font-semibold mb-3">Sailors</h2>
               <div className="space-y-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2 p-2 rounded bg-gray-50">
                   <span className="font-medium">Helm:</span>
                   <span>{(form.first_name ?? '') + ' ' + (form.last_name ?? '')}</span>
-                  <span className="text-gray-500">
+                  {!isHandicapClass(form.class_name ?? '') && <span className="text-gray-500">
                     (Position:
                     <select
                       className="ml-1 border rounded px-2 py-0.5"
@@ -671,14 +671,14 @@ export default function Page() {
                       <option value="Crew">Crew</option>
                     </select>
                     )
-                  </span>
+                  </span>}
                 </div>
                 {(form.crew_members && (form.crew_members as any[]).length > 0) && (
                   <div className="space-y-2">
                     <span className="font-medium block">Crew members:</span>
                     {(form.crew_members as any[]).map((c: any, i: number) => (
                       <div key={i} className="flex flex-wrap items-center gap-2 p-2 rounded border bg-white">
-                        <select
+                        {!isHandicapClass(form.class_name ?? '') && <select
                           className="border rounded px-2 py-1"
                           value={c.position ?? 'Crew'}
                           onChange={(e) => {
@@ -689,7 +689,7 @@ export default function Page() {
                         >
                           <option value="Skipper">Skipper</option>
                           <option value="Crew">Crew</option>
-                        </select>
+                        </select>}
                         <input
                           className="border rounded px-2 py-1 w-28"
                           placeholder="First name"
@@ -710,7 +710,7 @@ export default function Page() {
                             onChange('crew_members', next);
                           }}
                         />
-                        <input
+                        {!isHandicapClass(form.class_name ?? '') && <input
                           type="email"
                           className="border rounded px-2 py-1 flex-1 min-w-[140px]"
                           placeholder="Email"
@@ -720,8 +720,8 @@ export default function Page() {
                             next[i] = { ...next[i], email: e.target.value };
                             onChange('crew_members', next);
                           }}
-                        />
-                        <input
+                        />}
+                        {!isHandicapClass(form.class_name ?? '') && <input
                           className="border rounded px-2 py-1 w-32"
                           placeholder="Club"
                           value={c.club ?? ''}
@@ -730,10 +730,14 @@ export default function Page() {
                             next[i] = { ...next[i], club: e.target.value };
                             onChange('crew_members', next);
                           }}
-                        />
+                        />}
                         <input
                           className="border rounded px-2 py-1 w-28"
-                          placeholder="Federation license"
+                          placeholder={
+                            isHandicapClass(form.class_name ?? '')
+                              ? 'Sports licence'
+                              : 'Federation licence'
+                          }
                           value={c.federation_license ?? ''}
                           onChange={(e) => {
                             const next = [...(form.crew_members as any[])];
@@ -765,9 +769,8 @@ export default function Page() {
                         position: 'Crew',
                         first_name: '',
                         last_name: '',
-                        email: '',
-                        club: '',
                         federation_license: '',
+                        ...(isHandicapClass(form.class_name ?? '') ? {} : { email: '', club: '' }),
                       },
                     ])
                   }

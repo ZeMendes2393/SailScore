@@ -82,7 +82,8 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
     formData.class_type === 'one_design' && formData.sailors_per_boat != null && formData.sailors_per_boat > 0
       ? formData.sailors_per_boat
       : (boatClasses[formData.class_name] ?? 1);
-  const showCrewStep = crewCount >= 2;
+  const isHandicapClass = formData.class_type === 'handicap';
+  const showCrewStep = isHandicapClass || crewCount >= 2;
   const classType =
     formData.class_type === 'handicap' ? 'handicap' : ('one_design' as const);
   const isRequired = React.useMemo(
@@ -136,7 +137,16 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
         helm_position,
       },
       mergeEffectiveRequired(fieldRequiredOverrides),
-      mergeEffectiveVisibility(fieldVisibilityOverrides),
+      isHandicapClass
+        ? {
+            ...mergeEffectiveVisibility(fieldVisibilityOverrides),
+            crew_position: false,
+            crew_email: false,
+            crew_club: false,
+            crew_gender: false,
+            crew_helm_country: false,
+          }
+        : mergeEffectiveVisibility(fieldVisibilityOverrides),
       {
         classType,
         multiCrew: showCrewStep,
@@ -283,6 +293,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
             data={Array.isArray(formData.crew) ? formData.crew : []}
             helm={formData.helm || {}}
             sailorsPerBoat={formData.sailors_per_boat ?? 2}
+            isHandicap={isHandicapClass}
             onChange={(data) => handleChange('crew', data)}
             onNext={nextStep}
             onBack={prevStep}

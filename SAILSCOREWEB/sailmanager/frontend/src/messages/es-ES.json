@@ -102,6 +102,9 @@
     "step2Crew": {
       "title": "Tripulantes",
       "description": "Puedes añadir más tripulantes (hasta {count} en total). Cada uno con posición Patrón o Tripulación.",
+      "handicapTitle": "Tripulantes del barco handicap",
+      "handicapDescription": "Puedes añadir tripulantes opcionalmente. Para cada persona, indica el nombre y la licencia deportiva.",
+      "sportsLicense": "Licencia deportiva",
       "sailorsInEntry": "Regatistas en esta inscripción",
       "addCrewBelow": "Añade tripulantes abajo si el barco tiene más de un regatista.",
       "crewMember": "Tripulante {index}"

@@ -104,6 +104,11 @@ _APPLIES_MULTI_CREW = {
     "crew_gender",
     "crew_helm_country",
 }
+_HANDICAP_CREW_FIELDS = {
+    "crew_first_name",
+    "crew_last_name",
+    "crew_federation_license",
+}
 
 
 def _sanitize_bool_map(raw: Any, *, field_name: str, allowed_ids: set[str]) -> Dict[str, bool]:
@@ -202,6 +207,8 @@ def field_applies(
     if field_id in _APPLIES_ONE_DESIGN_ONLY:
         return class_type != "handicap"
     if field_id in _APPLIES_MULTI_CREW:
+        if class_type == "handicap":
+            return field_id in _HANDICAP_CREW_FIELDS
         return multi_crew
     return field_id in _CONFIGURABLE_REQUIRED_DEFAULTS
 
@@ -234,7 +241,7 @@ def validate_online_entry_fields(
     visibility_map = merge_effective_visibility(
         sanitize_visibility_overrides(getattr(regatta, "online_entry_field_visibility", None))
     )
-    multi_crew = sailors_per_boat >= 2
+    multi_crew = class_type == "handicap" or sailors_per_boat >= 2
     errors: List[str] = []
 
     for field_id, is_required in required_map.items():

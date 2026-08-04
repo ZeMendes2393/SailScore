@@ -102,6 +102,9 @@
     "step2Crew": {
       "title": "Crew members",
       "description": "You can add more crew members (up to {count} in total). Each with position Skipper or Crew.",
+      "handicapTitle": "Handicap crew members",
+      "handicapDescription": "Optionally add crew members. For each person, enter their name and federation licence.",
+      "sportsLicense": "Sports licence",
       "sailorsInEntry": "Sailors in this entry",
       "addCrewBelow": "Add crew members below if the boat has more than one sailor.",
       "crewMember": "Crew member {index}"
