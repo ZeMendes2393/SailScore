@@ -16,7 +16,6 @@ LOCKED_CORE_FIELD_IDS = {
     "first_name",
     "last_name",
     "email",
-    "boat_name",
     "boat_country_code",
     "sail_number",
 }
@@ -44,6 +43,7 @@ _CONFIGURABLE_REQUIRED_DEFAULTS: Dict[str, bool] = {
     "crew_federation_license": False,
     "crew_gender": False,
     "crew_helm_country": False,
+    "boat_name": True,
     "boat_model": False,
     "owner_first_name": False,
     "owner_last_name": False,
@@ -74,6 +74,7 @@ _HELM_ATTR = {
 }
 
 _BOAT_ATTR = {
+    "boat_name": "boat_name",
     "boat_model": "boat_model",
     "owner_first_name": "owner_first_name",
     "owner_last_name": "owner_last_name",

@@ -369,7 +369,7 @@ export const ONLINE_ENTRY_FIELDS: OnlineEntryFieldDef[] = [
     inPublicForm: true,
     requiredUi: true,
     requiredBackend: false,
-    lockedCore: true,
+    lockedCore: false,
   },
   {
     id: 'boat_country_code',
