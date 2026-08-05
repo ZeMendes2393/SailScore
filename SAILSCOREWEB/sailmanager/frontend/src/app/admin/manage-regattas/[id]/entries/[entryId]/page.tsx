@@ -419,6 +419,16 @@ export default function Page() {
                   onChange={(e) => onChange('confirmed', e.target.checked)}
                 />
 
+                <label className="text-gray-500">Accepted terms</label>
+                <div className="text-sm font-medium">
+                  {form.accepted_terms ? 'Yes' : 'No'}
+                </div>
+
+                <label className="text-gray-500">Data promotion opt-out</label>
+                <div className="text-sm font-medium">
+                  {form.data_promotion_opt_out ? 'Yes (opted out)' : 'No'}
+                </div>
+
                 <label className="text-gray-500">Class</label>
                 <select
                   className="border rounded px-2 py-1"

@@ -30,6 +30,10 @@ export interface MultiStepEntryFormProps {
     title?: string | null;
     text?: string | null;
   } | null;
+  dataOptOutConfig?: {
+    enabled?: boolean;
+    text?: string | null;
+  } | null;
 }
 
 const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
@@ -37,12 +41,14 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
   fieldRequiredOverrides,
   fieldVisibilityOverrides,
   termsConfig,
+  dataOptOutConfig,
 }) => {
   const t = useTranslations('entryForm');
   const fieldLabel = useEntryFieldLabel();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [dataPromotionOptOut, setDataPromotionOptOut] = useState(false);
   const submitLockRef = useRef(false);
 
   const [formData, setFormData] = useState<{
@@ -101,6 +107,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
     const helm = formData.helm || {};
     const boat = formData.boat || {};
     const termsEnabled = !!termsConfig?.enabled && !!termsConfig?.title?.trim() && !!termsConfig?.text?.trim();
+    const dataOptOutEnabled = !!dataOptOutConfig?.enabled && !!dataOptOutConfig?.text?.trim();
 
     if (termsEnabled && !acceptedTerms) {
       notify.warning(t('terms.required'));
@@ -200,7 +207,8 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
       club: helm.club || '',
       territory: helm.territory || '',
       federation_license: (helm.federation_license || '').trim() || undefined,
-      accepted_terms: termsEnabled ? acceptedTerms : undefined,
+      accepted_terms: termsEnabled ? acceptedTerms : false,
+      data_promotion_opt_out: dataOptOutEnabled ? dataPromotionOptOut : false,
     };
 
     submitLockRef.current = true;
@@ -233,6 +241,7 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
           boat: {},
         });
         setAcceptedTerms(false);
+        setDataPromotionOptOut(false);
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Backend error:', errorData);
@@ -317,6 +326,15 @@ const MultiStepEntryForm: React.FC<MultiStepEntryFormProps> = ({
                     text: termsConfig.text,
                     accepted: acceptedTerms,
                     onAcceptedChange: setAcceptedTerms,
+                  }
+                : null
+            }
+            dataOptOut={
+              dataOptOutConfig?.enabled && dataOptOutConfig.text?.trim()
+                ? {
+                    text: dataOptOutConfig.text.trim(),
+                    checked: dataPromotionOptOut,
+                    onCheckedChange: setDataPromotionOptOut,
                   }
                 : null
             }

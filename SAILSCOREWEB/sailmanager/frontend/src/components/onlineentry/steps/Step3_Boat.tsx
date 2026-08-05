@@ -43,6 +43,11 @@ interface Step3Props {
     accepted: boolean;
     onAcceptedChange: (accepted: boolean) => void;
   } | null;
+  dataOptOut?: {
+    text: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  } | null;
 }
 
 export default function Step3({
@@ -54,6 +59,7 @@ export default function Step3({
   isRequired,
   isVisible,
   termsAcceptance = null,
+  dataOptOut = null,
 }: Step3Props) {
   const t = useTranslations('entryForm');
   const tCommon = useTranslations('common');
@@ -254,24 +260,39 @@ export default function Step3({
         )}
       </div>
 
-      {termsAcceptance && (
+      {(dataOptOut || termsAcceptance) && (
         <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4 space-y-3">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">{termsAcceptance.title}</h3>
-            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-700">
-              {termsAcceptance.text}
-            </p>
-          </div>
-          <label className="flex items-start gap-3 text-sm font-medium text-gray-800">
-            <input
-              type="checkbox"
-              checked={termsAcceptance.accepted}
-              onChange={(event) => termsAcceptance.onAcceptedChange(event.target.checked)}
-              className="mt-1 rounded border-gray-300"
-              required
-            />
-            <span>{t('terms.acceptLabel')}</span>
-          </label>
+          {termsAcceptance && (
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">{termsAcceptance.title}</h3>
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-700">
+                {termsAcceptance.text}
+              </p>
+            </div>
+          )}
+          {dataOptOut && (
+            <label className="flex items-start gap-3 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={dataOptOut.checked}
+                onChange={(event) => dataOptOut.onCheckedChange(event.target.checked)}
+                className="mt-1 rounded border-gray-300"
+              />
+              <span>{dataOptOut.text}</span>
+            </label>
+          )}
+          {termsAcceptance && (
+            <label className="flex items-start gap-3 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={termsAcceptance.accepted}
+                onChange={(event) => termsAcceptance.onAcceptedChange(event.target.checked)}
+                className="mt-1 rounded border-gray-300"
+                required
+              />
+              <span>{t('terms.acceptLabel')}</span>
+            </label>
+          )}
         </div>
       )}
 

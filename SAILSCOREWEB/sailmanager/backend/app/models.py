@@ -105,6 +105,9 @@ class Regatta(Base):
     online_entry_terms_enabled = Column(Boolean, nullable=False, server_default=sa.text("false"))
     online_entry_terms_title = Column(String(200), nullable=True)
     online_entry_terms_text = Column(Text, nullable=True)
+    # Optional (non-blocking) data-promotion opt-out checkbox on public online entry.
+    online_entry_data_opt_out_enabled = Column(Boolean, nullable=False, server_default=sa.text("false"))
+    online_entry_data_opt_out_text = Column(Text, nullable=True)
 
     # Regras de descarte
     discard_count = Column(Integer, nullable=False, default=0)
@@ -278,6 +281,9 @@ class Entry(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     paid = Column(Boolean, default=False)
     confirmed = Column(Boolean, default=False, nullable=False)
+    # Snapshot of public form consents at submission time.
+    accepted_terms = Column(Boolean, nullable=False, server_default=sa.text("false"))
+    data_promotion_opt_out = Column(Boolean, nullable=False, server_default=sa.text("false"))
     # "Confirmed entry" email must be sent only once per entry.
     confirmed_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -225,6 +225,8 @@ def update_regatta(
             "online_entry_terms_enabled",
             "online_entry_terms_title",
             "online_entry_terms_text",
+            "online_entry_data_opt_out_enabled",
+            "online_entry_data_opt_out_text",
             "entry_list_columns",
             "results_overall_columns",
             "results_external_links",

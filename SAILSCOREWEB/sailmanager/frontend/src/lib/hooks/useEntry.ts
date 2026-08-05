@@ -43,6 +43,8 @@ export type Entry = {
   user_id?: number | null;
   paid?: boolean | null;
   confirmed?: boolean | null;
+  accepted_terms?: boolean | null;
+  data_promotion_opt_out?: boolean | null;
 
 };
 

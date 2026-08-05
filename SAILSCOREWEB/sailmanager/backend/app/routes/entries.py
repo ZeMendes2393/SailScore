@@ -914,6 +914,8 @@ def _persist_new_entry(
         user_id=user.id,
         paid=bool(getattr(entry, "paid", False)),
         confirmed=entry_confirmed,
+        accepted_terms=bool(getattr(entry, "accepted_terms", False)),
+        data_promotion_opt_out=bool(getattr(entry, "data_promotion_opt_out", False)),
         crew_members=entry.crew_members if getattr(entry, "crew_members", None) else None,
         created_at=datetime.utcnow(),
         waiting_list=is_waiting,

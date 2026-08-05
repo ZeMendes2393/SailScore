@@ -37,6 +37,8 @@ interface Regatta {
   online_entry_terms_enabled?: boolean;
   online_entry_terms_title?: string | null;
   online_entry_terms_text?: string | null;
+  online_entry_data_opt_out_enabled?: boolean;
+  online_entry_data_opt_out_text?: string | null;
   country_code?: string | null;
   timezone?: string | null;
   entry_list_columns?: string[] | Record<string, string[]> | null;
@@ -588,7 +590,7 @@ export default function AdminRegattaPage() {
     }
   }
 
-  async function updateOnlineEntrySettings(payload: Partial<Pick<Regatta, 'online_entry_mode' | 'online_entry_url' | 'online_entry_terms_enabled' | 'online_entry_terms_title' | 'online_entry_terms_text'>>) {
+  async function updateOnlineEntrySettings(payload: Partial<Pick<Regatta, 'online_entry_mode' | 'online_entry_url' | 'online_entry_terms_enabled' | 'online_entry_terms_title' | 'online_entry_terms_text' | 'online_entry_data_opt_out_enabled' | 'online_entry_data_opt_out_text'>>) {
     if (!token) {
       notify.error('Session missing. Please log in as admin.');
       router.push(withOrg('/admin/login', orgSlug));
@@ -619,6 +621,20 @@ export default function AdminRegattaPage() {
       online_entry_terms_enabled: enabled,
       online_entry_terms_title: title || null,
       online_entry_terms_text: text || null,
+    });
+  }
+
+  async function saveOnlineEntryDataOptOut() {
+    if (!regatta) return;
+    const enabled = !!regatta.online_entry_data_opt_out_enabled;
+    const text = (regatta.online_entry_data_opt_out_text ?? '').trim();
+    if (enabled && !text) {
+      notify.warning('Add checkbox text before enabling the data opt-out option.');
+      return;
+    }
+    await updateOnlineEntrySettings({
+      online_entry_data_opt_out_enabled: enabled,
+      online_entry_data_opt_out_text: text || null,
     });
   }
 
@@ -848,6 +864,69 @@ export default function AdminRegattaPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Data promotion opt-out</h3>
+                    <p className="text-xs text-gray-500">
+                      Optional checkbox shown before terms acceptance. Does not block submission.
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-3 cursor-pointer">
+                    <span className="text-sm font-medium">Enabled</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRegatta((prev) => {
+                          if (!prev) return prev;
+                          const nextEnabled = !prev.online_entry_data_opt_out_enabled;
+                          const currentText = (prev.online_entry_data_opt_out_text ?? '').trim();
+                          return {
+                            ...prev,
+                            online_entry_data_opt_out_enabled: nextEnabled,
+                            online_entry_data_opt_out_text:
+                              nextEnabled && !currentText
+                                ? 'I do not authorise the use of my personal data for the promotion of other club activities.'
+                                : prev.online_entry_data_opt_out_text,
+                          };
+                        })
+                      }
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                        regatta.online_entry_data_opt_out_enabled ? 'bg-emerald-500' : 'bg-gray-300'
+                      }`}
+                      aria-pressed={regatta.online_entry_data_opt_out_enabled ? 'true' : 'false'}
+                      aria-label="Toggle data promotion opt-out checkbox"
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                          regatta.online_entry_data_opt_out_enabled ? 'translate-x-5' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </label>
+                </div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Checkbox text
+                  <textarea
+                    value={regatta.online_entry_data_opt_out_text ?? ''}
+                    onChange={(e) =>
+                      setRegatta((prev) =>
+                        prev ? { ...prev, online_entry_data_opt_out_text: e.target.value } : prev
+                      )
+                    }
+                    className="mt-1 min-h-20 w-full border rounded px-3 py-2 text-sm"
+                    placeholder="I do not authorise the use of my personal data for the promotion of other club activities."
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={saveOnlineEntryDataOptOut}
+                  className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                >
+                  Save data opt-out
+                </button>
               </div>
 
               <div className="rounded border p-4 space-y-3">

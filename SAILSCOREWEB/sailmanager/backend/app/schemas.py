@@ -316,6 +316,8 @@ class RegattaBase(BaseModel):
     online_entry_terms_enabled: bool = False
     online_entry_terms_title: Optional[str] = None
     online_entry_terms_text: Optional[str] = None
+    online_entry_data_opt_out_enabled: bool = False
+    online_entry_data_opt_out_text: Optional[str] = None
     country_code: Optional[str] = None  # ISO 3166-1 alpha-2, ex: PT, ES
     timezone: Optional[str] = None  # IANA, ex: Europe/Lisbon
 
@@ -380,6 +382,8 @@ class RegattaUpdate(BaseModel):
     online_entry_terms_enabled: Optional[bool] = None
     online_entry_terms_title: Optional[str] = None
     online_entry_terms_text: Optional[str] = None
+    online_entry_data_opt_out_enabled: Optional[bool] = None
+    online_entry_data_opt_out_text: Optional[str] = None
     entry_list_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_overall_columns: Optional[Union[List[str], Dict[str, List[str]]]] = None
     results_external_links: Optional[Dict[str, Any]] = None
@@ -518,6 +522,7 @@ class EntryCreate(BaseModel):
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
     accepted_terms: Optional[bool] = None
+    data_promotion_opt_out: Optional[bool] = None
 
     # Tripulantes opcionais (lista de dicts com first_name, last_name, email, etc.)
     crew_members: Optional[List[Dict[str, Any]]] = None
@@ -682,6 +687,8 @@ class EntryListRead(BaseModel):
     regatta_id: int
     paid: Optional[bool] = False
     confirmed: Optional[bool] = False
+    accepted_terms: Optional[bool] = False
+    data_promotion_opt_out: Optional[bool] = False
     confirmed_email_sent_at: Optional[datetime] = None
     crew_members: Optional[List[Dict[str, Any]]] = None
     created_at: Optional[datetime] = None
@@ -1310,6 +1317,8 @@ class EntryPatch(BaseModel):
     regatta_id: Optional[int] = None
     paid: Optional[bool] = None
     confirmed: Optional[bool] = None
+    accepted_terms: Optional[bool] = None
+    data_promotion_opt_out: Optional[bool] = None
     waiting_list: Optional[bool] = None
 
     crew_members: Optional[List[Dict[str, Any]]] = None
